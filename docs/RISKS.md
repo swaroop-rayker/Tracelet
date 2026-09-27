@@ -1,0 +1,295 @@
+# RISKS — Tracelet
+
+**Status:** live document. Update whenever a risk changes state or a spike reports.
+Severity is `impact × likelihood` at the time of writing, reassessed after each spike.
+
+| ID | Risk | Severity | Status |
+|---|---|---|---|
+| R1 | `CF-Ray` colo to metro mapping may be unstable for India | Medium | Open, spike in M3 |
+| R2 | External geo APIs: undocumented limits, ToS, breakage | Medium | Open, mitigated by design |
+| R3 | **rDNS city-code coverage may be too low to carry the accuracy plan** | **High** | **Open, Spike A, blocks M3** |
+| R4 | Geo-database update memory spike could OOM the box | Medium | Open, mitigated by design |
+| R5 | **`fetch(keepalive)` may not survive Instagram webview navigation** | **High** | **Open, Spike B, blocks M2** |
+| R6 | 1 GB steady state under real load; swap thrash | Medium | Open, verified in M9 |
+| R7 | Bot-detection ceiling without JA4 | Medium | Accepted, documented |
+| R8 | Safe Browsing may flag the site regardless | Medium | Accepted, no guaranteed remedy |
+| R9 | 30–60 ground-truth labels give wide confidence intervals | Medium | Accepted, disclosed |
+| R10 | Free-subdomain path is materially weaker than documented parity suggests | Medium | Accepted, owner-chosen |
+| R11 | **VM loss loses everything since the last manual backup download** | **High** | **Accepted, owner-chosen** |
+| R12 | Solo developer: no review, no bus factor | Medium | Accepted, mitigated by CI and docs |
+| R13 | GeoLite2 licence terms and account continuity | Low | Open, monitor |
+| R14 | CARTO basemap tile availability and usage policy | Low | Accepted |
+| R15 | Nominatim usage policy compliance | Low | Mitigated by design |
+| R16 | GCP free-tier egress ceiling (1 GB/month) | Low | Open, monitor |
+| R17 | Fingerprint instability inflates unique-visitor counts | Medium | Accepted, disclosed |
+| R18 | Telegram becomes a security dependency, not just a notifier | Medium | Accepted, mitigated |
+
+---
+
+## R3 — rDNS city-code coverage · **HIGH** · blocks M3
+
+**Risk.** The city-accuracy plan leans heavily on source S6: Indian residential IPs having
+PTR records that encode a metro code (`blr`, `mum`, `hyd`, `maa`, `pnq`,
+`abts-kk-static-*`). S6 is the highest-weighted non-database source and the primary
+corroborator that allows registry-artifact suppression to *not* fire. **If coverage is low,
+the F4.AC13 city targets are unreachable and suppression will collapse most visits to
+admin1.**
+
+**Why it matters more than it looks.** Suppression rule (a) requires corroboration from a
+non-database source. The only three are S1 (consented GPS, unavailable most of the time),
+S6 (rDNS) and S8 (Cloudflare colo, absent on the free-subdomain path). If S6 is thin, city
+coverage depends almost entirely on S8 — and R10 then compounds it.
+
+**Spike A — run during M0/M1, before M3 is written.**
+Sample several hundred Indian residential IPs across Airtel, Jio, ACT, BSNL and Vi. Resolve
+PTR. Measure: what fraction have a PTR at all, what fraction bear a recognisable metro
+code, and per-ISP breakdown. Half a day.
+
+**Decision rule, set in advance so the result is not rationalised:**
+
+| Coverage | Action |
+|---|---|
+| Above 50 % | Proceed as specified |
+| 30–50 % | Proceed, but lower the F4.AC13 city coverage target to match, via a SPEC section 11 amendment |
+| **Below 30 %** | **Amend F4.AC13 before building M3.** Shift city expectation onto S8 + consented GPS, and be explicit that non-consented non-Cloudflare visits will usually abstain at city |
+
+**Result:** _not yet run._
+
+---
+
+## R5 — Instagram webview enrichment survival · **HIGH** · blocks M2
+
+**Risk.** ADR-0004 uses `fetch(url, {keepalive: true})` rather than `sendBeacon` on the
+assumption of better survival across navigation inside in-app WebViews. **If it does not
+survive, `stage='server_only'` becomes the primary path for social traffic, not a
+fallback** — which means no client signals at all for the largest visitor segment: no GPU,
+no screen, no fingerprint, no consented geolocation, no headless detection.
+
+**This does not break the system** — that is precisely what ADR-0004 was designed for. But
+it changes what the data looks like, and it changes which milestones matter.
+
+**Spike B — needs a real phone and a real Instagram bio link.** Cannot be answered from a
+desktop emulator; the WebView behaviour is what is under test. Test both iOS and Android
+Instagram, and ideally LinkedIn and Reddit for comparison.
+
+**If it fails:**
+1. Extend the interstitial for detected webviews (still within the 1500 ms cap) to give the
+   request more time to complete *before* navigation.
+2. Try a synchronous-ish variant: fire enrichment on `visibilitychange` as well as inline.
+3. Accept `server_only` dominance and **lean harder on S8 `CF-Ray` colo** — the one
+   metro-level signal that is entirely client-independent. This makes the purchased-domain
+   path effectively mandatory for useful social-traffic geolocation, which escalates R10.
+4. Record the observed enrichment rate per `webview_host` so F9.AC20 stage-mix reporting is
+   honest about it.
+
+**Result:** _not yet run._
+
+---
+
+## R11 — VM loss loses everything since the last manual download · **HIGH** · accepted
+
+**Risk.** Gate 1 declined a cloud-storage account, so there is no automated off-VM backup
+destination. Off-VM copies are manual downloads from the dashboard (F12.AC11, ADR-0014).
+A VM loss — accidental deletion, account suspension, disk failure, region incident —
+destroys everything since the owner last remembered to download.
+
+**Compounding factor, which is the part that is easy to miss.** The IP encryption key and
+the three HMAC peppers are **deliberately not in the backup** (ADR-0007, ADR-0014). If they
+are not separately preserved out-of-band, then even a successful restore leaves every
+`ip_enc` value permanently unreadable and breaks all historical `visitor_id` linkage.
+**A backup without those secrets is a partial backup.**
+
+**Mitigations in place:** dashboard reminder when the last download exceeds a configurable
+age; a one-time M9 restore drill onto a fresh VM that explicitly includes the out-of-band
+secrets; backups are safe to store anywhere because IP values are ciphertext.
+
+**Retirement path.** Adding a free-tier object-storage target (Cloudflare R2, Backblaze B2)
+is a small integration and **the single highest-value change available in this document.**
+It needs one owner decision to reverse.
+
+---
+
+## R1 — `CF-Ray` colo to metro mapping stability
+
+Cloudflare routes by network topology, not geography. An Indian visitor may be served from
+BLR, BOM, or occasionally further, and assignment can shift with peering changes. So S8 is
+a **regional** hint, not a city fix.
+
+**Mitigation.** Treat colo as an `admin1`-level candidate with a metro *bias*, never as a
+city assertion. Its main job is **corroboration** — allowing suppression rule (a) to stand
+down — not primary city derivation. Weight and mapping live in versioned config.
+
+**Spike, during M3.** Collect colo values from the owner devices across ISPs and over time,
+and measure assignment stability. **Result:** _not yet run._
+
+---
+
+## R2 — External geo APIs: undocumented limits, ToS, breakage
+
+ipwho.is and ip-api.com are used without keys. Limits are undocumented or informal, terms
+can change, and endpoints can disappear. Anything relied upon that we do not pay for and
+have no agreement with is, by definition, unreliable.
+
+**Mitigation, already in the design:** per-source toggles (F4.AC7); cache by /24 prefix so
+repeat visitors cost nothing; hard timeouts; circuit breakers; a source failure degrades
+silently to the remaining sources; outbound budgets (F11.AC7) so a traffic spike cannot
+trigger a ban. **Consequence:** accuracy must never depend on any single external source,
+which the consensus design already enforces.
+
+---
+
+## R4 — Geo-database update memory spike
+
+A database update downloads, decompresses and validates roughly 150 MB against roughly
+379 MB of headroom. **A failed update must never take down the capture endpoint.**
+
+**Mitigation:** stream to disk, never into memory; validate in a **memory-capped
+subprocess**; atomic symlink swap so a failure leaves the previous version serving; schedule
+off-peak; hard `mem_limit` on the `api` container so worst case is one container restart
+rather than an OOM-killed PostgreSQL. Tested explicitly in M3 with a deliberately corrupted
+download.
+
+---
+
+## R6 — 1 GB steady state under real load
+
+Budget says roughly 645 MB steady with roughly 379 MB headroom (ARCHITECTURE section 6).
+That is a projection. Real-world drift, connection-pool growth, fragmentation and swap
+behaviour are unmeasured until M9. **2 GB of swap on a network-attached disk is a cliff, not
+a cushion** — once swapping starts, latency degrades sharply.
+
+**Mitigation:** hard per-container limits; L2 request shedding must engage before the kernel
+swaps (F15.AC6); Argon2 pinned; no numpy/scipy/pandas; every new dependency states its RSS
+before merge. **Escalation order if breached:** reduce to one Uvicorn worker (roughly
+110 MB), then lower `shared_buffers`, then revisit the host — **not** the database.
+
+---
+
+## R7 — Bot-detection ceiling without JA4
+
+JA3/JA4 TLS fingerprinting is the strongest available bot signal because it fingerprints the
+TLS library, which automation cannot easily disguise. Caddy does not expose the handshake
+without a plugin, and terminating TLS elsewhere adds infrastructure. **Deferred out of v1**
+(SPEC amendment 5, ADR-0011).
+
+**Consequence, stated plainly:** a patched Chromium spoofing consistently across UA, UA-CH,
+WebGL, screen, timezone and header order, from a residential proxy, **will be classified
+`human`**. This engine raises cost; it does not stop a determined adversary.
+
+**Substitute shipped:** header-order and HTTP/2 fingerprinting (F5.AC8) — cheap, no extra
+infrastructure, and effective against unmodified HTTP libraries, which is the large majority
+of real automation. **Revisit** if a Caddy JA4 plugin reaches acceptable maturity.
+
+---
+
+## R8 — Safe Browsing may flag the site regardless
+
+B4 has structural causes we fix (no open redirect, valid TLS, headers, no deceptive
+patterns — F13.AC3, F13.AC8) and a reputational cause we cannot: a new domain has no
+history, and a redirect service is an inherently suspicious category.
+
+**There is no guaranteed remedy.** A review request is the only lever, and reviews can be
+declined.
+
+**Compounding:** the free-subdomain path (R10) starts from *inherited* reputation damage —
+DuckDNS and sslip.io subdomains are widely flagged already, and some corporate and mobile
+networks block them outright.
+
+**Record the M9 outcome here whatever it is**, including a negative result, because a
+negative result changes how the link can be used.
+
+---
+
+## R9 — Small ground-truth set, wide confidence intervals
+
+F4.AC13 targets will be measured against 30 to 60 owner-labelled visits. A 95 %
+precision figure over 40 labels has a confidence interval wide enough to contain 87 % and
+99 %. **Any accuracy number Tracelet reports about itself is an estimate with a wide
+interval**, and stating it as a point value would be misleading.
+
+**Mitigation:** `accuracy_runs.label_count` is stored beside every metric, the API returns
+it with every response, and the dashboard displays it next to every figure (F9.AC10,
+API section 11). Labelling candidates are ranked by `conflict_score` so scarce labels are
+spent where they are most informative.
+
+---
+
+## R10 — The free-subdomain path is weaker than "both supported" suggests
+
+Gate 1 asked for both domain paths. They are built, config-switched, and **not
+equivalent**. The free-subdomain path cannot sit behind Cloudflare, so it forfeits:
+
+- Edge TLS — TTFB roughly 1000 ms instead of roughly 300 ms (NFR2)
+- **The `CF-Ray` colo signal (S8)** — measurably lower city coverage, and this compounds R3
+- `CF-IPCountry`
+- L0 DDoS absorption, on a box that 1 vCPU makes trivially floodable
+- Origin IP hiding
+- and it retains the B4 reputation problem
+
+**Accepted as an owner choice.** Documented in ADR-0012, KICKOFF section 3, and here so it
+cannot quietly be treated as a like-for-like option.
+
+---
+
+## R12 — Solo developer
+
+No code review, no second pair of eyes on a security decision, no bus factor.
+
+**Mitigation:** CI is the reviewer that cannot be skipped — `mypy --strict`, lint, real-DB
+integration tests, drift checks, route-name assertion, accuracy regression. Documentation is
+written for a stranger, because in six months that is who the owner will be. ADRs record
+*why*, which is the thing that is lost first. `docs/private/` carries the mental model.
+
+---
+
+## R13 — GeoLite2 licence and account continuity
+
+MaxMind has tightened GeoLite2 access before: it now requires an account, a licence key,
+and acceptance of terms, and access has changed on relatively short notice historically.
+
+**Mitigation:** four independent database sources, so losing one degrades rather than
+breaks. DB-IP Lite needs no signup at all and is the fallback baseline. Attribution
+obligations (DB-IP Lite and GeoNames are CC-BY) are met on the privacy page — **a licence
+breach is a real risk, not a formality** (F2.AC13).
+
+---
+
+## R14 · R15 · R16 · R17 · R18 — lower severity, monitored
+
+**R14 — CARTO basemap.** Free raster tiles with no API key, subject to a usage policy. Two
+admins is trivially within limits. If they change terms, the fallback is OSM raster tiles or
+a MapTiler key, the latter reopening the C6 signup question.
+
+**R15 — Nominatim usage policy.** Requires ≤1 request per second and a descriptive
+User-Agent. Enforced by outbound rate limiting (F11.AC7), caching, and consented-visits-only
+usage. Breaching it risks a block and is simply poor citizenship.
+
+**R16 — GCP egress.** Free tier includes 1 GB/month from North America. 500 small visits a
+day plus dashboard use fits comfortably; map tiles come from CARTO directly to the browser
+and do not count. Monitored on the System Health page.
+
+**R17 — Fingerprint instability.** A browser update or new monitor can mint a new
+`visitor_id` for the same person, inflating unique-visitor counts and occasionally producing
+a duplicate first-visit alert. Bucketing tolerance reduces this (ADR-0006); it cannot
+eliminate it. Unique-visitor figures are presented as estimates.
+
+**R18 — Telegram as a security dependency.** Because Gate 1 declined email, Telegram is both
+the notification channel *and* a password-recovery channel (ADR-0008). Compromise of the
+owner Telegram account enables a password reset. **Mitigation:** the reset flow does **not**
+bypass TOTP, and recovery codes plus the CLI provide two independent paths that do not
+involve Telegram at all.
+
+---
+
+## Spike log
+
+| Spike | Question | Blocks | Run by | Result |
+|---|---|---|---|---|
+| **A** | Indian residential rDNS metro-code coverage | M3 | M0/M1 | _pending_ |
+| **B** | `fetch(keepalive)` survival in the Instagram webview | M2 | M0/M1 | _pending_ |
+| C | `CF-Ray` colo assignment stability for India | — | M3 | _pending_ |
+| D | Latency-triangulation accuracy contribution over S8 | RW-6 decision | M8 | _pending_ |
+| E | Load behaviour and swap pressure at NFR1 on real hardware | NFR1, NFR6 | M9 | _pending_ |
+
+Record every result here, **including negative ones.** A spike that reports "this does not
+work" has done its job and saved the milestone that would have assumed otherwise.

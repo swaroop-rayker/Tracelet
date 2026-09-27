@@ -1,0 +1,230 @@
+#!/usr/bin/env sh
+# ---------------------------------------------------------------------------
+# tl — the Tracelet task runner.
+#
+# This is the SINGLE implementation of every developer task. The Makefile is a
+# thin wrapper that delegates here, so `make verify` and `./scripts/tl verify`
+# always do exactly the same thing.
+#
+# Why a script rather than only a Makefile: the documented dev environment is
+# Windows 11 + Docker via WSL (SPEC C5), and `make` is not present in Git Bash
+# on a stock Windows host. POSIX sh runs in Git Bash, WSL and CI alike.
+#
+# Everything runs inside containers. No Python or Node is required on the host.
+# ---------------------------------------------------------------------------
+set -eu
+
+cd "$(dirname "$0")/.."
+
+DC="docker compose"
+DCT="docker compose --profile tools"
+API_RUN="$DCT run --rm --no-deps api-tools"
+# Flags must precede the service name, and -T is needed whenever stdout is
+# captured rather than attached to a terminal.
+API_RUN_T="$DCT run --rm --no-deps -T api-tools"
+API_RUN_DB="$DCT run --rm api-tools"
+WEB_RUN="$DCT run --rm --no-deps web-tools"
+API_PROD="$DC run --rm api"
+
+red()  { printf '\033[31m%s\033[0m\n' "$1"; }
+grn()  { printf '\033[32m%s\033[0m\n' "$1"; }
+ylw()  { printf '\033[33m%s\033[0m\n' "$1"; }
+step() { printf '\n\033[1m── %s\033[0m\n' "$1"; }
+
+require_env() {
+    if [ ! -f .env ]; then
+        red "No .env found."
+        echo "  cp .env.example .env    then edit the values marked REQUIRED."
+        exit 1
+    fi
+}
+
+# --- tasks -----------------------------------------------------------------
+
+task_bootstrap() {
+    require_env
+    step "Building images"
+    $DCT build
+    step "Starting database"
+    $DC up -d db
+    step "Waiting for database to become healthy"
+    task_waitdb
+    step "Applying migrations"
+    task_migrate
+    step "Creating the first owner admin"
+    ylw "Not yet implemented — arrives in M1 (F8.AC15)."
+    ylw "M1 will print a one-time enrollment URL here. There is no default"
+    ylw "password anywhere in this system, by design."
+    grn "Bootstrap complete. Next: ./scripts/tl up"
+}
+
+task_waitdb() {
+    i=0
+    while [ "$i" -lt 60 ]; do
+        if $DC exec -T db pg_isready -q -U "${POSTGRES_USER:-tracelet}" 2>/dev/null; then
+            grn "Database ready."
+            return 0
+        fi
+        i=$((i + 1))
+        sleep 1
+    done
+    red "Database did not become ready within 60s."
+    $DC logs --tail=50 db
+    exit 1
+}
+
+task_up()      { require_env; $DC up -d; grn "Up. https://${TRACELET_SITE_ADDRESS:-localhost}"; }
+task_down()    { $DC down; }
+task_logs()    { $DC logs -f "$@"; }
+task_ps()      { $DC ps; }
+task_psql()    { $DC exec db psql -U "${POSTGRES_USER:-tracelet}" -d "${POSTGRES_DB:-tracelet}"; }
+task_shell()   { $API_RUN sh; }
+
+# Migrations run in the PRODUCTION image, because that is the one that ships.
+task_migrate() { require_env; $API_PROD alembic upgrade head; }
+
+task_revision() {
+    if [ $# -eq 0 ]; then red "Usage: tl revision \"message\""; exit 1; fi
+    $API_RUN_DB alembic revision --autogenerate -m "$1"
+}
+
+task_fmt() {
+    step "ruff format"
+    $API_RUN ruff format src tests
+    step "ruff check --fix"
+    $API_RUN ruff check --fix src tests
+    step "prettier --write"
+    $WEB_RUN npx prettier --write "src/**/*.{ts,tsx,css}" "*.{json,js,cjs}"
+}
+
+# `verify` is the CI gate, run locally. Same checks, same order.
+task_verify() {
+    require_env
+    failed=""
+
+    step "1/12  ruff check"
+    $API_RUN ruff check src tests || failed="$failed ruff-check"
+
+    step "2/12  ruff format --check"
+    $API_RUN ruff format --check src tests || failed="$failed ruff-format"
+
+    step "3/12  mypy --strict"
+    $API_RUN mypy src tests || failed="$failed mypy"
+
+    step "4/12  pytest unit"
+    $API_RUN pytest tests/unit -q || failed="$failed pytest-unit"
+
+    step "5/12  pytest integration (real PostgreSQL + PostGIS, never mocked)"
+    $DC up -d db >/dev/null 2>&1 || true
+    task_waitdb >/dev/null
+    $API_RUN_DB pytest tests/integration -q || failed="$failed pytest-integration"
+
+    step "6/12  eslint"
+    $WEB_RUN npx eslint src || failed="$failed eslint"
+
+    step "7/12  prettier --check"
+    $WEB_RUN npx prettier --check "src/**/*.{ts,tsx,css}" || failed="$failed prettier"
+
+    step "8/12  tsc --noEmit"
+    $WEB_RUN npx tsc --noEmit || failed="$failed tsc"
+
+    step "9/12  OpenAPI -> TypeScript drift"
+    task_openapi_check || failed="$failed openapi-drift"
+
+    step "10/12 route-name guard (B6: content blockers match URL substrings)"
+    $API_RUN pytest tests/unit/test_route_names.py -q || failed="$failed route-names"
+
+    step "11/12 guard-private-docs"
+    sh scripts/guard_private_docs.sh || failed="$failed guard-private-docs"
+
+    step "12/12 docker build"
+    $DCT build >/dev/null || failed="$failed docker-build"
+
+    echo
+    if [ -n "$failed" ]; then
+        red "FAILED:$failed"
+        exit 1
+    fi
+    grn "All 12 checks passed."
+}
+
+# Regenerate api/openapi.json and web/src/api/generated/schema.d.ts.
+task_openapi() {
+    # Written to a temp file and moved into place only on success. A direct
+    # redirect truncates the committed artefact the instant the command starts, so
+    # any downstream failure leaves an empty file that then looks like real drift.
+    tmp="api/openapi.json.tmp"
+    if ! $API_RUN_T python -m tracelet.cli.export_openapi > "$tmp"; then
+        rm -f "$tmp"
+        red "OpenAPI export failed."
+        return 1
+    fi
+    mv "$tmp" api/openapi.json
+
+    # Relative paths, resolved against the container working directory /work/web.
+    # Absolute container paths must NOT be used here: Git Bash rewrites anything
+    # shaped like a Unix absolute path into a Windows one before the argument ever
+    # reaches docker. See docs/ERRORS.md E6.
+    $WEB_RUN npx openapi-typescript ../api/openapi.json \
+        -o src/api/generated/schema.d.ts
+    grn "Regenerated. Commit both files."
+}
+
+# Fail if the committed artefacts differ from a fresh generation. One source of
+# truth for the API contract (F14.AC9).
+task_openapi_check() {
+    task_openapi >/dev/null
+    if ! git diff --quiet -- api/openapi.json web/src/api/generated/schema.d.ts; then
+        red "OpenAPI drift: committed client does not match the API."
+        red "Run: ./scripts/tl openapi   then commit the result."
+        git --no-pager diff --stat -- api/openapi.json web/src/api/generated/schema.d.ts
+        return 1
+    fi
+    return 0
+}
+
+task_help() {
+    cat <<'EOF'
+tl — Tracelet task runner
+
+  bootstrap   build images, migrate, create the first owner admin
+  up          start everything (docker compose up -d)
+  down        stop everything
+  verify      the full CI gate, locally: 12 checks
+  migrate     alembic upgrade head
+  revision M  create a migration:  tl revision "add visits table"
+  fmt         ruff format + ruff --fix + prettier --write
+  openapi     regenerate the OpenAPI document and the TypeScript client
+  logs [svc]  follow logs
+  ps          container status
+  psql        open a psql shell on the database
+  shell       open a shell in the api container
+  help        this
+
+Same tasks are available as `make <target>` where make is installed.
+EOF
+}
+
+# --- dispatch --------------------------------------------------------------
+
+cmd="${1:-help}"
+[ $# -gt 0 ] && shift
+
+case "$cmd" in
+    bootstrap)     task_bootstrap ;;
+    up)            task_up ;;
+    down)          task_down ;;
+    verify)        task_verify ;;
+    migrate)       task_migrate ;;
+    revision)      task_revision "$@" ;;
+    fmt|format)    task_fmt ;;
+    openapi)       task_openapi ;;
+    openapi-check) task_openapi_check ;;
+    logs)          task_logs "$@" ;;
+    ps)            task_ps ;;
+    psql)          task_psql ;;
+    shell)         task_shell ;;
+    waitdb)        task_waitdb ;;
+    help|-h|--help) task_help ;;
+    *) red "Unknown task: $cmd"; echo; task_help; exit 1 ;;
+esac

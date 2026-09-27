@@ -1,0 +1,157 @@
+# ---------------------------------------------------------------------------
+# Tracelet — three containers, hard memory limits (ADR-0012).
+#
+# Budget on the 1 GB target (docs/ARCHITECTURE.md §6):
+#   host + dockerd  ~180 MB
+#   db               ~210 MB   limit 260 M
+#   api              ~230 MB   limit 420 M
+#   caddy             ~25 MB   limit  64 M
+#   ------------------------------------------
+#   steady state     ~645 MB of 1024 MB, ~379 MB headroom
+#
+# mem_limit is not a formality. It converts the failure mode from "the kernel
+# OOM-killer picks a victim, possibly PostgreSQL mid-write" into "one container
+# restarts and its healthcheck reports it".
+# ---------------------------------------------------------------------------
+
+name: tracelet
+
+services:
+  db:
+    image: postgis/postgis:16-3.4-alpine
+    restart: unless-stopped
+    mem_limit: 260m
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-tracelet}
+      POSTGRES_USER: ${POSTGRES_USER:-tracelet}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required — see .env.example}
+      # Consumed by db/init/01-roles.sql to create the three roles.
+      TRACELET_DB_APP_PASSWORD: ${TRACELET_DB_APP_PASSWORD:?required}
+      TRACELET_DB_MAINT_PASSWORD: ${TRACELET_DB_MAINT_PASSWORD:?required}
+      TRACELET_DB_MIGRATE_PASSWORD: ${TRACELET_DB_MIGRATE_PASSWORD:?required}
+    # Tuned for 1 GB shared with an application server. The conventional
+    # "shared_buffers = 25% of RAM" advice produces an OOM here; 96 MB plus a
+    # large effective_cache_size tells the planner to expect OS page cache to
+    # do the work, which is correct for a dataset this small (ADR-0002).
+    command:
+      - postgres
+      - -c
+      - shared_buffers=96MB
+      - -c
+      - effective_cache_size=256MB
+      - -c
+      - work_mem=4MB
+      - -c
+      - maintenance_work_mem=32MB
+      - -c
+      - max_connections=24
+      - -c
+      - shared_preload_libraries=pg_stat_statements
+      - -c
+      - pg_stat_statements.track=all
+    volumes:
+      - db_data:/var/lib/postgresql/data
+      - ./db/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -q -U ${POSTGRES_USER:-tracelet} -d ${POSTGRES_DB:-tracelet}"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+      start_period: 20s
+
+  api:
+    build:
+      context: ./api
+      # Explicit: the running stack is the production image. No dev toolchain,
+      # no dev dependencies, non-root. Lint, typecheck and tests run in the
+      # profiled api-tools service below.
+      target: production
+    restart: unless-stopped
+    mem_limit: 420m
+    env_file: .env
+    environment:
+      # Set here so the value is correct inside the compose network regardless
+      # of what .env says for host-side tooling.
+      TRACELET_DATABASE_URL: postgresql+asyncpg://tracelet_app:${TRACELET_DB_APP_PASSWORD}@db:5432/${POSTGRES_DB:-tracelet}
+      TRACELET_MIGRATE_DATABASE_URL: postgresql+psycopg://tracelet_migrate:${TRACELET_DB_MIGRATE_PASSWORD}@db:5432/${POSTGRES_DB:-tracelet}
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      - geo_data:/data/geoip
+      - backups:/data/backups
+    # No published ports. Caddy is the only ingress.
+    expose:
+      - "8000"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/healthz', timeout=3).status==200 else 1)"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 20s
+
+  caddy:
+    build:
+      context: .
+      dockerfile: web/Dockerfile
+    restart: unless-stopped
+    mem_limit: 64m
+    environment:
+      TRACELET_SITE_ADDRESS: ${TRACELET_SITE_ADDRESS:-localhost}
+    depends_on:
+      api:
+        condition: service_started
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - caddy_data:/data
+      - caddy_config:/config
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "--timeout=3", "http://127.0.0.1:2019/config/"]
+      interval: 15s
+      timeout: 5s
+      retries: 4
+      start_period: 15s
+
+  # --- toolchain containers -------------------------------------------------
+  # Neither of these is part of the running stack. Both sit behind the "tools"
+  # profile so `up` never starts them, and both exist so that lint, typecheck
+  # and tests need no Python or Node installed on the host.
+
+  # Python toolchain: ruff, mypy, pytest. Source is bind-mounted, so a code
+  # change needs no rebuild. Shares the compose network, so integration tests
+  # reach the real database — never a mock (ES3).
+  api-tools:
+    build:
+      context: ./api
+      target: dev
+    profiles: ["tools"]
+    env_file: .env
+    environment:
+      TRACELET_ENV: development
+      TRACELET_DATABASE_URL: postgresql+asyncpg://tracelet_app:${TRACELET_DB_APP_PASSWORD}@db:5432/${POSTGRES_DB:-tracelet}
+      TRACELET_MIGRATE_DATABASE_URL: postgresql+psycopg://tracelet_migrate:${TRACELET_DB_MIGRATE_PASSWORD}@db:5432/${POSTGRES_DB:-tracelet}
+    working_dir: /app
+    volumes:
+      - ./api:/app:rw
+    command: ["true"]
+
+  # Frontend toolchain: eslint, prettier, tsc, openapi-typescript.
+  web-tools:
+    build:
+      context: ./web
+      dockerfile: Dockerfile.tools
+    profiles: ["tools"]
+    working_dir: /work/web
+    volumes:
+      - ./:/work:rw
+    command: ["true"]
+
+volumes:
+  db_data:
+  caddy_data:
+  caddy_config:
+  geo_data:
+  backups:

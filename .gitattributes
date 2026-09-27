@@ -1,0 +1,36 @@
+# ---------------------------------------------------------------------------
+# Line endings are normalised to LF in the repository, for every text file.
+#
+# This is not cosmetic. The build runs on Linux (containers and CI) while
+# development happens on Windows, and `api/openapi.json` plus
+# `web/src/api/generated/schema.d.ts` are GENERATED artefacts that are committed
+# and then compared byte-for-byte by the CI drift check (F14.AC9).
+#
+# Without this, the same schema generated on Windows (CRLF) and in the container
+# (LF) differ on every line, and the drift check fails permanently for a Windows
+# developer while passing in CI -- reporting a contract mismatch that does not
+# exist. See docs/ERRORS.md E7.
+# ---------------------------------------------------------------------------
+
+* text=auto eol=lf
+
+# Scripts must be LF or they will not execute in a container.
+*.sh      text eol=lf
+scripts/* text eol=lf
+Makefile  text eol=lf
+
+# Generated and committed: byte-compared by CI, so the ending must be pinned.
+api/openapi.json                   text eol=lf linguist-generated=true
+web/src/api/generated/schema.d.ts  text eol=lf linguist-generated=true
+web/package-lock.json              text eol=lf linguist-generated=true
+
+# Binary, never diffed or converted.
+*.png  binary
+*.jpg  binary
+*.ico  binary
+*.woff binary
+*.woff2 binary
+*.mmdb binary
+*.BIN  binary
+*.gz   binary
+*.dump binary

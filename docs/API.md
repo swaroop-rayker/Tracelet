@@ -1,0 +1,492 @@
+# API — Tracelet
+
+**Status:** approved at Gate 3, 2026-09-25.
+Any change to an endpoint, payload, or error shape updates this document **and**
+regenerates the TypeScript client in the same commit. CI fails on drift (F14.AC9).
+
+**Base URL.** `https://{TRACELET_DOMAIN}`
+**Admin API prefix.** `/api/v1`
+**Content type.** `application/json` for all admin routes. `text/html` for the capture
+page and `/privacy`.
+**Time.** Every timestamp is ISO-8601 with an explicit UTC offset.
+**Pagination.** Cursor-based on every list route: `?limit=50&cursor=<opaque>`; the
+response carries `next_cursor`, which is `null` on the last page. **No offset
+pagination** — it is unstable while rows are being inserted.
+
+---
+
+## 1. Route naming rule — not optional
+
+No public path or query key may contain `track`, `collect`, `analytics`, `pixel`,
+`beacon`, or `telemetry`. Content blockers match those substrings in URLs and will
+silently kill the request; that is the root cause of B6, not bot detection. A CI test
+asserts this (F2.AC11, F14.AC11).
+
+This is why the capture route is `/r/{slug}`, enrichment is `/api/v1/s/{nonce}`, and the
+honeypot is `/api/v1/hp/{token}`.
+
+---
+
+## 2. Authentication and authorisation
+
+| Aspect | Behaviour |
+|---|---|
+| Mechanism | Opaque 256-bit session token in a cookie. **No JWT** — ADR-0008 |
+| Cookie | `__Host-tracelet_session`, flags `HttpOnly; Secure; SameSite=Strict; Path=/` |
+| MFA | TOTP mandatory. A session that has not completed TOTP reaches **no** `/api/v1` route except the auth routes |
+| CSRF | Every state-changing request needs `X-CSRF-Token` matching the session secret **and** a valid `Origin` — F8.AC11 |
+| Roles | `owner` full; `analyst` read-only. Checked server-side on every route |
+| Revocation | Immediate, per session |
+
+**Role failures return `403` with `code: "FORBIDDEN_ROLE"`. Unauthenticated requests
+return `401` with `code: "UNAUTHENTICATED"`.** The distinction is deliberate: `403` for a
+valid session lacking rights, `401` for no valid session.
+
+---
+
+## 3. Public capture surface
+
+### `GET /r/{slug}`
+
+The tracking link. **Returns 200 `text/html`, never a 3xx** (F2.AC1) — a 302 offers no
+collection opportunity and is the pattern Safe Browsing classifies as an open
+redirector (B4).
+
+| | |
+|---|---|
+| Auth | None |
+| Rate limit | L2 GCRA per IP prefix (F11.AC2) |
+| Side effects | Commits a `visits` row with `stage='server'` **before responding** (F2.AC2) |
+
+**Responses**
+
+| Status | Meaning |
+|---|---|
+| `200 text/html` | Capture page: notice, privacy link, `Continue now` with the real destination href, `<noscript>` meta-refresh, hidden honeypot, inline nonce-scoped enrichment script |
+| `302` | **Rate-limited only.** Redirects straight to the destination with no capture, recorded as `stage='rate_limited'`. The human is never punished for abuse control (F11.AC3) |
+| `404 text/html` | Unknown, inactive, or archived slug. Leaks nothing about which links exist (F2.AC14) |
+| `503 text/html` | Database unreachable. **Still renders a page that redirects** (F15.AC6) |
+
+The response embeds the enrichment nonce: a single-use HMAC over `visit_id`, the IP
+prefix, and an expiry, with a 60 s TTL (F2.AC6).
+
+---
+
+### `POST /api/v1/s/{nonce}`
+
+Client enrichment. **Additive and always allowed to fail** — nothing visitor-visible
+depends on it (ADR-0004).
+
+**Request**
+
+```json
+{
+  "screen": { "w": 1170, "h": 2532, "dpr": 3.0, "colorDepth": 24, "touchPoints": 5 },
+  "viewport": { "w": 390, "h": 664 },
+  "hardware": { "cores": 6, "deviceMemoryGb": null },
+  "gpu": { "vendor": "Apple Inc.", "renderer": "Apple A16 GPU" },
+  "locale": { "tzIana": "Asia/Kolkata", "tzOffsetMin": 330, "languages": ["en-IN","en"] },
+  "hashes": { "canvas": "…", "audio": "…", "font": "…", "webgl": "…" },
+  "probes": {
+    "webdriver": false, "chromeObject": true, "pluginCount": 0,
+    "permissionsAnomaly": false, "fontCount": 84, "outerWidth": 390
+  },
+  "geolocation": {
+    "state": "granted",
+    "lat": 12.9716, "lng": 77.5946, "accuracyM": 18.0
+  },
+  "honeypot": { "linkClicked": false, "fieldFilled": false },
+  "timing": { "pageLoadMs": 142, "collectMs": 37 }
+}
+```
+
+Every field is optional. **The payload is attacker-controlled and treated only as a
+claim** — it is cross-checked against server-observed signals, never trusted
+(ARCHITECTURE section 5.2).
+
+| Status | Meaning |
+|---|---|
+| `204` | Merged. Visit finalised, `stage='enriched'` |
+| `410` | Nonce expired, already consumed, or bound to a different prefix. Logged |
+| `413` | Payload above cap |
+| `422` | Schema violation. Field-level `errors` returned |
+| `429` | Over limit |
+
+### `GET /api/v1/hp/{token}`
+
+Stealth honeypot (F5.AC6). Always returns `204` regardless of outcome, so a probe learns
+nothing. Records the hit and marks the visit as automation. Deliberately not named in a
+way a filter list would match.
+
+### `GET /privacy`
+
+Public privacy notice (F2.AC13). Lists every data category collected, every inference
+source **including any enabled external service**, retention periods, and the required
+CC-BY attributions for DB-IP Lite and GeoNames.
+
+### `GET /healthz` · `GET /readyz`
+
+No auth, no detail. `/healthz` is liveness. `/readyz` returns `503` when the database is
+unreachable or migrations are pending (F15.AC5).
+
+---
+
+## 4. Admin authentication
+
+| Method | Path | Role | Purpose |
+|---|---|---|---|
+| `POST` | `/api/v1/auth/login` | — | Step 1. `{email, password}` → `200 {mfa_token, expires_at}` |
+| `POST` | `/api/v1/auth/mfa` | — | Step 2. `{mfa_token, code}` → `204` + `Set-Cookie` |
+| `POST` | `/api/v1/auth/recovery-code` | — | `{email, code}` → `204` + session. Single-use |
+| `POST` | `/api/v1/auth/logout` | any | `204`, revokes the current session |
+| `GET` | `/api/v1/auth/me` | any | Current admin, role, TOTP state, theme, timezone |
+| `POST` | `/api/v1/auth/reset/request` | — | `{email}` → **always `202`**. Telegram-delivered link |
+| `POST` | `/api/v1/auth/reset/confirm` | — | `{token, new_password}` → `204` |
+| `POST` | `/api/v1/auth/password` | any | `{current_password, new_password}` → `204` |
+| `POST` | `/api/v1/auth/totp/enroll` | any | `200 {secret, otpauth_uri, recovery_codes[]}` — **returned exactly once** |
+| `POST` | `/api/v1/auth/totp/confirm` | any | `{code}` → `204`, activates the account |
+| `POST` | `/api/v1/auth/totp/regenerate-codes` | any | New 10 codes, invalidates the old set |
+| `GET` | `/api/v1/auth/sessions` | any | Own active sessions |
+| `DELETE` | `/api/v1/auth/sessions/{id}` | any | Revoke one |
+
+**Login, reset-request and recovery-code responses are identical in body and
+indistinguishable in timing for existing and non-existing accounts**, including a dummy
+Argon2 verification on unknown identifiers (F8.AC10). `/auth/reset/request` returns
+`202` whether or not the account exists — that is enumeration resistance, not a bug.
+
+Rate limits: `login` and `mfa` 5 per 15 min per identifier and 20/hr per prefix;
+`reset/request` 3/hr per identifier (F8.AC9).
+
+---
+
+## 5. Admin management — `owner` only
+
+| Method | Path | Purpose |
+|---|---|---|
+| `GET` | `/api/v1/admins` | List |
+| `POST` | `/api/v1/admins` | `{email, display_name, role}` → `201`. Creates `pending_enrollment`. **No password is ever set here** (F8.AC15) |
+| `PATCH` | `/api/v1/admins/{id}` | Role, status, display name |
+| `DELETE` | `/api/v1/admins/{id}` | Refused for the last active owner → `409 LAST_OWNER` (F8.AC13) |
+| `POST` | `/api/v1/admins/{id}/enrollment-token` | `201 {url, expires_at}`, single-use |
+| `POST` | `/api/v1/admins/{id}/telegram/verify` | Begin verification of the recovery chat |
+
+Every call writes an `audit_log` row.
+
+---
+
+## 6. Tracking links
+
+| Method | Path | Role | Purpose |
+|---|---|---|---|
+| `GET` | `/api/v1/links` | any | List with per-link visit counts |
+| `POST` | `/api/v1/links` | owner | Create |
+| `GET` | `/api/v1/links/{id}` | any | Detail |
+| `PATCH` | `/api/v1/links/{id}` | owner | Update. Destination change is audit-logged with old and new (F1.AC8) |
+| `POST` | `/api/v1/links/{id}/clone` | owner | Rotate a burned slug, keeping configuration (F1.AC9) |
+| `POST` | `/api/v1/links/{id}/default` | owner | Set default; clears the previous atomically |
+| `POST` | `/api/v1/links/{id}/archive` | owner | Archive |
+| `DELETE` | `/api/v1/links/{id}` | owner | `409 LINK_HAS_VISITS` if referenced — archive instead (F1.AC10) |
+
+**Create / update body**
+
+```json
+{
+  "slug": "ig-bio",
+  "label": "Instagram bio",
+  "destination_url": "https://example.com/landing",
+  "is_active": true,
+  "interstitial_ms": 700,
+  "notify_policy": { "inside": "high", "outside": "normal", "automated": "silent" }
+}
+```
+
+`destination_url` validation: `https` scheme, publicly-resolvable host, no embedded
+credentials, length ≤ 2048 (F1.AC2). A rejection returns `422` with a field-level error.
+
+**The destination is only ever read from this row. Never from a request parameter,
+header, or path** (F1.AC7, F13.AC3).
+
+---
+
+## 7. Visits
+
+### `GET /api/v1/visits`
+
+Filters, all optional and composable (F9.AC13):
+
+`from`, `to`, `link_id`, `classification` (repeatable), `country_code`, `admin1`,
+`city`, `asn`, `device_class`, `connection_class`, `consent_state`, `geofence_id`,
+`visitor_id`, `stage`, `min_confidence_admin1`, `min_confidence_city`, `has_gps`,
+`is_proxy_suspected`, `include_automated` (**default `false`**), `webview_host`,
+`search`, `limit`, `cursor`, `sort`.
+
+`include_automated` defaults to `false` so bots and crawlers do not pollute the default
+view; the flag makes their exclusion explicit rather than hidden.
+
+**Response item** (summary form)
+
+```json
+{
+  "id": "018f…",
+  "occurred_at": "2026-09-25T14:03:11.482+00:00",
+  "link": { "id": "018f…", "slug": "ig-bio", "label": "Instagram bio" },
+  "stage": "enriched",
+  "classification": "human",
+  "bot_score": 4,
+  "spoof_score": 0,
+  "location": {
+    "strict":   { "country_code": "IN", "admin1": "Karnataka", "admin2": null, "city": null },
+    "advisory": { "country_code": "IN", "admin1": "Karnataka", "admin2": "Bangalore Urban", "city": "Bengaluru" },
+    "confidence": { "country": 0.99, "admin1": 0.91, "admin2": 0.62, "city": 0.58 },
+    "abstain_reason": { "city": "registry_artifact", "admin2": "below_threshold" },
+    "primary_source": "rdns",
+    "has_gps": false
+  },
+  "network": {
+    "asn": 24560, "asn_org": "Bharti Airtel", "asn_type": "broadband",
+    "connection_class": "broadband", "ip_prefix": "203.0.113.0/24",
+    "is_datacenter": false, "is_vpn_suspected": false, "is_proxy_suspected": false
+  },
+  "device": {
+    "class": "mobile", "os": "Android 14", "browser": "Chrome 131",
+    "is_inapp_webview": true, "webview_host": "instagram",
+    "screen": "1080x2400", "cpu_cores": 8, "device_memory_gb": null,
+    "gpu_renderer": "Adreno (TM) 740"
+  },
+  "geofence": { "state": "outside", "matched": [] },
+  "visitor_id": "9f2c…",
+  "is_returning": false
+}
+```
+
+Note what the example shows: **strict abstained at city with reason
+`registry_artifact`, while advisory still reports Bengaluru.** That is RW-1 and
+F4.AC12(a) working as designed — the engine records its guess without acting on it.
+
+### `GET /api/v1/visits/{id}`
+
+Full detail. Adds `candidates[]` (every source, its candidate, weight,
+accepted/suppressed with reason, latency — F4.AC11), `signals[]` (every fired
+classification rule with weight and evidence — F5.AC2), all raw client fields,
+`inference_version`, `classifier_version`, `trace_id`, and `ground_truth_label` when one
+exists.
+
+### `GET /api/v1/visits/{id}/ip` — `owner` only
+
+Decrypts and returns the IP for one visit.
+
+| Status | Meaning |
+|---|---|
+| `200 {"ip": "…", "decrypted_at": "…"}` | **Writes an `audit_log` row naming actor and visit** (F12.AC4) |
+| `403` | Not `owner` |
+| `410` | `IP_PURGED` — past its TTL. Expected, not an error condition |
+| `429` | Decrypt rate limit |
+
+### `GET /api/v1/visits/{id}/export` · `GET /api/v1/visits/export`
+
+Per-visit data-subject export (F12.AC14), and bulk export honouring active filters as
+`csv` or `ndjson`, **streamed** rather than buffered (F9.AC15). Exports contain no
+plaintext IP, ever.
+
+---
+
+## 8. Analytics
+
+All read from nightly rollups, not raw rows (F9.AC19). **Every response includes a
+`stage_mix` object** stating what it was computed over, so a chart cannot silently
+mislead when enrichment coverage shifts (F9.AC20).
+
+| Method | Path | Returns |
+|---|---|---|
+| `GET` | `/api/v1/analytics/summary` | KPIs with period-over-period deltas (F9.AC2) |
+| `GET` | `/api/v1/analytics/timeseries` | `?metric=&bucket=hour\|day&split_by=` (F9.AC3) |
+| `GET` | `/api/v1/analytics/breakdown` | `?dimension=country\|admin1\|city\|asn\|isp\|device_class\|browser\|os\|screen\|connection_class\|classification` (F9.AC4) |
+| `GET` | `/api/v1/analytics/geo` | Choropleth counts + clustered points (F9.AC5) |
+| `GET` | `/api/v1/analytics/calendar` | Daily counts for the heatmap (F9.AC6) |
+| `GET` | `/api/v1/analytics/source-flow` | Sankey nodes and links: source → emitted level (F9.AC7) |
+| `GET` | `/api/v1/analytics/funnel` | requests → server → enriched → consented → notified (F9.AC8) |
+| `GET` | `/api/v1/analytics/confidence` | Confidence histograms per level (F9.AC9) |
+| `GET` | `/api/v1/analytics/signals` | Bot-signal firing frequency, ranked (F9.AC11) |
+| `GET` | `/api/v1/analytics/accuracy` | Current precision and coverage per level, **with `label_count`** (F9.AC10) |
+| `GET` | `/api/v1/analytics/visitor/{visitor_id}` | Every visit for one visitor, with location drift (F9.AC12) |
+
+`/analytics/accuracy` always returns `label_count` alongside every metric. A precision
+figure computed over 30 labels is not the same claim as one computed over 3000, and the
+API must not let a caller forget that (RISKS R9).
+
+---
+
+## 9. Geofences
+
+| Method | Path | Role | Purpose |
+|---|---|---|---|
+| `GET` | `/api/v1/geofences` | any | List, GeoJSON geometry included |
+| `POST` | `/api/v1/geofences` | owner | Create |
+| `GET`/`PATCH`/`DELETE` | `/api/v1/geofences/{id}` | any / owner / owner | |
+| `POST` | `/api/v1/geofences/test` | any | `{lat, lng}` → matching zones, **creates no visit** (F6.AC10) |
+| `POST` | `/api/v1/geofences/import` | owner | GeoJSON `FeatureCollection` (F6.AC9) |
+| `GET` | `/api/v1/geofences/export` | any | GeoJSON |
+
+**Create body**
+
+```json
+{
+  "name": "Home 2km",
+  "shape_kind": "circle",
+  "center": { "lat": 12.9716, "lng": 77.5946 },
+  "radius_m": 2000,
+  "priority": 100,
+  "is_active": true,
+  "notify_on_enter": true,
+  "notify_priority": "high",
+  "link_ids": null
+}
+```
+
+Polygons are supplied as GeoJSON `Polygon`. Validation errors are specific:
+`422 GEOFENCE_INVALID_GEOMETRY` for a self-intersecting ring, `422
+GEOFENCE_TOO_MANY_VERTICES` above 2000 (F6.AC4).
+
+---
+
+## 10. System health and operations
+
+| Method | Path | Role | Purpose |
+|---|---|---|---|
+| `GET` | `/api/v1/health/system` | any | CPU %, RAM, swap, disk, load, uptime, DB size, **temperature or `null` with a reason** (F10.AC1, RW-5) |
+| `GET` | `/api/v1/health/databases` | any | Each geo database: version, dates, size, sha256, staleness verdict (F10.AC3) |
+| `POST` | `/api/v1/health/databases/{name}/update` | owner | `202` job. Streams, verifies, atomic swap. Failure leaves the previous version serving (F10.AC4) |
+| `PATCH` | `/api/v1/health/databases/{name}` | owner | Enable or disable |
+| `GET` | `/api/v1/health/inference` | any | Active settings version: source toggles, weights, thresholds |
+| `PATCH` | `/api/v1/health/inference` | owner | Creates a **new version**; old versions retained for rollback (F4.AC14) |
+| `POST` | `/api/v1/health/inference/rollback/{version}` | owner | Reactivate an earlier version |
+| `GET` | `/api/v1/health/inference/flow` | any | Flow-diagram model: levels, order, enabled state, optional `?sample_visit_id=` to overlay what actually fired (F10.AC8) |
+| `GET`/`PATCH` | `/api/v1/health/retention` | any / owner | Retention periods (F10.AC12) |
+| `POST` | `/api/v1/health/retention/preview` | owner | **Dry run: exact counts that would be deleted, deletes nothing** |
+| `POST` | `/api/v1/health/retention/purge` | owner | `202` job. Batched, transactional, audit-logged with real counts |
+| `GET` | `/api/v1/health/backups` | any | List with status, size, checksum, last restore-verify result |
+| `POST` | `/api/v1/health/backups` | owner | `202` manual backup |
+| `GET` | `/api/v1/health/backups/{id}/download` | owner | Streamed. **The only off-VM path** (F12.AC11) |
+| `POST` | `/api/v1/health/backups/{id}/verify-restore` | owner | `202`. Restores into a scratch schema and asserts row counts (F12.AC10) |
+| `GET` | `/api/v1/health/outbox` | any | Depth, in-flight, failed, dead with last error (F10.AC13) |
+| `POST` | `/api/v1/health/outbox/{id}/retry` | owner | Requeue a dead job |
+| `POST` | `/api/v1/health/telegram/test` | owner | Send a test message (F7.AC8) |
+| `GET` | `/api/v1/health/degradation` | any | Active degradation conditions for the banner (F10.AC14) |
+| `GET`/`PATCH` | `/api/v1/health/ratelimits` | any / owner | Limits, editable without redeployment (F11.AC9) |
+
+`/health/retention/preview` exists because a purge is irreversible. **The UI must call
+preview before purge**; the API does not enforce ordering, but the dashboard does and
+the audit log records both.
+
+---
+
+## 11. Ground truth and accuracy
+
+| Method | Path | Role | Purpose |
+|---|---|---|---|
+| `GET` | `/api/v1/ground-truth` | any | List labels with the engine prediction beside each |
+| `POST` | `/api/v1/ground-truth` | owner | Label a visit (F4.AC15) |
+| `PATCH`/`DELETE` | `/api/v1/ground-truth/{id}` | owner | |
+| `GET` | `/api/v1/ground-truth/candidates` | any | Visits worth labelling, prioritised by disagreement — highest information gain first |
+| `GET` | `/api/v1/ground-truth/metrics` | any | Precision and coverage per level, per source, with `label_count` |
+
+`/ground-truth/candidates` ranks by `conflict_score` descending: labelling the visits
+where sources disagreed most teaches the tuning process more per label than labelling
+easy ones. With only 30 to 60 labels available, which ones you spend effort on matters.
+
+---
+
+## 12. Error contract
+
+RFC 9457 Problem Details, from a typed exception hierarchy through a single handler
+(F15.AC1, ES4, ADR-0013).
+
+```json
+{
+  "type": "https://tracelet/errors/validation-failed",
+  "title": "Validation failed",
+  "status": 422,
+  "detail": "One or more fields are invalid.",
+  "instance": "/api/v1/links",
+  "code": "VALIDATION_FAILED",
+  "trace_id": "01JBQ8X2K9YV3M7N4P6R8T0W2Z",
+  "errors": [
+    { "field": "destination_url", "code": "SCHEME_NOT_HTTPS", "message": "Destination must use https." },
+    { "field": "interstitial_ms", "code": "OUT_OF_RANGE", "message": "Must be between 300 and 1500." }
+  ]
+}
+```
+
+**A 5xx returns only `type`, `title`, `status`, `code` and `trace_id`.** No stack trace,
+no SQL, no internal hostname (F15.AC3). The detail is written to the log under the same
+`trace_id`, which is how a user report becomes diagnosable from one identifier
+(F15.AC2).
+
+### 12.1 Catalogue
+
+| Code | Status | Meaning |
+|---|---|---|
+| `VALIDATION_FAILED` | 422 | Schema or field violation; `errors[]` populated |
+| `UNAUTHENTICATED` | 401 | No valid session |
+| `MFA_REQUIRED` | 401 | Password accepted, TOTP outstanding |
+| `MFA_INVALID` | 401 | Wrong or replayed code |
+| `TOTP_NOT_ENROLLED` | 403 | Enrolment incomplete; no dashboard access (F8.AC4) |
+| `FORBIDDEN_ROLE` | 403 | Valid session, insufficient role |
+| `CSRF_INVALID` | 403 | Missing or mismatched token, or bad `Origin` |
+| `ACCOUNT_LOCKED` | 423 | Too many failures; `Retry-After` set |
+| `NOT_FOUND` | 404 | Resource absent or not visible to this caller |
+| `LAST_OWNER` | 409 | Would leave zero active owners (F8.AC13) |
+| `LINK_HAS_VISITS` | 409 | Delete refused; archive instead (F1.AC10) |
+| `DEFAULT_LINK_REQUIRED` | 409 | Would leave no default link |
+| `NONCE_INVALID` | 410 | Enrichment nonce expired, consumed, or mismatched |
+| `IP_PURGED` | 410 | Encrypted IP past its TTL. **Expected, not a fault** |
+| `GEOFENCE_INVALID_GEOMETRY` | 422 | Failed `ST_IsValid` |
+| `GEOFENCE_TOO_MANY_VERTICES` | 422 | Above 2000 |
+| `PAYLOAD_TOO_LARGE` | 413 | Body above cap |
+| `RATE_LIMITED` | 429 | `Retry-After` set (F11.AC10) |
+| `GEO_DB_UNAVAILABLE` | 503 | A source is missing or corrupt; inference degraded, not failed |
+| `EXTERNAL_SOURCE_UNAVAILABLE` | 503 | Circuit breaker open. Informational |
+| `DEPENDENCY_UNAVAILABLE` | 503 | Database or another hard dependency down |
+| `INTERNAL_ERROR` | 500 | Unexpected. `trace_id` only |
+
+### 12.2 Errors on the capture path
+
+**The capture path never returns a JSON error to a visitor.** A visitor sees a page that
+redirects, or a 404. Any internal failure is logged and the redirect still happens
+(F15.AC7, NFR3.AC2). The JSON contract above governs `/api/v1` only.
+
+---
+
+## 13. Rate limits
+
+| Route class | Limit | Key |
+|---|---|---|
+| `GET /r/{slug}` | 30/min, 300/hr, burst 10 | IP prefix |
+| `POST /api/v1/s/{nonce}` | Once per nonce, ever (F11.AC4) | nonce |
+| `GET /api/v1/hp/{token}` | 10/min | IP prefix |
+| `POST /api/v1/auth/login`, `/auth/mfa` | 5 per 15 min; 20/hr | identifier; IP prefix |
+| `POST /api/v1/auth/reset/request` | 3/hr | identifier |
+| `GET /api/v1/visits/{id}/ip` | 10/hr | admin |
+| All other `/api/v1` | 120/min | session |
+| **Outbound** Nominatim | 1/s, cached | global |
+| **Outbound** external geo APIs | per-source budget + breaker | global |
+| **Outbound** Telegram | per-bot budget + backoff | global |
+
+Both directions are covered, which is the brief requirement for upstream and downstream
+limiting (F11.AC7). State lives in PostgreSQL so both Uvicorn workers share one
+allowance (F11.AC8). All limits are editable without redeployment, and every change is
+audit-logged (F11.AC9).
+
+---
+
+## 14. Client generation
+
+The TypeScript client and its zod schemas are generated from the FastAPI OpenAPI
+document by `openapi-typescript`. **CI regenerates and fails if the committed output
+differs** (F14.AC9). Consequences to respect:
+
+- Never hand-edit `web/src/api/generated/*`.
+- A response-model change is an API change: update this document in the same commit.
+- Generated types prove the **contract**; the zod schemas validate the **payload** at
+  runtime. Both exist on purpose — a schema drift should surface as a caught validation
+  error, not a `TypeError` deep in a chart component.

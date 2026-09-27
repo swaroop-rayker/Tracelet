@@ -1,0 +1,27 @@
+# ---------------------------------------------------------------------------
+# Frontend toolchain container: eslint, prettier, tsc, openapi-typescript.
+#
+# Exists so the CI gate needs no Node on the host. Never part of the running
+# stack — it sits behind the compose "tools" profile.
+#
+# Build context is ./web. The repository is bind-mounted at /work at run time,
+# so a source change needs no rebuild.
+# ---------------------------------------------------------------------------
+
+FROM node:24-alpine
+
+WORKDIR /toolchain
+
+# Dependencies are installed into the image, and the repo is mounted at /work.
+# node_modules therefore lives outside the mount, which also avoids the classic
+# Windows-bind-mount problem of a host node_modules shadowing the container's.
+COPY package.json package-lock.json* ./
+RUN if [ -f package-lock.json ]; then npm ci; else npm install; fi
+
+# Make the toolchain resolvable from any working directory, including /work/web.
+ENV NODE_PATH=/toolchain/node_modules
+ENV PATH="/toolchain/node_modules/.bin:${PATH}"
+
+WORKDIR /work/web
+
+CMD ["true"]

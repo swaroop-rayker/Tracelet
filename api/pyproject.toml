@@ -1,0 +1,148 @@
+[project]
+name = "tracelet"
+version = "0.1.0"
+description = "Visitor intelligence platform — capture surface and admin dashboard API"
+requires-python = ">=3.13"
+
+# ---------------------------------------------------------------------------
+# Runtime dependencies.
+#
+# ES5: no new dependency without justification. The reasoning for each, and the
+# alternative that was rejected, is in docs/ARCHITECTURE.md §8 (Dependency
+# Ledger). Do not add anything here without adding it there in the same change.
+#
+# Only what M0 actually uses is installed. Later milestones add their own
+# (jinja2 M2, cryptography/argon2-cffi/pyotp M1-M2, geoip2/IP2Location M3,
+# psutil M7, httpx runtime M1). Installing unused packages would waste memory on
+# a 1 GB box and hide which milestone owns which dependency.
+#
+# Versions are pinned to a compatible range rather than an exact version: there
+# is no lock-file tool in this project, and a narrow range is reproducible
+# enough for a single-maintainer deployment without adding one.
+# ---------------------------------------------------------------------------
+dependencies = [
+    "fastapi>=0.115,<0.121",
+    "uvicorn[standard]>=0.34,<0.40",
+    "gunicorn>=23.0,<24.0",
+    "pydantic>=2.9,<3.0",
+    "pydantic-settings>=2.6,<3.0",
+    "sqlalchemy[asyncio]>=2.0.36,<2.1",
+    "alembic>=1.14,<2.0",
+    "asyncpg>=0.30,<0.31",
+    # psycopg (sync) is used by Alembic only. asyncpg drives the application.
+    "psycopg[binary]>=3.2,<4.0",
+    "structlog>=24.4,<26.0",
+    "python-ulid>=3.0,<4.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.3,<9.0",
+    "pytest-asyncio>=0.24,<1.2",
+    "httpx>=0.28,<0.29",
+    "ruff>=0.8,<0.16",
+    "mypy>=1.13,<2.0",
+]
+
+[project.scripts]
+tracelet = "tracelet.cli.main:main"
+
+[build-system]
+requires = ["setuptools>=75"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+# ---------------------------------------------------------------------------
+# Ruff — lint and format (ES2)
+# ---------------------------------------------------------------------------
+[tool.ruff]
+src = ["src", "tests"]
+line-length = 100
+target-version = "py313"
+
+[tool.ruff.lint]
+select = [
+    "E", "W",   # pycodestyle
+    "F",        # pyflakes
+    "I",        # isort
+    "N",        # pep8-naming
+    "UP",       # pyupgrade
+    "B",        # bugbear
+    "C4",       # comprehensions
+    "SIM",      # simplify
+    "RET",      # return
+    "PTH",      # use pathlib
+    "S",        # bandit — security
+    "ARG",      # unused arguments -- catches a parameter left behind by a refactor
+    "BLE",      # blind except: every bare `except Exception` must be justified
+    "PLC0415",  # import not at top of file
+    "PLW0603",  # global statement
+    "ASYNC",    # ★ flake8-async: catches blocking calls inside coroutines.
+                #   This is the CI lint rule promised in ADR-0001; a sync call
+                #   in an async handler stalls every concurrent request on that
+                #   worker, and is invisible until the system is under load.
+    "ANN",      # ★ flake8-annotations: enforces "typed everywhere" (ES1)
+    "RUF",
+]
+ignore = [
+    "ANN401",   # Any in **kwargs — unavoidable in a few ASGI signatures
+    "S101",     # assert — intended in tests, narrowed below
+    "E501",     # line length is the formatter's job, not the linter's
+]
+
+[tool.ruff.lint.per-file-ignores]
+# N818 wants every exception named *Error. Deviated from deliberately here: each
+# class name mirrors its wire-format `code` exactly (NotFound -> NOT_FOUND,
+# IpPurged -> IP_PURGED), which keeps the catalogue in docs/API.md §12.1 readable
+# and makes drift between code and docs obvious. "ValidationFailedError" and
+# "LastOwnerError" would obscure that mapping for no real gain.
+"src/tracelet/errors.py" = ["N818"]
+"tests/**" = [
+    "S101",     # asserts are the point
+    "S105",     # hard-coded test values that look like secrets
+    "S106",
+    "ANN201",   # test functions need no return annotation
+]
+"alembic/**" = [
+    "ANN",      # generated migration scaffolding
+    "INP001",
+]
+
+[tool.ruff.lint.isort]
+known-first-party = ["tracelet"]
+
+# ---------------------------------------------------------------------------
+# mypy — strict (ES1)
+# ---------------------------------------------------------------------------
+[tool.mypy]
+python_version = "3.13"
+strict = true
+warn_unreachable = true
+warn_unused_ignores = true
+disallow_any_explicit = false          # Pydantic and ASGI boundaries need it
+plugins = ["pydantic.mypy"]
+mypy_path = "src"
+packages = ["tracelet"]
+exclude = ["^alembic/versions/"]
+
+# No bare `type: ignore`. CLAUDE.md §3 requires an inline reason, which means a
+# specific error code, which this enforces.
+enable_error_code = ["ignore-without-code", "redundant-expr", "truthy-bool"]
+
+[[tool.mypy.overrides]]
+module = ["tests.*"]
+disallow_untyped_defs = true
+
+# ---------------------------------------------------------------------------
+# pytest
+# ---------------------------------------------------------------------------
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+filterwarnings = ["error"]
+markers = [
+    "integration: needs a real PostgreSQL + PostGIS instance (never mocked, ES3)",
+]

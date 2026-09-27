@@ -1,0 +1,63 @@
+# ---------------------------------------------------------------------------
+# Tracelet — root .gitignore
+# ---------------------------------------------------------------------------
+
+# Private, never-committed documentation track (see docs/private/00-README.md).
+# Also self-guarded by docs/private/.gitignore and enforced by CI
+# (.github/workflows/ci.yml :: guard-private-docs).
+docs/private/
+
+# Secrets & environment
+.env
+.env.*
+!.env.example
+secrets/
+*.key
+*.pem
+!**/testdata/**/*.pem
+
+# GeoIP / GeoNames databases (downloaded at runtime, never committed)
+data/geoip/
+data/geonames/
+*.mmdb
+*.BIN
+
+# Backups
+backups/
+*.dump
+*.sql.gz
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+.coverage
+coverage.xml
+htmlcov/
+dist/
+build/
+*.egg-info/
+
+# Node / frontend
+node_modules/
+web/dist/
+web/.vite/
+*.tsbuildinfo
+
+# Editors & OS
+.idea/
+.vscode/*
+!.vscode/extensions.json
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Logs & local scratch
+*.log
+logs/
+scratch/
+tmp/

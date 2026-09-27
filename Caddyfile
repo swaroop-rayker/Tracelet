@@ -1,0 +1,117 @@
+# ---------------------------------------------------------------------------
+# Tracelet — Caddy configuration.
+#
+# Caddy is the only ingress. It terminates TLS, applies layer-1 limits and
+# baseline security headers, serves the built SPA as static files, and proxies
+# the API and capture surfaces to the app.
+#
+# One variable selects the deployment mode (ADR-0012, F13.AC5):
+#   TRACELET_SITE_ADDRESS=localhost              → dev, Caddy internal CA
+#   TRACELET_SITE_ADDRESS=tracelet.example.com   → purchased domain, Let's Encrypt
+#   TRACELET_SITE_ADDRESS=tracelet.duckdns.org   → free subdomain, DEGRADED MODE
+# ---------------------------------------------------------------------------
+
+{
+	# No `email` directive, deliberately. Caddy's {$VAR:default} substitutes only
+	# when the variable is UNSET, not when it is set-but-empty -- and compose always
+	# sets it -- so an unconfigured TRACELET_ACME_EMAIL produced `email` with no
+	# argument and Caddy refused the whole config in a restart loop (docs/ERRORS.md
+	# E5). A placeholder default would be worse: Let's Encrypt would reject
+	# `admin@localhost` on a real domain, breaking certificate issuance instead of
+	# the config.
+	#
+	# The ACME contact address is optional and Let's Encrypt discontinued expiry
+	# notification emails in 2025, so it now buys nothing. Removing the knob removes
+	# a way to silently break TLS.
+
+	# Admin API bound to loopback only — it is the container healthcheck target
+	# and must never be reachable from outside.
+	admin 127.0.0.1:2019
+
+	servers {
+		# Do not trust any client-supplied forwarding header. The real peer is
+		# passed to the app explicitly as X-Tracelet-Peer-IP below.
+		trusted_proxies static private_ranges
+	}
+}
+
+{$TRACELET_SITE_ADDRESS:localhost} {
+	encode zstd gzip
+
+	# --- Baseline security headers, every response (F13.AC1, F13.AC2) -------
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		Cross-Origin-Opener-Policy "same-origin"
+		X-Frame-Options "DENY"
+
+		# geolocation=(self) is deliberate and load-bearing: F4.AC1 asks the
+		# visitor for location permission on the capture page. A restrictive
+		# default here would silently disable consent collection.
+		Permissions-Policy "geolocation=(self), camera=(), microphone=(), payment=(), usb=(), magnetometer=(), gyroscope=()"
+
+		-Server
+	}
+
+	# --- Layer 1 limits (ADR-0010) ------------------------------------------
+	request_body {
+		max_size 64KB
+	}
+
+	# --- Application surfaces ------------------------------------------------
+	# /r/*     capture (M2)      /api/*  admin API + enrichment
+	# /privacy public notice     /healthz /readyz  probes
+	#
+	# Route names are deliberately boring. Never introduce a public path or
+	# query key containing track, collect, analytics, pixel, beacon or
+	# telemetry — content blockers match those substrings and silently kill the
+	# request (B6, F2.AC11). A CI test asserts this.
+	@app path /api/* /r/* /privacy /healthz /readyz
+	handle @app {
+		reverse_proxy api:8000 {
+			# The actual TCP peer as Caddy sees it, overwriting anything the
+			# client sent. The app uses this to decide whether CF-Connecting-IP
+			# may be trusted: only when this address is a verified Cloudflare
+			# range (F13.AC6). Because Caddy sets it from {remote_host} rather
+			# than copying a request header, it cannot be forged.
+			header_up X-Tracelet-Peer-IP {remote_host}
+
+			header_up X-Forwarded-Proto {scheme}
+			header_up Host {host}
+
+			# The redirect must never fail (CLAUDE.md invariant 1). Fail fast
+			# rather than hanging a visitor on a wedged upstream.
+			transport http {
+				dial_timeout 3s
+				response_header_timeout 10s
+			}
+		}
+	}
+
+	# --- Single-page application --------------------------------------------
+	handle {
+		# The SPA is built by Vite to external JS and CSS with no inline script,
+		# so 'self' is sufficient and no nonce is required here. The capture page
+		# is server-rendered by the app with inline critical CSS, and the app
+		# sets its own nonce-based CSP on that response (M2, F13.AC2).
+		header Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; font-src 'self'; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
+
+		root * /srv
+		try_files {path} /index.html
+		file_server
+
+		# Hashed Vite assets are immutable; index.html must never be cached or a
+		# deploy leaves clients on a stale bundle pointing at missing chunks —
+		# a classic source of the B5 blank screen.
+		@assets path /assets/*
+		header @assets Cache-Control "public, max-age=31536000, immutable"
+		@index path /index.html /
+		header @index Cache-Control "no-cache"
+	}
+
+	log {
+		output stdout
+		format json
+	}
+}

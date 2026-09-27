@@ -1,0 +1,32 @@
+# Keep build contexts small and keep secrets and private docs out of any image.
+.git
+.github
+.venv
+venv
+node_modules
+**/node_modules
+**/dist
+**/__pycache__
+**/*.py[cod]
+**/.mypy_cache
+**/.ruff_cache
+**/.pytest_cache
+.env
+.env.*
+!.env.example
+secrets/
+*.key
+*.pem
+
+# Never in an image: the uncommitted owner explainer track.
+docs/private/
+
+# Downloaded at runtime, not baked in.
+data/
+backups/
+*.mmdb
+*.BIN
+
+*.log
+scratch/
+tmp/

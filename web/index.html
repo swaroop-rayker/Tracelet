@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!-- Admin surface: never indexed. -->
+    <meta name="robots" content="noindex, nofollow" />
+    <title>Tracelet</title>
+    <!--
+      No inline script and no inline style anywhere in this document. Vite emits
+      external JS and CSS, which is what lets the Caddyfile serve a strict
+      default-src 'self' CSP with no nonce and no unsafe-inline (F13.AC2).
+      Adding an inline script here would silently require loosening that policy.
+    -->
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

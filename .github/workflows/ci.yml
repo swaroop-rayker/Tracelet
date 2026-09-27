@@ -1,0 +1,293 @@
+# ---------------------------------------------------------------------------
+# Tracelet CI — the 12 checks that must pass (F14.AC7).
+#
+# `./scripts/tl verify` runs the same 12 locally, in the same order, so a red
+# build is reproducible on the developer's machine without guessing.
+#
+# Jobs run in parallel where they can. The Python jobs share one setup step
+# rather than one container, because a matrix of separate jobs gives a legible
+# failure: "mypy failed" rather than "verify failed somewhere".
+# ---------------------------------------------------------------------------
+
+name: CI
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  PYTHON_VERSION: "3.13"
+  NODE_VERSION: "24"
+
+jobs:
+  # === 1. Never commit the private docs track ==============================
+  # First job, and intentionally the cheapest: it protects a rule that cannot be
+  # fixed after the fact. Once docs/private/ is in a public history, it is public.
+  guard-private-docs:
+    name: "1 · guard-private-docs"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Assert nothing under docs/private/ is tracked
+        run: sh scripts/guard_private_docs.sh
+
+  # === 2-5, 10. Python =====================================================
+  python:
+    name: "${{ matrix.label }}"
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - label: "2 · ruff check"
+            cmd: "ruff check src tests"
+          - label: "3 · ruff format"
+            cmd: "ruff format --check src tests"
+          - label: "4 · mypy --strict"
+            cmd: "mypy src tests"
+          - label: "5 · pytest unit"
+            cmd: "pytest tests/unit -q"
+          - label: "10 · route-name guard"
+            cmd: "pytest tests/unit/test_route_names.py -q"
+    defaults:
+      run:
+        working-directory: api
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+          cache-dependency-path: api/pyproject.toml
+      - run: pip install -e ".[dev]"
+      - run: ${{ matrix.cmd }}
+
+  # === 6. Integration tests against a REAL database ========================
+  # ES3: the database is never mocked. A postgis service container is the CI
+  # equivalent of the local `db` service, so there is exactly one code path.
+  integration:
+    name: "6 · pytest integration (real PostgreSQL + PostGIS)"
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: api
+    services:
+      db:
+        image: postgis/postgis:16-3.4-alpine
+        env:
+          POSTGRES_DB: tracelet
+          POSTGRES_USER: tracelet
+          POSTGRES_PASSWORD: ci-postgres
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U tracelet -d tracelet"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+          cache-dependency-path: api/pyproject.toml
+      - run: pip install -e ".[dev]"
+
+      # The service container cannot run db/init, so the same extensions and
+      # roles are created here. Kept deliberately in step with
+      # db/init/01-extensions-and-roles.sh — if they diverge, CI stops testing
+      # what actually ships.
+      - name: Initialise extensions and roles
+        env:
+          PGPASSWORD: ci-postgres
+        run: |
+          psql -h localhost -U tracelet -d tracelet -v ON_ERROR_STOP=1 <<'SQL'
+            CREATE EXTENSION IF NOT EXISTS postgis;
+            CREATE EXTENSION IF NOT EXISTS citext;
+            CREATE ROLE tracelet_app      LOGIN PASSWORD 'ci-app';
+            CREATE ROLE tracelet_maint    LOGIN PASSWORD 'ci-maint';
+            CREATE ROLE tracelet_migrate  LOGIN PASSWORD 'ci-migrate';
+            GRANT CONNECT ON DATABASE tracelet
+              TO tracelet_app, tracelet_maint, tracelet_migrate;
+            ALTER SCHEMA public OWNER TO tracelet_migrate;
+            GRANT USAGE ON SCHEMA public TO tracelet_app, tracelet_maint;
+            ALTER DEFAULT PRIVILEGES FOR ROLE tracelet_migrate IN SCHEMA public
+              GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO tracelet_app;
+            ALTER DEFAULT PRIVILEGES FOR ROLE tracelet_migrate IN SCHEMA public
+              GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO tracelet_maint;
+            ALTER DEFAULT PRIVILEGES FOR ROLE tracelet_migrate IN SCHEMA public
+              GRANT USAGE, SELECT ON SEQUENCES TO tracelet_app, tracelet_maint;
+            GRANT SELECT ON TABLE public.spatial_ref_sys TO tracelet_app, tracelet_maint;
+            GRANT pg_read_all_stats TO tracelet_app;
+          SQL
+
+      - name: Apply migrations
+        env:
+          TRACELET_MIGRATE_DATABASE_URL: postgresql+psycopg://tracelet_migrate:ci-migrate@localhost:5432/tracelet
+        run: alembic upgrade head
+
+      - name: Run integration tests
+        env:
+          TRACELET_ENV: development
+          TRACELET_DATABASE_URL: postgresql+asyncpg://tracelet_app:ci-app@localhost:5432/tracelet
+          TRACELET_MIGRATE_DATABASE_URL: postgresql+psycopg://tracelet_migrate:ci-migrate@localhost:5432/tracelet
+        run: pytest tests/integration -q
+
+  # === 7-9. Frontend ======================================================
+  frontend:
+    name: "${{ matrix.label }}"
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - label: "7 · eslint"
+            cmd: "npx eslint src"
+          - label: "8 · prettier"
+            cmd: "npx prettier --check \"src/**/*.{ts,tsx,css}\""
+          - label: "9 · tsc --noEmit"
+            cmd: "npx tsc --noEmit"
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - run: npm ci || npm install
+      - run: ${{ matrix.cmd }}
+
+  # === 11. The API contract has exactly one source of truth ================
+  # The TypeScript client is generated from the FastAPI schema. If the committed
+  # artefacts differ from a fresh generation, the contract has drifted and the
+  # frontend is compiling against a lie (F14.AC9).
+  openapi-drift:
+    name: "11 · OpenAPI → TypeScript drift"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+          cache-dependency-path: api/pyproject.toml
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - run: pip install -e ".[dev]"
+        working-directory: api
+      - run: npm ci || npm install
+        working-directory: web
+
+      - name: Regenerate the schema and the client
+        run: |
+          python -m tracelet.cli.export_openapi > ../api/openapi.json
+          cd ../web
+          npx openapi-typescript ../api/openapi.json -o src/api/generated/schema.d.ts
+        working-directory: api
+
+      - name: Fail on drift
+        run: |
+          if ! git diff --quiet -- api/openapi.json web/src/api/generated/schema.d.ts; then
+            echo "::error::OpenAPI drift. Run './scripts/tl openapi' and commit the result."
+            git --no-pager diff -- api/openapi.json web/src/api/generated/schema.d.ts
+            exit 1
+          fi
+          echo "No drift."
+
+  # === 12. Images build ===================================================
+  docker-build:
+    name: "12 · docker build"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Build the API production image
+        uses: docker/build-push-action@v6
+        with:
+          context: ./api
+          target: production
+          push: false
+          load: false
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      # Also builds the SPA and runs `caddy validate`, so a malformed Caddyfile
+      # or a type error in the frontend fails here rather than at deploy.
+      - name: Build the edge image (SPA + Caddy)
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./web/Dockerfile
+          push: false
+          load: false
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Validate the compose file
+        run: |
+          cp .env.example .env
+          sed -i 's/^POSTGRES_PASSWORD=.*/POSTGRES_PASSWORD=ci/' .env
+          sed -i 's/^TRACELET_DB_APP_PASSWORD=.*/TRACELET_DB_APP_PASSWORD=ci/' .env
+          sed -i 's/^TRACELET_DB_MAINT_PASSWORD=.*/TRACELET_DB_MAINT_PASSWORD=ci/' .env
+          sed -i 's/^TRACELET_DB_MIGRATE_PASSWORD=.*/TRACELET_DB_MIGRATE_PASSWORD=ci/' .env
+          docker compose --profile tools config --quiet
+          echo "compose file is valid"
+
+  # === Conventional commits (ES6) =========================================
+  commitlint:
+    name: "commitlint"
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+      - run: npm install --no-save @commitlint/cli@19 @commitlint/config-conventional@19
+      - name: Lint commit messages on this PR
+        run: >-
+          npx commitlint
+          --from ${{ github.event.pull_request.base.sha }}
+          --to ${{ github.event.pull_request.head.sha }}
+          --verbose
+
+  # === Gate ===============================================================
+  # One required status check, so branch protection needs a single entry rather
+  # than a list that goes stale every time a job is added.
+  ci:
+    name: CI
+    runs-on: ubuntu-latest
+    if: always()
+    needs:
+      - guard-private-docs
+      - python
+      - integration
+      - frontend
+      - openapi-drift
+      - docker-build
+    steps:
+      - name: Fail if any required job failed
+        run: |
+          echo "results: ${{ join(needs.*.result, ', ') }}"
+          if echo "${{ join(needs.*.result, ',') }}" | grep -qE 'failure|cancelled'; then
+            exit 1
+          fi
+          echo "all green"
