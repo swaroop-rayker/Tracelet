@@ -146,11 +146,32 @@ requires the single `CI` status check, which is the one to put behind branch pro
 - [x] Full flow: enrol, TOTP, log in, change password, revoke a session — driven end to end
       against the running stack over HTTPS through Caddy, 30 assertions, and covered
       permanently by `tests/integration/test_auth_flow.py`
-- [x] Password recovery via Telegram, end to end, on the real bot
-      (`@swrp_insta_visitor_alert_bot`): chat-verification code and reset link both
-      delivered, reset applied, token single-use, all sessions revoked, TOTP still required
-      afterwards. The permanent suite covers the logic and intercepts the send — see the
-      deviations below for why it does not message a real chat
+- [x] Password recovery via Telegram, on the real bot
+      (`@swrp_insta_visitor_alert_bot`) — **partially, and the gap is recorded below.**
+      Evidenced by the owner's audit trail and by the messages actually received: the
+      chat-verification code was delivered, the reset link was delivered, two resets were
+      applied, both tokens are spent (`used_at` set), sessions were revoked
+      (`sessions_revoked: 1`), and TOTP was still required afterwards. The permanent suite
+      covers the logic and intercepts the send — see the deviations for why it does not
+      message a real chat
+- [ ] **`POST /auth/telegram/verify/confirm` has never completed against the live bot.**
+      Found on 2026-09-27 while checking why the owner's chat showed as unverified. The
+      owner's audit trail contains **no `admin.telegram_verified` row**, yet two resets
+      succeeded — which is only possible with a verified chat. So the previous session sent
+      the verification code through the real endpoint (the message exists), never confirmed
+      it, and set `telegram_chat_id` / `telegram_verified_at` **directly in SQL** to reach
+      the reset path. Both fields are `NULL` again now.
+
+      Nothing is wrong with the code: the confirm path is covered by integration tests
+      against a seeded challenge, including the wrong-code and single-use cases. What is
+      missing is one live round trip — send a code from the dashboard's Telegram panel and
+      type it back — which also produces the `admin.telegram_verified` row the audit trail
+      should have. Until then the reset-over-Telegram path is **not armed** for the owner
+      account, and the two remaining recovery routes (codes, CLI) are the live ones.
+
+      **Worth keeping in mind generally:** stubbing state in SQL to reach the code under
+      test leaves the *setup* path unverified, and the audit log is where that shows up.
+      A hand-run harness reporting "19/19 passed" could not see its own missing row.
 - [x] Recovery code works, bypasses both factors, and cannot be reused;
       `X-Recovery-Remaining` decrements; a code typed in lower case with spaces is accepted
 - [x] `tracelet admin reset-password` works with shell + DB access only, enforces the same
@@ -255,8 +276,10 @@ Raised rather than resolved, because a requirement may not be changed without ap
 Until it is settled, the code matches API.md and the tests; SPEC §11 has no new row.
 
 **Known state, carried into M2:** the owner account's Telegram chat is **not currently
-verified**, so the reset-over-Telegram path is not armed for it. Verify it from the
-dashboard's Telegram panel. The bot token in `.env` should also be rotated in @BotFather: it
+verified** (`telegram_chat_id` and `telegram_verified_at` are both `NULL`), so the
+reset-over-Telegram path is not armed for it. Verify it from the dashboard's Telegram
+panel, using the chat id in `TRACELET_TELEGRAM_OWNER_CHAT_ID`; that also closes the gap in
+the checklist above. The bot token in `.env` should also be rotated in @BotFather: it
 was handled in plaintext during development, and it is a password-recovery channel
 (RISKS R18).
 
