@@ -15,7 +15,7 @@ then open the PR (CLAUDE.md section 2).
 
 | | Milestone | Size | Status |
 |---|---|---|---|
-| M0 | Foundation and CI | M | **[x] done** — all 12 checks green, 69 tests |
+| M0 | Foundation and CI | M | **[x] done** — CI green on `main`, 69 tests |
 | M1 | Admin auth and account security | L | [ ] |
 | M2 | Capture path, server-authoritative | L | [ ] |
 | M3 | Location inference engine | L | [ ] |
@@ -81,7 +81,8 @@ F14.AC11, F15.AC1, F15.AC2, F15.AC4, F15.AC5, F13.AC1, F13.AC2, ES1, ES2, ES6
       and client-side route fallback
 - [x] Measured memory, idle: api 136 MiB, db 20 MiB, caddy 16 MiB (~173 MiB total) —
       recorded in ARCHITECTURE §6.1 with an explicit note on what it does **not** prove
-- [ ] CI green, all 12 jobs — *workflow written and locally equivalent; needs a git remote*
+- [x] **CI green, all 12 jobs** — run #1 on `main`, 83s, zero failures
+      github.com/swaroop-rayker/Tracelet/actions/runs/36302388201
 - [x] Docs updated: ARCHITECTURE §6.1–§6.4, §9, §9.1 and the dependency ledger;
       ADR-0002, ADR-0014 cross-refs; CLAUDE.md §6; KICKOFF §4; ERRORS.md E1–E7
 
@@ -102,6 +103,14 @@ F14.AC11, F15.AC1, F15.AC2, F15.AC4, F15.AC5, F13.AC1, F13.AC2, ES1, ES2, ES6
 **Bugs found and fixed during M0:** E1–E7 in `docs/ERRORS.md`. E2 (the connection budget) is
 the one worth reading: the documented defaults would have left `pg_dump` unable to connect at
 peak traffic.
+
+**Two gates did not actually run on M0**, because it was pushed straight to `main`:
+- `commitlint` triggers on `pull_request` only, so ES6 conventional-commit enforcement was
+  skipped. The commit message does follow the convention, but nothing checked it.
+- "One PR per milestone" (CLAUDE.md §3) was bypassed.
+
+From M1 onward, work on a branch and open a PR so both gates execute. The CI workflow already
+requires the single `CI` status check, which is the one to put behind branch protection.
 
 **Do not** build a product feature in M0. Its only job is to make M1–M9 cheap.
 
