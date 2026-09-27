@@ -1,0 +1,167 @@
+"""Fixtures for the integration suite.
+
+Two of these exist because the suite shares a database with the developer's own
+dev stack, and neither is incidental:
+
+``_purge_test_admins`` deletes the accounts a test created. Every address the suite
+generates is under the reserved ``example.test`` domain, which is what makes a
+blanket delete safe. An active owner is left alone when it is the only one, because
+the engine refuses to remove the last active owner -- so in CI, where the suite is
+the only source of admins, a few rows survive into a database that is discarded
+anyway.
+
+``exclusive_owner`` temporarily disables any *other* active owner, because
+"demoting the last owner is refused" is a claim about the whole table and cannot be
+made while the developer's real owner is sitting in it. It restores them in a
+``finally``. If a run is killed between the two, a real owner is left ``disabled``
+and one command fixes it:
+
+    docker compose exec db psql -U tracelet -d tracelet \\
+      -c "UPDATE admins SET status='active' WHERE email='you@example.com'"
+"""
+
+from __future__ import annotations
+
+from collections.abc import AsyncIterator
+from contextlib import AsyncExitStack
+
+import pytest
+from httpx import ASGITransport, AsyncClient
+from sqlalchemy import select, text, update
+
+from tests.conftest import BASE_URL, SITE_ADDRESS
+from tests.integration import helpers
+from tracelet.auth.models import Admin, AdminRole, AdminStatus
+from tracelet.config import Settings
+from tracelet.db.engine import session_scope
+
+# Every address the suite generates lives here. Reserved by RFC 2606, so it cannot
+# collide with a real deployment's admin addresses.
+TEST_DOMAIN_LIKE = "%@example.test"
+
+
+@pytest.fixture
+def totp_clock() -> helpers.TotpClock:
+    """One clock per test, so spent steps are tracked across every code it needs."""
+    return helpers.TotpClock()
+
+
+@pytest.fixture(autouse=True)
+async def _clear_rate_limits(db_app: object) -> AsyncIterator[None]:
+    """Start every test with an empty limiter.
+
+    Five sign-in attempts per identifier and twenty per prefix per hour is generous
+    for a human and nothing for a suite. Without this, tests further down the file
+    measure the limiter instead of the auth path -- and fail in an order-dependent
+    way that is miserable to diagnose. ``test_rate_limiting`` trips it on purpose.
+    """
+    del db_app  # ordering only: the engine must exist before any statement runs
+    await helpers.clear_rate_limits()
+    yield
+    await helpers.clear_rate_limits()
+
+
+@pytest.fixture(autouse=True)
+async def _purge_test_admins(db_app: object) -> AsyncIterator[None]:
+    """Delete the accounts a test created, afterwards."""
+    del db_app
+    yield
+    async with session_scope() as db:
+        other_active_owners = int(
+            (
+                await db.execute(
+                    text(
+                        "SELECT count(*) FROM admins "
+                        "WHERE role = 'owner' AND status = 'active' "
+                        "AND email NOT LIKE :pattern"
+                    ),
+                    {"pattern": TEST_DOMAIN_LIKE},
+                )
+            ).scalar_one()
+        )
+        if other_active_owners:
+            await db.execute(
+                text("DELETE FROM admins WHERE email LIKE :pattern"),
+                {"pattern": TEST_DOMAIN_LIKE},
+            )
+        else:
+            # The engine refuses to remove the last active owner, and it is right to.
+            await db.execute(
+                text(
+                    "DELETE FROM admins WHERE email LIKE :pattern "
+                    "AND NOT (role = 'owner' AND status = 'active')"
+                ),
+                {"pattern": TEST_DOMAIN_LIKE},
+            )
+
+
+@pytest.fixture
+async def new_client(db_app: object) -> AsyncIterator[helpers.ClientFactory]:
+    """A factory for additional clients, each with its own cookie jar.
+
+    Needed wherever two admins, or two sessions of one admin, must be live at the
+    same time -- a shared jar would silently overwrite one session with the other.
+    """
+    async with AsyncExitStack() as stack:
+
+        async def make() -> AsyncClient:
+            transport = ASGITransport(app=db_app)  # type: ignore[arg-type]  # see tests/conftest.py
+            return await stack.enter_async_context(
+                AsyncClient(transport=transport, base_url=BASE_URL)
+            )
+
+        yield make
+
+
+@pytest.fixture
+async def owner(
+    db_client: AsyncClient, integration_settings: Settings, totp_clock: helpers.TotpClock
+) -> helpers.SignedIn:
+    """An active owner, signed in on ``db_client``.
+
+    Created through the real enrolment path rather than by writing an active row:
+    the CHECK constraint forbids an active account without TOTP enrolled, so there
+    is no shortcut -- and the bootstrap-to-active path is exactly what E12 broke.
+    """
+    invited = await helpers.invite(integration_settings, role=AdminRole.OWNER)
+    return await helpers.enroll(db_client, invited, totp_clock)
+
+
+@pytest.fixture
+async def exclusive_owner(owner: helpers.SignedIn) -> AsyncIterator[helpers.SignedIn]:
+    """An owner that is the **only** active owner in the database.
+
+    Required by every last-owner assertion: the rule is about the table as a whole,
+    so a developer's real owner has to step aside for the duration. Disabling it is
+    legal precisely because the test owner is already active, so an active owner
+    exists throughout and the constraint trigger never fires.
+    """
+    async with session_scope() as db:
+        others = list(
+            (
+                await db.execute(
+                    select(Admin.id).where(
+                        Admin.role == AdminRole.OWNER,
+                        Admin.status == AdminStatus.ACTIVE,
+                        Admin.id != owner.id,
+                    )
+                )
+            ).scalars()
+        )
+        if others:
+            await db.execute(
+                update(Admin).where(Admin.id.in_(others)).values(status=AdminStatus.DISABLED)
+            )
+    try:
+        yield owner
+    finally:
+        if others:
+            async with session_scope() as db:
+                await db.execute(
+                    update(Admin).where(Admin.id.in_(others)).values(status=AdminStatus.ACTIVE)
+                )
+
+
+@pytest.fixture
+def site_address() -> str:
+    return SITE_ADDRESS

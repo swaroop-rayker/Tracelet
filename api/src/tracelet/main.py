@@ -13,8 +13,11 @@ from contextlib import asynccontextmanager
 import structlog
 from fastapi import FastAPI
 
+from tracelet.auth.admins_router import router as admins_router
+from tracelet.auth.router import router as auth_router
 from tracelet.config import Settings, get_settings
 from tracelet.db.engine import dispose_engine, init_engine
+from tracelet.db.request_session import DatabaseSessionMiddleware
 from tracelet.errors import install_error_handlers
 from tracelet.health.router import router as health_router
 from tracelet.logging import configure_logging
@@ -91,12 +94,19 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     # Order matters: the outermost middleware runs first, so the trace id is
     # bound before anything else can log.
+    # Order matters, and reads bottom-up: TraceIdMiddleware is outermost so the
+    # trace id is bound before anything can log, then the access log, then the
+    # database session -- which must be innermost so it wraps the route and its
+    # error handlers, and can commit before the response is returned.
+    app.add_middleware(DatabaseSessionMiddleware)
     app.add_middleware(AccessLogMiddleware)
     app.add_middleware(TraceIdMiddleware)
 
     install_error_handlers(app)
 
     app.include_router(health_router)
+    app.include_router(auth_router)
+    app.include_router(admins_router)
 
     return app
 

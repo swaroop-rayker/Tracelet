@@ -78,6 +78,15 @@ services:
       db:
         condition: service_healthy
     volumes:
+      # The AES-256-GCM key for encrypted columns, read-only and OUTSIDE the
+      # database volume (F12.AC3, ADR-0007). Loaded into process memory at boot,
+      # never written to the database, never logged, never returned by an API.
+      # A stolen pg_dump therefore yields ciphertext.
+      #
+      # This file is NOT in the database backup, deliberately. Restoring onto a
+      # fresh VM without a separate out-of-band copy leaves every encrypted value
+      # permanently unreadable. See docs/private/07-OPERATIONS-PLAYBOOK.md.
+      - ./secrets/ip_key:/run/secrets/ip_key:ro
       - geo_data:/data/geoip
       - backups:/data/backups
     # No published ports. Caddy is the only ingress.
@@ -136,6 +145,8 @@ services:
     working_dir: /app
     volumes:
       - ./api:/app:rw
+      # Integration tests exercise the real envelope, not a test double.
+      - ./secrets/ip_key:/run/secrets/ip_key:ro
     command: ["true"]
 
   # Frontend toolchain: eslint, prettier, tsc, openapi-typescript.

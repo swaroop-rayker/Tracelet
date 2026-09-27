@@ -9,6 +9,18 @@ ordered, so index locality is good) and `bigserial` where the row is append-only
 internal volume. `NOT NULL` unless a `NULL` carries a specific documented meaning.
 Enumerations are PostgreSQL `ENUM` types, listed in section 2.
 
+Every index, constraint and key carries a deterministic name derived from its table and
+columns (`ix_`, `uq_`, `ck_`, `fk_`, `pk_`), set by the SQLAlchemy naming convention in
+`db/base.py`. An unnamed constraint is one that cannot reliably be dropped or altered by
+a later migration, so the CHECK constraints below appear in the catalogue as
+`ck_<table>_<name>` — for example `ck_admins_active_requires_password_and_totp`.
+
+**An `inet` column does not come back as a string.** SQLAlchemy hands back an
+`IPv4Interface`/`IPv6Interface`, so any comparison against a canonical prefix string must
+go through `str(...)`, and the model annotation must say so. Getting this wrong silently
+rejected every session, and the lie in the annotation is precisely why `mypy --strict`
+could not see it (docs/ERRORS.md E13).
+
 ---
 
 ## 1. Entity relationships
@@ -16,6 +28,8 @@ Enumerations are PostgreSQL `ENUM` types, listed in section 2.
 ```
    admins ──┬──< admin_recovery_codes
             ├──< admin_enrollment_tokens
+            ├──< password_reset_tokens
+            ├──< auth_challenges       (short-lived multi-step auth state)
             ├──< sessions
             ├──< audit_log            (actor, nullable: NULL = system)
             ├──< links                (created_by)
@@ -57,6 +71,7 @@ Enumerations are PostgreSQL `ENUM` types, listed in section 2.
 |---|---|
 | `admin_role` | `owner`, `analyst` |
 | `admin_status` | `pending_enrollment`, `active`, `disabled` |
+| `auth_challenge_kind` | `mfa`, `totp_confirm`, `chat_verify` — added in M1, see section 3.7 |
 | `visit_stage` | `server`, `enriched`, `server_only`, `rate_limited` |
 | `classification` | `human`, `bot`, `crawler`, `datacenter`, `spam`, `spoofed`, `unknown` |
 | `consent_state` | `granted`, `denied`, `unavailable`, `not_asked`, `blocked_by_webview` |
@@ -67,7 +82,7 @@ Enumerations are PostgreSQL `ENUM` types, listed in section 2.
 | `geofence_state` | `inside`, `outside`, `undetermined` |
 | `inference_source` | `gps`, `geolite2`, `ip2location`, `ipinfo`, `dbip`, `rdns`, `asn_org`, `cf_colo`, `external_api`, `latency`, `timezone` |
 | `notify_priority` | `high`, `normal`, `silent` |
-| `outbox_kind` | `telegram.visit_alert`, `telegram.password_reset`, `telegram.health_alert`, `telegram.test` |
+| `outbox_kind` | `telegram.visit_alert`, `telegram.password_reset`, `telegram.health_alert`, `telegram.test` — `password_reset` is **unused**: reset links are sent synchronously, see the ADR-0009 amendment |
 | `outbox_status` | `pending`, `in_flight`, `done`, `failed`, `dead` |
 | `backup_kind` | `daily`, `weekly`, `manual` |
 | `geo_db_status` | `installed`, `downloading`, `failed`, `stale` |
@@ -104,20 +119,55 @@ Enumerations are PostgreSQL `ENUM` types, listed in section 2.
 **Indexes:** `UNIQUE(email)`; partial index on `status` where `status='active'`.
 
 **Invariants**
-1. **At least one `active` `owner` must always exist.** Enforced by a `CONSTRAINT
-   TRIGGER ... DEFERRABLE INITIALLY DEFERRED` on delete and on update of `role` or
-   `status` — F8.AC13. Application-level checks are not sufficient, because a
-   concurrent demotion of two owners would pass both checks.
+
+1. **An operation may not remove the last `active` `owner`** — F8.AC13.
+
+   Note the formulation. The obvious version — "an active owner must always exist" — is
+   **false during bootstrap**: the first owner is created `pending_enrollment`, and every
+   update on the way to activating them happens while no active owner exists. Asserting
+   the stronger property rejected the first enrolment at COMMIT (docs/ERRORS.md E12).
+
+   Enforced by two `CONSTRAINT TRIGGER ... DEFERRABLE INITIALLY DEFERRED` triggers, on
+   `UPDATE` and on `DELETE`, each with a `WHEN` clause so the check runs only when the row
+   *was* an active owner and is about to stop being one. Deferred, so a transaction may
+   legitimately pass through a zero-owner state (promote B, then demote A). The `WHEN`
+   clause also means an ordinary update — a failed-login counter bump on an owner — costs
+   no count query.
+
+   **Three layers, because each covers what the others cannot:**
+
+   | Layer | Covers | Produces |
+   |---|---|---|
+   | `SELECT ... FOR UPDATE` on active owners | serialises concurrent changes to the owner set | the wait that makes the next layer truthful |
+   | Application pre-check, before any mutation | the ordinary case | a clean `409 LAST_OWNER` |
+   | Deferred constraint trigger | anything that bypasses the route | `IntegrityError` at COMMIT |
+
+   The lock is not optional. Without it, two concurrent demotions each read an owner set
+   that cannot see the other transaction, both pass, and both commit —
+   and `SET CONSTRAINTS ALL IMMEDIATE`, added to turn a commit-time 500 into a clean 409,
+   fires the deferred trigger early *in the same blind snapshot* and consumes the pending
+   event so nothing is re-checked at COMMIT (docs/ERRORS.md E16).
+
 2. `status='active'` requires `password_hash IS NOT NULL AND totp_enrolled_at IS NOT
-   NULL` — F8.AC4. **No account can reach the dashboard without TOTP.**
+   NULL` — F8.AC4. **No account can reach the dashboard without TOTP.** A CHECK
+   constraint, so it holds for the CLI and for a psql session, not only for the API.
 3. `telegram_chat_id` must be verified before it can receive a reset link — F8.AC7.
+   Relaxed for `status='pending_enrollment'`, since a chat id may be recorded before the
+   account is live.
 
 ### 3.2 `admin_recovery_codes`
 
 `id bigserial` PK, `admin_id` FK cascade, `code_hash text` (Argon2id), `used_at
 timestamptz NULL`, `created_at`.
-**Indexes:** `(admin_id)`, `UNIQUE(admin_id, code_hash)`, partial `(admin_id)` where
-`used_at IS NULL` for the remaining-count warning at F8.AC6.
+**Indexes:** `(admin_id)`, partial `(admin_id)` where `used_at IS NULL` for the
+remaining-count warning at F8.AC6.
+
+**No unique constraint on `code_hash`**, deliberately, and the Gate-3 design was wrong to
+list one: an Argon2id hash carries a random salt, so two rows holding the same plaintext
+code hash differently and a unique index would never fire. Verification therefore checks
+every unused row — ten Argon2 verifications at 32 MiB, roughly 500 ms. Acceptable because
+recovery is rare and tightly rate-limited, and the alternative (an unsalted lookup hash)
+would make a database leak considerably worse.
 **Invariant:** a code is single-use — setting `used_at` is conditional
 (`WHERE used_at IS NULL`) so a concurrent double-submit cannot consume it twice.
 
@@ -125,10 +175,32 @@ timestamptz NULL`, `created_at`.
 
 `id bigserial` PK, `admin_id` FK, `token_hash bytea`, `expires_at`, `used_at NULL`,
 `created_by` FK, `created_at`.
+**TTL:** 24 hours.
+
 **Invariant:** single-use and time-limited. **No default password exists anywhere in the
 system** — F8.AC15.
 
-### 3.4 `sessions`
+A token is *peeked* before the password is validated and consumed only once the password
+passes, so a policy rejection does not destroy the invitation (docs/ERRORS.md E15). The
+consuming UPDATE stays conditional (`WHERE used_at IS NULL`), so that ordering changes
+nothing about the concurrent case.
+
+### 3.4 `password_reset_tokens`
+
+`id bigserial` PK, `admin_id` FK cascade, `token_hash bytea` UNIQUE, `expires_at`,
+`used_at NULL`, `requested_ip_prefix inet NULL`, `created_at`.
+
+**Indexes:** `UNIQUE(token_hash)`, `(admin_id)`. **TTL:** 30 minutes.
+
+A separate table from enrolment rather than a `kind` column on one, because the two
+genuinely differ: 24 hours versus 30 minutes, an owner-issued invitation versus a
+self-service request, and a shared table would let an enrollment link reset an established
+account's password. Delivered over Telegram — F8.AC7, ADR-0008.
+
+Same peek-then-consume ordering as enrolment, and for a sharper reason: on a 30-minute
+token, a rejected password used to mean requesting another link and waiting for it.
+
+### 3.5 `sessions`
 
 | Column | Type | Notes |
 |---|---|---|
@@ -150,7 +222,7 @@ system** — F8.AC15.
 expires_at AND now() < idle_expires_at AND` bindings match. Instant revocation is
 exactly what a JWT cannot provide — ADR-0008.
 
-### 3.5 `audit_log`
+### 3.6 `audit_log`
 
 `id bigserial` PK, `occurred_at`, `actor_admin_id uuid NULL` (**`NULL` means system**),
 `actor_ip_prefix inet NULL`, `action text`, `target_type text NULL`, `target_id text
@@ -165,6 +237,49 @@ NULL`, `trace_id text`, `detail jsonb`.
    separate maintenance role.
 2. `detail` is redacted before write: no plaintext IP, no coordinates, no tokens —
    F12.AC13.
+
+### 3.7 `auth_challenges`
+
+Short-lived multi-step authentication state: the MFA challenge between password and code,
+the confirm token issued at enrolment, and the Telegram chat-verification code.
+
+**This table did not exist in the Gate-3 design.** It is the fix for a real defect
+(docs/ERRORS.md E10): the three tokens were held in a module-level dict, and with two
+Gunicorn workers the follow-up request found the token in about half of attempts, so login
+was a coin flip. Any state that must survive from one HTTP request to the next is shared
+state, and on this deployment shared means PostgreSQL — the same argument ADR-0010 makes
+for `rate_limit_buckets`.
+
+| Column | Type | Notes |
+|---|---|---|
+| `id` | `bigserial` PK | |
+| `kind` | `auth_challenge_kind` | `mfa`, `totp_confirm`, `chat_verify` |
+| `admin_id` | `uuid` FK cascade | |
+| `token_hash` | `bytea` | SHA-256 of a 256-bit token. For `chat_verify` the "token" is the admin id, because the secret is the six-digit code in `payload` |
+| `payload` | `jsonb` | Kind-specific extras: the proposed `chat_id` and the numeric code for `chat_verify`. Never a credential that must survive a leak |
+| `expires_at` | `timestamptz` | |
+| `used_at` | `timestamptz` NULL | |
+| `created_at` | `timestamptz` | |
+
+**Indexes:** `UNIQUE(kind, token_hash)`, `(admin_id, kind)`, partial `(expires_at)` where
+`used_at IS NULL` for the reaper.
+
+**TTLs:** `mfa` 5 minutes, `totp_confirm` 20 minutes (longer, because before producing a
+code the admin has to add the account to an authenticator app and save ten recovery
+codes), `chat_verify` 10 minutes.
+
+**Invariants**
+1. **One outstanding challenge per admin per kind.** Issuing deletes any existing one, so
+   starting a second sign-in invalidates the first rather than leaving two valid windows
+   open.
+2. **Single-use**, spent by a conditional UPDATE so two concurrent submissions of one token
+   cannot both succeed.
+3. **Peeked, not consumed, on a wrong answer.** Mistyping a six-digit code must not send
+   the admin back to the password step.
+
+One table with a `kind` discriminator rather than three, because all three have the same
+shape and lifecycle. The enrolment and reset tokens stay separate (sections 3.3, 3.4)
+because *their* lifetimes and delivery paths genuinely differ.
 
 ---
 
@@ -502,6 +617,12 @@ table deliberately **excluded** from the must-never-be-lost set. Shared across b
 Uvicorn workers, which is why it lives in PostgreSQL rather than in process memory
 (F11.AC8).
 
+**Created in M1, not M7 as originally planned.** Login rate limiting (F8.AC9) needs shared
+state across workers from the first milestone that has a login, and the same table serves
+the full L2 limiter on the capture path in M2 — so bringing it forward costs one table in
+an earlier migration and avoids a per-process limiter that would have to be replaced.
+Recorded as a deviation in docs/MILESTONES.md.
+
 ---
 
 ## 9. Derived and cached data
@@ -562,6 +683,9 @@ Tracelet reports about itself must be read with the sample size visible (RISKS R
 | `visits` + `visit_candidates` | 180 days (configurable) | Batched delete, cascade to candidates, aggregates already rolled up |
 | `audit_log` | 365 days (configurable) | Deleted by a maintenance role, since the app role cannot delete |
 | `sessions` | Expiry-driven | Reaped continuously |
+| `auth_challenges` | Minutes | Reaped once consumed or expired |
+| `admin_enrollment_tokens` | 24 hours | Reaped once consumed or expired |
+| `password_reset_tokens` | 30 minutes | Reaped once consumed or expired |
 | `rate_limit_buckets` | Ephemeral | Cleaned when stale |
 | `geo_cache` | TTL | Cleaned on expiry |
 | `rollup_*` | **Indefinite** | Never purged; small and the long-term history |
@@ -588,3 +712,11 @@ F12.AC8, F10.AC12.
 
 A SQL-injection foothold in the application path therefore cannot erase the evidence of
 itself.
+
+**How the grant is actually arrived at.** `ALTER DEFAULT PRIVILEGES` grants all four verbs
+on every table Alembic creates, so `audit_log` **revokes** `UPDATE` and `DELETE` from
+`tracelet_app` explicitly in migration `0002`, and `UPDATE` from `tracelet_maint` (which
+keeps `DELETE`, for retention purging). That explicit step is easy to lose in a later
+migration, so an integration test reads
+`information_schema.table_privileges` and asserts the grant set — and two more attempt an
+`UPDATE` and a `DELETE` as the application role and require `permission denied`.

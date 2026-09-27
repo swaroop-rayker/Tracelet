@@ -63,6 +63,19 @@ async def dispose_engine() -> None:
     _session_factory = None
 
 
+def session_factory() -> async_sessionmaker[AsyncSession]:
+    """The process-wide session factory.
+
+    Used by DatabaseSessionMiddleware, which owns the per-request session so
+    the commit can happen before the response is sent (see
+    tracelet.db.request_session).
+    """
+    if _session_factory is None:
+        msg = "Session factory is not initialised. init_engine() runs in the app lifespan."
+        raise RuntimeError(msg)
+    return _session_factory
+
+
 def get_engine() -> AsyncEngine:
     if _engine is None:
         msg = "Database engine is not initialised. init_engine() runs in the app lifespan."

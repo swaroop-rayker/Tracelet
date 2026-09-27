@@ -501,6 +501,310 @@ passes from both a container and the host.
 
 ---
 
+### E8 — Enrollment links used `http://`, so the session cookie could never be stored
+
+**Status:** Fixed. **Milestone:** M1. **Date:** 2026-09-27.
+
+**Symptom.** Enrolment completed, the account activated, and the admin was not signed in. No
+error anywhere: the API answered `204`, the browser accepted the response, and the next
+request was anonymous.
+
+**Root cause.** `Settings.public_base_url` chose `http` when `site_address` started with
+`localhost`, on the reasonable-sounding theory that local development is plain HTTP. It is
+not: Caddy terminates TLS on **every** path including localhost, through its internal CA. The
+session cookie carries `Secure`, and a browser refuses to store a `Secure` cookie received
+over `http` — silently, because refusing a cookie is not an error.
+
+So the two halves were each individually defensible and jointly broken, which is the usual
+shape of this class of bug.
+
+**Fix.** `public_base_url` is **always** `https`. There is no deployment where an http link is
+correct — the three documented modes (localhost internal CA, purchased domain, free
+subdomain) all terminate TLS at Caddy (ADR-0012).
+
+**Prevention.** A parametrised unit test asserts the scheme for five site addresses including
+`localhost` and `127.0.0.1`. The test that previously asserted the **opposite** was found
+still in the suite and replaced, which is worth recording: a test can encode a bug.
+
+**Related:** F8.AC2, F8.AC15, ADR-0012.
+
+---
+
+### E9 — `EmailStr` pulled in two dependencies and the API crash-looped
+
+**Status:** Fixed. **Milestone:** M1. **Date:** 2026-09-27.
+
+**Symptom.** Every Gunicorn worker failed to boot: `ImportError: email-validator is not
+installed, run pip install pydantic[email]`. The container restarted, forever.
+
+**Root cause.** `pydantic.EmailStr` is not a self-contained type — it requires
+`email-validator`, which requires `dnspython`. Two packages arrived as a side effect of
+writing `EmailStr` in a request model.
+
+**Fix.** Replaced with a constrained string in `auth/types.py`: `strip_whitespace`, `to_lower`
+(the column is `citext`, so normalising on the way in keeps stored values and comparisons
+consistent), a length bound, and a pattern rejecting what would actually cause a problem —
+no `@`, no dot in the domain, whitespace.
+
+Correct here for a reason beyond dependency count: this system sends **no email at all**.
+Gate 1 declined an SMTP provider and recovery runs over Telegram (ADR-0008), so an admin
+address is purely a **login identifier**. Paying two dependencies for RFC 5322 conformance on
+a string nothing is ever delivered to does not pass ES5.
+
+**Prevention.** The rejection is recorded in the dependency ledger, so the next person
+reaching for `EmailStr` finds the reason rather than rediscovering it. Check 12 of `tl verify`
+builds the production image, so an import error of this kind fails CI rather than a deploy.
+
+**Related:** ES5, ADR-0008, docs/ARCHITECTURE.md §8.
+
+---
+
+### E10 — Multi-step auth state lived in process memory, so login was a coin flip
+
+**Status:** Fixed by migration `0003`. **Milestone:** M1. **Date:** 2026-09-27.
+
+**Symptom.** Sign-in failed roughly half the time, and failed *differently* each way: the
+first attempt returned `401` with a valid code, the next returned `404` for a token that had
+just been issued. Retrying eventually worked.
+
+**Root cause.** Three short-lived tokens — the MFA challenge between password and code, the
+confirm token issued at enrolment, and the Telegram chat-verification code — were held in a
+module-level dict. `TRACELET_WEB_CONCURRENCY=2` means **two Gunicorn workers with separate
+memory**, so whether the follow-up request found the token depended on which worker received
+it. A 401 meant the right worker with a stale code; a 404 meant the wrong worker.
+
+**Fix.** The `auth_challenges` table and `auth/challenges.py` (migration `0003`). One table
+with a `kind` discriminator rather than three, because all three have the same shape and
+lifecycle: single-use, short TTL, bound to one admin. The enrollment and reset tokens stay in
+their own tables, where the lifetimes and delivery paths genuinely differ.
+
+**Worth recording separately.** The original code carried a comment arguing this was
+acceptable because "the admin simply retries". That comment is the actual defect: a
+rationalised trade-off in a comment is how a bug survives review, because the next reader
+sees a decision rather than a mistake. Any state that must survive from one HTTP request to
+the next is shared state, and on this deployment shared means PostgreSQL — the same argument
+ADR-0010 makes for rate-limit buckets.
+
+**Prevention.** An integration test signs in three times consecutively, each with a fresh
+TOTP step. A per-worker store fails it about half the time under the real deployment, and
+deterministically under any future worker count above one.
+
+**Related:** F8.AC1, ADR-0010, docs/DATA_MODEL.md §3.7.
+
+---
+
+### E11 — The commit ran after the response, so a failed transaction was reported as 200
+
+**Status:** Fixed. **Milestone:** M1. **Date:** 2026-09-27.
+
+**Symptom.** A request that violated a database constraint returned `200 OK` with a complete
+response body, and nothing was written.
+
+**Root cause.** The conventional FastAPI dependency —
+
+```python
+async def get_db():
+    async with session_scope() as session:
+        yield session
+```
+
+— commits in the dependency's **teardown**, and FastAPI runs teardown *after* the response has
+been generated. A commit that fails there has no way to change the status code. The exception
+was logged and swallowed, and the client was told the operation succeeded.
+
+**This is what hid E12** for as long as it did: the enrolment path was failing at COMMIT and
+reporting success, so the symptom was "the account did not activate" rather than "the
+transaction was rejected".
+
+**Fix.** `db/request_session.py`. Middleware owns the session, because middleware holds the
+response object and can therefore replace it: it commits first, and returns a `500` Problem
+Details response if the commit fails.
+
+The rollback policy is deliberate and is the second thing this gets right:
+
+* **2xx / 3xx** → commit.
+* **4xx** → commit **as well**. The handler chose that outcome, and anything it wrote is part
+  of the decision — a failed login must keep its audit row (F8.AC16), and that row is written
+  by the same code that then raises `Unauthenticated`.
+* **5xx or an unhandled exception** → roll back. Nobody chose that outcome.
+
+**A consequence worth stating,** because it caused E14: with commit-on-4xx, a handler that
+mutates and *then* rejects will commit the mutation. Such a handler must validate before
+mutating, or roll back explicitly.
+
+**Prevention.** An integration test mounts a route that mutates and returns success while
+violating the deferred owner trigger, and asserts the response is a 5xx with nothing written.
+It fails with a 200 against the dependency-teardown pattern.
+
+**Related:** ES4, F8.AC16, NFR5.AC5, ADR-0013.
+
+---
+
+### E12 — The owner trigger asserted an invariant that is false during bootstrap
+
+**Status:** Fixed in migration `0002` before merge. **Milestone:** M1. **Date:** 2026-09-27.
+
+**Symptom.** Enrolment of the very first owner failed at COMMIT with `cannot remove the last
+active owner` — an error about removing an owner, raised while creating one. Reported to the
+client as `200` (E11).
+
+**Root cause.** `assert_owner_exists` fired on **every** `admins` UPDATE and required that an
+active owner exist afterwards. But the first owner is created `pending_enrollment`, and every
+update on the way to activating them — setting a password, storing a TOTP secret, flipping
+status — happens while **no active owner exists**. The global assertion is simply false during
+bootstrap.
+
+**Fix.** Reformulated to the narrower property that is actually required: *an operation may
+not **remove** the last active owner.* Two constraint triggers with `WHEN` clauses, so the
+check runs only when the row **was** an active owner and is about to stop being one:
+
+```sql
+WHEN (OLD.role = 'owner' AND OLD.status = 'active'
+      AND (NEW.role <> 'owner' OR NEW.status <> 'active'))
+```
+
+A side benefit that matters on a 1 GB box: an ordinary update — a failed-login counter bump on
+an owner — no longer runs a count query.
+
+**Prevention.** The bootstrap-to-active path is exercised by every enrolment test in the
+integration suite, and a test asserts both triggers exist and are `DEFERRABLE INITIALLY
+DEFERRED` in the catalogue. Documentation is not enforcement.
+
+**Related:** F8.AC13, F8.AC15, docs/DATA_MODEL.md §3.1.
+
+---
+
+### E13 — `INET` returns an `ipaddress` object, and comparing it to a string rejected every session
+
+**Status:** Fixed. **Milestone:** M1. **Date:** 2026-09-27.
+
+**Symptom.** Every authenticated request returned `401`. Signing in worked, the cookie was
+set, and the next request was anonymous. `session_binding_mismatch` was in the log the whole
+time, with `kind="ip_prefix"`.
+
+**Root cause.** `sessions.resolve` compared `prefix_of(ip)` — a canonical **string** like
+`203.0.113.0/24` — against `row.ip_prefix`, which SQLAlchemy hands back as an
+`IPv4Interface` for an `INET` column. The two are never equal, so the binding check failed
+for every session including the one just created.
+
+**The interesting part is why `mypy --strict` did not catch it.** The model annotated the
+column as `Mapped[str | None]`. The annotation was a lie, and a type checker cannot find a bug
+that the types deny the existence of.
+
+**Fix.** Compare via `str(...)`, and annotate the `INET` columns as
+`IPv4Interface | IPv6Interface | None` in all three models that have one, so the declared type
+matches what the driver actually returns.
+
+**Prevention.** An integration test signs in and then calls an authenticated route — which
+sounds too obvious to need writing down, and is exactly the test whose absence let this ship.
+
+**Related:** F8.AC3, ES1.
+
+---
+
+### E14 — A 4xx raised after a mutation surfaced as 500 instead of 409
+
+**Status:** Fixed. **Milestone:** M1. **Date:** 2026-09-27.
+
+**Symptom.** Demoting the last owner returned `500 INTERNAL_ERROR` instead of `409
+LAST_OWNER`, and the log showed the failure raised from the commit, outside any handler.
+
+**Root cause.** Two correct decisions interacting. The request session commits on a 4xx (E11),
+so a handler that applied the UPDATE and *then* raised `LastOwner` had its mutation committed
+anyway — and the deferred constraint trigger fired at COMMIT time, in the middleware, where no
+exception handler could map it to a status code.
+
+**Fix.** Two changes, in this order:
+
+1. **Validate before mutating.** `_count_other_active_owners` runs before the UPDATE, so the
+   rejection happens with nothing written.
+2. **`SET CONSTRAINTS ALL IMMEDIATE` after mutating**, so the deferred trigger evaluates
+   inside the handler where an `IntegrityError` becomes a clean 409 rather than a commit-time
+   500.
+
+**The general rule, worth writing down once:** with commit-on-4xx, any handler that mutates
+and then rejects must either validate first or roll back explicitly. That is the price of
+keeping the audit row for a rejected request, and it is the right trade.
+
+**Prevention.** Integration tests assert `409 LAST_OWNER` for both demote and disable. Delete
+is a 422 for a reason recorded in `docs/API.md` §5.
+
+**Related:** F8.AC13, E11, ADR-0013.
+
+---
+
+### E15 — Single-use tokens were spent before the password was validated
+
+**Status:** Fixed. **Milestone:** M1. **Date:** 2026-09-27.
+
+**Symptom.** Submitting a password that failed the policy on `/enroll` or `/reset/confirm`
+returned the correct `422` — and then the link no longer worked. On the enrolment path the
+invitee had to go back to an owner for a fresh invite; on the reset path, a 30-minute token
+had to be requested and waited for again.
+
+**Root cause.** Both handlers consumed the token first and validated the password afterwards.
+Written in the order the reader thinks about it, rather than the order the failure modes
+require.
+
+**Fix.** `_peek_single_use_token` finds a live token **without** spending it; the password is
+validated; then `_consume_single_use_token` spends it conditionally. The conditional UPDATE
+still decides the concurrent case, so nothing about the race changed — only the ordering.
+
+**Prevention.** Two integration tests submit a policy-violating password and then reuse the
+same link successfully, one for enrolment and one for reset.
+
+**Related:** F8.AC7, F8.AC15, F8.AC17.
+
+---
+
+### E16 — Two concurrent demotions could both pass, leaving no active owner
+
+**Status:** Fixed. **Milestone:** M1. **Date:** 2026-09-27.
+
+**Symptom.** None observed — found while writing the concurrency test the E14 fix implied,
+which is the only reason it is in this file rather than in production.
+
+**Root cause.** The E14 fix left a hole. Two transactions each demoting a *different* active
+owner behave like this:
+
+1. each `_count_other_active_owners` sees the other owner still active, because an uncommitted
+   change in one transaction is invisible to the other under READ COMMITTED;
+2. each applies its UPDATE;
+3. each runs `SET CONSTRAINTS ALL IMMEDIATE`, which fires the deferred trigger **early** — in
+   the same blind snapshot — and, per PostgreSQL semantics, *consumes the pending event* so
+   nothing is re-checked at COMMIT;
+4. both commit. Zero active owners, and nobody can administer the system.
+
+The deferred trigger alone would have caught this: at COMMIT the trigger body runs with a
+fresh snapshot, so the second transaction sees the first one's committed demotion and raises.
+`SET CONSTRAINTS ALL IMMEDIATE`, added to turn a commit-time 500 into a clean 409, had
+inadvertently disabled the very protection the deferral existed for. The documentation claimed
+the trigger closed the race; it no longer did.
+
+**Fix.** `_lock_active_owners` takes `SELECT ... FOR UPDATE` on every active owner row,
+ordered by id, before either route reads or changes the owner set. The second transaction then
+waits for the first to commit, and its next statement gets a snapshot in which the count is
+finally truthful. Ordered by id so two transactions cannot take the same rows in opposite
+orders and deadlock. At two admins this locks at most two rows, on a route that runs a handful
+of times in the system's life.
+
+Both mechanisms are kept: the lock plus the pre-check produce the clean 409, and the deferred
+trigger remains the guarantee for anything that bypasses the route.
+
+**Prevention.** A deterministic test holds `FOR UPDATE` on the owner rows from outside the
+app, fires the PATCH, and asserts the handler **blocks** rather than deciding — it fails
+immediately if the lock is removed. Two further tests race real demotions and deletions and
+assert exactly one succeeds and exactly one active owner remains.
+
+**Worth noting.** `SET CONSTRAINTS ALL IMMEDIATE` looked like a pure ergonomics improvement:
+same checks, better error. It silently moved a check from a snapshot that could see concurrent
+commits to one that could not. Changing *when* a constraint is evaluated changes *what* it can
+see.
+
+**Related:** F8.AC13, E11, E14, docs/DATA_MODEL.md §3.1.
+
+---
+
 Add entries here as bugs are found and fixed. Use the next available `E<n>` identifier and
 the same structure: symptom, root cause, fix, **prevention**.
 

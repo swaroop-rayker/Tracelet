@@ -133,44 +133,138 @@ unreachable or migrations are pending (F15.AC5).
 
 ## 4. Admin authentication
 
+**Shipped in M1.** The table below is the implemented contract; `api/openapi.json` and the
+generated TypeScript client are regenerated from it and checked for drift by CI (F14.AC9).
+
 | Method | Path | Role | Purpose |
 |---|---|---|---|
 | `POST` | `/api/v1/auth/login` | — | Step 1. `{email, password}` → `200 {mfa_token, expires_at}` |
-| `POST` | `/api/v1/auth/mfa` | — | Step 2. `{mfa_token, code}` → `204` + `Set-Cookie` |
-| `POST` | `/api/v1/auth/recovery-code` | — | `{email, code}` → `204` + session. Single-use |
+| `POST` | `/api/v1/auth/mfa` | — | Step 2. `{mfa_token, code}` → `204` + `Set-Cookie` + `X-CSRF-Token` |
+| `POST` | `/api/v1/auth/recovery-code` | — | `{email, code}` → `204` + session + `X-Recovery-Remaining` |
 | `POST` | `/api/v1/auth/logout` | any | `204`, revokes the current session |
-| `GET` | `/api/v1/auth/me` | any | Current admin, role, TOTP state, theme, timezone |
+| `GET` | `/api/v1/auth/me` | any | Current admin, role, TOTP state, `recovery_codes_remaining`, `csrf_token`, theme, timezone |
 | `POST` | `/api/v1/auth/reset/request` | — | `{email}` → **always `202`**. Telegram-delivered link |
-| `POST` | `/api/v1/auth/reset/confirm` | — | `{token, new_password}` → `204` |
-| `POST` | `/api/v1/auth/password` | any | `{current_password, new_password}` → `204` |
-| `POST` | `/api/v1/auth/totp/enroll` | any | `200 {secret, otpauth_uri, recovery_codes[]}` — **returned exactly once** |
-| `POST` | `/api/v1/auth/totp/confirm` | any | `{code}` → `204`, activates the account |
-| `POST` | `/api/v1/auth/totp/regenerate-codes` | any | New 10 codes, invalidates the old set |
+| `POST` | `/api/v1/auth/reset/confirm` | — | `{token, new_password}` → `204`, revokes every session |
+| `POST` | `/api/v1/auth/password` | any | `{current_password, new_password}` → `204`, revokes every **other** session |
+| `POST` | `/api/v1/auth/enroll` | — | `{token, password}` → `200 {secret, otpauth_uri, recovery_codes[], hint, confirm_token}` — **returned exactly once** |
+| `POST` | `/api/v1/auth/totp/confirm` | — | `{confirm_token, code}` → `204` + `Set-Cookie`. Activates the account **and signs in** |
+| `POST` | `/api/v1/auth/totp/regenerate-codes` | any | `200 [10 codes]`, invalidates the old set |
 | `GET` | `/api/v1/auth/sessions` | any | Own active sessions |
-| `DELETE` | `/api/v1/auth/sessions/{id}` | any | Revoke one |
+| `DELETE` | `/api/v1/auth/sessions/{id}` | any | Revoke one of your own. Another admin's is `404`, not `403` |
+| `POST` | `/api/v1/auth/telegram/verify/start` | any | `{chat_id}` → `202`, sends a code to that chat |
+| `POST` | `/api/v1/auth/telegram/verify/confirm` | any | `{code}` → `204`, trusts the chat for recovery |
 
-**Login, reset-request and recovery-code responses are identical in body and
-indistinguishable in timing for existing and non-existing accounts**, including a dummy
-Argon2 verification on unknown identifiers (F8.AC10). `/auth/reset/request` returns
-`202` whether or not the account exists — that is enumeration resistance, not a bug.
+### 4.1 Four things that differ from the Gate-3 design
 
-Rate limits: `login` and `mfa` 5 per 15 min per identifier and 20/hr per prefix;
-`reset/request` 3/hr per identifier (F8.AC9).
+Each is a consequence of building it, and each is recorded here rather than left for a
+reader to discover from the code (CLAUDE.md §2).
+
+**`/totp/enroll` became `/enroll`, and takes the invitation token.** Enrolment is the
+*unauthenticated* first use of a one-time link, not an action by a signed-in admin. The old
+path implied a session that cannot exist yet.
+
+**`/totp/confirm` takes a `confirm_token` and returns a session.** The account has no
+session and *cannot* have one — the CHECK constraint forbids `active` without
+`totp_enrolled_at` — so confirmation needs some other proof of who is confirming. Taking an
+admin id from the request would let anyone activate any pending account with a code from
+their own authenticator, which is a complete authentication bypass. The one-time token
+issued by `/enroll` is that proof.
+
+It then issues the session directly. Both factors have just been proved — the password at
+`/enroll`, a live code here — and asking for a second code would be refused as a replay,
+because the step just accepted is now the stored high-water mark (F8.AC5).
+
+**`/telegram/verify/start` and `/confirm` are new.** The design had a single
+`POST /api/v1/admins/{id}/telegram/verify`. Verification is two steps by nature — send a
+code to the proposed chat, then prove it arrived — and it is a *self-service* action on your
+own recovery channel rather than an owner administering someone else, so it sits under
+`/auth`.
+
+**`X-Recovery-Remaining`** on the recovery-code response, so the UI can warn when the set
+runs low without a second round trip.
+
+### 4.2 Enumeration resistance (F8.AC10)
+
+Login, reset-request and recovery-code responses are **identical in body and
+indistinguishable in timing** for existing and non-existing accounts, including a dummy
+Argon2 verification on an unknown identifier — measured at 1.01x by hand, and asserted
+within 3x by an integration test. `/auth/reset/request` returns `202` whether or not the
+account exists, whether or not it has a verified chat, and whether or not delivery
+succeeded; the truth goes to the audit log. That is enumeration resistance, not a bug, and a
+client must not add a friendlier per-status message that undoes it.
+
+`/auth/mfa` reports a **replayed** code as invalid rather than as reused, for the same
+reason: telling a caller their code was correct-but-spent confirms they hold a real code.
+
+### 4.3 Sessions and CSRF
+
+The session is an opaque server-side row, delivered as a `__Host-tracelet_session` cookie
+with `HttpOnly`, `Secure`, `SameSite=Strict`, `Path=/` and no `Domain` (F8.AC2, ADR-0008).
+Nothing readable by script is ever handed to the client, so there is no token in
+`localStorage` for an injection to steal.
+
+Every state-changing request must carry **both** an acceptable `Origin` (or `Referer`) and
+the session's CSRF secret in `X-CSRF-Token` (F8.AC11). The token is returned in that header
+by `/auth/mfa`, `/auth/totp/confirm` and `/auth/recovery-code`, and in the body of
+`/auth/me` as `csrf_token`.
+
+> **Read that header case-insensitively.** The stack normalises `X-CSRF-Token` to
+> `X-Csrf-Token`. A client that indexes a plain object by the exact name it sent finds
+> nothing, and every subsequent state-changing request fails with a 403 that looks like a
+> server bug.
+
+A new session means a new CSRF secret, so a client that caches the token across a
+re-authentication will start collecting 403s.
+
+### 4.4 Rate limits
+
+`login` 5 per 15 min per identifier (burst 5) and 20/hr per prefix (burst 10); `mfa` 10 per
+15 min per prefix; `reset/request` 3/hr per identifier; `recovery-code` 5/hr per identifier
+— deliberately the tightest, because each attempt costs ten Argon2 verifications at 32 MiB
+and is therefore a memory-amplification vector as well as a credential one (F8.AC9,
+ADR-0010).
+
+Separately, **eight consecutive failed passwords lock the account for 30 minutes** and
+answer `423 ACCOUNT_LOCKED` with a retry hint. The limiter throttles a network; the lockout
+protects one identity from a distributed attempt that stays under the per-prefix limit.
 
 ---
 
 ## 5. Admin management — `owner` only
 
+**Shipped in M1.** Every call writes an `audit_log` row (CLAUDE.md invariant 9).
+
 | Method | Path | Purpose |
 |---|---|---|
-| `GET` | `/api/v1/admins` | List |
-| `POST` | `/api/v1/admins` | `{email, display_name, role}` → `201`. Creates `pending_enrollment`. **No password is ever set here** (F8.AC15) |
-| `PATCH` | `/api/v1/admins/{id}` | Role, status, display name |
-| `DELETE` | `/api/v1/admins/{id}` | Refused for the last active owner → `409 LAST_OWNER` (F8.AC13) |
-| `POST` | `/api/v1/admins/{id}/enrollment-token` | `201 {url, expires_at}`, single-use |
-| `POST` | `/api/v1/admins/{id}/telegram/verify` | Begin verification of the recovery chat |
+| `GET` | `/api/v1/admins` | List, with `last_login_at` derived from the audit log |
+| `POST` | `/api/v1/admins` | `{email, display_name, role}` → `201 {admin, enrollment_url, enrollment_expires_at}`. Creates `pending_enrollment`. **No password is ever set here** (F8.AC15) |
+| `GET` | `/api/v1/admins/{id}` | One admin |
+| `PATCH` | `/api/v1/admins/{id}` | `{display_name?, role?, status?}`. Refuses anything that would remove the last active owner → `409 LAST_OWNER` |
+| `DELETE` | `/api/v1/admins/{id}` | `204`. Your own account → `422`; see below |
+| `POST` | `/api/v1/admins/{id}/enrollment-token` | `201 {url, expires_at}`, single-use, 24 hours |
 
-Every call writes an `audit_log` row.
+There is deliberately **no way to set another admin's password.** An owner invites, and the
+invitee sets their own through a one-time link, so no default password exists anywhere in
+the system and an owner cannot impersonate a colleague with a password they know.
+
+### 5.1 `409 LAST_OWNER`, and why DELETE answers `422` instead
+
+`PATCH` returns `409 LAST_OWNER` for a demotion or a disable that would leave zero active
+owners (F8.AC13).
+
+`DELETE` does not, sequentially, and the reason is worth stating because the Gate-3 design
+assumed otherwise. Deleting requires the owner role. If the actor is an active owner and the
+target is somebody else, then the actor *is* a remaining active owner and the target was
+never the last one. The only reachable case is an owner deleting themselves, which is
+refused first, on its own terms, as `422 VALIDATION_FAILED` — it is a mistake at any role.
+
+`409` on this route therefore exists only for the concurrent case: two owners deleting each
+other at the same moment, where the row lock and the deferred trigger decide it. Both paths
+are covered by integration tests.
+
+**Changing a status to anything other than `active` revokes that admin's sessions
+immediately**, because "disabled" that takes effect at session expiry means nothing for up
+to twelve hours.
 
 ---
 
@@ -464,13 +558,19 @@ redirects, or a 404. Any internal failure is logged and the redirect still happe
 | `GET /r/{slug}` | 30/min, 300/hr, burst 10 | IP prefix |
 | `POST /api/v1/s/{nonce}` | Once per nonce, ever (F11.AC4) | nonce |
 | `GET /api/v1/hp/{token}` | 10/min | IP prefix |
-| `POST /api/v1/auth/login`, `/auth/mfa` | 5 per 15 min; 20/hr | identifier; IP prefix |
-| `POST /api/v1/auth/reset/request` | 3/hr | identifier |
+| `POST /api/v1/auth/login` | 5 per 15 min (burst 5); 20/hr (burst 10) | identifier; IP prefix |
+| `POST /api/v1/auth/mfa` | 10 per 15 min (burst 5) | IP prefix |
+| `POST /api/v1/auth/reset/request` | 3/hr (burst 3) | identifier |
+| `POST /api/v1/auth/recovery-code` | 5/hr (burst 3) | identifier |
 | `GET /api/v1/visits/{id}/ip` | 10/hr | admin |
 | All other `/api/v1` | 120/min | session |
 | **Outbound** Nominatim | 1/s, cached | global |
 | **Outbound** external geo APIs | per-source budget + breaker | global |
 | **Outbound** Telegram | per-bot budget + backoff | global |
+
+`/auth/mfa` is keyed on the network prefix rather than on an identifier because the
+caller presents an opaque challenge token at that step, not an address — there is
+nothing else to key on, and the challenge is already single-use and short-lived.
 
 Both directions are covered, which is the brief requirement for upstream and downstream
 limiting (F11.AC7). State lives in PostgreSQL so both Uvicorn workers share one

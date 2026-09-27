@@ -1,100 +1,160 @@
 /**
- * M0 skeleton.
+ * Route dispatch and the one piece of global state: who is signed in.
  *
- * Deliberately small, but it proves three things end to end: the SPA builds and
- * is served by Caddy, Caddy proxies the API surfaces, and the trace id survives
- * the round trip.
+ * The session lives in a cookie this code cannot read, so "am I signed in" is only
+ * answerable by asking the server. `GET /api/v1/auth/me` is therefore the app's
+ * bootstrap: a 200 means a live session and carries the CSRF token, a 401 means
+ * anonymous, and anything else is a real error that gets its own state rather than
+ * being collapsed into "signed out".
  *
- * It also establishes the pattern F9.AC18 makes mandatory for every panel from
- * M5 onward — explicit loading, error and empty states. A blank panel is a
- * defect (B5), so there is no code path here that renders nothing.
+ * That third case is the one worth being careful about. Treating a 500 or a dropped
+ * connection as "not signed in" would bounce the admin to a login form that also
+ * cannot work, and they would spend the outage retyping a password (B5).
  */
 
 import { useCallback, useEffect, useState } from 'react';
-import { fetchReadiness, type ApiResult, type Readiness } from '@/api/health';
+import { fetchMe, type Me } from '@/api/auth';
+import type { ApiError } from '@/api/client';
+import { Callout, ErrorNotice, Loading } from '@/components/ui';
+import DashboardPage from '@/pages/DashboardPage';
+import EnrollPage from '@/pages/EnrollPage';
+import LoginPage from '@/pages/LoginPage';
+import { RecoveryCodePage, ResetConfirmPage, ResetRequestPage } from '@/pages/RecoveryPages';
+import { navigate, useRoute } from '@/router';
 
-type State =
+type Session =
   | { readonly phase: 'loading' }
-  | { readonly phase: 'ready'; readonly result: ApiResult<Readiness> };
+  | { readonly phase: 'anonymous' }
+  | { readonly phase: 'signed-in'; readonly me: Me }
+  /** Reachable, but not answering. Distinct from anonymous, deliberately. */
+  | { readonly phase: 'unavailable'; readonly error: ApiError };
 
 export default function App(): React.JSX.Element {
-  const [state, setState] = useState<State>({ phase: 'loading' });
+  const route = useRoute();
+  const [session, setSession] = useState<Session>({ phase: 'loading' });
+  const [notice, setNotice] = useState<string | null>(null);
 
-  const load = useCallback(async (): Promise<void> => {
-    setState({ phase: 'loading' });
-    const result = await fetchReadiness();
-    setState({ phase: 'ready', result });
+  const refresh = useCallback(async (): Promise<void> => {
+    const result = await fetchMe();
+    if (result.ok) {
+      setSession({ phase: 'signed-in', me: result.data });
+      return;
+    }
+    if (result.error.status === 401 || result.error.status === 403) {
+      setSession({ phase: 'anonymous' });
+      return;
+    }
+    setSession({ phase: 'unavailable', error: result.error });
   }, []);
 
   useEffect(() => {
-    void load();
-  }, [load]);
+    void refresh();
+  }, [refresh]);
 
-  return (
-    <main className="shell">
-      <header>
-        <h1>Tracelet</h1>
-        <p className="muted">M0 — foundation. No product feature yet, by design.</p>
-      </header>
+  const signedIn = useCallback((): void => {
+    setNotice(null);
+    navigate({ name: 'dashboard' }, { replace: true });
+    void refresh();
+  }, [refresh]);
 
-      <section aria-labelledby="status-heading">
-        <h2 id="status-heading">System readiness</h2>
-        {state.phase === 'loading' ? <Loading /> : <Result result={state.result} />}
-        <button type="button" onClick={() => void load()}>
-          Refresh
-        </button>
-      </section>
-    </main>
-  );
-}
+  const signedOut = useCallback((): void => {
+    setSession({ phase: 'anonymous' });
+    navigate({ name: 'login' }, { replace: true });
+  }, []);
 
-function Loading(): React.JSX.Element {
-  return (
-    <p className="muted" role="status">
-      Checking…
-    </p>
-  );
-}
-
-function Result({ result }: { readonly result: ApiResult<Readiness> }): React.JSX.Element {
-  if (result.kind === 'failure') {
+  // --- routes that are reachable without a session -------------------------
+  // Checked before the session state, because an invitee has no session by
+  // definition and a reset link is used precisely when signing in does not work.
+  if (route.name === 'enroll') {
+    return <EnrollPage token={route.token} onSignedIn={signedIn} />;
+  }
+  if (route.name === 'reset') {
     return (
-      <div className="card error" role="alert">
-        <strong>Unavailable</strong>
-        <p>{result.message}</p>
-        {result.traceId !== null && (
-          <p className="muted mono">
-            trace {result.traceId}
-            {/* F15.AC2: the id is surfaced so a report is diagnosable from one
-                identifier, without needing to reproduce anything. */}
-          </p>
-        )}
-      </div>
+      <ResetConfirmPage
+        token={route.token}
+        onReset={() => {
+          setNotice('Your password has been changed. Sign in with it and your code.');
+          navigate({ name: 'login' }, { replace: true });
+        }}
+      />
+    );
+  }
+  if (route.name === 'reset-request') {
+    return <ResetRequestPage />;
+  }
+  if (route.name === 'recovery') {
+    return <RecoveryCodePage onSignedIn={signedIn} />;
+  }
+
+  if (session.phase === 'loading') {
+    return (
+      <main className="shell narrow">
+        <header>
+          <h1>Tracelet</h1>
+        </header>
+        <Loading label="Checking your session…" />
+      </main>
     );
   }
 
-  const { ready, environment, checks } = result.data;
-  const entries = Object.entries(checks);
+  if (session.phase === 'unavailable') {
+    return (
+      <main className="shell narrow">
+        <header>
+          <h1>Tracelet</h1>
+          <p className="muted">Cannot reach the server</p>
+        </header>
+        <ErrorNotice error={session.error} />
+        <p className="muted small">
+          You have not been signed out. This page is not working, which is a different problem —
+          retry rather than reaching for your password.
+        </p>
+        <button
+          type="button"
+          onClick={() => {
+            setSession({ phase: 'loading' });
+            void refresh();
+          }}
+        >
+          Try again
+        </button>
+      </main>
+    );
+  }
+
+  if (session.phase === 'anonymous') {
+    return <LoginPage onSignedIn={signedIn} {...(notice === null ? {} : { notice })} />;
+  }
+
+  if (route.name === 'not-found') {
+    return (
+      <main className="shell narrow">
+        <header>
+          <h1>Tracelet</h1>
+          <p className="muted">No such page</p>
+        </header>
+        <Callout tone="warn" title="Nothing here">
+          <p className="mono">{route.path}</p>
+        </Callout>
+        <button
+          type="button"
+          onClick={() => {
+            navigate({ name: 'dashboard' });
+          }}
+        >
+          Go to the dashboard
+        </button>
+      </main>
+    );
+  }
 
   return (
-    <div className={ready ? 'card ok' : 'card warn'}>
-      <strong>{ready ? 'Ready' : 'Not ready'}</strong>
-      <p className="muted">environment: {environment}</p>
-      {entries.length === 0 ? (
-        <p className="muted">No checks reported.</p>
-      ) : (
-        <ul className="checks">
-          {entries.map(([name, check]) => (
-            <li key={name}>
-              <span aria-hidden="true">{check.ok ? '✓' : '✗'}</span>
-              {/* Never colour alone — NFR7.AC3 applies to status as much as charts. */}
-              <span className="sr-only">{check.ok ? 'pass' : 'fail'}</span>
-              <code>{name}</code>
-              <span className="muted">{check.detail}</span>
-            </li>
-          ))}
-        </ul>
-      )}
-    </div>
+    <DashboardPage
+      me={session.me}
+      onSignedOut={signedOut}
+      onRefresh={() => {
+        void refresh();
+      }}
+    />
   );
 }

@@ -279,6 +279,20 @@ owner Telegram account enables a password reset. **Mitigation:** the reset flow 
 bypass TOTP, and recovery codes plus the CLI provide two independent paths that do not
 involve Telegram at all.
 
+**Live as of M1**, with three additions from building it:
+
+- **A chat is only trusted once verified.** A six-digit code is sent to the proposed chat
+  and must be typed back before any reset link will go there (F8.AC7). An unverified chat id
+  means reset links arrive somewhere that may not be yours, and you would only discover it
+  at the moment you needed it — so the verification is not a formality.
+- **TOTP survives a reset**, and an integration test asserts it. If a Telegram compromise
+  alone granted a session, Telegram would in effect be the only credential.
+- **The bot token is a credential of the same weight as a password.** It lives only in
+  `.env` (gitignored) and is redacted from every log line and exception message — Telegram
+  puts it in the request path, so an httpx error would otherwise print it verbatim under a
+  non-sensitive key where the log redactor cannot reach. Rotate it in @BotFather (`/revoke`,
+  then `/token`) after any session in which it was handled in plaintext.
+
 ---
 
 ## Spike log

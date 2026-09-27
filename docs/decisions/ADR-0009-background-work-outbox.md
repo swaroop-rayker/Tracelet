@@ -1,8 +1,9 @@
 # ADR-0009 — Background work: transactional outbox with an in-process asyncio worker
 
-**Status:** Accepted (Gate 2, 2026-09-25)
+**Status:** Accepted (Gate 2, 2026-09-25). **Amended 2026-09-27 (M1)** — see
+*Amendment: password reset is sent synchronously* at the end.
 **Deciders:** repository owner
-**Relates to:** F7.AC5, F7.AC6, F10.AC13, NFR5.AC2, NFR6, ADR-0001, ADR-0002
+**Relates to:** F7.AC5, F7.AC6, F8.AC7, F10.AC13, NFR5.AC2, NFR6, ADR-0001, ADR-0002
 
 ---
 
@@ -12,7 +13,7 @@ Tracelet has two kinds of deferred work.
 
 **Event-driven, delivery-critical:**
 - Telegram visit alerts (F7)
-- Telegram password-reset links (F8.AC7)
+- Telegram password-reset links (F8.AC7) — **reclassified in M1, see the amendment**
 - Telegram health alerts
 
 **Scheduled, periodic:**
@@ -128,3 +129,51 @@ The extraction is deliberately cheap: the worker is already a separate module wi
 entry point, so it becomes a second Compose service running the same image with a different
 command. **No broker is required even then** — the outbox continues to work across
 processes, because `SKIP LOCKED` does not care which process holds the connection.
+
+---
+
+## Amendment: password reset is sent synchronously — 2026-09-27, M1
+
+**What changed.** `telegram.password_reset` was listed above as an outbox kind. M1 sends it
+**synchronously**, inline in the request that asks for it (`notify/telegram.py`). This
+amendment records the reasoning rather than leaving the ADR contradicting the code, which
+CLAUDE.md §2 forbids in either direction.
+
+**Why the outbox is the wrong mechanism for this one message.**
+
+The outbox exists for a specific property: a visit and its notification must commit
+**atomically** (NFR5.AC2). A visit must never exist without its queued alert, and a
+rolled-back visit must never emit one. That is what `dedup_key`, `SKIP LOCKED` and
+enqueue-inside-the-transaction are all for.
+
+A password reset has no such transaction. There is no row whose existence must imply the
+message, and no row the message must not outlive. What it has instead is an admin watching a
+spinner, holding a **30-minute** token:
+
+- **An immediate answer is better than an eventual one.** Queued delivery means the page can
+  only say "we have accepted your request"; it cannot distinguish "sent" from "will be
+  retried in 30 seconds" from "the bot token is wrong". The synchronous path knows, and
+  records the outcome in the audit row (`delivered: true|false`).
+- **Retry has little value on a time-limited link.** A link that arrives 90 seconds late
+  after two backoff attempts has lost three minutes of its thirty, and the admin has
+  probably already requested another one.
+- **Failure is not silent either way.** A delivery failure is logged and audited, and the
+  endpoint still answers `202` regardless, because saying "delivery failed" would be an
+  account-enumeration oracle (F8.AC10). The outbox would add persistence to an outcome the
+  caller is deliberately not told about.
+
+**What does not change.** Visit alerts (F7) go through the outbox in M6, where the atomicity
+requirement is real and the dedup key is load-bearing. Health alerts likewise. The
+`outbox_kind` enum keeps `telegram.password_reset` **unused**, so the door stays open, and
+this amendment is the reason to walk through it deliberately rather than by accident.
+
+**The condition for revisiting.** Move reset delivery into the outbox if either becomes
+true:
+
+1. Telegram delivery failures become common enough that a retry materially improves the
+   chance of a reset arriving inside its TTL — measurable from the
+   `admin.password_reset_requested` audit rows with `delivered: false`.
+2. Reset volume rises to where a synchronous outbound HTTP call on a request path is a
+   latency or event-loop concern. At a handful of resets in the system's lifetime it is not.
+
+**Related:** docs/MILESTONES.md M1 deviations, F8.AC7, RISKS R18.

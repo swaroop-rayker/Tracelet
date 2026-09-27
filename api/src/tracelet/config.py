@@ -107,8 +107,15 @@ class Settings(BaseSettings):
 
     @property
     def public_base_url(self) -> str:
-        scheme = "http" if self.site_address.startswith("localhost") else "https"
-        return f"{scheme}://{self.site_address}"
+        """Always https.
+
+        Caddy terminates TLS on every path, including localhost via its internal CA,
+        so there is no deployment where an http link is correct. It would also be
+        actively broken: the session cookie carries the Secure flag, so a browser
+        would refuse to store it over http and enrolment would silently fail to sign
+        the admin in (docs/ERRORS.md E8).
+        """
+        return f"https://{self.site_address}"
 
     @model_validator(mode="before")
     @classmethod

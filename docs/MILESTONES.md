@@ -16,7 +16,7 @@ then open the PR (CLAUDE.md section 2).
 | | Milestone | Size | Status |
 |---|---|---|---|
 | M0 | Foundation and CI | M | **[x] done** — CI green on `main`, 69 tests |
-| M1 | Admin auth and account security | L | [ ] |
+| M1 | Admin auth and account security | L | **[x] done** — 254 tests, 9 bugs recorded as E8–E16 |
 | M2 | Capture path, server-authoritative | L | [ ] |
 | M3 | Location inference engine | L | [ ] |
 | M4 | Anti-spoofing and classification | L | [ ] |
@@ -122,7 +122,8 @@ requires the single `CI` status check, which is the one to put behind branch pro
 **F/AC-IDs:** F8.AC1–F8.AC17, F10.AC9, F13.AC7, F12.AC3, F12.AC5
 
 **Scope**
-- `admins`, `sessions`, `admin_recovery_codes`, `admin_enrollment_tokens`, `audit_log`
+- `admins`, `sessions`, `admin_recovery_codes`, `admin_enrollment_tokens`,
+  `password_reset_tokens`, `auth_challenges`, `audit_log`, `rate_limit_buckets`
 - The two database invariants as **engine constraints**: last-owner constraint trigger
   (F8.AC13), `status='active'` requires TOTP (F8.AC4)
 - Argon2id **pinned `m=32MiB, t=3, p=1`** — F8.AC1, CLAUDE.md section 5
@@ -131,23 +132,133 @@ requires the single `CI` status check, which is the one to put behind branch pro
 - TOTP enrolment, replay prevention via `totp_last_counter`
 - 10 recovery codes, Argon2-hashed, shown once
 - Telegram bot client + chat verification + reset-link delivery
-- `tracelet admin` CLI: bootstrap, create, reset-password
+- `tracelet admin` CLI: bootstrap, list, create, reset-password, reset-totp, telegram-test
 - Login rate limiting, lockout, enumeration and timing resistance incl. dummy Argon2
 - AES-GCM envelope module + key loading (used here for `totp_secret_enc`, reused in M2)
 - Role middleware; `audit_log` append-only enforced by grants
+- Frontend: `/enroll`, `/login`, `/recovery`, `/forgot`, `/reset` and the authenticated
+  account shell — who am I, change password, recovery codes, Telegram channel, session
+  list with revoke, sign out
 
 **Done checklist**
-- [ ] `make bootstrap` prints a one-time enrollment URL; no default password exists anywhere
-- [ ] Full flow: enrol, TOTP, log in, change password, revoke a session
-- [ ] Password recovery via Telegram, end to end, on a real bot
-- [ ] Recovery code works and cannot be reused
-- [ ] `tracelet admin reset-password` works with shell + DB access only
-- [ ] **Last owner cannot be deleted, demoted or disabled** — proven by an integration test
-- [ ] Login timing for existing vs non-existing accounts is indistinguishable (measured)
-- [ ] Lockout triggers and expires correctly
-- [ ] `audit_log` `UPDATE`/`DELETE` **rejected** for the app role — integration test
-- [ ] Argon2 memory measured under 2 concurrent logins, within budget
-- [ ] Docs: API.md section 4–5 verified against implementation
+- [x] `tracelet admin bootstrap` prints a one-time enrollment URL; **no default password
+      exists anywhere** — the column is `NULL` until the invitee sets one (F8.AC15)
+- [x] Full flow: enrol, TOTP, log in, change password, revoke a session — driven end to end
+      against the running stack over HTTPS through Caddy, 30 assertions, and covered
+      permanently by `tests/integration/test_auth_flow.py`
+- [x] Password recovery via Telegram, end to end, on the real bot
+      (`@swrp_insta_visitor_alert_bot`): chat-verification code and reset link both
+      delivered, reset applied, token single-use, all sessions revoked, TOTP still required
+      afterwards. The permanent suite covers the logic and intercepts the send — see the
+      deviations below for why it does not message a real chat
+- [x] Recovery code works, bypasses both factors, and cannot be reused;
+      `X-Recovery-Remaining` decrements; a code typed in lower case with spaces is accepted
+- [x] `tracelet admin reset-password` works with shell + DB access only, enforces the same
+      password policy as the API, and writes the same audit row
+- [x] **Last owner cannot be demoted or disabled** (`409 LAST_OWNER`) — integration tests,
+      including two that race real concurrent demotions and deletions. Deletion of the last
+      owner answers `422` rather than `409`, for a reason recorded in API.md §5.1
+- [x] Login timing for existing vs non-existing accounts is indistinguishable — **measured
+      at 1.01x** by hand, asserted within 3x by an integration test, and bodies are
+      byte-identical
+- [x] Lockout triggers after 8 failures and reports `423 ACCOUNT_LOCKED`; a successful login
+      clears the counter
+- [x] `audit_log` `UPDATE`/`DELETE` **rejected** for the app role — two integration tests
+      attempt both, plus one that reads `information_schema.table_privileges` so a later
+      migration cannot silently re-grant them
+- [x] A rejected request still records its attempt: failed password, bad code, lockout and
+      bad recovery code all leave rows, written on their own connection so they survive a
+      rollback (F8.AC16)
+- [x] Argon2 parameters asserted as **exact numbers** in a unit test, and the PHC string
+      checked for `m=32768,t=3,p=1` — a library default here OOMs the box (CLAUDE.md §5)
+- [x] The three engine-level invariants confirmed **in the catalogue**, not just in the
+      migration: both constraint triggers present and `DEFERRABLE INITIALLY DEFERRED`, the
+      `active` CHECK present, and the `audit_log` grants as intended
+- [x] `ruff check`, `ruff format --check`, `mypy --strict` clean across 58 files
+- [x] Unit tests: 157. Integration tests: 97, against real PostgreSQL + PostGIS, never
+      mocked (ES3)
+- [x] `tsc --noEmit`, `eslint`, `prettier --check` clean; **no new frontend dependency**
+- [x] OpenAPI document and TypeScript client regenerated and committed
+- [x] Docs: API.md §4–5 rewritten against the implementation; DATA_MODEL.md §3 with the two
+      new tables and the corrected owner invariant; ARCHITECTURE.md §5.5, §5.8, §9 and the
+      dependency ledger; ADR-0009 amended; ERRORS.md **E8–E16**
+
+**Deviations from the original M1 scope, each with the doc updated in the same change:**
+
+- **`auth_challenges` added.** Not in the Gate-3 design at all. The MFA challenge, the
+  enrolment confirm token and the chat-verification code were held in a module-level dict,
+  which with two Gunicorn workers made login a coin flip (ERRORS.md E10). Migration `0003`,
+  DATA_MODEL §3.7.
+- **`password_reset_tokens` documented as its own table** (DATA_MODEL §3.4). Implied by
+  F8.AC7 but never written down; kept separate from enrolment because the lifetimes and
+  delivery paths genuinely differ.
+- **`rate_limit_buckets` pulled forward from M7.** Login limiting (F8.AC9) needs shared
+  state across workers from the first milestone that has a login, and the same table serves
+  the L2 limiter in M2 (ADR-0010). DATA_MODEL §8.7.
+- **Password reset is sent synchronously, not through the outbox.** ADR-0009 listed
+  `telegram.password_reset` as an outbox kind; the outbox exists for visit/notification
+  atomicity (NFR5.AC2), which a reset has no equivalent of, and the admin is waiting on a
+  30-minute link. The ADR is **amended** with the reasoning and an explicit condition for
+  revisiting, rather than left contradicting the code.
+- **`/totp/enroll` became `/enroll`**, and `/totp/confirm` now takes a `confirm_token` and
+  returns a session. Enrolment is the unauthenticated first use of a one-time link, and the
+  account cannot hold a session until TOTP is confirmed — so the token is what identifies
+  who is confirming. API.md §4.1.
+- **`/auth/telegram/verify/start` and `/confirm` replace
+  `POST /admins/{id}/telegram/verify`.** Verification is two steps by nature, and it is a
+  self-service action on your own recovery channel rather than an owner administering
+  someone else. API.md §4.1.
+- **No QR code at enrolment.** Rendering one means another dependency for one or two manual
+  entries; the page shows the base32 secret and the `otpauth://` URI instead. Recorded as a
+  rejection in the ledger.
+- **No `react-router` and no `zod` yet.** Five flat routes use a 60-line `src/router.ts`,
+  and the six auth payloads are narrowed by hand. Both dependencies arrive in M5 where they
+  pay for themselves. Ledger updated.
+- **`email-validator` rejected.** `pydantic.EmailStr` pulled it in along with `dnspython`
+  and crash-looped the API (ERRORS.md E9). This system sends no email at all, so an admin
+  address is purely a login identifier.
+- **`SELECT ... FOR UPDATE` added to the owner routes.** A bug found while writing the
+  concurrency test the E14 fix implied: `SET CONSTRAINTS ALL IMMEDIATE` had inadvertently
+  disabled the protection the deferred trigger existed for (ERRORS.md E16).
+- **The permanent suite does not message a real Telegram chat.** Delivery was verified by
+  hand against the live bot; in the suite the one test that asserts the success branch
+  intercepts `telegram.send_message`. CI has neither a token nor a route to Telegram, and a
+  test that messages a real person is one nobody runs twice. Not a database double — ES3 is
+  untouched.
+- **The integration suite manages the admin table it shares.** It creates accounts under the
+  reserved `example.test` domain and deletes them afterwards, and the last-owner assertions
+  temporarily disable any *other* active owner, restoring it in a `finally`. The rule is a
+  statement about the whole table, so it cannot be asserted while a real owner sits in it.
+  Documented at the top of `tests/integration/conftest.py`, including the one-line psql
+  command that repairs a killed run.
+
+**Open question for the owner — two clauses of SPEC F8.AC9 do not match what shipped.**
+Raised rather than resolved, because a requirement may not be changed without approval
+(CLAUDE.md §2). Neither affects the security property that matters, and both are narrow:
+
+1. *"Over-limit responses are indistinguishable from wrong credentials."* They are not: the
+   limiter answers `429 RATE_LIMITED` with `Retry-After`, and a lockout answers `423
+   ACCOUNT_LOCKED`. Three reasons the implementation went the other way — F11.AC10 requires
+   `Retry-After` on a 429; API.md §12.1 and §13, approved at Gate 3, document both codes; and
+   a limit a legitimate admin cannot see is one they keep retrying into. **The enumeration
+   property is intact**, which is the point of F8.AC10: the bucket is keyed on the submitted
+   identifier whether or not an account exists, so a known and an unknown address are
+   throttled identically, and an integration test asserts the bodies and timings match.
+   *Recommendation: amend F8.AC9 to say over-limit responses must not differ between existing
+   and non-existing accounts, which is the property actually wanted.*
+2. *"with exponential backoff"*. GCRA produces a `Retry-After` that grows with how far the
+   caller is over the sustained rate, and the lockout is a flat 30 minutes — neither is
+   exponential per-attempt backoff. *Recommendation: amend to describe the GCRA behaviour, or
+   say if per-attempt exponential backoff is genuinely wanted, in which case it is a small
+   change to `authenticate_password`.*
+
+Until it is settled, the code matches API.md and the tests; SPEC §11 has no new row.
+
+**Known state, carried into M2:** the owner account's Telegram chat is **not currently
+verified**, so the reset-over-Telegram path is not armed for it. Verify it from the
+dashboard's Telegram panel. The bot token in `.env` should also be rotated in @BotFather: it
+was handled in plaintext during development, and it is a password-recovery channel
+(RISKS R18).
 
 ---
 
