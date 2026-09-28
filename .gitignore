@@ -61,3 +61,10 @@ desktop.ini
 logs/
 scratch/
 tmp/
+
+# Local TLS-interception roots (antivirus, VPN, corporate proxy). Machine
+# specific by definition: committing one would make every other developer, CI
+# and the production box trust a CA that has nothing to do with them.
+# See api/certs/README.md.
+api/certs/*.crt
+api/certs/*.pem

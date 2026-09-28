@@ -161,12 +161,22 @@ export async function request<T>(path: string, options: RequestOptions<T>): Prom
 
   const csrfToken = header(response, CSRF_HEADER);
 
+  // Read the body as text first, so "the server sent nothing" and "the server sent
+  // something unreadable" stay distinguishable. Keying that off the status code
+  // instead was a real bug: `/reset/request` and `/telegram/verify/start` answer
+  // **202** with no body, and a check that exempted only 204 reported both as a
+  // malformed response — after the server had already done the work and sent the
+  // Telegram message (docs/ERRORS.md E18).
+  const raw = await response.text().catch(() => '');
+  const isEmpty = raw.trim().length === 0;
+
   let body: unknown = null;
-  if (response.status !== 204) {
+  let unreadable = false;
+  if (!isEmpty) {
     try {
-      body = await response.json();
+      body = JSON.parse(raw);
     } catch {
-      body = null;
+      unreadable = true;
     }
   }
 
@@ -175,7 +185,9 @@ export async function request<T>(path: string, options: RequestOptions<T>): Prom
   }
 
   const parsed = options.parse(body);
-  if (parsed === null && response.status !== 204) {
+  // An empty body is a legitimate success for every no-content endpoint whatever
+  // its status, so only a body that arrived and could not be understood is a fault.
+  if (unreadable || (parsed === null && !isEmpty)) {
     return {
       ok: false,
       error: {

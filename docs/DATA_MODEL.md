@@ -151,6 +151,13 @@ could not see it (docs/ERRORS.md E13).
 2. `status='active'` requires `password_hash IS NOT NULL AND totp_enrolled_at IS NOT
    NULL` — F8.AC4. **No account can reach the dashboard without TOTP.** A CHECK
    constraint, so it holds for the CLI and for a psql session, not only for the API.
+
+   **This interacts with invariant 1, and the interaction has no legal state.** Clearing
+   TOTP forces the status out of `active`, which invariant 1 forbids for the last active
+   owner — so the sole owner cannot have their TOTP cleared at all. Anything that needs to
+   re-enrol that account must leave the row `active` and replace the secret in place, which
+   is what `tracelet admin reset-totp` now does (docs/ERRORS.md E17). Worth knowing before
+   writing the next operation that nulls `totp_enrolled_at`.
 3. `telegram_chat_id` must be verified before it can receive a reset link — F8.AC7.
    Relaxed for `status='pending_enrollment'`, since a chat id may be recorded before the
    account is live.

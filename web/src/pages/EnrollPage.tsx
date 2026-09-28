@@ -244,7 +244,9 @@ function AuthenticatorStep({
           inputMode="numeric"
           autoComplete="one-time-code"
           placeholder="123456"
-          hint="From the authenticator app you just set up."
+          maxLength={10}
+          hint="The rotating code your authenticator app shows for this account — not the secret above."
+          error={fieldMessage(error, 'code')}
         />
         <Submit busy={busy} busyLabel="Checking the code…">
           Confirm and sign in

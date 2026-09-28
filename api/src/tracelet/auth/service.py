@@ -50,6 +50,7 @@ from tracelet.crypto.hashing import (
 )
 from tracelet.errors import (
     AccountLocked,
+    DependencyUnavailable,
     MfaInvalid,
     NotFound,
     Unauthenticated,
@@ -873,11 +874,45 @@ async def begin_chat_verification(
         # holds, so the row is keyed by the admin instead.
         token=str(admin.id),
     )
-    await telegram.send_message(
-        bot_token=settings.require("telegram_bot_token", "Telegram chat verification"),
-        chat_id=chat_id,
-        text=telegram.chat_verification_message(display_name=admin.display_name, code=code),
-    )
+    # Translated here rather than allowed to propagate. `TelegramError` is a
+    # RuntimeError, not a TraceletError, so an uncaught one reaches the global
+    # handler as an *unexpected* failure and the admin is told "Internal error" with
+    # no detail -- while they sit in front of a form whose input is very likely the
+    # thing that is wrong (docs/ERRORS.md E20).
+    try:
+        token = settings.require("telegram_bot_token", "Telegram chat verification")
+        await telegram.send_message(
+            bot_token=token,
+            chat_id=chat_id,
+            text=telegram.chat_verification_message(display_name=admin.display_name, code=code),
+        )
+    except telegram.TelegramError as exc:
+        log.warning("chat_verification_send_failed", permanent=exc.permanent)
+        if exc.permanent:
+            # Telegram refused it outright, so the chat id is the thing to fix.
+            from tracelet.errors import FieldError  # noqa: PLC0415 - avoids an import cycle
+
+            msg = (
+                "Telegram would not accept a message for that chat. Check the id, and "
+                "make sure you have sent the bot a message first -- a bot cannot open a "
+                "conversation."
+            )
+            raise ValidationFailed(
+                msg,
+                errors=[
+                    FieldError(field="chat_id", code="UNREACHABLE_CHAT", message=msg),
+                ],
+            ) from exc
+        msg = (
+            "Could not reach Telegram from the server. The code has not been sent; "
+            "try again shortly."
+        )
+        raise DependencyUnavailable(msg) from exc
+    except RuntimeError as exc:
+        # settings.require(): the feature is not configured on this deployment.
+        log.error("chat_verification_not_configured")
+        msg = "Telegram is not configured on this server, so a code cannot be sent."
+        raise DependencyUnavailable(msg) from exc
 
 
 async def confirm_chat_verification(

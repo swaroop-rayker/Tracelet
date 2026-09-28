@@ -13,7 +13,7 @@
 
 import { useState } from 'react';
 import { login, submitMfa, type MfaChallenge } from '@/api/auth';
-import type { ApiError } from '@/api/client';
+import { fieldMessage, type ApiError } from '@/api/client';
 import { Callout, ErrorNotice, Field, Submit } from '@/components/ui';
 import { navigate } from '@/router';
 
@@ -122,7 +122,9 @@ export default function LoginPage({
             inputMode="numeric"
             autoComplete="one-time-code"
             placeholder="123456"
+            maxLength={10}
             hint="A code can only be used once, so wait for the next one if you have just used it."
+            error={fieldMessage(error, 'code')}
           />
           <Submit busy={busy} busyLabel="Signing in…">
             Sign in

@@ -13,13 +13,14 @@ control; this test is the proof that it works.
 from __future__ import annotations
 
 import json
+import logging
 from io import StringIO
 from typing import Any
 
 import pytest
 import structlog
 
-from tracelet.logging import REDACTED, redact_processor
+from tracelet.logging import REDACTED, configure_logging, redact_processor
 
 # Values chosen to be unmistakable if they leak.
 LEAK_MARKERS = {
@@ -213,5 +214,83 @@ def test_end_to_end_through_the_configured_logger() -> None:
     assert "hunter2-do-not-log" not in output
     assert REDACTED in output
     assert "203.0.113.0/24" in output
+
+    structlog.reset_defaults()
+
+
+# ---------------------------------------------------------------------------
+# Bot tokens (docs/ERRORS.md E19)
+# ---------------------------------------------------------------------------
+
+# Shaped like a real Telegram token and deliberately not one: digits, a colon,
+# then 35 URL-safe characters.
+FAKE_BOT_TOKEN = "8965988233:AAFakeFakeFakeFakeFakeFakeFakeFakeFake"
+
+
+def test_a_bot_token_in_a_url_is_masked_in_free_text() -> None:
+    """E19 — this reached the log in plaintext on every successful notification.
+
+    Telegram carries the token in the URL **path**, so any library that logs a
+    request URL logs a credential. httpx does exactly that at INFO. The logger is
+    silenced in ``configure_logging``; this is the second line of defence, for a
+    traceback or a future HTTP client that does the same thing.
+    """
+    message = (
+        f"HTTP Request: POST https://api.telegram.org/bot{FAKE_BOT_TOKEN}/sendMessage "
+        '"HTTP/1.1 200 OK"'
+    )
+
+    result = redact_processor(None, "info", {"event": message})
+
+    assert FAKE_BOT_TOKEN not in str(result)
+    assert "<bot-token>" in str(result["event"])
+    # The rest of the line is diagnostic and must survive.
+    assert "api.telegram.org" in str(result["event"])
+    assert "sendMessage" in str(result["event"])
+
+
+def test_a_bot_token_is_masked_inside_an_exception_message() -> None:
+    """The shape a failed delivery takes: the URL embedded in an httpx error."""
+    message = (
+        "ConnectError: [Errno -2] Name or service not known while requesting "
+        f"https://api.telegram.org/bot{FAKE_BOT_TOKEN}/getMe"
+    )
+
+    result = redact_processor(None, "error", {"exception": message})
+
+    assert FAKE_BOT_TOKEN not in str(result)
+
+
+def test_the_mask_matches_on_shape_not_on_the_configured_value() -> None:
+    """It must hold for a rotated token, a second bot, or one never seen here.
+
+    Matching the configured token would leave every other token in plaintext --
+    including the one an operator pastes into a support channel.
+    """
+    other = "111111:BBdifferentdifferentdifferentdifferent"
+    result = redact_processor(
+        None, "info", {"event": f"POST https://api.telegram.org/bot{other}/sendMessage"}
+    )
+
+    assert other not in str(result)
+
+
+def test_a_colon_separated_value_outside_a_bot_url_is_untouched() -> None:
+    """Narrow by construction: the pattern requires the literal ``/bot`` prefix,
+    so ordinary text containing a colon is not mangled.
+    """
+    result = redact_processor(None, "info", {"event": "cache key user:12345678901234567890"})
+
+    assert "user:12345678901234567890" in str(result["event"])
+
+
+def test_httpx_request_logging_is_silenced() -> None:
+    """The primary control. Masking is defence in depth; not emitting the line at
+    all is what actually keeps a credential off disk.
+    """
+    configure_logging(level="INFO", json_output=True)
+
+    assert logging.getLogger("httpx").level >= logging.WARNING
+    assert logging.getLogger("httpcore").level >= logging.WARNING
 
     structlog.reset_defaults()

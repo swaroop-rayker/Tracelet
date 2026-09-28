@@ -231,10 +231,27 @@ async def _reset_password(email: str, *, revoke_sessions: bool) -> int:
 
 
 async def _reset_totp(email: str) -> int:
-    """Clear TOTP enrolment, forcing re-enrolment.
+    """Re-issue two-factor enrolment.
 
-    Deactivates the account, because the CHECK constraint forbids an active account
-    without TOTP. Re-enrolment happens through a fresh enrollment link.
+    **Two behaviours, because clearing in place is impossible for the last owner.**
+
+    The obvious implementation nulls the secret and drops the account to
+    ``pending_enrollment`` -- it has to drop the status, because the CHECK constraint
+    forbids an active account without ``totp_enrolled_at``. For any other admin that
+    is right, and it is what happens below.
+
+    For the **last active owner** it cannot work at all: leaving ``active`` is exactly
+    what the owner trigger refuses (F8.AC13), so the command failed with "cannot
+    remove the last active owner" -- on the one account most likely to need it, and on
+    a path that exists to prevent lockout (docs/ERRORS.md E17).
+
+    So for that case the account stays ``active`` and the secret is left in place, and
+    the enrollment link does the replacing: ``/enroll`` writes a new password and a new
+    secret, ``/totp/confirm`` re-confirms. The status never changes, so the trigger
+    never fires. The cost is stated plainly to the operator: the existing
+    authenticator keeps working until the link is used. That is the right trade for a
+    lost device, and for a *compromised* one the answer is to promote a second owner
+    first, which this prints.
     """
     settings = get_settings()
     async with session_scope() as db:
@@ -243,30 +260,72 @@ async def _reset_totp(email: str) -> int:
             print(f"No admin with address {email}.", file=sys.stderr)
             return 1
 
-        await db.execute(
-            update(Admin)
-            .where(Admin.id == admin.id)
-            .values(
-                totp_secret_enc=None,
-                totp_key_version=None,
-                totp_enrolled_at=None,
-                totp_last_counter=None,
-                status=AdminStatus.PENDING_ENROLLMENT,
+        # Locked before it is read, for the same reason the admins router locks it:
+        # an unlocked count cannot see a concurrent demotion (docs/ERRORS.md E16).
+        others = 0
+        is_sole_owner = admin.role is AdminRole.OWNER and admin.status is AdminStatus.ACTIVE
+        if is_sole_owner:
+            await db.execute(
+                select(Admin.id)
+                .where(Admin.role == AdminRole.OWNER, Admin.status == AdminStatus.ACTIVE)
+                .order_by(Admin.id)
+                .with_for_update()
             )
-        )
+            others = int(
+                (
+                    await db.execute(
+                        select(func.count())
+                        .select_from(Admin)
+                        .where(
+                            Admin.role == AdminRole.OWNER,
+                            Admin.status == AdminStatus.ACTIVE,
+                            Admin.id != admin.id,
+                        )
+                    )
+                ).scalar_one()
+            )
+            is_sole_owner = others == 0
+
+        if not is_sole_owner:
+            await db.execute(
+                update(Admin)
+                .where(Admin.id == admin.id)
+                .values(
+                    totp_secret_enc=None,
+                    totp_key_version=None,
+                    totp_enrolled_at=None,
+                    totp_last_counter=None,
+                    status=AdminStatus.PENDING_ENROLLMENT,
+                )
+            )
+
         await sessions.revoke_all_for_admin(db, admin.id, reason="totp_reset")
         await audit.record(
             db,
             action=audit.Action.TOTP_RESET,
             target_type="admin",
             target_id=str(admin.id),
-            detail={"via": "cli"},
+            detail={"via": "cli", "cleared_in_place": not is_sole_owner},
         )
         offer = await issue_enrollment_token(db, settings, admin_id=admin.id, created_by=None)
 
-    print(f"Two-factor authentication cleared for {email}; the account is now pending.")
+    if is_sole_owner:
+        print(f"{email} is the only active owner, so the account stays active.")
+        print()
+        print("  Its CURRENT authenticator keeps working until you use the link below.")
+        print("  Opening it replaces the password, the secret and the recovery codes.")
+        print()
+        print("  If the authenticator was compromised rather than lost, invite a second")
+        print("  owner first -- then this command can clear the secret immediately.")
+    else:
+        print(f"Two-factor authentication cleared for {email}; the account is now pending.")
+
+    print()
     print(f"Re-enrol here (expires {offer.expires_at:%Y-%m-%d %H:%M UTC}):")
     print(f"  {offer.url}")
+    print()
+    print("You will be shown 10 new recovery codes EXACTLY ONCE. The old set stops")
+    print("working the moment you complete the link.")
     return 0
 
 

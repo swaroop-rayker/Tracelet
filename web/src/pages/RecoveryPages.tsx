@@ -108,6 +108,8 @@ export function RecoveryCodePage({
           onChange={setCode}
           autoComplete="one-time-code"
           placeholder="ABCDE-FGHJK"
+          maxLength={32}
+          error={fieldMessage(error, 'code')}
         />
         <Submit busy={busy} busyLabel="Checking…">
           Sign in

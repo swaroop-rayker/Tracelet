@@ -805,6 +805,243 @@ see.
 
 ---
 
+### E17 — The sole owner could never reset their own authenticator
+
+**Status:** Fixed. **Milestone:** M1. **Date:** 2026-09-27.
+
+**Symptom.** `tracelet admin reset-totp --email <the only owner>` aborted with
+`IntegrityError: cannot remove the last active owner / HINT: promote another admin to owner
+first`. Found by the repository owner running the command this file had just recommended to
+them, on a one-admin deployment.
+
+**Root cause.** Two correct constraints with no legal state between them.
+
+1. Re-enrolling TOTP means clearing `totp_enrolled_at`.
+2. The CHECK `ck_admins_active_requires_password_and_totp` forbids an `active` account
+   without it, so the status *must* leave `active`.
+3. The owner trigger forbids the last active owner leaving `active` (F8.AC13).
+
+So for the only owner, the operation is impossible — and that is the account most likely to
+need it, on a path whose entire purpose is to prevent lockout (F8.AC8). Recovery codes and
+`reset-password` still worked, but neither helps the specific case of a lost authenticator:
+`reset-password` deliberately leaves the second factor alone.
+
+**Fix.** Stop clearing in place when clearing is illegal. For the last active owner the
+account stays `active`, the secret is left alone, and the enrollment link does the replacing:
+`/enroll` writes a new password, a new secret and a new set of recovery codes, and
+`/totp/confirm` re-confirms. The status never changes, so the trigger never fires. Every
+other admin keeps the strict behaviour, because it is available and it is better — a
+compromised authenticator stops working immediately rather than at re-enrolment.
+
+The trade is stated to the operator rather than hidden: the existing authenticator keeps
+working until the link is used, and if the device was *compromised* rather than lost, the
+answer is to invite a second owner first. The audit row records which of the two behaviours
+ran (`cleared_in_place`).
+
+The same `SELECT ... FOR UPDATE` as the admins router guards the count, for the E16 reason.
+
+**Prevention.** `tests/integration/test_cli_recovery.py` — fifteen tests over the break-glass
+paths, three of which fail with this exact `IntegrityError` against the old code. The file
+exists because none of the M1 suite covered the CLI: it was verified by hand on accounts that
+were never the last owner, which is precisely the case that works.
+
+**Worth noting.** Every individual constraint here was right, each was tested, and the
+combination was unreachable. A test per constraint cannot find that; only exercising the
+operation on the account that has to survive it can. The suite now uses the `exclusive_owner`
+fixture for these, so "the only owner" is the default case rather than an edge case nobody
+reaches.
+
+**Related:** F8.AC4, F8.AC8, F8.AC13, E12, E16.
+
+---
+
+### E18 — A 202 with no body was reported to the operator as a malformed response
+
+**Status:** Fixed. **Milestone:** M1. **Date:** 2026-09-27.
+
+**Symptom.** Clicking "Send a verification code" showed *"The server returned something
+this page does not understand."* The code arrived in Telegram anyway. The log showed
+`telegram_sent` and `status=202`, so the server had done exactly what was asked.
+
+**Root cause.** In the frontend client, endpoints with no response body are parsed by
+`noContent()`, which returns `null`. The guard that decides whether a `null` means "the
+parser rejected this" read:
+
+```ts
+if (parsed === null && response.status !== 204) { /* malformed */ }
+```
+
+Two endpoints answer **202**, not 204: `/auth/reset/request` and
+`/auth/telegram/verify/start`. Both were therefore reported as faults after succeeding.
+
+A status-code allow-list was the wrong instrument. The question is not "which statuses
+have no body" — it is "did a body arrive, and could it be read".
+
+**Fix.** Read the response as text first, so *no body* and *unreadable body* stay
+distinguishable regardless of status:
+
+* empty body → success, whatever the status;
+* non-empty body that fails `JSON.parse` → malformed;
+* parsed body the narrowing rejects → malformed.
+
+**Prevention.** Both 202 endpoints now behave correctly by construction rather than by
+being listed. The password-reset path had the same defect and nobody had reached it yet.
+
+**Worth noting.** The failure was maximally misleading: the user-visible message blamed
+the *server*, the server had succeeded, and the side effect (a Telegram message) had
+already happened. A client that lies about a success is worse than one that fails
+loudly, because the operator retries and re-triggers the side effect.
+
+**Related:** ES4, F8.AC7.
+
+---
+
+### E19 — The Telegram bot token was written to the log in plaintext on every send
+
+**Status:** Fixed. **Milestone:** M1. **Date:** 2026-09-27.
+
+**Symptom.** Found while reading the log for an unrelated trace id:
+
+```
+HTTP Request: POST https://api.telegram.org/bot<TOKEN>/sendMessage "HTTP/1.1 200 OK"
+```
+
+The full bot token, in clear text, on every successful notification.
+
+**Root cause.** Telegram carries the bot token in the URL **path**, so any library that
+logs a request URL logs a credential. `httpx` does exactly that, at INFO, from its own
+logger — which `configure_logging` routes through structlog along with everything else.
+
+`notify/telegram.py` already had a `_redact` helper, and it was not enough: it only
+touches messages *this* module raises or logs. httpx's line never passes through it.
+The key-based redactor could not help either, because the token is mid-string under a
+non-sensitive key (`event`).
+
+**This is precisely the class of failure F12.AC3 exists to prevent**, and the token is
+not an ordinary API key: Telegram is a password-recovery channel (RISKS R18), so it is
+closer to a password than to a service credential.
+
+**Fix.** Two layers, because they fail differently:
+
+1. **Silence the logger.** `httpx` and `httpcore` are set to `WARNING`, the same way
+   `sqlalchemy.engine` already was. Nothing in that line is worth keeping — our own
+   middleware logs method, path, status and duration with a trace id, and
+   `telegram.py` logs the outcome with the chat id.
+2. **Mask the shape.** `_mask_bot_tokens` in the redactor rewrites `/bot<digits>:<...>`
+   to `/bot<bot-token>` in free text, for a traceback, a future HTTP client, or any
+   other library that reintroduces it. Matched on **shape**, not on the configured
+   value, so it holds for a rotated token, a second bot, or one this process has never
+   seen.
+
+**Prevention.** Five unit tests in `test_log_redaction.py`, including one asserting both
+loggers are at `WARNING` after `configure_logging` — silencing is the control, masking
+is the backstop — and one asserting an ordinary `key:value` string outside a `/bot` URL
+is not mangled.
+
+**Worth noting.** The redaction suite had passed since M0 and was genuinely good: it
+proved sensitive **keys** never survive, and that IP literals in free text are masked.
+It could not catch this, because the credential belonged to a third-party library's log
+line in a format nobody had thought about. "We redact secrets" is a claim about the
+inputs you enumerated.
+
+**Related:** F12.AC3, F12.AC13, RISKS R18, E4.
+
+---
+
+### E20 — A Telegram delivery failure surfaced as `500 Internal error`
+
+**Status:** Fixed. **Milestone:** M1. **Date:** 2026-09-27.
+
+**Symptom.** "Send a verification code" returned `500 INTERNAL_ERROR` with a trace id
+and nothing else. The log showed `telegram_failed` after three attempts, then
+`unhandled_exception`.
+
+**Root cause.** `TelegramError` subclasses `RuntimeError`, not `TraceletError`. The
+global handler therefore treated it as an *unexpected* failure — which is right for
+anything it does not recognise, and means the detail is deliberately withheld from the
+client. So the one person who could act on it was told the least useful thing possible,
+while looking at the form field most likely to be at fault.
+
+`settings.require()` raises a bare `RuntimeError` too, so an unconfigured deployment
+produced the same opaque 500.
+
+**Fix.** Translate at the service boundary, into the two cases that differ in what the
+operator should do:
+
+| Failure | Response |
+|---|---|
+| Telegram **rejects** it — wrong chat id, bot never messaged, bot blocked | `422`, with the error attached to the **`chat_id`** field |
+| Telegram **unreachable**, or not configured | `503 DEPENDENCY_UNAVAILABLE`, saying the code was not sent and to retry |
+
+`TelegramError` gained a `permanent` flag, set on a 4xx from Telegram, so the caller can
+tell "this will never work" from "this might work in a minute". `request_password_reset`
+already caught both and recorded `delivered: false`; only chat verification propagated,
+because it is the one place where the admin is waiting and must be told.
+
+**Prevention.** Three integration tests cover both branches and assert a failed send
+leaves **no** half-finished challenge row — otherwise a code from an earlier attempt
+could later be confirmed against a chat id the admin had since corrected.
+
+**Related:** F8.AC7, ADR-0013, E21.
+
+---
+
+### E21 — Antivirus TLS interception broke every outbound HTTPS from a container
+
+**Status:** Worked around; the underlying cause is environmental. **Milestone:** M1.
+**Date:** 2026-09-27.
+
+**Symptom.** Three failures that looked unrelated, all starting after the host hung and
+was restarted:
+
+* `docker compose build api` — `Could not find a version that satisfies the requirement
+  setuptools>=75 (from versions: none)`, which reads as a network or index problem;
+* Telegram delivery — `CERTIFICATE_VERIFY_FAILED: unable to get local issuer
+  certificate`;
+* `apk add` inside a throwaway `alpine` container — silent failure.
+
+The browser was unaffected throughout, which is what made it confusing.
+
+**Root cause.** Norton 360 performs TLS interception: it terminates HTTPS and re-signs
+with a root of its own. Asking who signed the certificate the container is actually
+served made it obvious in one line:
+
+```
+SUBJECT : CN=api.telegram.org
+ISSUER  : CN=Norton Web/Mail Shield Root, OU=generated by Norton Antivirus for SSL/TLS scanning
+```
+
+Windows trusts that root, so browsers are fine. A container carries its own CA bundle
+and does not, so **every** outbound HTTPS from a container fails.
+
+**Fix.** `api/certs/` — empty in CI and in production, where the whole thing is a no-op
+costing one cached layer. Anything dropped there is installed into the image's trust
+store at build time. The certificate itself is git-ignored: a TLS-interception root is
+specific to one machine, and committing one would make every other developer, CI and the
+production box trust a CA that has nothing to do with them.
+
+**The part worth remembering: `update-ca-certificates` is not sufficient.** Python's HTTP
+clients do not read the system trust store. Both `pip` and `httpx` use `certifi`, so
+installing the root system-wide fixes `apt` and leaves the build *and* Telegram failing
+in a way that looks unrelated to the fix just applied. The image therefore does both:
+updates the system store, appends to `certifi`'s bundle after each `pip install` (certifi
+does not exist in the `base` stage — it arrives with the first install), and sets
+`PIP_CERT`, `SSL_CERT_FILE` and `REQUESTS_CA_BUNDLE`.
+
+**Prevention.** `api/certs/README.md` carries the diagnosis, the one-line command that
+identifies interception, and the export procedure — because the symptoms name neither
+certificates nor the antivirus, and the next person to hit this will be reading a `pip`
+error about `setuptools`.
+
+**Not the preferred fix.** Turning the interception off is better where that is an
+option: it means every encrypted connection is decrypted and re-encrypted inside another
+process, which is a real trade independent of Docker. This is recorded as a workaround
+chosen deliberately, not as a resolution.
+
+**Related:** E19, E20.
+
+---
+
 Add entries here as bugs are found and fixed. Use the next available `E<n>` identifier and
 the same structure: symptom, root cause, fix, **prevention**.
 

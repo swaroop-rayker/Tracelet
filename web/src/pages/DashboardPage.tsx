@@ -417,6 +417,8 @@ function TelegramPanel({
             onChange={setCode}
             inputMode="numeric"
             placeholder="135790"
+            maxLength={10}
+            error={fieldMessage(error, 'code')}
           />
           <Submit busy={busy} busyLabel="Verifying…">
             Verify this chat

@@ -36,7 +36,18 @@ BACKOFF_BASE = 0.5
 
 
 class TelegramError(RuntimeError):
-    """Delivery failed. The message never contains the bot token."""
+    """Delivery failed. The message never contains the bot token.
+
+    ``permanent`` distinguishes the two failures a caller must treat differently:
+    Telegram *rejecting* the request (a wrong chat id, a blocked bot) will never
+    succeed on retry and is usually the operator's input to correct, while a
+    transport failure may well be transient and is the server's problem. Collapsing
+    them loses the only thing the admin can act on.
+    """
+
+    def __init__(self, message: str, *, permanent: bool = False) -> None:
+        super().__init__(message)
+        self.permanent = permanent
 
 
 @dataclass(frozen=True, slots=True)
@@ -104,7 +115,7 @@ async def send_message(
                     "telegram_rejected", status=response.status_code, detail=detail, chat_id=chat_id
                 )
                 msg = f"Telegram rejected the message (HTTP {response.status_code}): {detail}"
-                raise TelegramError(msg)
+                raise TelegramError(msg, permanent=True)
 
             last_error = f"HTTP {response.status_code}: {detail}"
 

@@ -120,6 +120,21 @@ _IP_CANDIDATE = re.compile(
 )
 
 
+# Telegram puts the bot token in the URL PATH, so any library that logs a request
+# URL logs a credential. httpx does exactly that at INFO. The logger is silenced in
+# configure_logging, and this pattern is the second line of defence: a traceback, a
+# third-party library, or a future HTTP client would otherwise reintroduce it
+# (docs/ERRORS.md E19).
+#
+# Matched on shape rather than on the configured value, so it holds for a rotated
+# token, for a second bot, and for a token this process has never seen.
+_BOT_TOKEN = re.compile(r"(?<=/bot)\d{5,}:[A-Za-z0-9_-]{30,}")
+
+
+def _mask_bot_tokens(text: str) -> str:
+    return _BOT_TOKEN.sub("<bot-token>", text)
+
+
 def _mask_addresses(text: str) -> str:
     """Mask globally-routable IP literals in free text, keeping local ones.
 
@@ -189,7 +204,9 @@ def redact_processor(
         if _is_sensitive(name):
             result[key] = REDACTED
         elif name.lower() in FREE_TEXT_KEYS and isinstance(value, str):
-            result[key] = _mask_addresses(value)
+            # Bot tokens first: masking them is a plain substitution, while address
+            # masking parses each candidate and would otherwise walk a credential.
+            result[key] = _mask_addresses(_mask_bot_tokens(value))
         else:
             result[key] = _scrub(value)
     return result
@@ -266,3 +283,14 @@ def configure_logging(*, level: str = "INFO", json_output: bool = True) -> None:
     logging.getLogger("uvicorn.access").propagate = False
     logging.getLogger("uvicorn.error").propagate = True
     logging.getLogger("sqlalchemy.engine").setLevel(logging.WARNING)
+
+    # httpx logs every request URL at INFO. Telegram carries the bot token in the
+    # URL path, so that single line writes a live credential to disk on every
+    # notification -- and the token is a password-recovery channel (RISKS R18), not
+    # merely an API key. F12.AC3 does not permit it (docs/ERRORS.md E19).
+    #
+    # Silenced rather than filtered: nothing in that line is worth keeping. Our own
+    # middleware already logs method, path, status and duration with a trace_id, and
+    # telegram.py logs the outcome with the chat id.
+    logging.getLogger("httpx").setLevel(logging.WARNING)
+    logging.getLogger("httpcore").setLevel(logging.WARNING)

@@ -1283,3 +1283,86 @@ async def test_starting_a_second_sign_in_invalidates_the_first(
         },
     )
     assert current.status_code == 204
+
+
+async def test_a_telegram_rejection_blames_the_chat_id_not_the_server(
+    owner: SignedIn, db_client: AsyncClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """docs/ERRORS.md E20.
+
+    Telegram refusing outright — a wrong chat id, or a bot the admin has never
+    messaged — is the operator's input to fix, and they are sitting in front of the
+    field that holds it. Reporting it as `500 Internal error` tells them nothing and
+    points them at the wrong thing.
+    """
+
+    async def refuse(**kwargs: object) -> telegram.SendResult:
+        del kwargs
+        raise telegram.TelegramError("chat not found", permanent=True)
+
+    monkeypatch.setattr(telegram, "send_message", refuse)
+
+    response = await db_client.post(
+        f"{AUTH}/telegram/verify/start", json={"chat_id": 1}, headers=owner.headers()
+    )
+
+    assert response.status_code == 422
+    body = response.json()
+    assert body["code"] == "VALIDATION_FAILED"
+    assert {error["field"] for error in body["errors"]} == {"chat_id"}
+    assert "sent the bot a message first" in body["errors"][0]["message"]
+
+
+async def test_an_unreachable_telegram_is_a_503_that_says_so(
+    owner: SignedIn, db_client: AsyncClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A transport failure is the server's problem, and retrying may fix it.
+
+    This is the shape the Norton TLS-interception outage took: every outbound
+    connection failing certificate verification, surfacing as an unhandled
+    RuntimeError and therefore as a bare 500.
+    """
+
+    async def unreachable(**kwargs: object) -> telegram.SendResult:
+        del kwargs
+        raise telegram.TelegramError("ConnectError: certificate verify failed")
+
+    monkeypatch.setattr(telegram, "send_message", unreachable)
+
+    response = await db_client.post(
+        f"{AUTH}/telegram/verify/start", json={"chat_id": 424242}, headers=owner.headers()
+    )
+
+    assert response.status_code == 503
+    body = response.json()
+    assert body["code"] == "DEPENDENCY_UNAVAILABLE"
+    assert "try again" in body["detail"]
+    # The detail must survive: the 5xx handler strips nothing for a typed error, and
+    # an admin who is told only "Internal error" has no idea whether to retry.
+    assert body["trace_id"]
+
+
+async def test_a_failed_send_leaves_no_half_finished_challenge(
+    owner: SignedIn, db_client: AsyncClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The challenge row is written before the send, so a failure must not leave one.
+
+    Otherwise a later code from a *previous* successful attempt could be confirmed
+    against a chat id the admin has since corrected.
+    """
+
+    async def refuse(**kwargs: object) -> telegram.SendResult:
+        del kwargs
+        raise telegram.TelegramError("chat not found", permanent=True)
+
+    monkeypatch.setattr(telegram, "send_message", refuse)
+
+    await db_client.post(
+        f"{AUTH}/telegram/verify/start", json={"chat_id": 1}, headers=owner.headers()
+    )
+
+    confirmed = await db_client.post(
+        f"{AUTH}/telegram/verify/confirm", json={"code": "000000"}, headers=owner.headers()
+    )
+    assert confirmed.status_code == 401
+    assert (await helpers.reload_admin(owner.id)).telegram_chat_id is None

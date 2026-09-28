@@ -106,6 +106,7 @@ export function Field({
   inputMode,
   disabled = false,
   placeholder,
+  maxLength,
 }: {
   readonly label: string;
   readonly value: string;
@@ -118,6 +119,9 @@ export function Field({
   readonly inputMode?: 'numeric' | 'text' | 'email';
   readonly disabled?: boolean;
   readonly placeholder?: string;
+  /** Stops an over-long paste reaching the server at all. A validation message
+   *  the input could have prevented is a worse experience than no message. */
+  readonly maxLength?: number;
 }): React.JSX.Element {
   const id = useId();
   const hintId = `${id}-hint`;
@@ -137,6 +141,7 @@ export function Field({
         disabled={disabled}
         autoComplete={autoComplete}
         inputMode={inputMode}
+        maxLength={maxLength}
         placeholder={placeholder}
         aria-invalid={error == null ? undefined : true}
         aria-describedby={described.length > 0 ? described : undefined}

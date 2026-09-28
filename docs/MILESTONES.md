@@ -16,7 +16,7 @@ then open the PR (CLAUDE.md section 2).
 | | Milestone | Size | Status |
 |---|---|---|---|
 | M0 | Foundation and CI | M | **[x] done** — CI green on `main`, 69 tests |
-| M1 | Admin auth and account security | L | **[x] done** — 254 tests, 9 bugs recorded as E8–E16 |
+| M1 | Admin auth and account security | L | **[x] done** — 277 tests, 14 bugs recorded as E8–E21 |
 | M2 | Capture path, server-authoritative | L | [ ] |
 | M3 | Location inference engine | L | [ ] |
 | M4 | Anti-spoofing and classification | L | [ ] |
@@ -154,28 +154,30 @@ requires the single `CI` status check, which is the one to put behind branch pro
       (`sessions_revoked: 1`), and TOTP was still required afterwards. The permanent suite
       covers the logic and intercepts the send — see the deviations for why it does not
       message a real chat
-- [ ] **`POST /auth/telegram/verify/confirm` has never completed against the live bot.**
-      Found on 2026-09-27 while checking why the owner's chat showed as unverified. The
-      owner's audit trail contains **no `admin.telegram_verified` row**, yet two resets
-      succeeded — which is only possible with a verified chat. So the previous session sent
-      the verification code through the real endpoint (the message exists), never confirmed
-      it, and set `telegram_chat_id` / `telegram_verified_at` **directly in SQL** to reach
-      the reset path. Both fields are `NULL` again now.
+- [x] **`POST /auth/telegram/verify/confirm` completed against the live bot**, from the
+      dashboard, on **2026-09-28 11:12:30 UTC** — producing the `admin.telegram_verified`
+      row the owner's audit trail had never contained, and setting
+      `telegram_chat_id` / `telegram_verified_at` through the endpoint rather than by hand.
+      Reset-over-Telegram is now armed for the owner account.
 
-      Nothing is wrong with the code: the confirm path is covered by integration tests
-      against a seeded challenge, including the wrong-code and single-use cases. What is
-      missing is one live round trip — send a code from the dashboard's Telegram panel and
-      type it back — which also produces the `admin.telegram_verified` row the audit trail
-      should have. Until then the reset-over-Telegram path is **not armed** for the owner
-      account, and the two remaining recovery routes (codes, CLI) are the live ones.
+      It had never run. The audit trail showed **no `admin.telegram_verified` row** while
+      two password resets had succeeded — which is only possible with a verified chat. The
+      previous session had sent the code through the real endpoint, never confirmed it, and
+      set both columns **directly in SQL** to reach the reset path it wanted to test.
 
-      **Worth keeping in mind generally:** stubbing state in SQL to reach the code under
-      test leaves the *setup* path unverified, and the audit log is where that shows up.
-      A hand-run harness reporting "19/19 passed" could not see its own missing row.
+      **Worth keeping generally:** stubbing state in SQL to reach the code under test
+      leaves the *setup* path unverified, and the audit log is where that shows up. A
+      hand-run harness reporting "19/19 passed" could not see its own missing row — and
+      the gap survived into a handoff document as a completed check.
 - [x] Recovery code works, bypasses both factors, and cannot be reused;
       `X-Recovery-Remaining` decrements; a code typed in lower case with spaces is accepted
 - [x] `tracelet admin reset-password` works with shell + DB access only, enforces the same
-      password policy as the API, and writes the same audit row
+      password policy as the API, writes the same audit row, and leaves the second factor
+      alone
+- [x] `tracelet admin reset-totp` works **for the sole owner** — it did not, and could not,
+      until E17 was fixed: clearing TOTP forces the status out of `active`, which the owner
+      trigger refuses. Covered by `tests/integration/test_cli_recovery.py`, whose three
+      sole-owner tests fail against the old code
 - [x] **Last owner cannot be demoted or disabled** (`409 LAST_OWNER`) — integration tests,
       including two that race real concurrent demotions and deletions. Deletion of the last
       owner answers `422` rather than `409`, for a reason recorded in API.md §5.1
@@ -196,13 +198,14 @@ requires the single `CI` status check, which is the one to put behind branch pro
       migration: both constraint triggers present and `DEFERRABLE INITIALLY DEFERRED`, the
       `active` CHECK present, and the `audit_log` grants as intended
 - [x] `ruff check`, `ruff format --check`, `mypy --strict` clean across 58 files
-- [x] Unit tests: 157. Integration tests: 97, against real PostgreSQL + PostGIS, never
-      mocked (ES3)
+- [x] Unit tests: 162. Integration tests: 115, against real PostgreSQL + PostGIS, never
+      mocked (ES3) — including fifteen over the break-glass CLI, which nothing covered
+      before E17 was found, and three over Telegram delivery failures (E20)
 - [x] `tsc --noEmit`, `eslint`, `prettier --check` clean; **no new frontend dependency**
 - [x] OpenAPI document and TypeScript client regenerated and committed
 - [x] Docs: API.md §4–5 rewritten against the implementation; DATA_MODEL.md §3 with the two
       new tables and the corrected owner invariant; ARCHITECTURE.md §5.5, §5.8, §9 and the
-      dependency ledger; ADR-0009 amended; ERRORS.md **E8–E16**
+      dependency ledger; ADR-0009 amended; ERRORS.md **E8–E21**
 
 **Deviations from the original M1 scope, each with the doc updated in the same change:**
 
@@ -238,6 +241,10 @@ requires the single `CI` status check, which is the one to put behind branch pro
 - **`email-validator` rejected.** `pydantic.EmailStr` pulled it in along with `dnspython`
   and crash-looped the API (ERRORS.md E9). This system sends no email at all, so an admin
   address is purely a login identifier.
+- **`tracelet admin reset-totp` behaves differently for the last active owner.** It leaves
+  the account active and lets the enrollment link replace the secret, because clearing in
+  place is impossible for that account (ERRORS.md E17). The strict clear-in-place behaviour
+  is kept for everyone else.
 - **`SELECT ... FOR UPDATE` added to the owner routes.** A bug found while writing the
   concurrency test the E14 fix implied: `SET CONSTRAINTS ALL IMMEDIATE` had inadvertently
   disabled the protection the deferred trigger existed for (ERRORS.md E16).
@@ -275,11 +282,13 @@ Raised rather than resolved, because a requirement may not be changed without ap
 
 Until it is settled, the code matches API.md and the tests; SPEC §11 has no new row.
 
-**Known state, carried into M2:** the owner account's Telegram chat is **not currently
-verified** (`telegram_chat_id` and `telegram_verified_at` are both `NULL`), so the
-reset-over-Telegram path is not armed for it. Verify it from the dashboard's Telegram
-panel, using the chat id in `TRACELET_TELEGRAM_OWNER_CHAT_ID`; that also closes the gap in
-the checklist above. The bot token in `.env` should also be rotated in @BotFather: it
+**Known state, carried into M2:** the bot token in `.env` should be rotated in @BotFather
+(`/revoke`, then `/token`). It was handled in plaintext during development and was written
+to the log in clear text until E19 was fixed, and it is a password-recovery channel
+(RISKS R18). E19 is deployed, so a replacement token will not be logged.
+
+The owner's Telegram chat **is** verified as of 2026-09-28, so all three recovery routes —
+codes, Telegram, CLI — are live for that account. The bot token in `.env` should also be rotated in @BotFather: it
 was handled in plaintext during development, and it is a password-recovery channel
 (RISKS R18).
 

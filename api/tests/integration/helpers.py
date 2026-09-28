@@ -419,3 +419,28 @@ async def audit_actor_prefixes(admin_id: uuid.UUID) -> list[str]:
             )
         )
         return [str(row) for row in rows.scalars()]
+
+
+async def audit_actions_for_target(target_id: uuid.UUID) -> list[str]:
+    """Actions recorded *about* an admin, regardless of who acted.
+
+    The CLI acts as the system, so its rows carry ``actor_admin_id = NULL`` and name
+    the admin in ``target_id`` instead. Looking those up by actor finds nothing.
+    """
+    async with session_scope() as db:
+        rows = await db.execute(
+            select(AuditLog.action)
+            .where(AuditLog.target_id == str(target_id))
+            .order_by(AuditLog.id)
+        )
+        return list(rows.scalars())
+
+
+async def audit_details_for_target(target_id: uuid.UUID, action: str) -> list[dict[str, Any]]:
+    async with session_scope() as db:
+        rows = await db.execute(
+            select(AuditLog.detail)
+            .where(AuditLog.target_id == str(target_id), AuditLog.action == action)
+            .order_by(AuditLog.id)
+        )
+        return [dict(row) for row in rows.scalars()]
