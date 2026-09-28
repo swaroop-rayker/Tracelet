@@ -22,7 +22,7 @@ and one command fixes it:
 
 from __future__ import annotations
 
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Iterator
 from contextlib import AsyncExitStack
 
 import pytest
@@ -32,6 +32,8 @@ from sqlalchemy import select, text, update
 from tests.conftest import BASE_URL, SITE_ADDRESS
 from tests.integration import helpers
 from tracelet.auth.models import Admin, AdminRole, AdminStatus
+from tracelet.capture import links
+from tracelet.capture.service import link_cache
 from tracelet.config import Settings
 from tracelet.db.engine import session_scope
 
@@ -165,3 +167,80 @@ async def exclusive_owner(owner: helpers.SignedIn) -> AsyncIterator[helpers.Sign
 @pytest.fixture
 def site_address() -> str:
     return SITE_ADDRESS
+
+
+# ---------------------------------------------------------------------------
+# Capture path (M2)
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture(autouse=True)
+async def _restore_default_link(db_app: object) -> AsyncIterator[None]:
+    """Give a developer's real default link back after a test moves the default.
+
+    A test that makes a ``t-`` link the default clears the real one, and the teardown
+    then deletes the ``t-`` link -- leaving a live table with no default at all, which
+    F1.AC3 forbids. Requested by ``_purge_test_links`` so it is torn down after it.
+    """
+    del db_app
+    async with session_scope() as db:
+        original = (
+            await db.execute(
+                text(
+                    "SELECT id FROM links WHERE is_default AND archived_at IS NULL "
+                    "AND slug NOT LIKE 't-%'"
+                )
+            )
+        ).scalar_one_or_none()
+    yield
+    if original is None:
+        return
+    async with session_scope() as db:
+        await db.execute(
+            text(
+                "UPDATE links SET is_default = true WHERE id = :id AND archived_at IS NULL "
+                "AND NOT EXISTS (SELECT 1 FROM links WHERE is_default AND archived_at IS NULL)"
+            ),
+            {"id": original},
+        )
+
+
+@pytest.fixture(autouse=True)
+async def _purge_test_links(db_app: object, _restore_default_link: None) -> AsyncIterator[None]:
+    """Delete the links a test created, and their visits, afterwards.
+
+    Visits reference links with ON DELETE RESTRICT, so visits go first -- the same
+    order the engine insists on. Every link the suite creates has a ``t-`` slug.
+    """
+    del db_app, _restore_default_link
+    yield
+    async with session_scope() as db:
+        await db.execute(
+            text("DELETE FROM visits WHERE link_id IN (SELECT id FROM links WHERE slug LIKE 't-%')")
+        )
+        await db.execute(text("DELETE FROM links WHERE slug LIKE 't-%'"))
+
+
+@pytest.fixture(autouse=True)
+def _empty_link_cache() -> Iterator[None]:
+    """The link cache is process-wide. A link a previous test deleted must not be
+    served from it -- that would test the cache, not the code under test."""
+    link_cache.entries.clear()
+    yield
+    link_cache.entries.clear()
+
+
+@pytest.fixture
+def public_dns(monkeypatch: pytest.MonkeyPatch) -> dict[str, list[str]]:
+    """Destination hosts resolve to a public address unless a test says otherwise.
+
+    Link creation resolves the destination (F1.AC2). A test that depended on external
+    DNS would fail for reasons unrelated to the code under test.
+    """
+    table: dict[str, list[str]] = {}
+
+    async def fake(host: str) -> list[str]:
+        return table.get(host, ["93.184.216.34"])
+
+    monkeypatch.setattr(links, "resolve_host", fake)
+    return table

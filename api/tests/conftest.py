@@ -103,6 +103,13 @@ def integration_settings(ip_key_file: Path) -> Settings:
         # reachable and reach their error branch honestly; the one test that asserts
         # successful delivery intercepts the send instead of letting it out.
         telegram_bot_token=SecretStr("integration-test-bot-token"),
+        # The capture path degrades rather than failing when these are absent -- so a
+        # suite without them would pass while testing visits with no ip_hmac and no
+        # enrichment nonce. Present, so the real code paths run.
+        pepper_stable=SecretStr("integration-test-pepper-stable-0123456789abcdef"),
+        pepper_rotating=SecretStr("integration-test-pepper-rotating-0123456789abcd"),
+        pepper_fp=SecretStr("integration-test-pepper-fp-0123456789abcdef0123"),
+        session_secret=SecretStr("integration-test-session-secret-0123456789abcd"),
     )
 
 

@@ -55,7 +55,7 @@ redirector (B4).
 | | |
 |---|---|
 | Auth | None |
-| Rate limit | L2 GCRA per IP prefix (F11.AC2) |
+| Rate limit | L2 GCRA per IP prefix: 30/min (burst 10) **and** 300/hr (burst 60) (F11.AC2) |
 | Side effects | Commits a `visits` row with `stage='server'` **before responding** (F2.AC2) |
 
 **Responses**
@@ -65,10 +65,18 @@ redirector (B4).
 | `200 text/html` | Capture page: notice, privacy link, `Continue now` with the real destination href, `<noscript>` meta-refresh, hidden honeypot, inline nonce-scoped enrichment script |
 | `302` | **Rate-limited only.** Redirects straight to the destination with no capture, recorded as `stage='rate_limited'`. The human is never punished for abuse control (F11.AC3) |
 | `404 text/html` | Unknown, inactive, or archived slug. Leaks nothing about which links exist (F2.AC14) |
-| `503 text/html` | Database unreachable. **Still renders a page that redirects** (F15.AC6) |
+| `503 text/html` | The visit could not be recorded. **If the destination is known, the page still redirects** immediately (F15.AC6). It is known if the link was served by this worker before -- a small in-process cache of live links, consulted only when the database cannot answer |
+| `503 text/html` | The database is unreachable **and** this link is not in the cache. The one outcome that cannot redirect, because there is nowhere to redirect to; the page asks the visitor to retry |
 
 The response embeds the enrichment nonce: a single-use HMAC over `visit_id`, the IP
 prefix, and an expiry, with a 60 s TTL (F2.AC6).
+
+**As shipped in M2.** Every response carries its own CSP nonce authorising only the
+inline blocks this server rendered, and `Cache-Control: no-store` -- a cached interstitial
+would be served without reaching the server, and the visit would never be recorded. The
+page is identical for link-preview fetchers; serving them something different would be
+cloaking. No exception reaches a visitor: a failure while rendering falls back to a fixed
+string that still redirects (F15.AC7).
 
 ---
 
@@ -112,17 +120,47 @@ claim** — it is cross-checked against server-observed signals, never trusted
 | `422` | Schema violation. Field-level `errors` returned |
 | `429` | Over limit |
 
+**As shipped in M2:**
+
+* The payload is capped at **16 KB** (`413` above it; Caddy's 64 KB body cap is the outer
+  bound). Unknown keys are **ignored, not rejected**: a newer page talking to an older API
+  must degrade to fewer signals, never to a `422` that loses all of them.
+* A `422` does **not** spend the nonce -- validation runs before the conditional update,
+  so a malformed first attempt can be retried (the lesson of docs/ERRORS.md E15).
+* `geolocation.state` is one of `granted`, `denied`, `unavailable`, `unsupported` or
+  `timeout`. `timeout` -- a prompt shown and not answered before the redirect -- is stored
+  as `consent_state='unavailable'` with the reason in `signals`. Coordinates are stored
+  only with `granted`; with anything else they are dropped, not rejected. See RISKS R20.
+* `probes` is validated and **not yet persisted**: what a headless-browser probe *means*
+  is M4's decision. `hashes.audio` is always `null` from the M2 page -- an
+  `OfflineAudioContext` render is too slow for the interstitial.
+* Client hashes are re-hashed to a fixed 16 bytes before storage, since the client can
+  send anything in those fields.
+* The page sends the enrichment ~150 ms before its redirect, with whatever geolocation
+  answer exists by then.
+
 ### `GET /api/v1/hp/{token}`
 
 Stealth honeypot (F5.AC6). Always returns `204` regardless of outcome, so a probe learns
 nothing. Records the hit and marks the visit as automation. Deliberately not named in a
 way a filter list would match.
 
+The token is the visit's enrichment nonce. **Expiry is ignored** -- an automated client
+can follow the link long after the page loaded, and that late hit is the evidence wanted --
+but the MAC and the prefix binding still hold, so nobody can trip someone else's visit.
+Limited to 10/min per prefix; over the limit it still answers `204`.
+
 ### `GET /privacy`
 
 Public privacy notice (F2.AC13). Lists every data category collected, every inference
 source **including any enabled external service**, retention periods, and the required
 CC-BY attributions for DB-IP Lite and GeoNames.
+
+Retention periods and the external-service statement are rendered from live
+configuration, so the notice cannot drift from what the system does. It also carries the
+GeoLite2, IP2Location LITE and IPinfo attributions. The inference sources are the full M3
+set, named from M2 so the notice is already complete when M3 enables them -- **re-verify
+against the enabled sources at M3 and before the M9 deploy.**
 
 ### `GET /healthz` · `GET /readyz`
 
@@ -307,11 +345,47 @@ credentials, length ≤ 2048 (F1.AC2). A rejection returns `422` with a field-le
 **The destination is only ever read from this row. Never from a request parameter,
 header, or path** (F1.AC7, F13.AC3).
 
+### 6.1 As shipped in M2
+
+* **Responses** carry `capture_url` (the full `/r/{slug}` address) and `visit_count`.
+  `GET /api/v1/links` hides archived links unless `include_archived=true`.
+* **Slugs are normalised to lower case** before they are validated, matching the capture
+  path, which accepts any case (docs/ERRORS.md E24). A slug differing only in case is a
+  duplicate.
+* **Destination rejections** carry a field-level code: `NOT_HTTPS`, `CREDENTIALS_IN_URL`,
+  `NO_HOST`, `TOO_LONG`, `SELF_REFERENCE` (a destination on this site would loop back into
+  the capture surface), `UNRESOLVABLE`, `NOT_PUBLIC`. *Every* resolved address must be
+  public, not the first: a split-horizon name with one private record is the case worth
+  refusing. The server never fetches the destination, so this is not SSRF defence -- it
+  stops an owner sending visitors to an internal host by mistake.
+* **`PATCH` may change the slug**, which retires the old one immediately. To rotate a
+  burned slug while keeping the old one working, `clone` instead.
+* **`clone`** takes `{"slug": …, "label"?: …}`. The copy keeps the destination, interstitial
+  and notification policy and is not the default; the original keeps its visits and is
+  left as it was.
+* **The default.** The first non-archived link becomes the default. `POST
+  …/{id}/default` on an archived link is `422`. Archiving or deleting the default while
+  another live link exists is `409 DEFAULT_LINK_REQUIRED`. What the default *does* is not
+  yet specified by any requirement; see docs/DATA_MODEL.md section 4.1.
+* **Every write** is owner-only and writes an `audit_log` row: `link.created`,
+  `link.updated` (with `{from, to}` for each changed field -- F1.AC8), `link.cloned`,
+  `link.default_changed`, `link.archived`, `link.deleted`.
+
 ---
 
 ## 7. Visits
 
 ### `GET /api/v1/visits`
+
+**Implemented in M2:** `from`, `to`, `link_id`, `stage` and `classification` (both
+repeatable), `webview_host`, `include_automated`, `limit` (1–200, default 50) and `cursor`.
+The rest of the list below arrives with the milestone that fills its column -- location
+(M3), identity and scores (M4), geofence (M6) -- and `search` and `sort` with the dashboard
+(M5). The response is `{"items": [...], "next_cursor": "…" | null}`, newest first,
+keyset-paginated over `(occurred_at, id)` so a page never repeats or skips a row.
+
+`include_automated=false` excludes `crawler`, `bot`, `spam`, `spoofed` and `datacenter`.
+An explicit `classification` filter overrides it.
 
 Filters, all optional and composable (F9.AC13):
 
@@ -381,7 +455,15 @@ Decrypts and returns the IP for one visit.
 | `200 {"ip": "…", "decrypted_at": "…"}` | **Writes an `audit_log` row naming actor and visit** (F12.AC4) |
 | `403` | Not `owner` |
 | `410` | `IP_PURGED` — past its TTL. Expected, not an error condition |
-| `429` | Decrypt rate limit |
+| `429` | Decrypt rate limit: 10/hr per admin, burst 5 |
+| `500` | `INTERNAL_ERROR` with a readable detail: the ciphertext failed authentication. The wrong key, a row it was not sealed for, or tampering -- indistinguishable by design (ADR-0007). Never the address |
+
+**As shipped in M2:** in the summary and detail shapes, fields later milestones fill --
+location, scores, `visitor_id`, `is_returning`, geofence -- are present and `null` (or
+`"undetermined"` / `"unknown"`), never absent and never a fabricated zero (F3.AC5). The
+device block's key is `class`, as documented. The detail view adds `request.headers`: the
+header set **as sanitised at capture**, with no address-bearing or credential header.
+`candidates` is `[]` until M3.
 
 ### `GET /api/v1/visits/{id}/export` · `GET /api/v1/visits/export`
 
@@ -563,7 +645,7 @@ redirects, or a 404. Any internal failure is logged and the redirect still happe
 | Route class | Limit | Key |
 |---|---|---|
 | `GET /r/{slug}` | 30/min, 300/hr, burst 10 | IP prefix |
-| `POST /api/v1/s/{nonce}` | Once per nonce, ever (F11.AC4) | nonce |
+| `POST /api/v1/s/{nonce}` | Once per nonce, ever (F11.AC4); and 60/min (burst 20) | nonce; IP prefix |
 | `GET /api/v1/hp/{token}` | 10/min | IP prefix |
 | `POST /api/v1/auth/login` | 5 per 15 min (burst 5); 20/hr (burst 10) | identifier; IP prefix |
 | `POST /api/v1/auth/mfa` | 10 per 15 min (burst 5) | IP prefix |

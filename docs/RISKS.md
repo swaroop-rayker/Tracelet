@@ -9,9 +9,9 @@ Severity is `impact × likelihood` at the time of writing, reassessed after each
 | R2 | External geo APIs: undocumented limits, ToS, breakage | Medium | Open, mitigated by design |
 | R3 | **rDNS city-code coverage may be too low to carry the accuracy plan** | **High** | **Open, Spike A, blocks M3** |
 | R4 | Geo-database update memory spike could OOM the box | Medium | Open, mitigated by design |
-| R5 | **`fetch(keepalive)` may not survive Instagram webview navigation** | **High** | **Open, Spike B, blocks M2** |
+| R5 | **`fetch(keepalive)` may not survive Instagram webview navigation** | **High** | **Open, Spike B — run inside M2 against the real capture page (owner decision 2026-09-28)** |
 | R6 | 1 GB steady state under real load; swap thrash | Medium | Open, verified in M9 |
-| R7 | Bot-detection ceiling without JA4 | Medium | Accepted, documented |
+| R7 | Bot-detection ceiling without JA4 | **High** | **Mitigation void — see R19** |
 | R8 | Safe Browsing may flag the site regardless | Medium | Accepted, no guaranteed remedy |
 | R9 | 30–60 ground-truth labels give wide confidence intervals | Medium | Accepted, disclosed |
 | R10 | Free-subdomain path is materially weaker than documented parity suggests | Medium | Accepted, owner-chosen |
@@ -23,6 +23,8 @@ Severity is `impact × likelihood` at the time of writing, reassessed after each
 | R16 | GCP free-tier egress ceiling (1 GB/month) | Low | Open, monitor |
 | R17 | Fingerprint instability inflates unique-visitor counts | Medium | Accepted, disclosed |
 | R18 | Telegram becomes a security dependency, not just a notifier | Medium | Accepted, mitigated |
+| R19 | **Header order and HTTP/2 detail are unobservable behind Caddy** | **High** | **Open — owner decision needed before M4** |
+| R20 | A first-visit location prompt cannot be answered inside the interstitial | Medium | Open — Spike B will measure it |
 
 ---
 
@@ -180,6 +182,11 @@ WebGL, screen, timezone and header order, from a residential proxy, **will be cl
 infrastructure, and effective against unmodified HTTP libraries, which is the large majority
 of real automation. **Revisit** if a Caddy JA4 plugin reaches acceptable maturity.
 
+> **Update, 2026-09-28 (M2): the substitute is not available either.** Header order and
+> HTTP/2 frame detail are both discarded by Go's HTTP server before any Caddy handler runs,
+> so neither reaches the application. The mitigation this risk was accepted on does not
+> exist. See R19.
+
 ---
 
 ## R8 — Safe Browsing may flag the site regardless
@@ -251,6 +258,77 @@ and acceptance of terms, and access has changed on relatively short notice histo
 breaks. DB-IP Lite needs no signup at all and is the fallback baseline. Attribution
 obligations (DB-IP Lite and GeoNames are CC-BY) are met on the privacy page — **a licence
 breach is a real risk, not a formality** (F2.AC13).
+
+---
+
+## R19 — Header order and HTTP/2 detail are unobservable behind Caddy · **HIGH**
+
+**Found in M2, by measurement.** A request was sent through Caddy with headers in the order
+`Zzz-Last`, `Aaa-First`, `Mmm-Middle`. The application received `host`, `user-agent`, then
+every other header **alphabetically**.
+
+**Root cause.** Caddy is written in Go. Go's HTTP server parses request headers into a map
+before any handler runs — the order is gone at that point — and the reverse proxy writes
+them back out sorted. HTTP/2 SETTINGS, window updates and pseudo-header order, the other
+half of the "HTTP/2 fingerprinting" signal, are consumed by the same server and never
+exposed to a handler either. Neither is configuration; both are how the server works.
+
+**What it breaks.** SPEC F5.AC8 as amended (section 11, row 5) substitutes header-order and
+HTTP/2 fingerprinting for JA4, and **R7 was accepted on the strength of that substitute.**
+Neither is implementable in this stack as designed. A hash computed in the application
+would be identical for every client with the same header *set* — a value that looks
+exactly like a fingerprint and carries none of the information — so M2 stores nothing in
+`visits.header_order_hash` rather than store that.
+
+**Options, for a decision before M4:**
+
+1. **Accept and re-weight.** Drop the header-order signal; lean on UA/UA-CH consistency,
+   client-hint cross-checks, headless probes, honeypots and network reputation. Honest,
+   free, and the ceiling in R7 gets lower.
+2. **Header *set* instead of order.** Which headers are present, and their values, survive
+   Caddy intact and are already stored. Weaker than order — a careful client copies the
+   set — but it catches unmodified HTTP libraries, which omit what browsers always send.
+   Implementable in M4 at no infrastructure cost.
+3. **Observe below Go's HTTP server.** A custom Caddy listener wrapper that records the raw
+   bytes before parsing, or a TLS-terminating proxy that exposes JA4. Real engineering,
+   another component, and memory on a 1 GB box.
+4. **Cloudflare Bot Management** exposes JA3/JA4 — not on the free plan.
+
+**Recommendation:** option 2, with option 1's re-weighting, and amend F5.AC8 to describe
+it. That needs the owner's approval (CLAUDE.md section 2), so it is recorded here and not
+applied.
+
+---
+
+## R20 — A first-visit location prompt cannot be answered inside the interstitial · MEDIUM
+
+**Found in M2, while writing the capture script.** Two requirements pull against each
+other:
+
+* **F4.AC1** — the page requests geolocation permission.
+* **F2.AC5** — a hard timer redirects at `interstitial_ms`, default 700 ms, **cap 1500 ms**.
+
+On a first visit the browser shows a permission prompt, and the page navigates away 700 ms
+later — before most people have read it, let alone answered. So consented GPS will almost
+never be captured on a first visit, and the visitor briefly sees a prompt that vanishes
+under them.
+
+**What M2 does.** It asks, as F4.AC1 requires, and sends the enrichment shortly before the
+redirect with whatever answer exists. An unanswered prompt is recorded as
+`consent_state='unavailable'` with the reason `timeout` in `signals` — not as `denied`,
+because nobody said no, and not as `not_asked`, because it was asked. Permission a visitor
+granted on an earlier visit resolves in milliseconds and is captured normally.
+
+**Options, for a decision after Spike B measures it:**
+
+1. **Accept.** Consented location becomes a returning-visitor signal. Honest, no change.
+2. **Only use permission already granted** — query the Permissions API and never show a
+   prompt that cannot be answered. Better experience; F4.AC1 would need amending.
+3. **Hold the redirect while a prompt is open** — violates F2.AC5, and holds the visitor
+   on telemetry, which is what F2.AC5 exists to prevent.
+
+**Recommendation:** decide with Spike B's real-phone data in hand. Option 3 is not
+recommended.
 
 ---
 

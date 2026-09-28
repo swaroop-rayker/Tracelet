@@ -32,6 +32,20 @@
 		# Do not trust any client-supplied forwarding header. The real peer is
 		# passed to the app explicitly as X-Tracelet-Peer-IP below.
 		trusted_proxies static private_ranges
+
+		# --- Layer 1 limits (ADR-0010, F11.AC1) ---------------------------------
+		# read_header is the slow-loris defence: a client that trickles headers
+		# one byte at a time holds a connection for at most this long. The others
+		# bound a slow body upload and an idle keep-alive. None of these is close
+		# to what a real browser needs, even on a poor mobile connection.
+		timeouts {
+			read_header 10s
+			read_body 15s
+			write 30s
+			idle 2m
+		}
+		# Far above any real browser's request headers; far below a memory problem.
+		max_header_size 32KB
 	}
 }
 
@@ -77,6 +91,12 @@
 			# than copying a request header, it cannot be forged.
 			header_up X-Tracelet-Peer-IP {remote_host}
 
+			# The client's own protocol and TLS version (F3.AC1). The application
+			# only ever sees HTTP/1.1 from Caddy, so without these both would be
+			# unobservable. Set, not copied, so a client cannot choose them.
+			header_up X-Tracelet-Proto {http.request.proto}
+			header_up X-Tracelet-TLS {http.request.tls.version}
+
 			header_up X-Forwarded-Proto {scheme}
 			header_up Host {host}
 
@@ -110,8 +130,38 @@
 		header @index Cache-Control "no-cache"
 	}
 
+	# The edge access log must not hold what the database refuses to store
+	# (F12.AC13, CLAUDE.md invariant 4). By default Caddy writes the visitor's full
+	# address as remote_ip and client_ip, and every request header verbatim --
+	# X-Forwarded-For, CF-Connecting-IP, a Referer that can carry an address. It
+	# already redacts Cookie, Authorization and Set-Cookie.
+	#
+	#  * addresses are masked to /24 and /48 -- the same network prefix the
+	#    database keeps as durable (RW-3), so the log stays useful for spotting
+	#    abuse by network;
+	#  * request headers are dropped entirely. The application stores the header
+	#    set, sanitised, where the privacy rules are enforced and tested; a second,
+	#    unsanitised copy at the edge would only be a second place to leak from;
+	#  * X-Csrf-Token is dropped from responses. Caddy does not know it is a secret.
+	#
+	# Found in M2 while checking the "no plaintext IP in logs" done-check
+	# (docs/ERRORS.md E26).
 	log {
 		output stdout
-		format json
+		format filter {
+			wrap json
+			fields {
+				request>remote_ip ip_mask {
+					ipv4 24
+					ipv6 48
+				}
+				request>client_ip ip_mask {
+					ipv4 24
+					ipv6 48
+				}
+				request>headers delete
+				resp_headers>X-Csrf-Token delete
+			}
+		}
 	}
 }

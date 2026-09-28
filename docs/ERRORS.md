@@ -1100,6 +1100,154 @@ made it look like infrastructure noise.
 
 ---
 
+### E23 — Masking IP literals by syntax wiped Chrome's version from every Chrome visit
+
+**Status:** Fixed before merge. **Milestone:** M2. **Date:** 2026-09-28.
+
+**Symptom.** The first live capture stored the user agent as
+`... Chrome/[ip] Mobile Safari/537.36`. Found by reading the stored row during the first
+end-to-end smoke test, not by any test.
+
+**Root cause.** `request_headers`, the user agent, the referer and UTM values are
+visitor-controlled free text, so the capture path masked every IP literal in them to keep
+a plaintext address out of the database (CLAUDE.md invariant 4). But Chrome's reduced user
+agent reports its version as `131.0.0.0` — which *is* a syntactically valid IPv4 address.
+The mask did exactly what it was written to do, on every Chrome visit.
+
+Syntax cannot tell a version number from an address. That is the actual lesson: the rule
+was not wrong about the input, it was asking a question the input cannot answer.
+
+**Fix.** Three layers instead of one (`capture/signals.py`):
+
+1. **The observed client address is masked everywhere, exactly.** That is what invariant 4
+   is about, and matching one known string has no false positives. Bounded on both sides
+   so `1.2.3.4` does not match inside `11.2.3.45`, while an address ending a sentence
+   (`1.2.3.4.`) is still masked — a privacy mask should err towards masking.
+2. **Address-bearing headers are dropped by name**, whatever they hold.
+3. **Any other IP literal is masked** as defence in depth — except in version-bearing
+   headers (`user-agent` and the `sec-ch-ua*` family), where only layer 1 applies.
+
+**Prevention.** Unit tests assert `Chrome/131.0.0.0` survives in both the stored headers
+and the `user_agent` column, that client-hint version lists survive, and that the observed
+address is still masked *inside* a version-bearing header. An integration test sends the
+visitor's address through six headers, the referer and a UTM value, then searches the
+entire stored row as text.
+
+**Related:** F3.AC1, F12.AC1, CLAUDE.md invariant 4.
+
+---
+
+### E24 — Pydantic checked the slug pattern before lowercasing it
+
+**Status:** Fixed before merge. **Milestone:** M2. **Date:** 2026-09-28.
+
+**Symptom.** `POST /api/v1/links` with `"slug": "T-UPPER-CASE"` returned `422
+STRING_PATTERN_MISMATCH`. The capture path, meanwhile, accepts a slug in any case — so the
+API refused to create a link in a form it would happily serve.
+
+**Root cause.** `StringConstraints(to_lower=True, pattern=...)` reads as "lowercase, then
+check". It is not: the pattern is validated against the original string. Nothing in the
+declaration suggests an order.
+
+**Fix.** Normalise in a `BeforeValidator`, then apply the pattern as its own constraint.
+
+**Prevention.** Integration tests create a link with an upper-case slug and expect it
+normalised, and refuse a duplicate that differs only in case. Written to test the
+intended behaviour, and failed against the original declaration — which is how this was
+found.
+
+**Related:** F1.AC1.
+
+---
+
+### E25 — Two crawler needles would have misclassified, one of them a person
+
+**Status:** Fixed before merge. **Milestone:** M2. **Date:** 2026-09-28.
+
+**Symptom.** None observed — found while choosing real user agents for the tests.
+
+**Root cause.** The link-preview fetcher list is matched as ordered substrings, first match
+wins. Two mistakes:
+
+* **Telegram's fetcher sends `TelegramBot (like TwitterBot)`.** `twitterbot` came earlier in
+  the list, so it would have been named `twitter`. Harmless to classification, wrong in
+  every report.
+* **`pinterest/` matched Pinterest's own in-app browser** (`[Pinterest/iOS]`) — a *person*,
+  who would have been classified `crawler`, excluded from analytics and never notified on.
+  A needle naming the brand rather than the fetcher's token. `viber` had the same flaw.
+
+**Fix.** Telegram listed before Twitter; `pinterest/` narrowed to the fetcher's
+`pinterest/0.`; `viber` removed. The two rules are written next to the list: the more
+specific fetcher first, and never match an app name alone.
+
+**Prevention.** Tests assert each fetcher's name, and a parametrised "people are not
+crawlers" test covers Pinterest's, LinkedIn's and WhatsApp's in-app browsers alongside the
+Meta cases.
+
+**Worth noting.** The asymmetry is what makes this class of bug dangerous. A crawler
+mistaken for a person costs a spurious alert. A *person* mistaken for a crawler is silently
+removed from every view, and nothing will ever report it missing.
+
+**Related:** F2.AC8, F2.AC9, ADR-0004 decision 9.
+
+---
+
+### E26 — Caddy's access log held every visitor's address in plaintext
+
+**Status:** Fixed. **Milestone:** M2 (the defect dates from M0). **Date:** 2026-09-28.
+
+**Symptom.** Found while working through the M2 done-check "no plaintext IP anywhere in
+schema, logs, or API responses". The application's own logs were clean; Caddy's were not:
+
+```
+"remote_ip":"172.18.0.1", "client_ip":"198.51.100.77",
+"headers":{"X-Forwarded-For":["198.51.100.77"], ...}
+```
+
+In production `remote_ip` is the visitor's real public address, on every request, written
+to stdout and retained by Docker.
+
+**Root cause.** The Caddyfile has had `log { output stdout; format json }` since M0, and
+Caddy's default access log records the full client address and every request header
+verbatim. Every privacy control in this project -- the AES envelope, the 30-day TTL, the
+HMAC, the header sanitiser, the prefix-only durable form -- sits in the application. The
+edge had none, and nobody had looked at it, because "the database never stores a
+plaintext IP" was true and felt like the whole promise. F12.AC13 says a log line must never
+contain what the database refuses to store; the edge log was a log line.
+
+**What was already safe.** Caddy 2.5+ redacts `Cookie`, `Authorization`,
+`Proxy-Authorization` and `Set-Cookie` by default, confirmed by probing with dummy
+credentials. Admin session tokens never reached the log.
+
+**Fix.** A `format filter` on the site log:
+
+* `remote_ip` and `client_ip` masked to `/24` and `/48` with `ip_mask` -- the same network
+  prefix the database keeps as durable (RW-3), so the log stays useful for spotting abuse
+  by network;
+* **all request headers dropped.** The application stores the header set, sanitised, where
+  the rules are enforced and tested; an unsanitised second copy at the edge would only be a
+  second place to leak from;
+* `X-Csrf-Token` dropped from response headers -- Caddy does not know it is a secret.
+
+Verified against the running stack: a request carrying `X-Forwarded-For: 198.51.100.77`
+now logs `client_ip: 198.51.100.0` and no headers, and the address appears nowhere in the
+line.
+
+**Prevention.** An integration test captures the application's log records with
+`caplog` -- *before* the redaction processor runs -- and fails if the capture path so much
+as passes the address to a logger. The Caddyfile carries the reasoning next to the
+filter. The edge log itself has no automated test yet: it would need the full compose
+stack in CI.
+
+**Worth noting.** Docker's retained logs from before this change still hold the addresses
+of every request made to the development stack -- here, test values only. On a deployed
+box the same would be real visitors, which is why this had to be fixed before M9 and not
+after.
+
+**Related:** F12.AC13, CLAUDE.md invariant 4, RW-3, ADR-0012.
+
+---
+
 Add entries here as bugs are found and fixed. Use the next available `E<n>` identifier and
 the same structure: symptom, root cause, fix, **prevention**.
 

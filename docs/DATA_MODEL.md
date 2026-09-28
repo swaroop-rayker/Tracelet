@@ -297,15 +297,15 @@ because *their* lifetimes and delivery paths genuinely differ.
 | Column | Type | Notes |
 |---|---|---|
 | `id` | `uuid` PK | |
-| `slug` | `citext` UNIQUE | 4–32 chars, `[a-z0-9-]`, `CHECK` constrained |
+| `slug` | `citext` UNIQUE | 4–32 chars, `[a-z0-9-]`. The `CHECK` casts to `text` (`slug::text ~ …`): citext's own `~` is case-insensitive and would admit `IG-Bio` |
 | `label` | `text` | |
 | `destination_url` | `text` | `CHECK`: starts `https://`, length ≤ 2048. Full validation in the application — F1.AC2 |
 | `is_active` | `boolean` | |
 | `is_default` | `boolean` | |
 | `notify_policy` | `jsonb` | `{inside, outside, automated}` priorities — F1.AC5 |
 | `interstitial_ms` | `integer` | `CHECK BETWEEN 300 AND 1500`, default 700 — F1.AC6 |
-| `cloned_from` | `uuid` NULL FK self | F1.AC9 |
-| `created_by` | `uuid` FK | |
+| `cloned_from` | `uuid` NULL FK self, `ON DELETE SET NULL` | F1.AC9 |
+| `created_by` | `uuid` NULL FK admins, `ON DELETE SET NULL` | Deleting an admin must neither delete nor be blocked by their links |
 | `created_at`, `updated_at` | `timestamptz` | |
 | `archived_at` | `timestamptz` NULL | |
 
@@ -321,6 +321,18 @@ path.
    parameter, header, or path** — F1.AC7, F13.AC3. This is the structural remedy for B4.
 3. A link with visits cannot be deleted, only archived — F1.AC10. Enforced by
    `ON DELETE RESTRICT` on `visits.link_id`.
+4. An archived link is never the default — `CHECK (archived_at IS NULL OR NOT
+   is_default)`. "Exactly one default" is a statement about non-archived links.
+
+**The engine enforces *at most one* default; the application enforces *at least one*.**
+An empty table legitimately has none, so that half cannot be a constraint. Every
+operation that can change which link is the default takes a transaction-scoped advisory
+lock first, so two concurrent writes cannot both pass a count that neither can see the
+other change — the shape of docs/ERRORS.md E16.
+
+**What the default *does* is not specified.** RW-2 turned the brief's single redirect URL
+into many links "one marked default", and F1.AC3 enforces exactly one, but no requirement
+gives it behaviour. M2 maintains it as an invariant only.
 
 ---
 
@@ -347,7 +359,7 @@ partitioning in v1** — it would be complexity without benefit.
 
 | Column | Type | Notes |
 |---|---|---|
-| `ip_hmac` | `bytea` | HMAC-SHA256 with the stable pepper. **Durable** |
+| `ip_hmac` | `bytea` NULL | HMAC-SHA256 with the stable pepper, domain-separated (`"ip.v1"`) from `visitor_id`. **Durable**. Nullable so a missing pepper degrades the column rather than losing the visit (CLAUDE.md invariant 1) |
 | `ip_prefix` | `inet` | /24 for IPv4, /48 for IPv6. **Durable** |
 | `ip_enc` | `bytea` NULL | AES-256-GCM `nonce ‖ ciphertext ‖ tag`, AAD = `id`. **Purged at TTL** |
 | `ip_key_version` | `smallint` NULL | Rotation support — F12.AC5 |
@@ -357,11 +369,15 @@ partitioning in v1** — it would be complexity without benefit.
 | `asn_type` | `asn_type` | |
 | `rdns_ptr` | `text` NULL | |
 | `connection_class` | `connection_class` | |
-| `is_datacenter`, `is_vpn_suspected`, `is_tor`, `is_proxy_suspected` | `boolean` | F5.AC7, F5.AC9 |
-| `cf_colo` | `char(3)` NULL | Edge colo — source S8 |
-| `cf_country` | `char(2)` NULL | |
+| `is_datacenter`, `is_vpn_suspected`, `is_tor`, `is_proxy_suspected` | `boolean` NULL | F5.AC7, F5.AC9. **`NULL` until assessed (M4)** — a default of `false` would assert "not a datacenter" with no evidence (F3.AC5) |
+| `cf_colo` | `char(3)` NULL | Edge colo — source S8. **Only from a verified Cloudflare peer** (F13.AC6) |
+| `cf_country` | `char(2)` NULL | Same gate. An unverified `CF-IPCountry` is a visitor choosing their own country |
 
 **There is no plaintext IP column.** By design, permanently.
+
+`asn`, `asn_org`, `asn_type`, `rdns_ptr` and `connection_class` exist from M2 and are
+populated from M3, because they come from the offline databases and the resolver budget
+M3 introduces. Until then they hold `NULL` or `'unknown'`, never a guess.
 
 **Client identity — ADR-0006**
 
@@ -388,9 +404,30 @@ F3.AC5. **Never coerce a missing client signal to zero.**
 
 `classification classification`, `bot_score smallint CHECK 0..100`, `spoof_score
 smallint CHECK 0..100`, `agreement_score numeric(4,3)`, `conflict_score numeric(4,3)`,
-`honeypot_tripped boolean`, `header_order_hash bytea`, `http_version text`,
-`tls_version text NULL`, `classifier_version text`,
-**`signals jsonb`** — array of fired rules `[{rule_id, category, weight, detail}]`.
+`honeypot_tripped boolean`, `header_order_hash bytea` (**always `NULL` — see below**),
+`http_version text`, `tls_version text NULL`, `classifier_version text`,
+`request_headers jsonb NULL` (**added in M2**, see below),
+**`signals jsonb`** — array of fired rules `[{rule_id, category, weight, detail}]`, and
+the reasons for absent client values (F3.AC5), which use `category: "absence"` and
+weight 0. M2 records three: `ua.link_preview_fetcher`, `edge.unverified_cf_header` and
+`client.geolocation_absent`.
+
+**`request_headers` — added in M2, not in the Gate-3 model.** F3.AC1 requires the "full
+header set", and the Gate-3 model had nowhere to put it. It is also the one column that
+could smuggle a plaintext IP into the database, so values are sanitised before storage
+(`capture/signals.py`): address-bearing, credential, hop-by-hop and internal headers are
+dropped by name; the observed client address is masked wherever it appears; any other IP
+literal is masked except in version-bearing headers, where `131.0.0.0` is a Chrome
+version and not an address (docs/ERRORS.md E23). A test searches the whole row for the
+visitor's address.
+
+**`header_order_hash` is never populated, because header order cannot be observed.** Caddy
+is written in Go, whose HTTP server parses headers into a map before any handler runs and
+writes them back out sorted. Measured on 2026-09-28: a request sent `Zzz-Last`,
+`Aaa-First`, `Mmm-Middle`, and the application received them alphabetically. A hash of
+that order would be identical for every client with the same header *set* — a value that
+looks exactly like a fingerprint and carries none of the information. The column is kept
+so M4 can populate it if a way to observe order is found (docs/RISKS.md R19).
 
 > **Why `signals` is JSONB but `visit_candidates` is a table.** Signals are read as a
 > whole for one visit and filtered with a GIN containment query; only fired rules are
@@ -461,9 +498,28 @@ smallint CHECK 0..100`, `agreement_score numeric(4,3)`, `conflict_score numeric(
 7. `ip_enc IS NULL` after `ip_purge_after`, while `ip_hmac` and `ip_prefix` persist —
    F12.AC2.
 8. `stage='rate_limited'` rows carry no client columns and no inference; they exist to
-   make shedding visible — F11.AC3.
+   make shedding visible — F11.AC3. They keep `ip_prefix`, because the network is what
+   was limited, and nothing else about the address. Finalised at birth.
+9. **`(stage = 'server') = (finalized_at IS NULL)`** — `CHECK`, added in M2. `server` means
+   "awaiting enrichment or the sweeper" and nothing else. The sweeper's partial index and
+   its `UPDATE` both key on `stage = 'server'`; this makes it impossible for them to
+   disagree about what is pending.
+10. **`(ip_enc IS NULL) = (ip_key_version IS NULL)`** — `CHECK`, added in M2. A purge nulls
+    both; a key version pointing at nothing is a bug.
+
+Invariants 2 and 5 are `CHECK` constraints (`ck_visits_gps_requires_consent`,
+`ck_visits_no_geopoint_is_undetermined`), not conventions. Each is exercised by a test
+that goes around the application with raw SQL, because the guarantee has to survive a
+code path that forgets it.
+
+`geopoint` is added with plain DDL in migration 0004 rather than through SQLAlchemy:
+`geography(Point, 4326)` has no core type without geoalchemy2, which M6 brings. It is
+unmapped in the ORM until then.
 
 ### 5.4 `visit_candidates` — the derivation trail
+
+**Created in M3**, with the inference engine that writes it. `GET /api/v1/visits/{id}`
+returns `candidates: []` until then.
 
 | Column | Type | Notes |
 |---|---|---|

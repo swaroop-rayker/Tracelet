@@ -135,6 +135,19 @@
         "title": "CheckResult",
         "type": "object"
       },
+      "Classification": {
+        "enum": [
+          "human",
+          "bot",
+          "crawler",
+          "datacenter",
+          "spam",
+          "spoofed",
+          "unknown"
+        ],
+        "title": "Classification",
+        "type": "string"
+      },
       "CreateAdminRequest": {
         "properties": {
           "display_name": {
@@ -183,6 +196,127 @@
           "enrollment_expires_at"
         ],
         "title": "CreateAdminResponse",
+        "type": "object"
+      },
+      "DecryptedIp": {
+        "properties": {
+          "decrypted_at": {
+            "format": "date-time",
+            "title": "Decrypted At",
+            "type": "string"
+          },
+          "ip": {
+            "title": "Ip",
+            "type": "string"
+          }
+        },
+        "required": [
+          "ip",
+          "decrypted_at"
+        ],
+        "title": "DecryptedIp",
+        "type": "object"
+      },
+      "DeviceBlock": {
+        "properties": {
+          "browser": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Browser"
+          },
+          "class": {
+            "title": "Class",
+            "type": "string"
+          },
+          "cpu_cores": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cpu Cores"
+          },
+          "device_memory_gb": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Device Memory Gb"
+          },
+          "gpu_renderer": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Gpu Renderer"
+          },
+          "is_inapp_webview": {
+            "title": "Is Inapp Webview",
+            "type": "boolean"
+          },
+          "os": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Os"
+          },
+          "screen": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Screen"
+          },
+          "webview_host": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Webview Host"
+          }
+        },
+        "required": [
+          "class",
+          "os",
+          "browser",
+          "is_inapp_webview",
+          "webview_host",
+          "screen",
+          "cpu_cores",
+          "device_memory_gb",
+          "gpu_renderer"
+        ],
+        "title": "DeviceBlock",
         "type": "object"
       },
       "EnrollRequest": {
@@ -263,6 +397,27 @@
         "title": "EnrollmentTokenResponse",
         "type": "object"
       },
+      "GeofenceBlock": {
+        "properties": {
+          "matched": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Matched",
+            "type": "array"
+          },
+          "state": {
+            "title": "State",
+            "type": "string"
+          }
+        },
+        "required": [
+          "state",
+          "matched"
+        ],
+        "title": "GeofenceBlock",
+        "type": "object"
+      },
       "HTTPValidationError": {
         "properties": {
           "detail": {
@@ -274,6 +429,268 @@
           }
         },
         "title": "HTTPValidationError",
+        "type": "object"
+      },
+      "LinkClone": {
+        "properties": {
+          "label": {
+            "anyOf": [
+              {
+                "maxLength": 120,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Label"
+          },
+          "slug": {
+            "title": "Slug",
+            "type": "string"
+          }
+        },
+        "required": [
+          "slug"
+        ],
+        "title": "LinkClone",
+        "type": "object"
+      },
+      "LinkCreate": {
+        "properties": {
+          "destination_url": {
+            "maxLength": 2048,
+            "minLength": 1,
+            "title": "Destination Url",
+            "type": "string"
+          },
+          "interstitial_ms": {
+            "default": 700,
+            "maximum": 1500.0,
+            "minimum": 300.0,
+            "title": "Interstitial Ms",
+            "type": "integer"
+          },
+          "is_active": {
+            "default": true,
+            "title": "Is Active",
+            "type": "boolean"
+          },
+          "label": {
+            "maxLength": 120,
+            "minLength": 1,
+            "title": "Label",
+            "type": "string"
+          },
+          "notify_policy": {
+            "$ref": "#/components/schemas/NotifyPolicy"
+          },
+          "slug": {
+            "title": "Slug",
+            "type": "string"
+          }
+        },
+        "required": [
+          "slug",
+          "label",
+          "destination_url"
+        ],
+        "title": "LinkCreate",
+        "type": "object"
+      },
+      "LinkOut": {
+        "properties": {
+          "archived_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Archived At"
+          },
+          "capture_url": {
+            "title": "Capture Url",
+            "type": "string"
+          },
+          "cloned_from": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cloned From"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "destination_url": {
+            "title": "Destination Url",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "interstitial_ms": {
+            "title": "Interstitial Ms",
+            "type": "integer"
+          },
+          "is_active": {
+            "title": "Is Active",
+            "type": "boolean"
+          },
+          "is_default": {
+            "title": "Is Default",
+            "type": "boolean"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "notify_policy": {
+            "$ref": "#/components/schemas/NotifyPolicy"
+          },
+          "slug": {
+            "title": "Slug",
+            "type": "string"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          },
+          "visit_count": {
+            "title": "Visit Count",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "slug",
+          "label",
+          "destination_url",
+          "capture_url",
+          "is_active",
+          "is_default",
+          "notify_policy",
+          "interstitial_ms",
+          "cloned_from",
+          "visit_count",
+          "created_at",
+          "updated_at",
+          "archived_at"
+        ],
+        "title": "LinkOut",
+        "type": "object"
+      },
+      "LinkRef": {
+        "properties": {
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "slug": {
+            "title": "Slug",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "slug",
+          "label"
+        ],
+        "title": "LinkRef",
+        "type": "object"
+      },
+      "LinkUpdate": {
+        "properties": {
+          "destination_url": {
+            "anyOf": [
+              {
+                "maxLength": 2048,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Destination Url"
+          },
+          "interstitial_ms": {
+            "anyOf": [
+              {
+                "maximum": 1500.0,
+                "minimum": 300.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Interstitial Ms"
+          },
+          "is_active": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Is Active"
+          },
+          "label": {
+            "anyOf": [
+              {
+                "maxLength": 120,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Label"
+          },
+          "notify_policy": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/NotifyPolicy"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "slug": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Slug"
+          }
+        },
+        "title": "LinkUpdate",
         "type": "object"
       },
       "LivenessResponse": {
@@ -288,6 +705,82 @@
           "status"
         ],
         "title": "LivenessResponse",
+        "type": "object"
+      },
+      "LocationBlock": {
+        "properties": {
+          "abstain_reason": {
+            "additionalProperties": true,
+            "title": "Abstain Reason",
+            "type": "object"
+          },
+          "advisory": {
+            "additionalProperties": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "title": "Advisory",
+            "type": "object"
+          },
+          "confidence": {
+            "additionalProperties": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "title": "Confidence",
+            "type": "object"
+          },
+          "has_gps": {
+            "title": "Has Gps",
+            "type": "boolean"
+          },
+          "primary_source": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Primary Source"
+          },
+          "strict": {
+            "additionalProperties": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "title": "Strict",
+            "type": "object"
+          }
+        },
+        "required": [
+          "strict",
+          "advisory",
+          "confidence",
+          "abstain_reason",
+          "primary_source",
+          "has_gps"
+        ],
+        "title": "LocationBlock",
         "type": "object"
       },
       "LoginRequest": {
@@ -427,6 +920,157 @@
           "expires_at"
         ],
         "title": "MfaTokenResponse",
+        "type": "object"
+      },
+      "NetworkBlock": {
+        "properties": {
+          "asn": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Asn"
+          },
+          "asn_org": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Asn Org"
+          },
+          "asn_type": {
+            "title": "Asn Type",
+            "type": "string"
+          },
+          "cf_colo": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cf Colo"
+          },
+          "cf_country": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cf Country"
+          },
+          "connection_class": {
+            "title": "Connection Class",
+            "type": "string"
+          },
+          "ip_prefix": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ip Prefix"
+          },
+          "is_datacenter": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Is Datacenter"
+          },
+          "is_proxy_suspected": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Is Proxy Suspected"
+          },
+          "is_vpn_suspected": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Is Vpn Suspected"
+          }
+        },
+        "required": [
+          "asn",
+          "asn_org",
+          "asn_type",
+          "connection_class",
+          "ip_prefix",
+          "is_datacenter",
+          "is_vpn_suspected",
+          "is_proxy_suspected",
+          "cf_colo",
+          "cf_country"
+        ],
+        "title": "NetworkBlock",
+        "type": "object"
+      },
+      "NotifyPolicy": {
+        "description": "Per-link notification priorities (F1.AC5). Acted on from M6.",
+        "properties": {
+          "automated": {
+            "default": "silent",
+            "enum": [
+              "high",
+              "normal",
+              "silent"
+            ],
+            "title": "Automated",
+            "type": "string"
+          },
+          "inside": {
+            "default": "high",
+            "enum": [
+              "high",
+              "normal",
+              "silent"
+            ],
+            "title": "Inside",
+            "type": "string"
+          },
+          "outside": {
+            "default": "normal",
+            "enum": [
+              "high",
+              "normal",
+              "silent"
+            ],
+            "title": "Outside",
+            "type": "string"
+          }
+        },
+        "title": "NotifyPolicy",
         "type": "object"
       },
       "ReadinessResponse": {
@@ -684,6 +1328,351 @@
           "type"
         ],
         "title": "ValidationError",
+        "type": "object"
+      },
+      "VisitDetail": {
+        "properties": {
+          "bot_score": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Bot Score"
+          },
+          "candidates": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Candidates",
+            "type": "array"
+          },
+          "classification": {
+            "$ref": "#/components/schemas/Classification"
+          },
+          "classifier_version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Classifier Version"
+          },
+          "client": {
+            "additionalProperties": true,
+            "title": "Client",
+            "type": "object"
+          },
+          "consent_state": {
+            "title": "Consent State",
+            "type": "string"
+          },
+          "device": {
+            "$ref": "#/components/schemas/DeviceBlock"
+          },
+          "finalized_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Finalized At"
+          },
+          "geofence": {
+            "$ref": "#/components/schemas/GeofenceBlock"
+          },
+          "honeypot_tripped": {
+            "title": "Honeypot Tripped",
+            "type": "boolean"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "inference_version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Inference Version"
+          },
+          "is_returning": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Is Returning"
+          },
+          "link": {
+            "$ref": "#/components/schemas/LinkRef"
+          },
+          "location": {
+            "$ref": "#/components/schemas/LocationBlock"
+          },
+          "network": {
+            "$ref": "#/components/schemas/NetworkBlock"
+          },
+          "occurred_at": {
+            "format": "date-time",
+            "title": "Occurred At",
+            "type": "string"
+          },
+          "referer": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Referer"
+          },
+          "request": {
+            "additionalProperties": true,
+            "title": "Request",
+            "type": "object"
+          },
+          "signals": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Signals",
+            "type": "array"
+          },
+          "spoof_score": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Spoof Score"
+          },
+          "stage": {
+            "$ref": "#/components/schemas/VisitStage"
+          },
+          "trace_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Trace Id"
+          },
+          "utm": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "type": "string"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Utm"
+          },
+          "visitor_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Visitor Id"
+          }
+        },
+        "required": [
+          "id",
+          "occurred_at",
+          "link",
+          "stage",
+          "classification",
+          "bot_score",
+          "spoof_score",
+          "location",
+          "network",
+          "device",
+          "geofence",
+          "visitor_id",
+          "is_returning",
+          "finalized_at",
+          "trace_id",
+          "classifier_version",
+          "inference_version",
+          "consent_state",
+          "signals",
+          "candidates",
+          "client",
+          "request",
+          "referer",
+          "utm",
+          "honeypot_tripped"
+        ],
+        "title": "VisitDetail",
+        "type": "object"
+      },
+      "VisitPage": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/VisitSummary"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "next_cursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Cursor"
+          }
+        },
+        "required": [
+          "items",
+          "next_cursor"
+        ],
+        "title": "VisitPage",
+        "type": "object"
+      },
+      "VisitStage": {
+        "description": "How complete a visit is (F3.AC6).\n\n``server`` is the only non-final stage: the row exists and is waiting for either\nenrichment or the sweeper. A CHECK constraint makes that equivalence structural.",
+        "enum": [
+          "server",
+          "enriched",
+          "server_only",
+          "rate_limited"
+        ],
+        "title": "VisitStage",
+        "type": "string"
+      },
+      "VisitSummary": {
+        "properties": {
+          "bot_score": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Bot Score"
+          },
+          "classification": {
+            "$ref": "#/components/schemas/Classification"
+          },
+          "device": {
+            "$ref": "#/components/schemas/DeviceBlock"
+          },
+          "geofence": {
+            "$ref": "#/components/schemas/GeofenceBlock"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "is_returning": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Is Returning"
+          },
+          "link": {
+            "$ref": "#/components/schemas/LinkRef"
+          },
+          "location": {
+            "$ref": "#/components/schemas/LocationBlock"
+          },
+          "network": {
+            "$ref": "#/components/schemas/NetworkBlock"
+          },
+          "occurred_at": {
+            "format": "date-time",
+            "title": "Occurred At",
+            "type": "string"
+          },
+          "spoof_score": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Spoof Score"
+          },
+          "stage": {
+            "$ref": "#/components/schemas/VisitStage"
+          },
+          "visitor_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Visitor Id"
+          }
+        },
+        "required": [
+          "id",
+          "occurred_at",
+          "link",
+          "stage",
+          "classification",
+          "bot_score",
+          "spoof_score",
+          "location",
+          "network",
+          "device",
+          "geofence",
+          "visitor_id",
+          "is_returning"
+        ],
+        "title": "VisitSummary",
         "type": "object"
       }
     }
@@ -1419,6 +2408,662 @@
         "summary": "Issue a fresh set of recovery codes, invalidating the old ones",
         "tags": [
           "auth"
+        ]
+      }
+    },
+    "/api/v1/links": {
+      "get": {
+        "operationId": "list_links_api_v1_links_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "include_archived",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "Include Archived",
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/LinkOut"
+                  },
+                  "title": "Response List Links Api V1 Links Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List links with visit counts",
+        "tags": [
+          "links"
+        ]
+      },
+      "post": {
+        "description": "The first non-archived link becomes the default automatically. The destination must be https, carry no credentials, and resolve to public addresses (F1.AC2).",
+        "operationId": "create_link_api_v1_links_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LinkCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LinkOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create a link",
+        "tags": [
+          "links"
+        ]
+      }
+    },
+    "/api/v1/links/{link_id}": {
+      "delete": {
+        "description": "Refused while any visit references it (409 LINK_HAS_VISITS) -- archive it instead. Historical data is never orphaned (F1.AC10), and the foreign key enforces that even if this check were bypassed.",
+        "operationId": "delete_link_api_v1_links__link_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "link_id",
+            "required": true,
+            "schema": {
+              "title": "Link Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Delete a link",
+        "tags": [
+          "links"
+        ]
+      },
+      "get": {
+        "operationId": "get_link_api_v1_links__link_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "link_id",
+            "required": true,
+            "schema": {
+              "title": "Link Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LinkOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "One link",
+        "tags": [
+          "links"
+        ]
+      },
+      "patch": {
+        "description": "A destination change takes effect on the next request with no restart, and is audited with both the old and the new value (F1.AC8). Changing the slug retires the old one immediately -- use clone to rotate a burned slug while keeping it working.",
+        "operationId": "update_link_api_v1_links__link_id__patch",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "link_id",
+            "required": true,
+            "schema": {
+              "title": "Link Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LinkUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LinkOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Update a link",
+        "tags": [
+          "links"
+        ]
+      }
+    },
+    "/api/v1/links/{link_id}/archive": {
+      "post": {
+        "description": "Archived links return 404 from the capture surface and keep their visits. The default cannot be archived while another link could take its place -- make that one the default first (409 DEFAULT_LINK_REQUIRED).",
+        "operationId": "archive_link_api_v1_links__link_id__archive_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "link_id",
+            "required": true,
+            "schema": {
+              "title": "Link Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LinkOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Archive a link",
+        "tags": [
+          "links"
+        ]
+      }
+    },
+    "/api/v1/links/{link_id}/clone": {
+      "post": {
+        "description": "Rotates a burned slug: the copy keeps the configuration, and the original keeps its visits (F1.AC9). The original is left as it is -- deactivate it separately if the old slug should stop working.",
+        "operationId": "clone_link_api_v1_links__link_id__clone_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "link_id",
+            "required": true,
+            "schema": {
+              "title": "Link Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LinkClone"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LinkOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Clone a link under a new slug",
+        "tags": [
+          "links"
+        ]
+      }
+    },
+    "/api/v1/links/{link_id}/default": {
+      "post": {
+        "description": "Clears the previous default in the same transaction (F1.AC3).",
+        "operationId": "make_default_api_v1_links__link_id__default_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "link_id",
+            "required": true,
+            "schema": {
+              "title": "Link Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LinkOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Make this the default link",
+        "tags": [
+          "links"
+        ]
+      }
+    },
+    "/api/v1/s/{nonce}": {
+      "post": {
+        "description": "Additive and always allowed to fail -- nothing a visitor sees depends on it (ADR-0004). Authorised by a single-use nonce bound to the visit and the IP prefix, valid for 60 seconds. Every field is optional and every field is a claim: the payload is attacker-controlled by construction.",
+        "operationId": "enrich_api_v1_s__nonce__post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "nonce",
+            "required": true,
+            "schema": {
+              "title": "Nonce",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "410": {
+            "description": "Nonce expired, consumed, or from another network"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Client enrichment for one visit",
+        "tags": [
+          "capture"
+        ]
+      }
+    },
+    "/api/v1/visits": {
+      "get": {
+        "description": "Automated traffic -- crawlers, bots and the rest -- is excluded unless include_automated is set, so the default view is people. The exclusion is a flag rather than hidden so that what is being left out stays visible.",
+        "operationId": "list_visits_api_v1_visits_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "from",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date-time",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "From"
+            }
+          },
+          {
+            "in": "query",
+            "name": "to",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date-time",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "To"
+            }
+          },
+          {
+            "in": "query",
+            "name": "link_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Link Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "stage",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "items": {
+                    "$ref": "#/components/schemas/VisitStage"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Stage"
+            }
+          },
+          {
+            "in": "query",
+            "name": "classification",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "items": {
+                    "$ref": "#/components/schemas/Classification"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Classification"
+            }
+          },
+          {
+            "in": "query",
+            "name": "webview_host",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 32,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Webview Host"
+            }
+          },
+          {
+            "in": "query",
+            "name": "include_automated",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "Include Automated",
+              "type": "boolean"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 200,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Cursor"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VisitPage"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List visits, newest first",
+        "tags": [
+          "visits"
+        ]
+      }
+    },
+    "/api/v1/visits/{visit_id}": {
+      "get": {
+        "operationId": "get_visit_api_v1_visits__visit_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "visit_id",
+            "required": true,
+            "schema": {
+              "title": "Visit Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VisitDetail"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "One visit, in full",
+        "tags": [
+          "visits"
+        ]
+      }
+    },
+    "/api/v1/visits/{visit_id}/ip": {
+      "get": {
+        "description": "The only way a plaintext address leaves the system. Owner-only, limited to 10 an hour per admin, and it writes an audit row naming the actor and the visit before it answers (F12.AC4). 410 IP_PURGED past the TTL is expected, not a fault (ADR-0007).",
+        "operationId": "decrypt_ip_api_v1_visits__visit_id__ip_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "visit_id",
+            "required": true,
+            "schema": {
+              "title": "Visit Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DecryptedIp"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Decrypt the address for one visit (owner only)",
+        "tags": [
+          "visits"
         ]
       }
     },

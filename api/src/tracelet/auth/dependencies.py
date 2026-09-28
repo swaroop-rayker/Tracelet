@@ -15,12 +15,14 @@ import structlog
 from fastapi import Depends, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from tracelet import net
 from tracelet.auth import csrf, sessions
 from tracelet.auth.models import Admin, AdminStatus
 from tracelet.auth.models import Session as SessionRow
 from tracelet.config import Settings, get_settings
 from tracelet.db.request_session import request_session
 from tracelet.errors import ForbiddenRole, TotpNotEnrolled, Unauthenticated
+from tracelet.net import ClientAddress
 
 log = structlog.get_logger(__name__)
 
@@ -48,27 +50,30 @@ def get_config(request: Request) -> Settings:
 Config = Annotated[Settings, Depends(get_config)]
 
 
-def client_ip(request: Request, settings: Settings) -> str | None:
-    """The visitor's address, trusting a forwarding header only when it is safe to.
+def client_address(request: Request, settings: Settings) -> ClientAddress:
+    """Which address this request belongs to, and whether the edge vouched for it.
 
     ``X-Tracelet-Peer-IP`` is set by our own Caddy from ``{remote_host}``, overwriting
     anything the client sent, so it cannot be forged. ``CF-Connecting-IP`` is trusted
-    only when that peer is inside a Cloudflare range (F13.AC6) -- otherwise any
-    visitor could choose their own apparent address and defeat both rate limiting and
-    geolocation at once.
-
-    M1 uses the peer address. The Cloudflare range check arrives with the capture path
-    in M2, where a forged address would actually corrupt stored data.
+    only when that peer is inside a published Cloudflare range (F13.AC6) -- otherwise
+    any visitor could choose their own apparent address and defeat rate limiting and
+    geolocation at once. See :mod:`tracelet.net`.
     """
     peer = request.headers.get("x-tracelet-peer-ip")
     if peer:
-        return peer.split(",")[0].strip()
-    if settings.behind_cloudflare:
-        # Placeholder until M2 adds verified-range checking. Deliberately NOT reading
-        # CF-Connecting-IP yet: reading it without the range check would be worse than
-        # not reading it, because it would look implemented.
-        log.debug("cloudflare_ip_extraction_pending_m2")
-    return request.client.host if request.client else None
+        peer = peer.split(",")[0].strip()
+    elif request.client:
+        peer = request.client.host
+    return net.resolve_client(
+        peer=peer,
+        cf_connecting_ip=request.headers.get("cf-connecting-ip"),
+        behind_cloudflare=settings.behind_cloudflare,
+    )
+
+
+def client_ip(request: Request, settings: Settings) -> str | None:
+    """The address a request is attributed to. See :func:`client_address`."""
+    return client_address(request, settings).ip
 
 
 @dataclass(frozen=True, slots=True)
