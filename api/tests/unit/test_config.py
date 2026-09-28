@@ -105,6 +105,18 @@ def test_secrets_are_not_exposed_by_repr() -> None:
     assert "**********" in dumped
 
 
-def test_public_base_url_uses_http_only_for_localhost() -> None:
-    assert Settings(site_address="localhost").public_base_url.startswith("http://")
-    assert Settings(site_address="tracelet.example.com").public_base_url.startswith("https://")
+@pytest.mark.parametrize(
+    "site_address",
+    ["localhost", "localhost:8443", "127.0.0.1", "tracelet.example.com", "sub.domain.example"],
+)
+def test_public_base_url_is_always_https(site_address: str) -> None:
+    """docs/ERRORS.md E8 — there is no deployment where an http link is correct.
+
+    Caddy terminates TLS on every path, including localhost through its internal
+    CA. An http enrollment link is not merely untidy: the session cookie carries
+    ``Secure``, so the browser refuses to store it and enrolment completes while
+    silently failing to sign the admin in.
+    """
+    url = Settings(site_address=site_address).public_base_url
+    assert url == f"https://{site_address}"
+    assert not url.startswith("http://")

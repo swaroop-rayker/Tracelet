@@ -86,19 +86,40 @@ documented degraded mode. See ADR-0012 and `docs/RISKS.md` R8.
 ```bash
 git clone <repo> tracelet && cd tracelet
 cp .env.example .env
-make bootstrap
-make up
-make verify
+TRACELET_BOOTSTRAP_EMAIL=you@example.com ./scripts/tl bootstrap
+./scripts/tl up
+./scripts/tl verify
 ```
 
-On Windows, substitute `./scripts/tl <task>` for `make <task>` — `make` is not
-present in Git Bash on a stock host. Both call the same implementation; see
-`docs/ARCHITECTURE.md` §9.1.
+`make <task>` does the same thing where `make` exists; `./scripts/tl <task>` works
+everywhere, including Git Bash on a stock Windows host where `make` is absent. Both call
+the same implementation — `docs/ARCHITECTURE.md` §9.1.
 
-Step 2 needs editing: secrets, domain mode, Telegram token. `make bootstrap` prints a
-one-time enrollment URL — open it, set a password, enrol TOTP, and **save the 10
-recovery codes**, which are shown exactly once. There is no seeded default password
-anywhere in this system, by design (ADR-0008).
+**Step 2 needs editing before step 3:** the database passwords, the three HMAC peppers,
+the session secret, the domain mode, and the Telegram bot token. Every variable is
+documented in `.env.example`. You also need the AES-256 key that encrypts the TOTP secret
+and, from M2, visitor IPs:
+
+```bash
+mkdir -p secrets && openssl rand -hex 32 > secrets/ip_key
+```
+
+Keep a copy of that file somewhere outside the machine. It is deliberately **not** in the
+database backup, so restoring onto a fresh VM without it leaves every encrypted value
+permanently unreadable (ADR-0007).
+
+**Step 3 prints a one-time enrollment URL.** Open it, set a password, add the shown base32
+secret to an authenticator app, type a code — and then **save the 10 recovery codes**,
+which are displayed exactly once. There is no seeded default password anywhere in this
+system, by design (ADR-0008, F8.AC15).
+
+Two things worth doing immediately afterwards, from the dashboard:
+
+- **Verify your Telegram chat.** Until you do, the reset-over-Telegram path is not armed
+  and your only recovery routes are the codes and the server CLI (ADR-0008).
+- **Check the recovery codes are somewhere you will actually find them.** With no codes and
+  no Telegram, only `docker compose run --rm api tracelet admin reset-password` can recover
+  the account — which needs shell access to the box (F8.AC8).
 
 ---
 

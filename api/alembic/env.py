@@ -16,6 +16,10 @@ from logging.config import fileConfig
 from alembic import context
 from sqlalchemy import engine_from_config, pool
 
+# Imported for its side effect: registering every model on Base.metadata, without
+# which --autogenerate would propose dropping every table.
+from tracelet.auth import challenges as _auth_challenges  # noqa: F401
+from tracelet.auth import models as _auth_models  # noqa: F401
 from tracelet.db.base import Base
 
 config = context.config

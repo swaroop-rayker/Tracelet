@@ -21,15 +21,14 @@ import argparse
 import sys
 
 from tracelet import __version__
+from tracelet.cli import admin as admin_cli
 
 # Commands the milestones add. Listed here so `tracelet --help` is useful now and
 # so the roadmap is visible from the tool itself.
+# Commands later milestones add. Anything already shipped is marked, so the table
+# stays honest rather than becoming a list of promises.
 PLANNED: dict[str, tuple[str, str]] = {
-    "admin bootstrap": ("M1", "create the first owner, print a one-time enrollment URL"),
-    "admin list": ("M1", "list admins with role and status"),
-    "admin create": ("M1", "invite an admin (no password is ever set directly)"),
-    "admin reset-password": ("M1", "break-glass reset, needs DB and shell access only"),
-    "admin reset-totp": ("M1", "clear TOTP enrolment for one admin"),
+    "admin telegram-test": ("M1", "SHIPPED — send a test message to the owner chat"),
     "link list": ("M2", "list tracking links"),
     "geodb status": ("M3", "installed versions and staleness verdict"),
     "geodb update": ("M3", "download, verify and atomically swap a geo database"),
@@ -54,6 +53,7 @@ def _build_parser() -> argparse.ArgumentParser:
     sub = parser.add_subparsers(dest="command", metavar="<command>")
     sub.add_parser("roadmap", help="show which milestone adds which command")
     sub.add_parser("check-config", help="validate configuration and exit")
+    admin_cli.register(sub)
     return parser
 
 
@@ -111,6 +111,8 @@ def main(argv: list[str] | None = None) -> int:
         return _cmd_roadmap()
     if args.command == "check-config":
         return _cmd_check_config()
+    if args.command == "admin":
+        return admin_cli.dispatch(args)
 
     parser.print_help()
     return 0

@@ -318,7 +318,10 @@ Typed exception hierarchy → one FastAPI handler → RFC 9457 Problem Details. 
 ```
 
 A 5xx returns only `type`, `title`, `status`, `code` and `trace_id`. The detail goes to
-the log under the same id. Full catalogue in `docs/API.md` section 9.
+the log under the same id. Full catalogue in `docs/API.md` section 12.1.
+
+Where the transaction is committed relative to this handler is not an implementation
+detail — see 5.8.
 
 ### 5.4 Observability
 
@@ -337,9 +340,18 @@ capture path never blocks on the rDNS resolver, an outbound geo API, or Telegram
 Consequences of running two processes, each handled explicitly:
 
 - **Rate limits must be shared**, so GCRA state lives in PostgreSQL (F11.AC8).
+- **Multi-step auth state must be shared**, so the MFA challenge, the enrolment confirm
+  token and the Telegram verification code live in `auth_challenges` rather than in
+  process memory. Held per process, login succeeded only when the follow-up request
+  happened to reach the same worker — about half the time (docs/ERRORS.md E10).
 - **The scheduler must be single-instance**, so periodic jobs take a PostgreSQL
   advisory lock; only one worker runs them (ADR-0009).
 - **The outbox claim must be safe**, so jobs are claimed with `FOR UPDATE SKIP LOCKED`.
+
+The general rule, since this has now cost one real bug: **any state that must survive from
+one HTTP request to the next is shared state, and on this deployment shared means
+PostgreSQL.** There is no third option — no Redis (ADR-0010) and no sticky sessions at the
+edge.
 
 ### 5.6 Graceful degradation
 
@@ -354,6 +366,50 @@ Full matrix in SPEC F15.AC6. The one rule that governs all of it:
 `timestamptz` in UTC everywhere. ISO-8601 in every API payload. Rendered in the admin
 preferred timezone, defaulting to `Asia/Kolkata`. Rollup day boundaries are computed in
 a configured reporting timezone, stored explicitly, so a chart never silently shifts.
+
+### 5.8 The request transaction boundary
+
+Added in M1, after a bug that reported a failed transaction as `200 OK` and in doing so hid
+a second bug for most of a session (docs/ERRORS.md E11).
+
+**The session is owned by middleware, not by a dependency.** The conventional FastAPI
+pattern —
+
+```python
+async def get_db():
+    async with session_scope() as session:
+        yield session
+```
+
+— commits in the dependency's **teardown**, and FastAPI runs teardown *after* the response
+has been generated. A commit that fails there cannot change the status code, so a
+constraint violation at COMMIT reaches the client as complete success. Middleware can do
+what the dependency cannot: it holds the response object, so it commits first and replaces
+the response with a `500` if the commit fails.
+
+**The rollback policy is deliberate:**
+
+| Outcome | Transaction | Why |
+|---|---|---|
+| 2xx / 3xx | commit | the obvious case |
+| **4xx** | **commit** | the handler chose this outcome, and what it wrote is part of the decision — a failed login must keep its audit row (F8.AC16) |
+| 5xx or an unhandled exception | roll back | nobody chose this outcome |
+
+Committing on a 4xx is the unusual half, and it is load-bearing: the audit rows that matter
+most to anyone investigating an intrusion are written by requests that then fail. Without
+it, the only authentication events in the log are the successful ones.
+
+**It has a price, and the price must be respected.** A handler that mutates and *then*
+rejects will commit that mutation. Such a handler must validate **before** mutating, or roll
+back explicitly. Getting this wrong turned a `409 LAST_OWNER` into a commit-time `500`
+(docs/ERRORS.md E14), and the same rule applies to every route added from here on.
+
+Events that must be recorded *although the request failed* — a rejected password, a bad
+code, a lockout — are written on their own connection and committed immediately
+(`audit.record(..., independent=True)`), so they survive even a 5xx rollback.
+
+`/healthz` skips session creation entirely: it runs every ten seconds and would otherwise
+spend a pool slot reserved for maintenance (6.2).
 
 ---
 
@@ -459,8 +515,20 @@ ES5 requires justification for every dependency, including what was considered i
 
 This ledger is the **complete v1 list**. Installation is incremental: each
 milestone installs only what it uses, so it stays obvious which milestone owns
-which dependency and nothing unused occupies memory on a 1 GB box. M0 installs
+which dependency and nothing unused occupies memory on a 1 GB box. M0 installed
 the framework, database and tooling rows only.
+
+**M1 added four Python rows and no frontend rows:** `argon2-cffi`, `pyotp`,
+`cryptography` and `httpx`. `httpx` was previously a *dev* dependency used by the test
+client; Telegram delivery makes it a runtime one (ADR-0008 makes Telegram the recovery
+channel, so it is on a user-facing path). Nothing else moved.
+
+**M1 added no frontend dependency**, which is worth stating because two ledger rows
+tempted it. `react-router` is listed for M5, where nested dashboard layouts and
+URL-shareable filter state earn it; M1 has five flat routes and uses a ~60-line
+`src/router.ts` instead. `zod` is listed for M5 with the generated client; M1 narrows the
+six auth payloads by hand, the same way M0 narrowed `/readyz`. Both arrive when they pay
+for themselves.
 
 ### Python
 
@@ -490,6 +558,8 @@ the framework, database and tooling rows only.
 | **Rejected: `celery` / `arq`** | — | Requires a broker; the outbox is transactionally stronger — ADR-0009 |
 | dev: `pytest`, `pytest-asyncio`, `ruff`, `mypy` | Test and quality toolchain | — |
 | **Rejected: `testcontainers`** | — | CI PostgreSQL is a GitHub Actions service container; no dependency needed |
+| **Rejected: `email-validator` + `dnspython`** | — | Arrived as a side effect of `pydantic.EmailStr` and crash-looped the API (docs/ERRORS.md E9). This system sends **no email at all** — Gate 1 declined SMTP and recovery runs over Telegram — so an admin address is purely a login identifier, and two packages for RFC 5322 conformance on a string nothing is delivered to fails ES5. Replaced with a constrained string in `auth/types.py` |
+| **Rejected: a QR-code renderer** | — | `qrcode`/`segno` would save one or two admins a single manual entry at enrolment. Every authenticator app accepts a typed base32 secret, so the enrolment page shows the secret and the `otpauth://` URI instead (`auth/totp.py::provisioning_hint`). Worth revisiting if the admin count grows |
 
 ### Frontend
 
@@ -538,30 +608,41 @@ tracelet/
 │       ├── config.py               # pydantic-settings
 │       ├── errors.py               # typed hierarchy → RFC 9457
 │       ├── db/                     # engine, pool, models, repositories
+│       │                           #   request_session.py owns the per-request
+│       │                           #   transaction and commits BEFORE the
+│       │                           #   response leaves (5.8)
 │       ├── capture/                # /r/{slug}, enrichment, sweeper, templates
 │       ├── inference/              # sources/ S1..S11, consensus, suppression
 │       ├── classification/         # rules/, scoring, cross-checks, honeypot
 │       ├── identity/               # HMAC fingerprint, visitor_id
 │       ├── geofence/               # PostGIS evaluation, GeoJSON import/export
 │       ├── notify/                 # outbox, Telegram client, formatters
-│       ├── auth/                   # sessions, argon2, TOTP, recovery, CSRF
+│       ├── audit/                  # the append-only audit writer
+│       ├── auth/                   # sessions, TOTP, recovery, CSRF, challenges,
+│       │                           #   and the owner-only admins router
 │       ├── ratelimit/              # GCRA in PostgreSQL
-│       ├── admin_api/              # dashboard routers
+│       ├── admin_api/              # dashboard routers (M2+; M1 routers live
+│       │                           #   beside the feature they serve, e.g.
+│       │                           #   auth/admins_router.py)
 │       ├── health/                 # psutil, geo DB freshness, flow diagram
 │       ├── lifecycle/              # retention, purge, backup, restore-verify
 │       ├── crypto/                 # AES-GCM envelope, key loading, rotation
 │       ├── worker/                 # asyncio outbox worker + scheduler
 │       └── cli/                    # tracelet admin …, database update, labelling
 │   └── tests/
-│       ├── unit/                   # inference, scoring, GCRA, crypto
+│       ├── unit/                   # inference, scoring, GCRA, crypto, policy
 │       └── integration/            # API + real PostgreSQL + PostGIS
+│                                   #   helpers.py drives the real auth flow;
+│                                   #   never a database double (ES3)
 ├── web/
 │   ├── Dockerfile                  # builds the SPA, then serves it from Caddy
 │   ├── Dockerfile.tools            # eslint/prettier/tsc/openapi-typescript
 │   ├── package.json
 │   └── src/
-│       ├── api/                    # GENERATED client + zod schemas
+│       ├── api/                    # hand-written clients + generated/ schema.d.ts
 │       ├── components/             # shadcn-derived primitives, charts, map
+│       ├── pages/                  # M1: enrol, login, recovery, reset, dashboard
+│       ├── router.ts               # M1 only; react-router arrives with M5
 │       ├── features/               # visits, analytics, geofences, health, admins
 │       └── theme/                  # semi-dark default, light, dark
 ├── data/                           # geo databases + GeoNames (gitignored)

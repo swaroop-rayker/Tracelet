@@ -21,7 +21,30 @@ RUN apt-get update \
  && apt-get install -y --no-install-recommends \
       # libpq for psycopg (used by Alembic only)
       libpq5 \
+      ca-certificates \
  && rm -rf /var/lib/apt/lists/*
+
+# --- local trust anchors, for a development machine only -------------------
+#
+# Empty in CI and in production, where this whole block is a no-op costing one
+# cached layer. It exists for a machine whose antivirus, VPN or corporate proxy
+# performs TLS interception: browsers trust the re-signing root because the OS
+# does, but a container carries its own CA bundle and does not — so every
+# outbound HTTPS request fails, starting with pip in the next stage.
+# See api/certs/README.md.
+#
+# Both stores are updated, and that is the part worth knowing: Python's HTTP
+# clients do NOT read the system store. `pip` and `httpx` both use certifi, so
+# installing the root system-wide alone fixes apt and leaves Telegram delivery
+# failing in a way that looks unrelated (docs/ERRORS.md E21).
+COPY certs/ /usr/local/share/ca-certificates/
+RUN update-ca-certificates
+
+# pip reads its own vendored bundle, so it is pointed at the system store, which
+# update-ca-certificates has just refreshed.
+ENV PIP_CERT=/etc/ssl/certs/ca-certificates.crt \
+    SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt \
+    REQUESTS_CA_BUNDLE=/etc/ssl/certs/ca-certificates.crt
 
 
 # --- dependency layer ------------------------------------------------------
@@ -31,7 +54,10 @@ FROM base AS deps
 COPY pyproject.toml ./
 RUN --mount=type=cache,target=/root/.cache/pip \
     mkdir -p src/tracelet && touch src/tracelet/__init__.py \
- && pip install --no-cache-dir -e ".[dev]"
+ && pip install --no-cache-dir -e ".[dev]" \
+ && for crt in /usr/local/share/ca-certificates/*.crt; do \
+        [ -e "$crt" ] && cat "$crt" >> "$(python -m certifi)"; \
+    done; true
 
 
 # --- development / CI ------------------------------------------------------
@@ -56,7 +82,10 @@ COPY alembic ./alembic
 COPY alembic.ini ./
 
 RUN --mount=type=cache,target=/root/.cache/pip \
-    pip install --no-cache-dir .
+    pip install --no-cache-dir . \
+ && for crt in /usr/local/share/ca-certificates/*.crt; do \
+        [ -e "$crt" ] && cat "$crt" >> "$(python -m certifi)"; \
+    done; true
 
 # Non-root. The only writable paths are the two mounted data volumes.
 RUN useradd --system --create-home --uid 10001 tracelet \

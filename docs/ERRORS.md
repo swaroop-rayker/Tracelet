@@ -501,6 +501,605 @@ passes from both a container and the host.
 
 ---
 
+### E8 — Enrollment links used `http://`, so the session cookie could never be stored
+
+**Status:** Fixed. **Milestone:** M1. **Date:** 2026-09-27.
+
+**Symptom.** Enrolment completed, the account activated, and the admin was not signed in. No
+error anywhere: the API answered `204`, the browser accepted the response, and the next
+request was anonymous.
+
+**Root cause.** `Settings.public_base_url` chose `http` when `site_address` started with
+`localhost`, on the reasonable-sounding theory that local development is plain HTTP. It is
+not: Caddy terminates TLS on **every** path including localhost, through its internal CA. The
+session cookie carries `Secure`, and a browser refuses to store a `Secure` cookie received
+over `http` — silently, because refusing a cookie is not an error.
+
+So the two halves were each individually defensible and jointly broken, which is the usual
+shape of this class of bug.
+
+**Fix.** `public_base_url` is **always** `https`. There is no deployment where an http link is
+correct — the three documented modes (localhost internal CA, purchased domain, free
+subdomain) all terminate TLS at Caddy (ADR-0012).
+
+**Prevention.** A parametrised unit test asserts the scheme for five site addresses including
+`localhost` and `127.0.0.1`. The test that previously asserted the **opposite** was found
+still in the suite and replaced, which is worth recording: a test can encode a bug.
+
+**Related:** F8.AC2, F8.AC15, ADR-0012.
+
+---
+
+### E9 — `EmailStr` pulled in two dependencies and the API crash-looped
+
+**Status:** Fixed. **Milestone:** M1. **Date:** 2026-09-27.
+
+**Symptom.** Every Gunicorn worker failed to boot: `ImportError: email-validator is not
+installed, run pip install pydantic[email]`. The container restarted, forever.
+
+**Root cause.** `pydantic.EmailStr` is not a self-contained type — it requires
+`email-validator`, which requires `dnspython`. Two packages arrived as a side effect of
+writing `EmailStr` in a request model.
+
+**Fix.** Replaced with a constrained string in `auth/types.py`: `strip_whitespace`, `to_lower`
+(the column is `citext`, so normalising on the way in keeps stored values and comparisons
+consistent), a length bound, and a pattern rejecting what would actually cause a problem —
+no `@`, no dot in the domain, whitespace.
+
+Correct here for a reason beyond dependency count: this system sends **no email at all**.
+Gate 1 declined an SMTP provider and recovery runs over Telegram (ADR-0008), so an admin
+address is purely a **login identifier**. Paying two dependencies for RFC 5322 conformance on
+a string nothing is ever delivered to does not pass ES5.
+
+**Prevention.** The rejection is recorded in the dependency ledger, so the next person
+reaching for `EmailStr` finds the reason rather than rediscovering it. Check 12 of `tl verify`
+builds the production image, so an import error of this kind fails CI rather than a deploy.
+
+**Related:** ES5, ADR-0008, docs/ARCHITECTURE.md §8.
+
+---
+
+### E10 — Multi-step auth state lived in process memory, so login was a coin flip
+
+**Status:** Fixed by migration `0003`. **Milestone:** M1. **Date:** 2026-09-27.
+
+**Symptom.** Sign-in failed roughly half the time, and failed *differently* each way: the
+first attempt returned `401` with a valid code, the next returned `404` for a token that had
+just been issued. Retrying eventually worked.
+
+**Root cause.** Three short-lived tokens — the MFA challenge between password and code, the
+confirm token issued at enrolment, and the Telegram chat-verification code — were held in a
+module-level dict. `TRACELET_WEB_CONCURRENCY=2` means **two Gunicorn workers with separate
+memory**, so whether the follow-up request found the token depended on which worker received
+it. A 401 meant the right worker with a stale code; a 404 meant the wrong worker.
+
+**Fix.** The `auth_challenges` table and `auth/challenges.py` (migration `0003`). One table
+with a `kind` discriminator rather than three, because all three have the same shape and
+lifecycle: single-use, short TTL, bound to one admin. The enrollment and reset tokens stay in
+their own tables, where the lifetimes and delivery paths genuinely differ.
+
+**Worth recording separately.** The original code carried a comment arguing this was
+acceptable because "the admin simply retries". That comment is the actual defect: a
+rationalised trade-off in a comment is how a bug survives review, because the next reader
+sees a decision rather than a mistake. Any state that must survive from one HTTP request to
+the next is shared state, and on this deployment shared means PostgreSQL — the same argument
+ADR-0010 makes for rate-limit buckets.
+
+**Prevention.** An integration test signs in three times consecutively, each with a fresh
+TOTP step. A per-worker store fails it about half the time under the real deployment, and
+deterministically under any future worker count above one.
+
+**Related:** F8.AC1, ADR-0010, docs/DATA_MODEL.md §3.7.
+
+---
+
+### E11 — The commit ran after the response, so a failed transaction was reported as 200
+
+**Status:** Fixed. **Milestone:** M1. **Date:** 2026-09-27.
+
+**Symptom.** A request that violated a database constraint returned `200 OK` with a complete
+response body, and nothing was written.
+
+**Root cause.** The conventional FastAPI dependency —
+
+```python
+async def get_db():
+    async with session_scope() as session:
+        yield session
+```
+
+— commits in the dependency's **teardown**, and FastAPI runs teardown *after* the response has
+been generated. A commit that fails there has no way to change the status code. The exception
+was logged and swallowed, and the client was told the operation succeeded.
+
+**This is what hid E12** for as long as it did: the enrolment path was failing at COMMIT and
+reporting success, so the symptom was "the account did not activate" rather than "the
+transaction was rejected".
+
+**Fix.** `db/request_session.py`. Middleware owns the session, because middleware holds the
+response object and can therefore replace it: it commits first, and returns a `500` Problem
+Details response if the commit fails.
+
+The rollback policy is deliberate and is the second thing this gets right:
+
+* **2xx / 3xx** → commit.
+* **4xx** → commit **as well**. The handler chose that outcome, and anything it wrote is part
+  of the decision — a failed login must keep its audit row (F8.AC16), and that row is written
+  by the same code that then raises `Unauthenticated`.
+* **5xx or an unhandled exception** → roll back. Nobody chose that outcome.
+
+**A consequence worth stating,** because it caused E14: with commit-on-4xx, a handler that
+mutates and *then* rejects will commit the mutation. Such a handler must validate before
+mutating, or roll back explicitly.
+
+**Prevention.** An integration test mounts a route that mutates and returns success while
+violating the deferred owner trigger, and asserts the response is a 5xx with nothing written.
+It fails with a 200 against the dependency-teardown pattern.
+
+**Related:** ES4, F8.AC16, NFR5.AC5, ADR-0013.
+
+---
+
+### E12 — The owner trigger asserted an invariant that is false during bootstrap
+
+**Status:** Fixed in migration `0002` before merge. **Milestone:** M1. **Date:** 2026-09-27.
+
+**Symptom.** Enrolment of the very first owner failed at COMMIT with `cannot remove the last
+active owner` — an error about removing an owner, raised while creating one. Reported to the
+client as `200` (E11).
+
+**Root cause.** `assert_owner_exists` fired on **every** `admins` UPDATE and required that an
+active owner exist afterwards. But the first owner is created `pending_enrollment`, and every
+update on the way to activating them — setting a password, storing a TOTP secret, flipping
+status — happens while **no active owner exists**. The global assertion is simply false during
+bootstrap.
+
+**Fix.** Reformulated to the narrower property that is actually required: *an operation may
+not **remove** the last active owner.* Two constraint triggers with `WHEN` clauses, so the
+check runs only when the row **was** an active owner and is about to stop being one:
+
+```sql
+WHEN (OLD.role = 'owner' AND OLD.status = 'active'
+      AND (NEW.role <> 'owner' OR NEW.status <> 'active'))
+```
+
+A side benefit that matters on a 1 GB box: an ordinary update — a failed-login counter bump on
+an owner — no longer runs a count query.
+
+**Prevention.** The bootstrap-to-active path is exercised by every enrolment test in the
+integration suite, and a test asserts both triggers exist and are `DEFERRABLE INITIALLY
+DEFERRED` in the catalogue. Documentation is not enforcement.
+
+**Related:** F8.AC13, F8.AC15, docs/DATA_MODEL.md §3.1.
+
+---
+
+### E13 — `INET` returns an `ipaddress` object, and comparing it to a string rejected every session
+
+**Status:** Fixed. **Milestone:** M1. **Date:** 2026-09-27.
+
+**Symptom.** Every authenticated request returned `401`. Signing in worked, the cookie was
+set, and the next request was anonymous. `session_binding_mismatch` was in the log the whole
+time, with `kind="ip_prefix"`.
+
+**Root cause.** `sessions.resolve` compared `prefix_of(ip)` — a canonical **string** like
+`203.0.113.0/24` — against `row.ip_prefix`, which SQLAlchemy hands back as an
+`IPv4Interface` for an `INET` column. The two are never equal, so the binding check failed
+for every session including the one just created.
+
+**The interesting part is why `mypy --strict` did not catch it.** The model annotated the
+column as `Mapped[str | None]`. The annotation was a lie, and a type checker cannot find a bug
+that the types deny the existence of.
+
+**Fix.** Compare via `str(...)`, and annotate the `INET` columns as
+`IPv4Interface | IPv6Interface | None` in all three models that have one, so the declared type
+matches what the driver actually returns.
+
+**Prevention.** An integration test signs in and then calls an authenticated route — which
+sounds too obvious to need writing down, and is exactly the test whose absence let this ship.
+
+**Related:** F8.AC3, ES1.
+
+---
+
+### E14 — A 4xx raised after a mutation surfaced as 500 instead of 409
+
+**Status:** Fixed. **Milestone:** M1. **Date:** 2026-09-27.
+
+**Symptom.** Demoting the last owner returned `500 INTERNAL_ERROR` instead of `409
+LAST_OWNER`, and the log showed the failure raised from the commit, outside any handler.
+
+**Root cause.** Two correct decisions interacting. The request session commits on a 4xx (E11),
+so a handler that applied the UPDATE and *then* raised `LastOwner` had its mutation committed
+anyway — and the deferred constraint trigger fired at COMMIT time, in the middleware, where no
+exception handler could map it to a status code.
+
+**Fix.** Two changes, in this order:
+
+1. **Validate before mutating.** `_count_other_active_owners` runs before the UPDATE, so the
+   rejection happens with nothing written.
+2. **`SET CONSTRAINTS ALL IMMEDIATE` after mutating**, so the deferred trigger evaluates
+   inside the handler where an `IntegrityError` becomes a clean 409 rather than a commit-time
+   500.
+
+**The general rule, worth writing down once:** with commit-on-4xx, any handler that mutates
+and then rejects must either validate first or roll back explicitly. That is the price of
+keeping the audit row for a rejected request, and it is the right trade.
+
+**Prevention.** Integration tests assert `409 LAST_OWNER` for both demote and disable. Delete
+is a 422 for a reason recorded in `docs/API.md` §5.
+
+**Related:** F8.AC13, E11, ADR-0013.
+
+---
+
+### E15 — Single-use tokens were spent before the password was validated
+
+**Status:** Fixed. **Milestone:** M1. **Date:** 2026-09-27.
+
+**Symptom.** Submitting a password that failed the policy on `/enroll` or `/reset/confirm`
+returned the correct `422` — and then the link no longer worked. On the enrolment path the
+invitee had to go back to an owner for a fresh invite; on the reset path, a 30-minute token
+had to be requested and waited for again.
+
+**Root cause.** Both handlers consumed the token first and validated the password afterwards.
+Written in the order the reader thinks about it, rather than the order the failure modes
+require.
+
+**Fix.** `_peek_single_use_token` finds a live token **without** spending it; the password is
+validated; then `_consume_single_use_token` spends it conditionally. The conditional UPDATE
+still decides the concurrent case, so nothing about the race changed — only the ordering.
+
+**Prevention.** Two integration tests submit a policy-violating password and then reuse the
+same link successfully, one for enrolment and one for reset.
+
+**Related:** F8.AC7, F8.AC15, F8.AC17.
+
+---
+
+### E16 — Two concurrent demotions could both pass, leaving no active owner
+
+**Status:** Fixed. **Milestone:** M1. **Date:** 2026-09-27.
+
+**Symptom.** None observed — found while writing the concurrency test the E14 fix implied,
+which is the only reason it is in this file rather than in production.
+
+**Root cause.** The E14 fix left a hole. Two transactions each demoting a *different* active
+owner behave like this:
+
+1. each `_count_other_active_owners` sees the other owner still active, because an uncommitted
+   change in one transaction is invisible to the other under READ COMMITTED;
+2. each applies its UPDATE;
+3. each runs `SET CONSTRAINTS ALL IMMEDIATE`, which fires the deferred trigger **early** — in
+   the same blind snapshot — and, per PostgreSQL semantics, *consumes the pending event* so
+   nothing is re-checked at COMMIT;
+4. both commit. Zero active owners, and nobody can administer the system.
+
+The deferred trigger alone would have caught this: at COMMIT the trigger body runs with a
+fresh snapshot, so the second transaction sees the first one's committed demotion and raises.
+`SET CONSTRAINTS ALL IMMEDIATE`, added to turn a commit-time 500 into a clean 409, had
+inadvertently disabled the very protection the deferral existed for. The documentation claimed
+the trigger closed the race; it no longer did.
+
+**Fix.** `_lock_active_owners` takes `SELECT ... FOR UPDATE` on every active owner row,
+ordered by id, before either route reads or changes the owner set. The second transaction then
+waits for the first to commit, and its next statement gets a snapshot in which the count is
+finally truthful. Ordered by id so two transactions cannot take the same rows in opposite
+orders and deadlock. At two admins this locks at most two rows, on a route that runs a handful
+of times in the system's life.
+
+Both mechanisms are kept: the lock plus the pre-check produce the clean 409, and the deferred
+trigger remains the guarantee for anything that bypasses the route.
+
+**Prevention.** A deterministic test holds `FOR UPDATE` on the owner rows from outside the
+app, fires the PATCH, and asserts the handler **blocks** rather than deciding — it fails
+immediately if the lock is removed. Two further tests race real demotions and deletions and
+assert exactly one succeeds and exactly one active owner remains.
+
+**Worth noting.** `SET CONSTRAINTS ALL IMMEDIATE` looked like a pure ergonomics improvement:
+same checks, better error. It silently moved a check from a snapshot that could see concurrent
+commits to one that could not. Changing *when* a constraint is evaluated changes *what* it can
+see.
+
+**Related:** F8.AC13, E11, E14, docs/DATA_MODEL.md §3.1.
+
+---
+
+### E17 — The sole owner could never reset their own authenticator
+
+**Status:** Fixed. **Milestone:** M1. **Date:** 2026-09-27.
+
+**Symptom.** `tracelet admin reset-totp --email <the only owner>` aborted with
+`IntegrityError: cannot remove the last active owner / HINT: promote another admin to owner
+first`. Found by the repository owner running the command this file had just recommended to
+them, on a one-admin deployment.
+
+**Root cause.** Two correct constraints with no legal state between them.
+
+1. Re-enrolling TOTP means clearing `totp_enrolled_at`.
+2. The CHECK `ck_admins_active_requires_password_and_totp` forbids an `active` account
+   without it, so the status *must* leave `active`.
+3. The owner trigger forbids the last active owner leaving `active` (F8.AC13).
+
+So for the only owner, the operation is impossible — and that is the account most likely to
+need it, on a path whose entire purpose is to prevent lockout (F8.AC8). Recovery codes and
+`reset-password` still worked, but neither helps the specific case of a lost authenticator:
+`reset-password` deliberately leaves the second factor alone.
+
+**Fix.** Stop clearing in place when clearing is illegal. For the last active owner the
+account stays `active`, the secret is left alone, and the enrollment link does the replacing:
+`/enroll` writes a new password, a new secret and a new set of recovery codes, and
+`/totp/confirm` re-confirms. The status never changes, so the trigger never fires. Every
+other admin keeps the strict behaviour, because it is available and it is better — a
+compromised authenticator stops working immediately rather than at re-enrolment.
+
+The trade is stated to the operator rather than hidden: the existing authenticator keeps
+working until the link is used, and if the device was *compromised* rather than lost, the
+answer is to invite a second owner first. The audit row records which of the two behaviours
+ran (`cleared_in_place`).
+
+The same `SELECT ... FOR UPDATE` as the admins router guards the count, for the E16 reason.
+
+**Prevention.** `tests/integration/test_cli_recovery.py` — fifteen tests over the break-glass
+paths, three of which fail with this exact `IntegrityError` against the old code. The file
+exists because none of the M1 suite covered the CLI: it was verified by hand on accounts that
+were never the last owner, which is precisely the case that works.
+
+**Worth noting.** Every individual constraint here was right, each was tested, and the
+combination was unreachable. A test per constraint cannot find that; only exercising the
+operation on the account that has to survive it can. The suite now uses the `exclusive_owner`
+fixture for these, so "the only owner" is the default case rather than an edge case nobody
+reaches.
+
+**Related:** F8.AC4, F8.AC8, F8.AC13, E12, E16.
+
+---
+
+### E18 — A 202 with no body was reported to the operator as a malformed response
+
+**Status:** Fixed. **Milestone:** M1. **Date:** 2026-09-27.
+
+**Symptom.** Clicking "Send a verification code" showed *"The server returned something
+this page does not understand."* The code arrived in Telegram anyway. The log showed
+`telegram_sent` and `status=202`, so the server had done exactly what was asked.
+
+**Root cause.** In the frontend client, endpoints with no response body are parsed by
+`noContent()`, which returns `null`. The guard that decides whether a `null` means "the
+parser rejected this" read:
+
+```ts
+if (parsed === null && response.status !== 204) { /* malformed */ }
+```
+
+Two endpoints answer **202**, not 204: `/auth/reset/request` and
+`/auth/telegram/verify/start`. Both were therefore reported as faults after succeeding.
+
+A status-code allow-list was the wrong instrument. The question is not "which statuses
+have no body" — it is "did a body arrive, and could it be read".
+
+**Fix.** Read the response as text first, so *no body* and *unreadable body* stay
+distinguishable regardless of status:
+
+* empty body → success, whatever the status;
+* non-empty body that fails `JSON.parse` → malformed;
+* parsed body the narrowing rejects → malformed.
+
+**Prevention.** Both 202 endpoints now behave correctly by construction rather than by
+being listed. The password-reset path had the same defect and nobody had reached it yet.
+
+**Worth noting.** The failure was maximally misleading: the user-visible message blamed
+the *server*, the server had succeeded, and the side effect (a Telegram message) had
+already happened. A client that lies about a success is worse than one that fails
+loudly, because the operator retries and re-triggers the side effect.
+
+**Related:** ES4, F8.AC7.
+
+---
+
+### E19 — The Telegram bot token was written to the log in plaintext on every send
+
+**Status:** Fixed. **Milestone:** M1. **Date:** 2026-09-27.
+
+**Symptom.** Found while reading the log for an unrelated trace id:
+
+```
+HTTP Request: POST https://api.telegram.org/bot<TOKEN>/sendMessage "HTTP/1.1 200 OK"
+```
+
+The full bot token, in clear text, on every successful notification.
+
+**Root cause.** Telegram carries the bot token in the URL **path**, so any library that
+logs a request URL logs a credential. `httpx` does exactly that, at INFO, from its own
+logger — which `configure_logging` routes through structlog along with everything else.
+
+`notify/telegram.py` already had a `_redact` helper, and it was not enough: it only
+touches messages *this* module raises or logs. httpx's line never passes through it.
+The key-based redactor could not help either, because the token is mid-string under a
+non-sensitive key (`event`).
+
+**This is precisely the class of failure F12.AC3 exists to prevent**, and the token is
+not an ordinary API key: Telegram is a password-recovery channel (RISKS R18), so it is
+closer to a password than to a service credential.
+
+**Fix.** Two layers, because they fail differently:
+
+1. **Silence the logger.** `httpx` and `httpcore` are set to `WARNING`, the same way
+   `sqlalchemy.engine` already was. Nothing in that line is worth keeping — our own
+   middleware logs method, path, status and duration with a trace id, and
+   `telegram.py` logs the outcome with the chat id.
+2. **Mask the shape.** `_mask_bot_tokens` in the redactor rewrites `/bot<digits>:<...>`
+   to `/bot<bot-token>` in free text, for a traceback, a future HTTP client, or any
+   other library that reintroduces it. Matched on **shape**, not on the configured
+   value, so it holds for a rotated token, a second bot, or one this process has never
+   seen.
+
+**Prevention.** Five unit tests in `test_log_redaction.py`, including one asserting both
+loggers are at `WARNING` after `configure_logging` — silencing is the control, masking
+is the backstop — and one asserting an ordinary `key:value` string outside a `/bot` URL
+is not mangled.
+
+**Worth noting.** The redaction suite had passed since M0 and was genuinely good: it
+proved sensitive **keys** never survive, and that IP literals in free text are masked.
+It could not catch this, because the credential belonged to a third-party library's log
+line in a format nobody had thought about. "We redact secrets" is a claim about the
+inputs you enumerated.
+
+**Related:** F12.AC3, F12.AC13, RISKS R18, E4.
+
+---
+
+### E20 — A Telegram delivery failure surfaced as `500 Internal error`
+
+**Status:** Fixed. **Milestone:** M1. **Date:** 2026-09-27.
+
+**Symptom.** "Send a verification code" returned `500 INTERNAL_ERROR` with a trace id
+and nothing else. The log showed `telegram_failed` after three attempts, then
+`unhandled_exception`.
+
+**Root cause.** `TelegramError` subclasses `RuntimeError`, not `TraceletError`. The
+global handler therefore treated it as an *unexpected* failure — which is right for
+anything it does not recognise, and means the detail is deliberately withheld from the
+client. So the one person who could act on it was told the least useful thing possible,
+while looking at the form field most likely to be at fault.
+
+`settings.require()` raises a bare `RuntimeError` too, so an unconfigured deployment
+produced the same opaque 500.
+
+**Fix.** Translate at the service boundary, into the two cases that differ in what the
+operator should do:
+
+| Failure | Response |
+|---|---|
+| Telegram **rejects** it — wrong chat id, bot never messaged, bot blocked | `422`, with the error attached to the **`chat_id`** field |
+| Telegram **unreachable**, or not configured | `503 DEPENDENCY_UNAVAILABLE`, saying the code was not sent and to retry |
+
+`TelegramError` gained a `permanent` flag, set on a 4xx from Telegram, so the caller can
+tell "this will never work" from "this might work in a minute". `request_password_reset`
+already caught both and recorded `delivered: false`; only chat verification propagated,
+because it is the one place where the admin is waiting and must be told.
+
+**Prevention.** Three integration tests cover both branches and assert a failed send
+leaves **no** half-finished challenge row — otherwise a code from an earlier attempt
+could later be confirmed against a chat id the admin had since corrected.
+
+**Related:** F8.AC7, ADR-0013, E21.
+
+---
+
+### E21 — Antivirus TLS interception broke every outbound HTTPS from a container
+
+**Status:** Worked around; the underlying cause is environmental. **Milestone:** M1.
+**Date:** 2026-09-27.
+
+**Symptom.** Three failures that looked unrelated, all starting after the host hung and
+was restarted:
+
+* `docker compose build api` — `Could not find a version that satisfies the requirement
+  setuptools>=75 (from versions: none)`, which reads as a network or index problem;
+* Telegram delivery — `CERTIFICATE_VERIFY_FAILED: unable to get local issuer
+  certificate`;
+* `apk add` inside a throwaway `alpine` container — silent failure.
+
+The browser was unaffected throughout, which is what made it confusing.
+
+**Root cause.** Norton 360 performs TLS interception: it terminates HTTPS and re-signs
+with a root of its own. Asking who signed the certificate the container is actually
+served made it obvious in one line:
+
+```
+SUBJECT : CN=api.telegram.org
+ISSUER  : CN=Norton Web/Mail Shield Root, OU=generated by Norton Antivirus for SSL/TLS scanning
+```
+
+Windows trusts that root, so browsers are fine. A container carries its own CA bundle
+and does not, so **every** outbound HTTPS from a container fails.
+
+**Fix.** `api/certs/` — empty in CI and in production, where the whole thing is a no-op
+costing one cached layer. Anything dropped there is installed into the image's trust
+store at build time. The certificate itself is git-ignored: a TLS-interception root is
+specific to one machine, and committing one would make every other developer, CI and the
+production box trust a CA that has nothing to do with them.
+
+**The part worth remembering: `update-ca-certificates` is not sufficient.** Python's HTTP
+clients do not read the system trust store. Both `pip` and `httpx` use `certifi`, so
+installing the root system-wide fixes `apt` and leaves the build *and* Telegram failing
+in a way that looks unrelated to the fix just applied. The image therefore does both:
+updates the system store, appends to `certifi`'s bundle after each `pip install` (certifi
+does not exist in the `base` stage — it arrives with the first install), and sets
+`PIP_CERT`, `SSL_CERT_FILE` and `REQUESTS_CA_BUNDLE`.
+
+**Prevention.** `api/certs/README.md` carries the diagnosis, the one-line command that
+identifies interception, and the export procedure — because the symptoms name neither
+certificates nor the antivirus, and the next person to hit this will be reading a `pip`
+error about `setuptools`.
+
+**Not the preferred fix.** Turning the interception off is better where that is an
+option: it means every encrypted connection is decrypted and re-encrypted inside another
+process, which is a real trade independent of Docker. This is recorded as a workaround
+chosen deliberately, not as a resolution.
+
+**Related:** E19, E20.
+
+---
+
+### E22 — Stripping whitespace before deciding hex-vs-raw corrupted a binary key
+
+**Status:** Fixed. **Milestone:** M1. **Date:** 2026-09-28.
+
+**Symptom.** CI failed on `5 · pytest unit` for a commit that had just passed the same
+check locally and passed it in the *other* CI run triggered by the same push:
+
+```
+EnvelopeError: Encryption key at .../raw_key is 31 bytes; AES-256 needs exactly 32.
+```
+
+**Root cause.** `_read_key_file` did `path.read_bytes().strip()` **before** deciding
+whether the contents were hex or raw bytes. The stripping is there for a good reason —
+`openssl rand -hex 32 > file` leaves a trailing newline — but it was applied to both
+forms.
+
+A raw key is 32 **uniformly random** bytes. Six of the 256 possible byte values are ASCII
+whitespace (`0x09`–`0x0D`, `0x20`), so a random key begins or ends with one roughly
+**4.6%** of the time. When it did, `strip()` silently removed a byte of key material and
+the key was rejected as 31 bytes.
+
+Two things made this hide well:
+
+* **It is probabilistic**, so it passed locally, passed one CI run, and failed another
+  for the same commit. That signature reads as CI flakiness, and the temptation is to
+  re-run it.
+* **The error message was confidently wrong.** "is 31 bytes; expected 32" points the
+  reader at how the key was generated, not at the code that just shortened it.
+
+**Not a test-only fault.** The module advertises raw-32-byte keys as a supported form,
+and a production box generating one that way would fail to boot about one time in
+twenty-two, with a message blaming the key file.
+
+**Fix.** Strip only for the hex attempt, and fall back to the **unmodified** bytes:
+
+```python
+raw = path.read_bytes()
+try:
+    key = bytes.fromhex(raw.strip().decode("ascii"))
+except (ValueError, UnicodeDecodeError):
+    key = raw
+```
+
+**Prevention.** Six parametrised tests, one per whitespace byte, each wrapping a key in
+that byte — deterministic where the original was a 4.6% coin flip. Plus a test asserting
+a hex key still tolerates surrounding whitespace, so the fix cannot be "simplified" by
+removing the strip entirely.
+
+**Worth noting.** The test that caught this was the pre-existing
+`test_a_raw_32_byte_key_file_is_accepted`, which generates a random key. It had been
+passing since the suite was written, and was one unlucky draw away from reporting a real
+defect at any point. A random input found a bug a fixed fixture never would — and then
+made it look like infrastructure noise.
+
+**Related:** F12.AC3, ADR-0007.
+
+---
+
 Add entries here as bugs are found and fixed. Use the next available `E<n>` identifier and
 the same structure: symptom, root cause, fix, **prevention**.
 

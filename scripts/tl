@@ -52,9 +52,23 @@ task_bootstrap() {
     step "Applying migrations"
     task_migrate
     step "Creating the first owner admin"
-    ylw "Not yet implemented — arrives in M1 (F8.AC15)."
-    ylw "M1 will print a one-time enrollment URL here. There is no default"
-    ylw "password anywhere in this system, by design."
+    # No password is set here, by design (F8.AC15): the command prints a one-time
+    # enrollment URL and the invitee chooses their own. There is therefore no
+    # default password anywhere in this system to forget to change.
+    #
+    # Runs in the PRODUCTION image, like migrations, so bootstrap exercises what
+    # actually ships. Idempotent: re-running it against an existing owner issues a
+    # fresh link rather than failing.
+    if [ -z "${TRACELET_BOOTSTRAP_EMAIL:-}" ]; then
+        ylw "Set TRACELET_BOOTSTRAP_EMAIL to create the first owner, e.g."
+        ylw "  TRACELET_BOOTSTRAP_EMAIL=you@example.com ./scripts/tl bootstrap"
+        ylw "Or run it directly:"
+        ylw "  docker compose run --rm api tracelet admin bootstrap --email you@example.com"
+    else
+        $API_PROD tracelet admin bootstrap \
+            --email "$TRACELET_BOOTSTRAP_EMAIL" \
+            --name "${TRACELET_BOOTSTRAP_NAME:-Owner}"
+    fi
     grn "Bootstrap complete. Next: ./scripts/tl up"
 }
 
