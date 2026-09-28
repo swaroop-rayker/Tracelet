@@ -16,7 +16,7 @@ then open the PR (CLAUDE.md section 2).
 | | Milestone | Size | Status |
 |---|---|---|---|
 | M0 | Foundation and CI | M | **[x] done** — CI green on `main`, 69 tests |
-| M1 | Admin auth and account security | L | **[x] done** — 277 tests, 14 bugs recorded as E8–E21 |
+| M1 | Admin auth and account security | L | **[x] done** — 284 tests, 15 bugs recorded as E8–E22 |
 | M2 | Capture path, server-authoritative | L | [ ] |
 | M3 | Location inference engine | L | [ ] |
 | M4 | Anti-spoofing and classification | L | [ ] |
@@ -198,14 +198,14 @@ requires the single `CI` status check, which is the one to put behind branch pro
       migration: both constraint triggers present and `DEFERRABLE INITIALLY DEFERRED`, the
       `active` CHECK present, and the `audit_log` grants as intended
 - [x] `ruff check`, `ruff format --check`, `mypy --strict` clean across 58 files
-- [x] Unit tests: 162. Integration tests: 115, against real PostgreSQL + PostGIS, never
+- [x] Unit tests: 169. Integration tests: 115, against real PostgreSQL + PostGIS, never
       mocked (ES3) — including fifteen over the break-glass CLI, which nothing covered
       before E17 was found, and three over Telegram delivery failures (E20)
 - [x] `tsc --noEmit`, `eslint`, `prettier --check` clean; **no new frontend dependency**
 - [x] OpenAPI document and TypeScript client regenerated and committed
 - [x] Docs: API.md §4–5 rewritten against the implementation; DATA_MODEL.md §3 with the two
       new tables and the corrected owner invariant; ARCHITECTURE.md §5.5, §5.8, §9 and the
-      dependency ledger; ADR-0009 amended; ERRORS.md **E8–E21**
+      dependency ledger; ADR-0009 amended; ERRORS.md **E8–E22**
 
 **Deviations from the original M1 scope, each with the doc updated in the same change:**
 

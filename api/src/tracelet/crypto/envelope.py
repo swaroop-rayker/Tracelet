@@ -69,11 +69,18 @@ def _read_key_file(path: Path) -> bytes:
         )
         raise EnvelopeError(msg)
 
-    raw = path.read_bytes().strip()
+    raw = path.read_bytes()
 
     # Accept hex (what the documented generation command produces) or 32 raw bytes.
+    #
+    # The stripping is deliberately applied ONLY to the hex attempt. `openssl rand
+    # -hex 32 > file` leaves a trailing newline, so hex has to tolerate surrounding
+    # whitespace -- but a raw 32-byte key is uniformly random, and roughly 4.6% of
+    # such keys begin or end with a byte that happens to be ASCII whitespace
+    # (0x09-0x0D or 0x20). Stripping first silently removed it and rejected a
+    # perfectly good key as "31 bytes" (docs/ERRORS.md E22).
     try:
-        key = bytes.fromhex(raw.decode("ascii"))
+        key = bytes.fromhex(raw.strip().decode("ascii"))
     except (ValueError, UnicodeDecodeError):
         key = raw
 

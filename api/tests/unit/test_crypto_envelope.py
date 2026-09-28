@@ -150,6 +150,54 @@ def test_a_raw_32_byte_key_file_is_accepted(tmp_path: Path) -> None:
     reset_key_cache()
 
 
+# Every ASCII byte `bytes.strip()` removes. A uniformly random 32-byte key begins
+# or ends with one of these about 4.6% of the time, which is how E22 reached CI as
+# an intermittent failure rather than a deterministic one.
+WHITESPACE_BYTES = [
+    bytes([0x09]),  # tab
+    bytes([0x0A]),  # newline
+    bytes([0x0B]),  # vertical tab
+    bytes([0x0C]),  # form feed
+    bytes([0x0D]),  # carriage return
+    bytes([0x20]),  # space
+]
+
+
+@pytest.mark.parametrize("edge", WHITESPACE_BYTES)
+def test_a_raw_key_bounded_by_a_whitespace_byte_is_accepted(tmp_path: Path, edge: bytes) -> None:
+    """docs/ERRORS.md E22 — the bug the random test found only sometimes.
+
+    Stripping before deciding hex-vs-raw removed a legitimate byte of key material
+    and rejected the key as 31 bytes. A key is uniformly random: no byte value in it
+    is special, least of all one that happens to be a space.
+    """
+    key = edge + secrets.token_bytes(KEY_BYTES - 2) + edge
+    assert len(key) == KEY_BYTES
+    path = tmp_path / "raw_key"
+    path.write_bytes(key)
+    reset_key_cache()
+
+    sealed = seal_str("value", aad=AAD, key_path=str(path))
+    assert open_str(sealed, aad=AAD, key_path=str(path)) == "value"
+
+    reset_key_cache()
+
+
+def test_a_hex_key_file_tolerates_the_trailing_newline_openssl_writes(tmp_path: Path) -> None:
+    """Which is why the stripping exists at all, and must stay for this case."""
+    path = tmp_path / "hex_key"
+    # Leading spaces and a trailing newline, exactly as a hand-edited file or
+    # `openssl rand -hex 32 > file` can leave it.
+    raw = "  " + secrets.token_hex(KEY_BYTES) + chr(10)
+    path.write_text(raw, encoding="ascii")
+    reset_key_cache()
+
+    sealed = seal_str("value", aad=AAD, key_path=str(path))
+    assert open_str(sealed, aad=AAD, key_path=str(path)) == "value"
+
+    reset_key_cache()
+
+
 def test_a_missing_key_file_names_the_path_and_the_fix(tmp_path: Path) -> None:
     reset_key_cache()
     with pytest.raises(EnvelopeError, match="openssl rand -hex 32"):

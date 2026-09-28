@@ -1042,6 +1042,64 @@ chosen deliberately, not as a resolution.
 
 ---
 
+### E22 — Stripping whitespace before deciding hex-vs-raw corrupted a binary key
+
+**Status:** Fixed. **Milestone:** M1. **Date:** 2026-09-28.
+
+**Symptom.** CI failed on `5 · pytest unit` for a commit that had just passed the same
+check locally and passed it in the *other* CI run triggered by the same push:
+
+```
+EnvelopeError: Encryption key at .../raw_key is 31 bytes; AES-256 needs exactly 32.
+```
+
+**Root cause.** `_read_key_file` did `path.read_bytes().strip()` **before** deciding
+whether the contents were hex or raw bytes. The stripping is there for a good reason —
+`openssl rand -hex 32 > file` leaves a trailing newline — but it was applied to both
+forms.
+
+A raw key is 32 **uniformly random** bytes. Six of the 256 possible byte values are ASCII
+whitespace (`0x09`–`0x0D`, `0x20`), so a random key begins or ends with one roughly
+**4.6%** of the time. When it did, `strip()` silently removed a byte of key material and
+the key was rejected as 31 bytes.
+
+Two things made this hide well:
+
+* **It is probabilistic**, so it passed locally, passed one CI run, and failed another
+  for the same commit. That signature reads as CI flakiness, and the temptation is to
+  re-run it.
+* **The error message was confidently wrong.** "is 31 bytes; expected 32" points the
+  reader at how the key was generated, not at the code that just shortened it.
+
+**Not a test-only fault.** The module advertises raw-32-byte keys as a supported form,
+and a production box generating one that way would fail to boot about one time in
+twenty-two, with a message blaming the key file.
+
+**Fix.** Strip only for the hex attempt, and fall back to the **unmodified** bytes:
+
+```python
+raw = path.read_bytes()
+try:
+    key = bytes.fromhex(raw.strip().decode("ascii"))
+except (ValueError, UnicodeDecodeError):
+    key = raw
+```
+
+**Prevention.** Six parametrised tests, one per whitespace byte, each wrapping a key in
+that byte — deterministic where the original was a 4.6% coin flip. Plus a test asserting
+a hex key still tolerates surrounding whitespace, so the fix cannot be "simplified" by
+removing the strip entirely.
+
+**Worth noting.** The test that caught this was the pre-existing
+`test_a_raw_32_byte_key_file_is_accepted`, which generates a random key. It had been
+passing since the suite was written, and was one unlucky draw away from reporting a real
+defect at any point. A random input found a bug a fixed fixture never would — and then
+made it look like infrastructure noise.
+
+**Related:** F12.AC3, ADR-0007.
+
+---
+
 Add entries here as bugs are found and fixed. Use the next available `E<n>` identifier and
 the same structure: symptom, root cause, fix, **prevention**.
 
