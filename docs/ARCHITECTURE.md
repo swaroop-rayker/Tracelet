@@ -155,8 +155,8 @@ GET /r/{slug}
    `pixel`, `beacon`, `telemetry` in URLs. That, not bot detection, is the actual cause
    of B6. A CI test asserts no public route contains them.
 3. **The sweeper is not an error path.** For social traffic it may be the *primary* path.
-   Spike B in KICKOFF section 6 exists to find out; until it reports, treat
-   `stage='server_only'` as an expected outcome, not a failure.
+   Spike B (RISKS R5) found enrichment survives the Android Instagram webview; iOS is
+   unmeasured. Treat `stage='server_only'` as an expected outcome, not a failure.
 4. **The capture route owns its transaction** — the one exception to 5.8. The request
    middleware turns a failed commit into a `500` Problem Details response, right for the
    API and wrong for a visitor, who must be redirected whatever happened (F15.AC7). So

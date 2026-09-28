@@ -99,7 +99,10 @@ admin1 ≥99 % **precision** at ≥85 % coverage; city ≥95 % precision at ≥5
 
 ## B3 — Instagram in-app browser captures nothing and just redirects
 
-**Status:** Diagnosed, fix designed. Verified in **M2**. Confirm with **Spike B** first.
+**Status:** Fixed in **M2**. Confirmed on Android by **Spike B** (2026-09-28): a real
+Instagram bio-link tap was recorded and enriched, and the preview fetches were recorded
+as `crawler`. iOS not yet confirmed (RISKS R5). A JavaScript-running Meta scanner is a
+fifth cause of false visits, found by the same spike (RISKS R21).
 **Reported:** when the capture link is opened from an Instagram bio, the visitor is simply
 redirected and no data is captured.
 

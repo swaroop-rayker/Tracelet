@@ -17,7 +17,7 @@ then open the PR (CLAUDE.md section 2).
 |---|---|---|---|
 | M0 | Foundation and CI | M | **[x] done** — CI green on `main`, 69 tests |
 | M1 | Admin auth and account security | L | **[x] done** — 285 tests, 15 bugs recorded as E8–E22 |
-| M2 | Capture path, server-authoritative | L | **In progress** — server-authoritative core done and verified; Spike B's real-phone checks remain |
+| M2 | Capture path, server-authoritative | L | **[x] done** — 631 tests, Spike B run (Android), 4 bugs recorded as E23–E26 |
 | M3 | Location inference engine | L | [ ] |
 | M4 | Anti-spoofing and classification | L | [ ] |
 | M5 | Dashboard analytics and visualisation | L | [ ] |
@@ -31,7 +31,7 @@ then open the PR (CLAUDE.md section 2).
 | | Spike | Blocks | Status |
 |---|---|---|---|
 | Spike A | rDNS city-code coverage for Indian residential IPs (RISKS R3) | **M3** | [ ] |
-| Spike B | `fetch(keepalive)` survival in the Instagram webview (RISKS R5) | **M2** — runs inside M2 against the real capture page (owner decision 2026-09-28) | [ ] |
+| Spike B | `fetch(keepalive)` survival in the Instagram webview (RISKS R5) | **M2** — runs inside M2 against the real capture page (owner decision 2026-09-28) | **[x] Android: survives. iOS unmeasured** — R5 |
 
 ---
 
@@ -326,19 +326,22 @@ F12.AC1–F12.AC4, F11.AC1–F11.AC4, F11.AC8, F11.AC10, F13.AC3, F13.AC6, F15.A
 **Done checklist**
 - [x] A visit is recorded with **no JavaScript at all** — integration test, and `curl`
       against the running stack (a client that runs no script)
-- [ ] The `<noscript>` refresh redirects **in a real browser with JavaScript disabled** —
-      the page carries it (unit-tested); needs a browser, done in the Spike B session
-- [ ] Visit recorded from a real Instagram bio link on a real phone — **Spike B**
-- [ ] Enriched visit records screen, GPU, CPU, timezone, consent state **from a real
-      browser**. The endpoint, the payload mapping and the storage are verified by
-      integration tests with a real-shaped payload — **but the collector script itself
-      has never executed in a browser.** Spike B is where it first runs
+- [x] The `<noscript>` refresh redirects **in a real browser with JavaScript disabled** —
+      Android Chrome, Spike B: visit recorded, swept to `server_only`, visitor landed on
+      the destination
+- [x] Visit recorded from a real Instagram bio link on a real phone — Samsung, Android 16,
+      Spike B. **Enriched**, 2.4 s after the visit, i.e. after the redirect. **iOS not
+      tested** — no iPhone available; RISKS R5 stays open for it
+- [x] Enriched visit records screen, GPU, CPU, timezone, consent state **from a real
+      browser** — Instagram webview, Android Chrome and desktop Chrome, all complete
 - [x] Nonce replay returns 410; a nonce from a different prefix returns 410 — plus five
       concurrent submissions of one nonce producing exactly one 204
 - [x] Sweeper finalises an abandoned visit at 90 s as `server_only` — tested, and observed
       on the running stack at 109 s (the 30 s tick puts it between 90 and 120)
 - [x] A Meta preview fetcher appears as `crawler` and is excluded from default views —
-      with the real `facebookexternalhit` user agent. A live Instagram prefetch is Spike B's
+      with the real `facebookexternalhit` user agent, and live in Spike B: four Meta preview
+      fetches, all `crawler`. **But a JavaScript-running Meta scanner was not caught** —
+      RISKS R21, a requirement on M4
 - [x] Rate-limited request **still redirects** (302), recorded `stage='rate_limited'` with
       nothing the client supplied
 - [x] Forged `CF-Connecting-IP` from a non-Cloudflare peer is **ignored** — integration
@@ -392,9 +395,11 @@ F12.AC1–F12.AC4, F11.AC1–F11.AC4, F11.AC8, F11.AC10, F13.AC3, F13.AC6, F15.A
 **Open for the owner:**
 
 1. **R19 — amend F5.AC8** now that header order is unobservable. Recommendation in RISKS.
-2. **R20 — the location prompt cannot be answered inside the interstitial.** Decide with
-   Spike B's data. M2 asks, as F4.AC1 requires, and records an unanswered prompt honestly.
+2. **R20 — the location prompt cannot be answered inside the interstitial.** Spike B
+   confirmed it: every real browser timed out. Recommendation in RISKS: amend F4.AC1 to ask
+   only where permission is already granted.
 3. **What the default link is for.** Nothing depends on it yet.
+4. **R21 — the Meta scanner.** No decision needed now; it is a stated requirement on M4.
 
 ---
 

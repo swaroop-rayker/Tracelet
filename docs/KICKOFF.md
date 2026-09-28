@@ -170,6 +170,8 @@ browser? This decides whether the 90 s sweeper is a rare fallback or the primary
 for social traffic. Needs a real phone and a real Instagram bio link; it cannot be
 answered from a desktop emulator.
 
+**Run 2026-09-28, inside M2: survives on Android; iOS unmeasured.** Results in RISKS R5.
+
 ---
 
 ## 7. Honest expectations

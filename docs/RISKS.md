@@ -9,7 +9,7 @@ Severity is `impact × likelihood` at the time of writing, reassessed after each
 | R2 | External geo APIs: undocumented limits, ToS, breakage | Medium | Open, mitigated by design |
 | R3 | **rDNS city-code coverage may be too low to carry the accuracy plan** | **High** | **Open, Spike A, blocks M3** |
 | R4 | Geo-database update memory spike could OOM the box | Medium | Open, mitigated by design |
-| R5 | **`fetch(keepalive)` may not survive Instagram webview navigation** | **High** | **Open, Spike B — run inside M2 against the real capture page (owner decision 2026-09-28)** |
+| R5 | `fetch(keepalive)` may not survive Instagram webview navigation | Medium | **Android: survives (Spike B, 2026-09-28). iOS: unmeasured — open** |
 | R6 | 1 GB steady state under real load; swap thrash | Medium | Open, verified in M9 |
 | R7 | Bot-detection ceiling without JA4 | **High** | **Mitigation void — see R19** |
 | R8 | Safe Browsing may flag the site regardless | Medium | Accepted, no guaranteed remedy |
@@ -24,7 +24,8 @@ Severity is `impact × likelihood` at the time of writing, reassessed after each
 | R17 | Fingerprint instability inflates unique-visitor counts | Medium | Accepted, disclosed |
 | R18 | Telegram becomes a security dependency, not just a notifier | Medium | Accepted, mitigated |
 | R19 | **Header order and HTTP/2 detail are unobservable behind Caddy** | **High** | **Open — owner decision needed before M4** |
-| R20 | A first-visit location prompt cannot be answered inside the interstitial | Medium | Open — Spike B will measure it |
+| R20 | A first-visit location prompt cannot be answered inside the interstitial | Medium | **Confirmed by Spike B — owner decision needed (F4.AC1)** |
+| R21 | **A JavaScript-executing Meta scanner passes the crawler gate** | **High** | **Open — requirement on M4** |
 
 ---
 
@@ -59,7 +60,7 @@ code, and per-ISP breakdown. Half a day.
 
 ---
 
-## R5 — Instagram webview enrichment survival · **HIGH** · blocks M2
+## R5 — Instagram webview enrichment survival · MEDIUM (was HIGH) · Android closed, iOS open
 
 **Risk.** ADR-0004 uses `fetch(url, {keepalive: true})` rather than `sendBeacon` on the
 assumption of better survival across navigation inside in-app WebViews. **If it does not
@@ -84,7 +85,35 @@ Instagram, and ideally LinkedIn and Reddit for comparison.
 4. Record the observed enrichment rate per `webview_host` so F9.AC20 stage-mix reporting is
    honest about it.
 
-**Result:** _not yet run._
+**Result — run 2026-09-28/29 inside M2, against the real capture page through a temporary
+Cloudflare quick tunnel. Android only.**
+
+| Client | Stage | Enrichment arrived after |
+|---|---|---|
+| Instagram in-app browser, Samsung SM-S721B, Android 16 (referrer `l.instagram.com`) | **enriched** | 2.4 s |
+| Chrome 153, same phone | **enriched** | 3.8 s |
+| Chrome 154, Windows desktop | **enriched** | 1.1 s |
+| Chrome, same phone, **JavaScript disabled** | `server_only` (swept) | — |
+| 4 × `facebookexternalhit` link previews | `crawler`, then `server_only` | — |
+
+**`fetch(keepalive)` survives navigation in the Android Instagram webview.** The
+enrichment was received ~1.7 s *after* the 700 ms redirect had fired, so it completed in
+flight after the page was gone — the property under test. The full client payload arrived:
+screen, DPR, GPU, cores, memory, languages, timezone. The JavaScript-disabled visit was
+recorded and redirected by the `<noscript>` refresh (visitor-confirmed; the destination is
+off-site, so the server cannot observe the landing).
+
+**Not measured: iOS.** No iPhone was available. iOS Instagram uses WKWebView, whose
+keepalive behaviour differs from Android's Chromium WebView, so the Android result does not
+transfer. **This risk stays open for iOS**, now at Medium: the failure mode is known and
+harmless (`server_only`), and the stage mix per `webview_host` (point 4 above) will show
+the iOS rate from real traffic once deployed. None of the "if it fails" responses is
+needed for Android.
+
+A single run on one device is evidence, not a rate. F9.AC20's stage-mix reporting is where
+the rate gets measured.
+
+**Also found:** a JavaScript-executing Meta scanner passes the crawler gate — R21.
 
 ---
 
@@ -329,6 +358,47 @@ granted on an earlier visit resolves in milliseconds and is captured normally.
 
 **Recommendation:** decide with Spike B's real-phone data in hand. Option 3 is not
 recommended.
+
+**Data from Spike B (2026-09-28/29).** All three real browsers — Instagram webview,
+Android Chrome, desktop Chrome — recorded the prompt as `timeout`. Not one visitor could
+answer it. The prediction holds: with a 700 ms interstitial, first-visit consented location
+is effectively never captured, and every such visitor sees a prompt vanish under them.
+
+**Recommendation, updated with the data:** option 2 — query the Permissions API and ask
+only where permission is already granted — which requires amending F4.AC1. Owner decision;
+not applied.
+
+---
+
+## R21 — A JavaScript-executing Meta scanner passes the crawler gate · **HIGH**
+
+**Found in Spike B, 2026-09-28.** Eight seconds after a link was shared, a client arrived
+that **ran the capture script and enriched**, and was classified `unknown`:
+
+* page request User-Agent `Dalvik/2.1.0 (Linux; U; Android 12; …) [FBAN/FB4A;…;FBLC/ar_EG…]`
+  — the Android system HTTP library's string, not a WebView's, which a real in-app browser
+  does not send for a page load;
+* screen 2000×2000 at DPR 1, **52 CPU cores**, no WebGL renderer;
+* timezone `America/Los_Angeles` against an `ar_EG` app locale;
+* geolocation `denied` instantly, where every human visit timed out;
+* referrer `https://www.facebook.com/`, in the same burst as four `facebookexternalhit`
+  fetches.
+
+This is almost certainly Meta's link-safety scanner rendering the page in a sandbox. M2's
+crawler gate is a User-Agent needle list and does not match it; the page correctly served
+it the same content as everyone else (no cloaking).
+
+**Why it is High.** Under invariant 6, Telegram alerts fire only for `human`. Unless M4
+classifies this client as `bot`, it would produce a "visitor" alert every time a link is
+shared on a Meta surface — with a fabricated location from a US timezone — and count as a
+visitor in analytics.
+
+**Requirement on M4** (no M2 rule added, deliberately — a one-off needle is the wrong
+layer): the classifier must mark this visit `bot`, as a regression fixture, from signals it
+already has: a non-browser UA that executes script; UA-claimed OS vs. client-reported
+hardware; timezone vs. locale; missing WebGL renderer; implausible core count; the
+instant-denial pattern; and temporal clustering with a same-network link-preview burst.
+Spike B's row is the first labelled example.
 
 ---
 
