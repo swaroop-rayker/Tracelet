@@ -16,7 +16,7 @@ then open the PR (CLAUDE.md section 2).
 | | Milestone | Size | Status |
 |---|---|---|---|
 | M0 | Foundation and CI | M | **[x] done** — CI green on `main`, 69 tests |
-| M1 | Admin auth and account security | L | **[x] done** — 284 tests, 15 bugs recorded as E8–E22 |
+| M1 | Admin auth and account security | L | **[x] done** — 285 tests, 15 bugs recorded as E8–E22 |
 | M2 | Capture path, server-authoritative | L | [ ] |
 | M3 | Location inference engine | L | [ ] |
 | M4 | Anti-spoofing and classification | L | [ ] |
@@ -198,7 +198,7 @@ requires the single `CI` status check, which is the one to put behind branch pro
       migration: both constraint triggers present and `DEFERRABLE INITIALLY DEFERRED`, the
       `active` CHECK present, and the `audit_log` grants as intended
 - [x] `ruff check`, `ruff format --check`, `mypy --strict` clean across 58 files
-- [x] Unit tests: 169. Integration tests: 115, against real PostgreSQL + PostGIS, never
+- [x] Unit tests: 169. Integration tests: 116, against real PostgreSQL + PostGIS, never
       mocked (ES3) — including fifteen over the break-glass CLI, which nothing covered
       before E17 was found, and three over Telegram delivery failures (E20)
 - [x] `tsc --noEmit`, `eslint`, `prettier --check` clean; **no new frontend dependency**
@@ -260,27 +260,26 @@ requires the single `CI` status check, which is the one to put behind branch pro
   Documented at the top of `tests/integration/conftest.py`, including the one-line psql
   command that repairs a killed run.
 
-**Open question for the owner — two clauses of SPEC F8.AC9 do not match what shipped.**
-Raised rather than resolved, because a requirement may not be changed without approval
-(CLAUDE.md §2). Neither affects the security property that matters, and both are narrow:
+**SPEC F8.AC9 was amended rather than the code changed** — proposed during M1, decided by
+the repository owner on 2026-09-28, recorded as row 6 of SPEC section 11.
 
-1. *"Over-limit responses are indistinguishable from wrong credentials."* They are not: the
-   limiter answers `429 RATE_LIMITED` with `Retry-After`, and a lockout answers `423
-   ACCOUNT_LOCKED`. Three reasons the implementation went the other way — F11.AC10 requires
-   `Retry-After` on a 429; API.md §12.1 and §13, approved at Gate 3, document both codes; and
-   a limit a legitimate admin cannot see is one they keep retrying into. **The enumeration
-   property is intact**, which is the point of F8.AC10: the bucket is keyed on the submitted
-   identifier whether or not an account exists, so a known and an unknown address are
-   throttled identically, and an integration test asserts the bodies and timings match.
-   *Recommendation: amend F8.AC9 to say over-limit responses must not differ between existing
-   and non-existing accounts, which is the property actually wanted.*
-2. *"with exponential backoff"*. GCRA produces a `Retry-After` that grows with how far the
-   caller is over the sustained rate, and the lockout is a flat 30 minutes — neither is
-   exponential per-attempt backoff. *Recommendation: amend to describe the GCRA behaviour, or
-   say if per-attempt exponential backoff is genuinely wanted, in which case it is a small
-   change to `authenticate_password`.*
+Two clauses did not describe what was built:
 
-Until it is settled, the code matches API.md and the tests; SPEC §11 has no new row.
+1. *"Over-limit responses are indistinguishable from wrong credentials."* They are not, and
+   should not be: F11.AC10 requires `Retry-After` on a 429, the error catalogue approved at
+   Gate 3 documents both `RATE_LIMITED` and `ACCOUNT_LOCKED`, and a limit a legitimate admin
+   cannot see is one they keep retrying into. The property actually wanted is enumeration
+   resistance, now stated as **"must not differ between an existing and a non-existing
+   account"** — which holds by construction, because the bucket is keyed on the submitted
+   identifier before any lookup. Now asserted by
+   `test_an_over_limit_response_is_the_same_for_a_known_and_unknown_account`.
+2. *"with exponential backoff."* GCRA produces a `Retry-After` that grows with how far the
+   caller is over the sustained rate, and the lockout is a flat 30 minutes. Per-attempt
+   exponential backoff was considered and **not** wanted, so the wording now describes what
+   GCRA does.
+
+No behaviour changed. The code already matched API.md and the tests; it was the requirement
+text that had drifted from both.
 
 **Known state, carried into M2:** the bot token in `.env` should be rotated in @BotFather
 (`/revoke`, then `/token`). It was handled in plaintext during development and was written

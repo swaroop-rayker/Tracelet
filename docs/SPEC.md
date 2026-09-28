@@ -213,7 +213,7 @@ derivation trail. **See RW-1 for the restated accuracy criterion.**
 | F8.AC6 | Enrolment issues **10 single-use recovery codes**, displayed exactly once, stored Argon2-hashed. Use of one is audit-logged and warns when fewer than 3 remain. |
 | F8.AC7 | Password recovery is delivered over **Telegram** to the verified owner chat as a single-use, time-limited, signed link. There is no email channel in this design. |
 | F8.AC8 | A break-glass CLI (`tracelet admin reset-password`) works with database and shell access only, and writes an audit record. |
-| F8.AC9 | Login is rate-limited per identifier **and** per IP prefix, with exponential backoff and account lockout. Over-limit responses are indistinguishable from wrong credentials. |
+| F8.AC9 | Login is rate-limited per identifier **and** per IP prefix, using GCRA with a burst allowance so ordinary mistyping is not punished, and an account locks after repeated consecutive failures. A refusal carries `Retry-After` (F11.AC10). **Over-limit responses must not differ between an existing and a non-existing account** — the limiter is keyed on the submitted identifier before any lookup, so both are throttled identically. Amended 2026-09-28, see section 11 row 6. |
 | F8.AC10 | No user enumeration anywhere: login, password reset and recovery-code endpoints return identical responses and take indistinguishable time for existing and non-existing accounts, including a dummy Argon2 verification on unknown identifiers. |
 | F8.AC11 | All state-changing requests require a CSRF token (double-submit) **and** a validated `Origin` header. |
 | F8.AC12 | Two roles: `owner` (full) and `analyst` (read-only). Role checks are server-side on every route; the UI merely reflects them. |
@@ -276,7 +276,7 @@ derivation trail. **See RW-1 for the restated accuracy criterion.**
 | F11.AC2 | Capture-path limits are keyed by IP prefix and route class, with a burst allowance, and defaults calibrated to NFR1 with headroom. |
 | F11.AC3 | **A rate-limited visitor is still redirected to the destination**, immediately and without capture, and the event is recorded as `stage='rate_limited'`. Abuse control must never punish a human. |
 | F11.AC4 | The enrichment endpoint accepts exactly one successful request per nonce, ever. |
-| F11.AC5 | Admin login limits are keyed by identifier and by prefix, with exponential backoff and lockout (F8.AC9). |
+| F11.AC5 | Admin login limits are keyed by identifier and by prefix, using GCRA with a burst allowance, plus account lockout (F8.AC9). |
 | F11.AC6 | Dashboard API limits are keyed by session, sized so normal use never trips them and a runaway client cannot saturate the vCPU. |
 | F11.AC7 | Both directions are covered — the brief "upstream and downstream": **inbound** request limits, and **outbound** limits on Nominatim (1 rps), the external geo APIs, and the Telegram API, each with its own budget and circuit breaker. |
 | F11.AC8 | Rate-limit state is shared across worker processes, because two Uvicorn workers must not each grant a full allowance. |
@@ -449,6 +449,7 @@ Full diagnoses are in `docs/ERRORS.md`.
 | 3 | 2026-09-25 | Accounts confirmed: Telegram, MaxMind, IP2Location LITE, IPinfo Lite. No email or SMTP provider; recovery over Telegram plus recovery codes plus CLI | Gate 1 |
 | 4 | 2026-09-25 | Both the purchased-domain and free-subdomain paths are in scope, config-switched, and explicitly **not** equivalent | Gate 1, Gate 2 |
 | 5 | 2026-09-25 | JA4/TLS fingerprinting deferred out of v1; header-order and HTTP/2 fingerprinting substituted — F5.AC8, RISKS R7 | Gate 2 |
+| 6 | 2026-09-28 | **F8.AC9 reworded, and F11.AC5 with it.** Two clauses did not describe what was built, and were raised during M1 rather than resolved unilaterally. (a) *"Over-limit responses are indistinguishable from wrong credentials"* → *"must not differ between an existing and a non-existing account"*. The original asks the limiter to hide **itself**, which conflicts with F11.AC10 (`Retry-After` on a 429) and with the error catalogue approved at Gate 3, and leaves a legitimate admin retrying into a limit they cannot see. The property actually wanted is enumeration resistance, and it holds: the bucket is keyed on the submitted identifier before any lookup. (b) *"with exponential backoff"* → a description of the GCRA behaviour, which produces a `Retry-After` that grows with how far the caller is over the sustained rate, plus a flat 30-minute lockout. Per-attempt exponential backoff was considered and **not** wanted | Repository owner |
 
 Any future change to a requirement follows CLAUDE.md section 2: propose, wait, then
 amend here with a new row.

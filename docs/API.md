@@ -228,6 +228,13 @@ Separately, **eight consecutive failed passwords lock the account for 30 minutes
 answer `423 ACCOUNT_LOCKED` with a retry hint. The limiter throttles a network; the lockout
 protects one identity from a distributed attempt that stays under the per-prefix limit.
 
+**A 429 announces itself, and that is deliberate** (F8.AC9 as amended 2026-09-28, SPEC
+section 11 row 6). `Retry-After` is required by F11.AC10, and a limit the admin cannot see
+is one they keep retrying into. What a refusal may **not** do is differ between an existing
+and a non-existing account — the bucket is keyed on the submitted identifier before any
+lookup, so an address that has never existed is throttled identically, and an integration
+test compares the two responses field by field.
+
 ---
 
 ## 5. Admin management — `owner` only

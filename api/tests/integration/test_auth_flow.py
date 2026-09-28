@@ -1366,3 +1366,55 @@ async def test_a_failed_send_leaves_no_half_finished_challenge(
     )
     assert confirmed.status_code == 401
     assert (await helpers.reload_admin(owner.id)).telegram_chat_id is None
+
+
+async def test_an_over_limit_response_is_the_same_for_a_known_and_unknown_account(
+    owner: SignedIn, new_client: ClientFactory
+) -> None:
+    """F8.AC9 as amended on 2026-09-28 (SPEC section 11, row 6).
+
+    The limiter is allowed to announce itself — `Retry-After` is required by
+    F11.AC10, and a limit a legitimate admin cannot see is one they keep retrying
+    into. What it may **not** do is answer differently depending on whether the
+    address exists, which would turn the limiter itself into the enumeration oracle
+    that F8.AC10 closes on the credential path.
+
+    It holds by construction: the bucket is keyed on the submitted identifier before
+    any lookup happens, so an address that has never existed gets its own bucket and
+    the same treatment.
+    """
+
+    async def trip_the_limiter(email: str) -> tuple[int, dict[str, object], str | None]:
+        await helpers.clear_rate_limits()
+        client = await new_client()
+        for _ in range(9):
+            response = await client.post(
+                f"{AUTH}/login", json={"email": email, "password": "wrong-password-entirely"}
+            )
+            if response.status_code == 429:
+                return (
+                    response.status_code,
+                    dict(response.json()),
+                    response.headers.get("retry-after"),
+                )
+        raise AssertionError(f"the limiter never engaged for {email}")
+
+    known_status, known_body, known_retry = await trip_the_limiter(owner.email)
+    unknown_status, unknown_body, unknown_retry = await trip_the_limiter(
+        helpers.new_email("absent")
+    )
+
+    assert known_status == unknown_status == 429
+    assert known_body["code"] == unknown_body["code"] == "RATE_LIMITED"
+    assert known_body["detail"] == unknown_body["detail"]
+    assert known_body["title"] == unknown_body["title"]
+    assert known_body["status"] == unknown_body["status"]
+    assert sorted(known_body) == sorted(unknown_body), "the same keys, either way"
+
+    # Required by F11.AC10, and present in both — the limiter announcing itself is
+    # the intended behaviour, not a leak.
+    assert known_retry is not None
+    assert unknown_retry is not None
+
+    # Nothing in the body may hint at the account.
+    assert owner.email not in str(known_body)
