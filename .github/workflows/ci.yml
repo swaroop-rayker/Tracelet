@@ -11,17 +11,29 @@
 
 name: CI
 
+# A push to a PR branch used to match BOTH triggers, so every push ran the whole
+# 12-check suite twice -- roughly 9 minutes of Actions time for one commit's worth
+# of signal, on a free-tier budget (CLAUDE.md: free tier only). `push` is therefore
+# scoped to `main`, which still covers a direct push there, and branches get their
+# coverage from the pull request.
+#
+# `workflow_dispatch` closes the one gap that leaves: a branch with no PR open yet
+# can still be run on demand from the Actions tab.
 on:
   push:
-    branches: ["**"]
+    branches: [main]
   pull_request:
     branches: [main]
+  workflow_dispatch:
 
 permissions:
   contents: read
 
+# Keyed on the PR when there is one, so a force-push supersedes its own earlier run
+# rather than racing it. `github.ref` alone is the same value for every push to a
+# branch, which is what is wanted on `main`.
 concurrency:
-  group: ci-${{ github.ref }}
+  group: ci-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 env:

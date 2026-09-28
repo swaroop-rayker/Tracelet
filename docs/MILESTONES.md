@@ -245,6 +245,10 @@ requires the single `CI` status check, which is the one to put behind branch pro
   the account active and lets the enrollment link replace the secret, because clearing in
   place is impossible for that account (ERRORS.md E17). The strict clear-in-place behaviour
   is kept for everyone else.
+- **CI no longer runs twice per push.** A push to a PR branch matched both the `push`
+  and `pull_request` triggers, running the full 12-check suite twice — about nine minutes
+  of Actions time for one commit's worth of signal, against a free-tier budget. `push` is
+  now scoped to `main`; `workflow_dispatch` covers a branch with no PR open yet.
 - **`SELECT ... FOR UPDATE` added to the owner routes.** A bug found while writing the
   concurrency test the E14 fix implied: `SET CONSTRAINTS ALL IMMEDIATE` had inadvertently
   disabled the protection the deferred trigger existed for (ERRORS.md E16).
