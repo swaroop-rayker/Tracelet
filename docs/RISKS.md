@@ -59,7 +59,7 @@ code, and per-ISP breakdown. Half a day.
 **Result (2026-09-29): 2.0 % — below the 30 % line. Decision rule outcome: amend F4.AC13
 before building M3.**
 
-*Method.* Announced prefixes for each ISP fetched from RIPEstat on the day (Airtel AS24560
+*Method.* Script and raw results: `api/spikes/spike_a_rdns.py`, `api/spikes/spike_a_result_2026-09-29.json`. Announced prefixes for each ISP fetched from RIPEstat on the day (Airtel AS24560
 + AS45609, Jio AS55836, ACT AS24309 + AS18209, BSNL AS9829, Vi AS38266 + AS45271 +
 AS55410). Per ISP, 150 random IPv4 addresses — at most one per /24, /24s drawn uniformly
 over the announced space — and 30 random IPv6 addresses. Seed 20260929. PTR resolved

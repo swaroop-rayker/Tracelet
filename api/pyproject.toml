@@ -71,7 +71,7 @@ tracelet = ["capture/templates/*.html"]
 # Ruff — lint and format (ES2)
 # ---------------------------------------------------------------------------
 [tool.ruff]
-src = ["src", "tests"]
+src = ["src", "tests", "spikes"]
 line-length = 100
 target-version = "py313"
 
