@@ -7,7 +7,7 @@ Severity is `impact × likelihood` at the time of writing, reassessed after each
 |---|---|---|---|
 | R1 | `CF-Ray` colo to metro mapping may be unstable for India | Medium | Open, spike in M3 |
 | R2 | External geo APIs: undocumented limits, ToS, breakage | Medium | Open, mitigated by design |
-| R3 | **rDNS city-code coverage may be too low to carry the accuracy plan** | **High** | **Open, Spike A, blocks M3** |
+| R3 | **rDNS city-code coverage may be too low to carry the accuracy plan** | **High** | **Spike A run 2026-09-29: 2.0 % — F4.AC13 amendment proposed, blocks M3** |
 | R4 | Geo-database update memory spike could OOM the box | Medium | Open, mitigated by design |
 | R5 | `fetch(keepalive)` may not survive Instagram webview navigation | Medium | **Android: survives (Spike B, 2026-09-28). iOS: unmeasured — open** |
 | R6 | 1 GB steady state under real load; swap thrash | Medium | Open, verified in M9 |
@@ -56,7 +56,46 @@ code, and per-ISP breakdown. Half a day.
 | 30–50 % | Proceed, but lower the F4.AC13 city coverage target to match, via a SPEC section 11 amendment |
 | **Below 30 %** | **Amend F4.AC13 before building M3.** Shift city expectation onto S8 + consented GPS, and be explicit that non-consented non-Cloudflare visits will usually abstain at city |
 
-**Result:** _not yet run._
+**Result (2026-09-29): 2.0 % — below the 30 % line. Decision rule outcome: amend F4.AC13
+before building M3.**
+
+*Method.* Announced prefixes for each ISP fetched from RIPEstat on the day (Airtel AS24560
++ AS45609, Jio AS55836, ACT AS24309 + AS18209, BSNL AS9829, Vi AS38266 + AS45271 +
+AS55410). Per ISP, 150 random IPv4 addresses — at most one per /24, /24s drawn uniformly
+over the announced space — and 30 random IPv6 addresses. Seed 20260929. PTR resolved
+through Google and Cloudflare public DNS. A city-code lexicon of ~150 Indian IATA codes,
+city names and common abbreviations, and a separate telecom-circle/state lexicon, were
+**written into the script before the first lookup**. The first run was discarded: it
+reported 0 % everywhere because Docker Desktop's resolver does not answer PTR at all
+(ERRORS.md E27), which a control lookup of 8.8.8.8 exposed.
+
+| ISP (IPv4, n = 150 each) | Has a PTR | City code | Circle/state only |
+|---|---|---|---|
+| Airtel | 34.7 % | 0.7 % | 30.7 % (`north`, `tn`, `kk`, `ap`, `mp`) |
+| Jio | 3.3 % — all Akamai cache nodes, not subscribers | 0 % | 0 % |
+| ACT | 99.3 % — encode the address only (`49.204.83.225.actcorp.in`) | 0 % | 0 % |
+| BSNL | 15.3 % | 9.3 % — mostly MTNL `triband-del-` / `-mum-` | 0 % |
+| Vi | 0 % | 0 % | 0 % |
+| **Pooled** | **30.5 %** | **2.0 %** | 6.1 % |
+
+IPv6: **0 PTR records in 150** lookups, every ISP.
+
+*Would a better lexicon change it?* No. The only unmatched place-like tokens were three
+BSNL exchange-area codes (`ktm`, `gya`, `mld`); counting them moves pooled coverage from
+2.0 % to about 2.4 %.
+
+*Bias, stated.* Uniform over announced address space is not uniform over visitors. The
+visitor mix for an India-primary audience is dominated by Jio and Vi mobile — the two ISPs
+at 0 % — and increasingly by IPv6, also 0 %. A visitor-weighted figure would be **lower**,
+not higher. Airtel's circle codes are real **admin1-level** evidence for about a third of
+Airtel fixed-line addresses, but `north` is a zone spanning several states.
+
+**What it means.** S6 cannot be the corroborator that keeps suppression rule F4.AC12(a)
+from firing. Combined with SPEC section 11 row 8 (consented location will be rare) and
+R10 (no S8 on the free-subdomain path), a non-consented visit will usually have **no
+non-database corroboration for city at all**. The F4.AC13 city target of ≥ 50 % strict
+coverage is unreachable as designed. **The amendment is proposed to the owner and not
+applied** (CLAUDE.md section 2).
 
 ---
 

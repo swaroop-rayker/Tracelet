@@ -30,7 +30,7 @@ then open the PR (CLAUDE.md section 2).
 
 | | Spike | Blocks | Status |
 |---|---|---|---|
-| Spike A | rDNS city-code coverage for Indian residential IPs (RISKS R3) | **M3** | [ ] |
+| Spike A | rDNS city-code coverage for Indian residential IPs (RISKS R3) | **M3** | [x] 2026-09-29 — 2.0 %, below the 30 % line |
 | Spike B | `fetch(keepalive)` survival in the Instagram webview (RISKS R5) | **M2** — runs inside M2 against the real capture page (owner decision 2026-09-28) | **[x] Android: survives. iOS unmeasured** — R5 |
 
 ---

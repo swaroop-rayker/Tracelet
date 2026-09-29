@@ -1251,6 +1251,43 @@ after.
 
 ---
 
+### E27 — Every reverse-DNS lookup from a container came back "no PTR", including 8.8.8.8
+
+**Status:** Worked around for Spike A; guard owed by M3. **Milestone:** M3 (Spike A).
+**Date:** 2026-09-29.
+
+**Symptom.** The first Spike A run resolved 900 sampled Indian ISP addresses and found a
+PTR record for **none** of them — 0 % for every ISP, IPv4 and IPv6. A result that clean is
+more likely a broken instrument than a finding, so it was checked before being believed:
+from inside the `api-tools` container, `gethostbyaddr("8.8.8.8")` failed with
+`[Errno 4] No address associated with name`, while `nslookup 8.8.8.8` on the Windows host
+returned `dns.google`.
+
+**Root cause.** Docker Desktop's DNS proxy — what a container reaches through the compose
+network's embedded resolver (`127.0.0.11`) and on the default bridge alike — answers
+forward lookups but not `PTR` queries. The same image started with `--dns 8.8.8.8`
+resolved both controls correctly. The failure is indistinguishable from "this address has
+no PTR record": `gethostbyaddr` raises the same `OSError` for both.
+
+**Fix.** Spike A was re-run with `--dns 8.8.8.8 --dns 1.1.1.1` and the first run discarded
+(RISKS R3). No production code does reverse DNS yet, so nothing shipped was affected.
+
+**Prevention — owed by M3, recorded here so it is not forgotten.** S6 runs its lookups
+inside the `api` container, so the same fault would turn every visit's rDNS into a silent
+"no PTR". S6 must (a) distinguish NXDOMAIN from SERVFAIL, timeout and resolver refusal,
+recording the latter as an *absence with a reason* (F3.AC5) rather than as "no record", and
+(b) run a canary PTR lookup against a known address and surface a failure on System Health
+as "S6 resolver unavailable". Whether the production resolver on the GCP host answers PTR
+is **unverified** until M9's deployment.
+
+**Worth noting.** The spike's decision rule had been fixed in advance; the broken run
+would have "passed" it as a catastrophic 0 % and been rationalised as the ISPs' fault.
+Controls before conclusions.
+
+**Related:** RISKS R3, F4.AC5 (S6), F3.AC5, ADR-0005.
+
+---
+
 Add entries here as bugs are found and fixed. Use the next available `E<n>` identifier and
 the same structure: symptom, root cause, fix, **prevention**.
 
