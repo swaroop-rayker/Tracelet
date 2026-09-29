@@ -348,6 +348,189 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/links": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List links with visit counts */
+        get: operations["list_links_api_v1_links_get"];
+        put?: never;
+        /**
+         * Create a link
+         * @description The first non-archived link becomes the default automatically. The destination must be https, carry no credentials, and resolve to public addresses (F1.AC2).
+         */
+        post: operations["create_link_api_v1_links_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/links/{link_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** One link */
+        get: operations["get_link_api_v1_links__link_id__get"];
+        put?: never;
+        post?: never;
+        /**
+         * Delete a link
+         * @description Refused while any visit references it (409 LINK_HAS_VISITS) -- archive it instead. Historical data is never orphaned (F1.AC10), and the foreign key enforces that even if this check were bypassed.
+         */
+        delete: operations["delete_link_api_v1_links__link_id__delete"];
+        options?: never;
+        head?: never;
+        /**
+         * Update a link
+         * @description A destination change takes effect on the next request with no restart, and is audited with both the old and the new value (F1.AC8). Changing the slug retires the old one immediately -- use clone to rotate a burned slug while keeping it working.
+         */
+        patch: operations["update_link_api_v1_links__link_id__patch"];
+        trace?: never;
+    };
+    "/api/v1/links/{link_id}/archive": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Archive a link
+         * @description Archived links return 404 from the capture surface and keep their visits. The default cannot be archived while another link could take its place -- make that one the default first (409 DEFAULT_LINK_REQUIRED).
+         */
+        post: operations["archive_link_api_v1_links__link_id__archive_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/links/{link_id}/clone": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Clone a link under a new slug
+         * @description Rotates a burned slug: the copy keeps the configuration, and the original keeps its visits (F1.AC9). The original is left as it is -- deactivate it separately if the old slug should stop working.
+         */
+        post: operations["clone_link_api_v1_links__link_id__clone_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/links/{link_id}/default": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Make this the default link
+         * @description Clears the previous default in the same transaction (F1.AC3).
+         */
+        post: operations["make_default_api_v1_links__link_id__default_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/s/{nonce}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Client enrichment for one visit
+         * @description Additive and always allowed to fail -- nothing a visitor sees depends on it (ADR-0004). Authorised by a single-use nonce bound to the visit and the IP prefix, valid for 60 seconds. Every field is optional and every field is a claim: the payload is attacker-controlled by construction.
+         */
+        post: operations["enrich_api_v1_s__nonce__post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/visits": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List visits, newest first
+         * @description Automated traffic -- crawlers, bots and the rest -- is excluded unless include_automated is set, so the default view is people. The exclusion is a flag rather than hidden so that what is being left out stays visible.
+         */
+        get: operations["list_visits_api_v1_visits_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/visits/{visit_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** One visit, in full */
+        get: operations["get_visit_api_v1_visits__visit_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/visits/{visit_id}/ip": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Decrypt the address for one visit (owner only)
+         * @description The only way a plaintext address leaves the system. Owner-only, limited to 10 an hour per admin, and it writes an audit row naming the actor and the visit before it answers (F12.AC4). 410 IP_PURGED past the TTL is expected, not a fault (ADR-0007).
+         */
+        get: operations["decrypt_ip_api_v1_visits__visit_id__ip_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/healthz": {
         parameters: {
             query?: never;
@@ -444,6 +627,11 @@ export interface components {
             /** Ok */
             ok: boolean;
         };
+        /**
+         * Classification
+         * @enum {string}
+         */
+        Classification: "human" | "bot" | "crawler" | "datacenter" | "spam" | "spoofed" | "unknown";
         /** CreateAdminRequest */
         CreateAdminRequest: {
             /** Display Name */
@@ -463,6 +651,37 @@ export interface components {
             enrollment_expires_at: string;
             /** Enrollment Url */
             enrollment_url: string;
+        };
+        /** DecryptedIp */
+        DecryptedIp: {
+            /**
+             * Decrypted At
+             * Format: date-time
+             */
+            decrypted_at: string;
+            /** Ip */
+            ip: string;
+        };
+        /** DeviceBlock */
+        DeviceBlock: {
+            /** Browser */
+            browser: string | null;
+            /** Class */
+            class: string;
+            /** Cpu Cores */
+            cpu_cores: number | null;
+            /** Device Memory Gb */
+            device_memory_gb: number | null;
+            /** Gpu Renderer */
+            gpu_renderer: string | null;
+            /** Is Inapp Webview */
+            is_inapp_webview: boolean;
+            /** Os */
+            os: string | null;
+            /** Screen */
+            screen: string | null;
+            /** Webview Host */
+            webview_host: string | null;
         };
         /** EnrollRequest */
         EnrollRequest: {
@@ -497,10 +716,103 @@ export interface components {
             /** Url */
             url: string;
         };
+        /** GeofenceBlock */
+        GeofenceBlock: {
+            /** Matched */
+            matched: string[];
+            /** State */
+            state: string;
+        };
         /** HTTPValidationError */
         HTTPValidationError: {
             /** Detail */
             detail?: components["schemas"]["ValidationError"][];
+        };
+        /** LinkClone */
+        LinkClone: {
+            /** Label */
+            label?: string | null;
+            /** Slug */
+            slug: string;
+        };
+        /** LinkCreate */
+        LinkCreate: {
+            /** Destination Url */
+            destination_url: string;
+            /**
+             * Interstitial Ms
+             * @default 700
+             */
+            interstitial_ms: number;
+            /**
+             * Is Active
+             * @default true
+             */
+            is_active: boolean;
+            /** Label */
+            label: string;
+            notify_policy?: components["schemas"]["NotifyPolicy"];
+            /** Slug */
+            slug: string;
+        };
+        /** LinkOut */
+        LinkOut: {
+            /** Archived At */
+            archived_at: string | null;
+            /** Capture Url */
+            capture_url: string;
+            /** Cloned From */
+            cloned_from: string | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Destination Url */
+            destination_url: string;
+            /** Id */
+            id: string;
+            /** Interstitial Ms */
+            interstitial_ms: number;
+            /** Is Active */
+            is_active: boolean;
+            /** Is Default */
+            is_default: boolean;
+            /** Label */
+            label: string;
+            notify_policy: components["schemas"]["NotifyPolicy"];
+            /** Slug */
+            slug: string;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+            /** Visit Count */
+            visit_count: number;
+        };
+        /** LinkRef */
+        LinkRef: {
+            /** Id */
+            id: string;
+            /** Label */
+            label: string;
+            /** Slug */
+            slug: string;
+        };
+        /** LinkUpdate */
+        LinkUpdate: {
+            /** Destination Url */
+            destination_url?: string | null;
+            /** Interstitial Ms */
+            interstitial_ms?: number | null;
+            /** Is Active */
+            is_active?: boolean | null;
+            /** Label */
+            label?: string | null;
+            notify_policy?: components["schemas"]["NotifyPolicy"] | null;
+            /** Slug */
+            slug?: string | null;
         };
         /** LivenessResponse */
         LivenessResponse: {
@@ -509,6 +821,29 @@ export interface components {
              * @constant
              */
             status: "ok";
+        };
+        /** LocationBlock */
+        LocationBlock: {
+            /** Abstain Reason */
+            abstain_reason: {
+                [key: string]: unknown;
+            };
+            /** Advisory */
+            advisory: {
+                [key: string]: string | null;
+            };
+            /** Confidence */
+            confidence: {
+                [key: string]: number | null;
+            };
+            /** Has Gps */
+            has_gps: boolean;
+            /** Primary Source */
+            primary_source: string | null;
+            /** Strict */
+            strict: {
+                [key: string]: string | null;
+            };
         };
         /** LoginRequest */
         LoginRequest: {
@@ -563,6 +898,53 @@ export interface components {
             expires_at: string;
             /** Mfa Token */
             mfa_token: string;
+        };
+        /** NetworkBlock */
+        NetworkBlock: {
+            /** Asn */
+            asn: number | null;
+            /** Asn Org */
+            asn_org: string | null;
+            /** Asn Type */
+            asn_type: string;
+            /** Cf Colo */
+            cf_colo: string | null;
+            /** Cf Country */
+            cf_country: string | null;
+            /** Connection Class */
+            connection_class: string;
+            /** Ip Prefix */
+            ip_prefix: string | null;
+            /** Is Datacenter */
+            is_datacenter: boolean | null;
+            /** Is Proxy Suspected */
+            is_proxy_suspected: boolean | null;
+            /** Is Vpn Suspected */
+            is_vpn_suspected: boolean | null;
+        };
+        /**
+         * NotifyPolicy
+         * @description Per-link notification priorities (F1.AC5). Acted on from M6.
+         */
+        NotifyPolicy: {
+            /**
+             * Automated
+             * @default silent
+             * @enum {string}
+             */
+            automated: "high" | "normal" | "silent";
+            /**
+             * Inside
+             * @default high
+             * @enum {string}
+             */
+            inside: "high" | "normal" | "silent";
+            /**
+             * Outside
+             * @default normal
+             * @enum {string}
+             */
+            outside: "high" | "normal" | "silent";
         };
         /** ReadinessResponse */
         ReadinessResponse: {
@@ -650,6 +1032,106 @@ export interface components {
             msg: string;
             /** Error Type */
             type: string;
+        };
+        /** VisitDetail */
+        VisitDetail: {
+            /** Bot Score */
+            bot_score: number | null;
+            /** Candidates */
+            candidates: {
+                [key: string]: unknown;
+            }[];
+            classification: components["schemas"]["Classification"];
+            /** Classifier Version */
+            classifier_version: string | null;
+            /** Client */
+            client: {
+                [key: string]: unknown;
+            };
+            /** Consent State */
+            consent_state: string;
+            device: components["schemas"]["DeviceBlock"];
+            /** Finalized At */
+            finalized_at: string | null;
+            geofence: components["schemas"]["GeofenceBlock"];
+            /** Honeypot Tripped */
+            honeypot_tripped: boolean;
+            /** Id */
+            id: string;
+            /** Inference Version */
+            inference_version: string | null;
+            /** Is Returning */
+            is_returning: boolean | null;
+            link: components["schemas"]["LinkRef"];
+            location: components["schemas"]["LocationBlock"];
+            network: components["schemas"]["NetworkBlock"];
+            /**
+             * Occurred At
+             * Format: date-time
+             */
+            occurred_at: string;
+            /** Referer */
+            referer: string | null;
+            /** Request */
+            request: {
+                [key: string]: unknown;
+            };
+            /** Signals */
+            signals: {
+                [key: string]: unknown;
+            }[];
+            /** Spoof Score */
+            spoof_score: number | null;
+            stage: components["schemas"]["VisitStage"];
+            /** Trace Id */
+            trace_id: string | null;
+            /** Utm */
+            utm: {
+                [key: string]: string;
+            } | null;
+            /** Visitor Id */
+            visitor_id: string | null;
+        };
+        /** VisitPage */
+        VisitPage: {
+            /** Items */
+            items: components["schemas"]["VisitSummary"][];
+            /** Next Cursor */
+            next_cursor: string | null;
+        };
+        /**
+         * VisitStage
+         * @description How complete a visit is (F3.AC6).
+         *
+         *     ``server`` is the only non-final stage: the row exists and is waiting for either
+         *     enrichment or the sweeper. A CHECK constraint makes that equivalence structural.
+         * @enum {string}
+         */
+        VisitStage: "server" | "enriched" | "server_only" | "rate_limited";
+        /** VisitSummary */
+        VisitSummary: {
+            /** Bot Score */
+            bot_score: number | null;
+            classification: components["schemas"]["Classification"];
+            device: components["schemas"]["DeviceBlock"];
+            geofence: components["schemas"]["GeofenceBlock"];
+            /** Id */
+            id: string;
+            /** Is Returning */
+            is_returning: boolean | null;
+            link: components["schemas"]["LinkRef"];
+            location: components["schemas"]["LocationBlock"];
+            network: components["schemas"]["NetworkBlock"];
+            /**
+             * Occurred At
+             * Format: date-time
+             */
+            occurred_at: string;
+            /** Spoof Score */
+            spoof_score: number | null;
+            stage: components["schemas"]["VisitStage"];
+            /** Visitor Id */
+            visitor_id: string | null;
         };
     };
     responses: never;
@@ -1260,6 +1742,399 @@ export interface operations {
                 };
                 content: {
                     "application/json": string[];
+                };
+            };
+        };
+    };
+    list_links_api_v1_links_get: {
+        parameters: {
+            query?: {
+                include_archived?: boolean;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LinkOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_link_api_v1_links_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LinkCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LinkOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_link_api_v1_links__link_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                link_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LinkOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_link_api_v1_links__link_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                link_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_link_api_v1_links__link_id__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                link_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LinkUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LinkOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    archive_link_api_v1_links__link_id__archive_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                link_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LinkOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    clone_link_api_v1_links__link_id__clone_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                link_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LinkClone"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LinkOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    make_default_api_v1_links__link_id__default_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                link_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LinkOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    enrich_api_v1_s__nonce__post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                nonce: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Nonce expired, consumed, or from another network */
+            410: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_visits_api_v1_visits_get: {
+        parameters: {
+            query?: {
+                from?: string | null;
+                to?: string | null;
+                link_id?: string | null;
+                stage?: components["schemas"]["VisitStage"][] | null;
+                classification?: components["schemas"]["Classification"][] | null;
+                webview_host?: string | null;
+                include_automated?: boolean;
+                limit?: number;
+                cursor?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VisitPage"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_visit_api_v1_visits__visit_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                visit_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VisitDetail"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    decrypt_ip_api_v1_visits__visit_id__ip_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                visit_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DecryptedIp"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

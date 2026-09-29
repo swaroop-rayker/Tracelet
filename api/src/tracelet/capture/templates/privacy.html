@@ -1,0 +1,105 @@
+<!doctype html>
+{#- The public privacy notice (F2.AC13, RW-4).
+
+  Retention periods and the external-service switch are rendered from live
+  configuration, not written into the text, so the notice cannot drift from what the
+  system actually does.
+
+  The inference sources listed are the full M3 set. They are named here from M2 so
+  that the notice is already complete when M3 enables them -- re-verify this page
+  against the enabled sources at M3 and again before the M9 deploy. -#}
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Privacy notice</title>
+<style nonce="{{ csp_nonce }}">
+  :root { color-scheme: light dark; }
+  body { margin: 0; font: 15px/1.6 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+         background: #f6f7f9; color: #1b1f27; }
+  @media (prefers-color-scheme: dark) { body { background: #1b1f27; color: #e8ebf0; } }
+  main { max-width: 42rem; margin: 0 auto; padding: 2rem 1rem 4rem; }
+  h1 { font-size: 1.4rem; margin-top: 0; }
+  h2 { font-size: 1.05rem; margin-top: 1.8rem; }
+  li { margin: .3rem 0; }
+  a { color: inherit; }
+  .muted { opacity: .75; font-size: .9rem; }
+</style>
+</head>
+<body>
+<main>
+<h1>Privacy notice</h1>
+<p>You reached this page from a link that records a visit before sending you on to its
+destination. This notice explains what is recorded, why, and for how long.</p>
+
+<h2>Recorded on every visit</h2>
+<p>These come from the request your browser sends, and are recorded whether or not
+JavaScript runs.</p>
+<ul>
+  <li>The time of the visit.</li>
+  <li>Your network address. <strong>It is never stored in readable form</strong>: it is
+      encrypted, and the encrypted copy is deleted after {{ ip_days }} days. A one-way
+      hashed form and the network block it belongs to (not the address itself) are
+      kept, so repeat visits and automated traffic can be recognised.</li>
+  <li>Your network operator, looked up from the network block.</li>
+  <li>The browser, operating system and device type your browser reports.</li>
+  <li>Your language preference, the page that linked here, and any campaign tags in
+      the link.</li>
+</ul>
+
+<h2>Recorded only if your browser allows it</h2>
+<ul>
+  <li>Screen and window size, pixel density, touch support, processor core count and
+      approximate memory, and the graphics renderer.</li>
+  <li>Your time zone and preferred languages.</li>
+  <li>Short hashes of how your device draws text and graphics. These cannot be reversed
+      into anything about you; they help tell repeat visits and automated traffic apart.</li>
+  <li><strong>Your precise location, only if you grant permission</strong> when your
+      browser asks. If you do not, no precise location is recorded.</li>
+</ul>
+
+<h2>Never recorded</h2>
+<p>Names, email addresses, usernames, page content, keystrokes, clipboard contents,
+contacts, or your browsing history elsewhere. This page sets no cookies and makes no
+request to any other website.</p>
+
+<h2>How approximate location is estimated</h2>
+<p>Without your permission, location is estimated from your network address using
+public IP-location databases (MaxMind GeoLite2, IP2Location LITE, IPinfo Lite and DB-IP
+Lite), the name your network operator gives your address, and the location of the
+network edge that served the request. These estimates are usually regional rather than
+precise, and where the sources disagree no location is recorded.</p>
+{% if external_geo_enabled %}
+<p>External IP-location lookup services may also be consulted. Only the network address
+is sent to them.</p>
+{% else %}
+<p>No external lookup service is consulted: all estimation happens on this server.</p>
+{% endif %}
+
+<h2>How long it is kept</h2>
+<ul>
+  <li>Visit records: {{ visit_days }} days.</li>
+  <li>The encrypted network address: {{ ip_days }} days, after which it is deleted.</li>
+  <li>Aggregate counts, which identify no individual visit, may be kept longer.</li>
+</ul>
+
+<h2>Who can see it</h2>
+<p>Only the administrators of the service that created this link. Reading a network
+address back in readable form is restricted, limited in how often it can be done, and
+recorded every time.</p>
+
+<h2>Attributions</h2>
+<ul class="muted">
+  <li>IP geolocation by <a href="https://db-ip.com" rel="noopener">DB-IP</a>, licensed
+      under <a href="https://creativecommons.org/licenses/by/4.0/" rel="noopener">CC BY 4.0</a>.</li>
+  <li>Place names from <a href="https://www.geonames.org" rel="noopener">GeoNames</a>,
+      licensed under <a href="https://creativecommons.org/licenses/by/4.0/" rel="noopener">CC BY 4.0</a>.</li>
+  <li>This product includes GeoLite2 data created by MaxMind, available from
+      <a href="https://www.maxmind.com" rel="noopener">maxmind.com</a>.</li>
+  <li>This site includes IP2Location LITE data available from
+      <a href="https://lite.ip2location.com" rel="noopener">lite.ip2location.com</a>.</li>
+  <li>IP address data powered by <a href="https://ipinfo.io" rel="noopener">IPinfo</a>.</li>
+</ul>
+</main>
+</body>
+</html>

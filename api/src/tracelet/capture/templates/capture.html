@@ -1,0 +1,224 @@
+<!doctype html>
+{#-
+  The capture interstitial (F2.AC1-F2.AC5, RW-4).
+
+  Works with JavaScript disabled: the <noscript> refresh and the real Continue href
+  both reach the destination without a line of script. The script below is additive
+  enrichment and is always allowed to fail (ADR-0004).
+
+  Nothing here loads from another origin (F2.AC12). All CSS and JS is inline and
+  authorised by a per-response CSP nonce.
+
+  Configuration reaches the script as JSON in a data block, never interpolated into
+  code. `tojson` escapes `<`, `>` and `&`, so a destination URL cannot close the tag
+  and begin a script of its own.
+-#}
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<title>Redirecting…</title>
+{% if not enrich %}<meta http-equiv="refresh" content="0;url={{ destination }}">{% endif %}
+<noscript><meta http-equiv="refresh" content="0;url={{ destination }}"></noscript>
+<style nonce="{{ csp_nonce }}">
+  :root { color-scheme: light dark; }
+  body { margin: 0; min-height: 100vh; display: grid; place-items: center;
+         font: 15px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+         background: #f6f7f9; color: #1b1f27; }
+  @media (prefers-color-scheme: dark) { body { background: #1b1f27; color: #e8ebf0; } }
+  main { max-width: 26rem; padding: 1.5rem; text-align: center; }
+  p { margin: .4rem 0; }
+  .muted { opacity: .72; font-size: .85rem; }
+  a { color: inherit; }
+  .go { display: inline-block; margin-top: .6rem; padding: .5rem 1.1rem; border-radius: .4rem;
+        background: #0b5ed7; color: #fff; text-decoration: none; font-weight: 600; }
+  .go:focus-visible, button:focus-visible { outline: 2px solid #6ea8fe; outline-offset: 2px; }
+  .alt { margin-top: .8rem; font-size: .85rem; }
+  button { font: inherit; padding: .3rem .8rem; border-radius: .4rem; border: 1px solid currentColor;
+           background: transparent; color: inherit; cursor: pointer; }
+  {# Off-screen rather than display:none: a crawler that skips display:none still
+     follows an off-screen link, which is the behaviour being detected (F5.AC6). #}
+  .hp { position: absolute; left: -9999px; top: auto; width: 1px; height: 1px; overflow: hidden; }
+</style>
+</head>
+<body>
+<main>
+  {# RW-4: one line, a privacy link, a Continue control. Unnoticeable in duration,
+     not in existence. #}
+  <p>Taking you to <strong>{{ destination_host }}</strong>. This link records basic visit details &mdash; <a href="/privacy">privacy</a>.</p>
+  <a class="go" href="{{ destination }}" rel="noreferrer">Continue now</a>
+
+  {% if webview == "android" %}
+  {# F2.AC10: hand the destination to the real browser. The fallback URL keeps the
+     link working on a device with no Chrome to receive the intent. #}
+  <p class="alt"><a href="{{ intent_url }}">Open in your browser</a></p>
+  {% elif webview == "ios" %}
+  {# iOS has no reliable intent equivalent, so the affordance degrades to copying the
+     link (F2.AC10). The URL is shown as text too, for when the copy is blocked. #}
+  <p class="alt"><button type="button" id="copy">Copy link</button></p>
+  <p class="alt muted">{{ destination }}</p>
+  {% endif %}
+
+  {% if nonce %}
+  {# Honeypot (F5.AC6). Invisible and unfocusable for a person; followed or filled by
+     an automated client that does not render the page. #}
+  <div class="hp" aria-hidden="true">
+    <a href="/api/v1/hp/{{ nonce }}" tabindex="-1" rel="nofollow">Continue</a>
+    <label>Website <input type="text" name="website" id="hpf" tabindex="-1" autocomplete="off"></label>
+  </div>
+  {% endif %}
+</main>
+
+{% if enrich %}
+<script type="application/json" id="cfg">{{ config | tojson }}</script>
+<script nonce="{{ csp_nonce }}">
+(function () {
+  "use strict";
+  var cfg = JSON.parse(document.getElementById("cfg").textContent);
+  var started = (window.performance && performance.now) ? performance.now() : 0;
+  var sent = false;
+
+  // F2.AC5: the visitor is never held waiting on telemetry. This fires whatever
+  // happens below, including every exception.
+  var leaveAt = cfg.ms;
+  setTimeout(function () { window.location.replace(cfg.dest); }, leaveAt);
+
+  function safe(fn) { try { return fn(); } catch (e) { return null; } }
+
+  // A cheap, synchronous hash. The server re-hashes whatever arrives, so this only
+  // needs to be stable, not cryptographic.
+  function fnv(s) {
+    var h = 0x811c9dc5;
+    for (var i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 0x01000193) >>> 0; }
+    return ("0000000" + h.toString(16)).slice(-8);
+  }
+
+  function gpu() {
+    return safe(function () {
+      var gl = document.createElement("canvas").getContext("webgl");
+      if (!gl) return null;
+      var ext = gl.getExtension("WEBGL_debug_renderer_info");
+      var params = [gl.getParameter(gl.VERSION), gl.getParameter(gl.SHADING_LANGUAGE_VERSION),
+                    gl.getParameter(gl.MAX_TEXTURE_SIZE), gl.getParameter(gl.MAX_RENDERBUFFER_SIZE)];
+      return {
+        vendor: ext ? String(gl.getParameter(ext.UNMASKED_VENDOR_WEBGL)).slice(0, 256) : null,
+        renderer: ext ? String(gl.getParameter(ext.UNMASKED_RENDERER_WEBGL)).slice(0, 256) : null,
+        hash: fnv(params.join("|"))
+      };
+    });
+  }
+
+  function canvasHash() {
+    return safe(function () {
+      var c = document.createElement("canvas"); c.width = 220; c.height = 30;
+      var x = c.getContext("2d"); if (!x) return null;
+      x.textBaseline = "top"; x.font = "14px Arial"; x.fillStyle = "#f60"; x.fillRect(0, 0, 60, 20);
+      x.fillStyle = "#069"; x.fillText("Tracelet ✓ 0O1l", 2, 4);
+      return fnv(c.toDataURL());
+    });
+  }
+
+  // Font presence by glyph width. Cheap -- a few measureText calls -- and bucketed
+  // by the server into a hash, never stored as a list.
+  function fonts() {
+    return safe(function () {
+      var probe = ["Arial", "Helvetica", "Times New Roman", "Courier New", "Georgia", "Verdana",
+                   "Roboto", "Noto Sans", "Segoe UI", "San Francisco", "Ubuntu", "Tahoma",
+                   "Nirmala UI", "Mangal", "Latha", "Kohinoor Devanagari", "Noto Sans Devanagari"];
+      var x = document.createElement("canvas").getContext("2d"); if (!x) return null;
+      var base = function (f) { x.font = "32px " + f; return x.measureText("mmmmwwwwllii").width; };
+      var mono = base("monospace"), serif = base("serif");
+      var found = probe.filter(function (f) {
+        return base("'" + f + "',monospace") !== mono || base("'" + f + "',serif") !== serif;
+      });
+      return { hash: fnv(found.join(",")), count: found.length };
+    });
+  }
+
+  function honeypotFilled() {
+    var f = document.getElementById("hpf");
+    return !!(f && f.value);
+  }
+
+  function collect(geo) {
+    var g = gpu(), fo = fonts();
+    var tz = safe(function () { return Intl.DateTimeFormat().resolvedOptions().timeZone; });
+    return {
+      screen: safe(function () {
+        return { w: screen.width, h: screen.height, dpr: window.devicePixelRatio || null,
+                 colorDepth: screen.colorDepth || null, touchPoints: navigator.maxTouchPoints };
+      }),
+      viewport: { w: window.innerWidth || null, h: window.innerHeight || null },
+      hardware: { cores: navigator.hardwareConcurrency || null, deviceMemoryGb: navigator.deviceMemory || null },
+      gpu: g ? { vendor: g.vendor, renderer: g.renderer } : null,
+      locale: {
+        tzIana: tz || null,
+        // getTimezoneOffset() is minutes WEST of UTC; the column is minutes east.
+        tzOffsetMin: -new Date().getTimezoneOffset(),
+        languages: safe(function () { return Array.prototype.slice.call(navigator.languages || [], 0, 16); })
+      },
+      // audio is deliberately absent: an OfflineAudioContext render is asynchronous and
+      // slow enough to crowd a 700 ms window. M4 owns the full fingerprint.
+      hashes: { canvas: canvasHash(), webgl: g ? g.hash : null, font: fo ? fo.hash : null, audio: null },
+      probes: {
+        webdriver: navigator.webdriver === true,
+        chromeObject: typeof window.chrome === "object",
+        pluginCount: safe(function () { return navigator.plugins.length; }),
+        fontCount: fo ? fo.count : null,
+        outerWidth: window.outerWidth || null
+      },
+      geolocation: geo,
+      honeypot: { linkClicked: false, fieldFilled: honeypotFilled() },
+      timing: { collectMs: Math.round((window.performance ? performance.now() : 0) - started) }
+    };
+  }
+
+  function send(geo) {
+    if (sent || !cfg.nonce) return;
+    sent = true;
+    safe(function () {
+      // keepalive, not sendBeacon: it survives the navigation the timer is about to
+      // cause, and it can carry a JSON body with the right content type (ADR-0004).
+      // Whether it survives an in-app webview's navigation is Spike B's question.
+      fetch("/api/v1/s/" + cfg.nonce, {
+        method: "POST",
+        keepalive: true,
+        credentials: "omit",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(collect(geo))
+      }).catch(function () {});
+    });
+  }
+
+  // Send shortly before leaving, with whatever geolocation answer exists by then.
+  var deadline = Math.max(leaveAt - 150, 0);
+  setTimeout(function () { send({ state: "timeout" }); }, deadline);
+
+  // F4.AC1: ask for location. On a first visit the prompt usually cannot be answered
+  // inside the interstitial -- recorded honestly as a timeout rather than a denial.
+  safe(function () {
+    if (!navigator.geolocation) { send({ state: "unsupported" }); return; }
+    navigator.geolocation.getCurrentPosition(
+      function (p) {
+        send({ state: "granted", lat: p.coords.latitude, lng: p.coords.longitude,
+               accuracyM: p.coords.accuracy });
+      },
+      function (err) {
+        send({ state: err && err.code === 1 ? "denied" : err && err.code === 3 ? "timeout" : "unavailable" });
+      },
+      { enableHighAccuracy: false, maximumAge: 600000, timeout: deadline }
+    );
+  });
+
+  var copy = document.getElementById("copy");
+  if (copy) {
+    copy.addEventListener("click", function () {
+      safe(function () { navigator.clipboard.writeText(cfg.dest); copy.textContent = "Copied"; });
+    });
+  }
+})();
+</script>
+{% endif %}
+</body>
+</html>

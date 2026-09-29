@@ -1,0 +1,20 @@
+<!doctype html>
+{#- The one capture outcome that cannot redirect: the visit could not be recorded
+    AND the destination is unknown, because the database is unreachable and this
+    link is not in the process's cache. There is nowhere to send the visitor, so the
+    page says so plainly and invites a retry (F15.AC6). -#}
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<title>Temporarily unavailable</title>
+<style nonce="{{ csp_nonce }}">
+  body { margin: 0; min-height: 100vh; display: grid; place-items: center;
+         font: 15px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+         background: #f6f7f9; color: #1b1f27; }
+  @media (prefers-color-scheme: dark) { body { background: #1b1f27; color: #e8ebf0; } }
+</style>
+</head>
+<body><main><p>This link is temporarily unavailable. Please try again in a moment.</p></main></body>
+</html>

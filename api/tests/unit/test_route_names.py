@@ -109,3 +109,35 @@ def test_health_endpoints_are_reachable_names() -> None:
     paths = _public_routes()
     assert "/healthz" in paths
     assert "/readyz" in paths
+
+
+def test_the_capture_surface_is_actually_under_guard() -> None:
+    """M2 added the routes this whole module exists for. If they ever moved outside
+    PUBLIC_PREFIXES, every assertion above would pass while checking nothing."""
+    paths = _public_routes()
+    for expected in ("/r/{slug}", "/api/v1/s/{nonce}", "/api/v1/hp/{token}", "/privacy"):
+        assert expected in paths, f"{expected} is not classified as public"
+
+
+def test_the_guard_fails_on_a_real_bad_route() -> None:
+    """The M2 done-check: the guard must fail on a deliberately bad name.
+
+    Mounted on a real application rather than tested against a string, so the proof
+    covers route discovery as well as the substring match -- the half most likely to
+    break silently.
+    """
+    app = create_app(Settings(env="development"))
+
+    async def probe() -> dict[str, str]:
+        return {}
+
+    app.add_api_route("/api/v1/s/telemetry-probe", probe, methods=["POST"])
+
+    public = [
+        route.path
+        for route in app.routes
+        if isinstance(route, APIRoute)
+        and any(route.path == p or route.path.startswith(p + "/") for p in PUBLIC_PREFIXES)
+    ]
+    offenders = [path for path in public if any(b in path.lower() for b in BLOCKED_SUBSTRINGS)]
+    assert offenders == ["/api/v1/s/telemetry-probe"]

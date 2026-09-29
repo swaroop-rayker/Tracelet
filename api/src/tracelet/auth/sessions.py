@@ -20,7 +20,6 @@ What the design does buy:
 from __future__ import annotations
 
 import datetime as dt
-import ipaddress
 import uuid
 from dataclasses import dataclass
 
@@ -28,6 +27,7 @@ import structlog
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from tracelet import net
 from tracelet.auth.models import Session
 from tracelet.crypto.hashing import constant_time_equals, new_token, sha256_bytes
 from tracelet.db.dml import execute_rowcount
@@ -56,24 +56,13 @@ def now() -> dt.datetime:
 
 
 def prefix_of(ip: str | None) -> str | None:
-    """Coarsen an address to /24 (v4) or /48 (v6).
+    """Coarsen an address to /24 (v4) or /48 (v6). See :func:`tracelet.net.prefix_of`.
 
     Binding on the prefix rather than the exact address is deliberate: a full address
     changes on every CGNAT rebalance and would log a mobile admin out constantly,
     while the prefix still defeats replay from a different network.
     """
-    if not ip:
-        return None
-    try:
-        addr = ipaddress.ip_address(ip)
-    except ValueError:
-        return None
-    net = (
-        ipaddress.ip_network(f"{addr}/24", strict=False)
-        if addr.version == 4
-        else ipaddress.ip_network(f"{addr}/48", strict=False)
-    )
-    return str(net)
+    return net.prefix_of(ip)
 
 
 @dataclass(frozen=True, slots=True)

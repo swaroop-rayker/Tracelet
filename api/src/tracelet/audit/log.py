@@ -65,9 +65,18 @@ class Action:
     ENROLLMENT_COMPLETED: Final = "admin.enrollment_completed"
     TELEGRAM_VERIFIED: Final = "admin.telegram_verified"
 
+    # tracking links (M2, F1) -- every one is an owner action, CLAUDE.md invariant 9
+    LINK_CREATED: Final = "link.created"
+    LINK_UPDATED: Final = "link.updated"  # F1.AC8: names old and new destination
+    LINK_CLONED: Final = "link.cloned"
+    LINK_DEFAULT_CHANGED: Final = "link.default_changed"
+    LINK_ARCHIVED: Final = "link.archived"
+    LINK_DELETED: Final = "link.deleted"
+
+    # visits (M2)
+    IP_DECRYPTED: Final = "visit.ip_decrypted"  # F12.AC4
+
     # reserved for later milestones, listed so the vocabulary is visible
-    IP_DECRYPTED: Final = "visit.ip_decrypted"  # M2, F12.AC4
-    LINK_UPDATED: Final = "link.updated"  # M2, F1.AC8
     RETENTION_PURGED: Final = "retention.purged"  # M7
     SETTINGS_CHANGED: Final = "settings.changed"  # M7
 

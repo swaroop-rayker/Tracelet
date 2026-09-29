@@ -145,7 +145,7 @@ GET /r/{slug}
         outbox worker → Telegram, backoff + jitter, dead-letter      [F7.AC6]
 ```
 
-### 2.1 Three details that are easy to get wrong
+### 2.1 Five details that are easy to get wrong
 
 1. **`/r/{slug}` returns 200, never 302.** A 302 gives no collection opportunity, and an
    endpoint that redirects to a URL is the pattern Google Safe Browsing classifies as an
@@ -155,8 +155,18 @@ GET /r/{slug}
    `pixel`, `beacon`, `telemetry` in URLs. That, not bot detection, is the actual cause
    of B6. A CI test asserts no public route contains them.
 3. **The sweeper is not an error path.** For social traffic it may be the *primary* path.
-   Spike B in KICKOFF section 6 exists to find out; until it reports, treat
-   `stage='server_only'` as an expected outcome, not a failure.
+   Spike B (RISKS R5) found enrichment survives the Android Instagram webview; iOS is
+   unmeasured. Treat `stage='server_only'` as an expected outcome, not a failure.
+4. **The capture route owns its transaction** — the one exception to 5.8. The request
+   middleware turns a failed commit into a `500` Problem Details response, right for the
+   API and wrong for a visitor, who must be redirected whatever happened (F15.AC7). So
+   `capture/service.py` opens and commits its own session, and the route wraps even the
+   rendering in a fallback that cannot throw.
+5. **Step 4's "header order" cannot be observed.** Caddy is Go, and Go's HTTP server parses
+   headers into a map before any handler runs, then writes them back sorted. Measured in
+   M2; see RISKS R19. The header *set* survives and is stored (sanitised);
+   `header_order_hash` stays `NULL` rather than hold a value that looks like a fingerprint
+   and is not one. ASN, ISP, rDNS and connection class in step 4 arrive with M3.
 
 ---
 
@@ -361,6 +371,18 @@ Full matrix in SPEC F15.AC6. The one rule that governs all of it:
 > Telegram is unreachable, if the visitor is rate-limited — the visitor still reaches the
 > destination. Degrade the telemetry, never the journey.
 
+**The one case that needed a mechanism: the database is down.** The destination lives in
+the database, so an outage would leave nowhere to send anyone. Each worker keeps a small
+cache of live links, refreshed on every successful lookup and consulted **only** when the
+database cannot answer. A link this worker has served before still redirects; a link it
+has never seen gets an honest "temporarily unavailable". The cache is never the source of
+truth while the database is up, so an edited destination takes effect on the next request
+(F1.AC8).
+
+Missing configuration degrades a column, not the visit: no stable pepper means no
+`ip_hmac`, no key file means no `ip_enc`, no session secret means no enrichment nonce. Each
+is logged on every request, and the visit is still recorded and redirected.
+
 ### 5.7 Time
 
 `timestamptz` in UTC everywhere. ISO-8601 in every API payload. Rendered in the admin
@@ -477,6 +499,15 @@ load. `TRACELET_DB_MAX_CONNECTIONS` must be kept in step with the
 | Geo database update | ~150 MB | **The riskiest one.** Streams to disk, validates in a memory-capped subprocess, atomic symlink swap, off-peak. A failed update must never take down capture — RISKS R4 |
 | Analytics aggregate | `work_mem` bounded | Dashboard reads rollups, not raw rows — F9.AC19 |
 
+**Long-lived in-process state added in M2** (CLAUDE.md section 5 requires stating it):
+
+| State | Bound | Expected RSS |
+|---|---|---|
+| Links cache, per worker | 1,000 entries, oldest evicted | Under 0.5 MB at the bound; a few KB at realistic link counts |
+| Scheduler, per worker | Two asyncio tasks | Negligible. The lock-holding session is one pooled connection for the length of a tick |
+| Jinja2 environment, per worker | Four compiled templates | Under 1 MB |
+| Cloudflare range table | 22 networks, module constant | Negligible |
+
 ### 6.4 Two dependency decisions that bought headroom
 
 - **Shapely was eliminated** because PostGIS does the geometry. Choosing PostGIS
@@ -538,7 +569,7 @@ for themselves.
 | `uvicorn[standard]`, `gunicorn` | ASGI server plus worker supervision with request recycling | uvicorn alone (no supervision or recycling) |
 | `pydantic`, `pydantic-settings` | Strict typing at every boundary and typed configuration from the environment | hand-rolled validation |
 | `sqlalchemy[asyncio]` 2.0 | Typed 2.0 mappings for admin CRUD; the hot capture path uses raw SQL on the same pool | raw asyncpg only (loses migrations tooling and typed models) |
-| `geoalchemy2` | PostGIS column types in SQLAlchemy | raw SQL for all geometry |
+| `geoalchemy2` | PostGIS column types in SQLAlchemy. **Not installed until M6**, which is the first code to read or write geometry; M2 adds `visits.geopoint` with plain DDL and leaves it unmapped | raw SQL for all geometry |
 | `alembic` | Forward-only reviewed migrations. Worth the dependency on its own | hand-written SQL migrations |
 | `asyncpg` | Fastest async PostgreSQL driver | psycopg3 async (comparable; asyncpg chosen for pool ergonomics) |
 | `psycopg[binary]` | **Sync** driver, used by Alembic only. Migrations have no reason to be async, and a sync driver makes a failed migration far easier to read | running Alembic on asyncpg (works, but every failure arrives wrapped in async machinery) |
@@ -548,7 +579,7 @@ for themselves.
 | `httpx` | Async outbound with timeouts, to external geo APIs and Telegram | `aiohttp` (heavier), `requests` (sync, would block the loop) |
 | `geoip2` | Reads `.mmdb` — GeoLite2, IPinfo Lite **and** DB-IP Lite all ship this format | hand-written mmdb parser |
 | `IP2Location` | IP2Location LITE ships a proprietary BIN format | converting BIN to mmdb ourselves, a maintenance liability |
-| `jinja2` | Server-rendered capture page; already a FastAPI-adjacent standard | f-string templating, unsafe for HTML |
+| `jinja2` | Server-rendered capture page; already a FastAPI-adjacent standard. **Installed in M2.** Autoescaping is the reason: the destination and the nonce are interpolated into attributes and an inline script | f-string templating, unsafe for HTML |
 | `structlog` | Structured JSON logs with redaction processors | stdlib logging plus a custom formatter |
 | `psutil` | Host CPU, RAM, disk, swap, uptime for System Health | parsing `/proc` by hand |
 | `python-ulid` | Sortable `trace_id`, better index locality than UUID4 | `uuid4` (no time ordering) |
@@ -559,6 +590,7 @@ for themselves.
 | dev: `pytest`, `pytest-asyncio`, `ruff`, `mypy` | Test and quality toolchain | — |
 | **Rejected: `testcontainers`** | — | CI PostgreSQL is a GitHub Actions service container; no dependency needed |
 | **Rejected: `email-validator` + `dnspython`** | — | Arrived as a side effect of `pydantic.EmailStr` and crash-looped the API (docs/ERRORS.md E9). This system sends **no email at all** — Gate 1 declined SMTP and recovery runs over Telegram — so an admin address is purely a login identifier, and two packages for RFC 5322 conformance on a string nothing is delivered to fails ES5. Replaced with a constrained string in `auth/types.py` |
+| **Rejected for now: `ua-parser`** | — | Its rule set compiles into every worker for a precision nothing in M2 consumes. `capture/useragent.py` answers the questions M2 needs -- which webview, which preview fetcher, roughly what device -- and returns `None` rather than guessing. M4's classifier is the place to revisit it, with evidence of what the modest parser gets wrong |
 | **Rejected: a QR-code renderer** | — | `qrcode`/`segno` would save one or two admins a single manual entry at enrolment. Every authenticator app accepts a typed base32 secret, so the enrolment page shows the secret and the `otpauth://` URI instead (`auth/totp.py::provisioning_hint`). Worth revisiting if the admin count grows |
 
 ### Frontend
@@ -611,7 +643,10 @@ tracelet/
 │       │                           #   request_session.py owns the per-request
 │       │                           #   transaction and commits BEFORE the
 │       │                           #   response leaves (5.8)
-│       ├── capture/                # /r/{slug}, enrichment, sweeper, templates
+│       ├── net.py                  # which client address to believe; Cloudflare
+│       │                           #   range verification (F13.AC6)
+│       ├── capture/                # /r/{slug}, enrichment, honeypot, /privacy,
+│       │                           #   links and visits APIs, templates/
 │       ├── inference/              # sources/ S1..S11, consensus, suppression
 │       ├── classification/         # rules/, scoring, cross-checks, honeypot
 │       ├── identity/               # HMAC fingerprint, visitor_id
@@ -627,7 +662,7 @@ tracelet/
 │       ├── health/                 # psutil, geo DB freshness, flow diagram
 │       ├── lifecycle/              # retention, purge, backup, restore-verify
 │       ├── crypto/                 # AES-GCM envelope, key loading, rotation
-│       ├── worker/                 # asyncio outbox worker + scheduler
+│       ├── worker/                 # scheduler (M2: sweeper, IP purge); outbox M6
 │       └── cli/                    # tracelet admin …, database update, labelling
 │   └── tests/
 │       ├── unit/                   # inference, scoring, GCRA, crypto, policy

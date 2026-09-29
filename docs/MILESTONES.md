@@ -17,7 +17,7 @@ then open the PR (CLAUDE.md section 2).
 |---|---|---|---|
 | M0 | Foundation and CI | M | **[x] done** — CI green on `main`, 69 tests |
 | M1 | Admin auth and account security | L | **[x] done** — 285 tests, 15 bugs recorded as E8–E22 |
-| M2 | Capture path, server-authoritative | L | [ ] |
+| M2 | Capture path, server-authoritative | L | **[x] done** — 631 tests, Spike B run (Android), 4 bugs recorded as E23–E26 |
 | M3 | Location inference engine | L | [ ] |
 | M4 | Anti-spoofing and classification | L | [ ] |
 | M5 | Dashboard analytics and visualisation | L | [ ] |
@@ -31,7 +31,7 @@ then open the PR (CLAUDE.md section 2).
 | | Spike | Blocks | Status |
 |---|---|---|---|
 | Spike A | rDNS city-code coverage for Indian residential IPs (RISKS R3) | **M3** | [ ] |
-| Spike B | `fetch(keepalive)` survival in the Instagram webview (RISKS R5) | **M2** | [ ] |
+| Spike B | `fetch(keepalive)` survival in the Instagram webview (RISKS R5) | **M2** — runs inside M2 against the real capture page (owner decision 2026-09-28) | **[x] Android: survives. iOS unmeasured** — R5 |
 
 ---
 
@@ -299,7 +299,9 @@ was handled in plaintext during development, and it is a password-recovery chann
 
 ## M2 — Capture path, server-authoritative · size L
 
-**Goal:** a visit is recorded no matter what the client does. **Depends on Spike B.**
+**Goal:** a visit is recorded no matter what the client does. **Spike B runs inside M2** —
+owner decision 2026-09-28: the server-authoritative core is identical whatever the spike
+finds, and the spike needs a real capture page on a public URL to test anything.
 **F/AC-IDs:** F1.AC1–F1.AC10, F2.AC1–F2.AC14, F3.AC1, F3.AC5, F3.AC6, F3.AC7,
 F12.AC1–F12.AC4, F11.AC1–F11.AC4, F11.AC8, F11.AC10, F13.AC3, F13.AC6, F15.AC7
 
@@ -322,19 +324,82 @@ F12.AC1–F12.AC4, F11.AC1–F11.AC4, F11.AC8, F11.AC10, F13.AC3, F13.AC6, F15.A
 - CI route-name assertion (F2.AC11)
 
 **Done checklist**
-- [ ] Visit recorded **with JavaScript fully disabled** — the `<noscript>` path works
-- [ ] Visit recorded from a real Instagram bio link on a real phone
-- [ ] Enriched visit records screen, GPU, CPU, timezone, consent state
-- [ ] Nonce replay returns 410; nonce from a different prefix returns 410
-- [ ] Sweeper finalises an abandoned visit at 90 s as `server_only`
-- [ ] Instagram prefetch appears as `crawler`, excluded from default views
-- [ ] Rate-limited request **still redirects**, recorded `stage='rate_limited'`
-- [ ] Forged `CF-Connecting-IP` from a non-Cloudflare peer is **ignored** — integration test
-- [ ] **No plaintext IP anywhere** in schema, logs, or API responses — grep + test asserted
-- [ ] IP purge nulls `ip_enc` and leaves `ip_hmac`/`ip_prefix` intact
-- [ ] Owner decrypt writes an audit row; analyst gets 403
-- [ ] CI route-name job passes and **fails on a deliberately-bad route name**
-- [ ] Docs: DATA_MODEL section 4–5, API sections 3, 6, 7 verified
+- [x] A visit is recorded with **no JavaScript at all** — integration test, and `curl`
+      against the running stack (a client that runs no script)
+- [x] The `<noscript>` refresh redirects **in a real browser with JavaScript disabled** —
+      Android Chrome, Spike B: visit recorded, swept to `server_only`, visitor landed on
+      the destination
+- [x] Visit recorded from a real Instagram bio link on a real phone — Samsung, Android 16,
+      Spike B. **Enriched**, 2.4 s after the visit, i.e. after the redirect. **iOS not
+      tested** — no iPhone available; RISKS R5 stays open for it
+- [x] Enriched visit records screen, GPU, CPU, timezone, consent state **from a real
+      browser** — Instagram webview, Android Chrome and desktop Chrome, all complete
+- [x] Nonce replay returns 410; a nonce from a different prefix returns 410 — plus five
+      concurrent submissions of one nonce producing exactly one 204
+- [x] Sweeper finalises an abandoned visit at 90 s as `server_only` — tested, and observed
+      on the running stack at 109 s (the 30 s tick puts it between 90 and 120)
+- [x] A Meta preview fetcher appears as `crawler` and is excluded from default views —
+      with the real `facebookexternalhit` user agent, and live in Spike B: four Meta preview
+      fetches, all `crawler`. **But a JavaScript-running Meta scanner was not caught** —
+      RISKS R21, a requirement on M4
+- [x] Rate-limited request **still redirects** (302), recorded `stage='rate_limited'` with
+      nothing the client supplied
+- [x] Forged `CF-Connecting-IP` from a non-Cloudflare peer is **ignored** — integration
+      tests in direct mode and behind Cloudflare, plus the positive case from a real edge
+- [x] **No plaintext IP anywhere**: the schema has no column for one; the whole stored row
+      is searched after sending the address through six headers, the referer and a UTM
+      value; the API detail view; the application log **before** redaction (`caplog`); and
+      Caddy's edge log, which *did* hold every address and is now filtered (ERRORS.md E26)
+- [x] IP purge nulls `ip_enc` and leaves `ip_hmac`/`ip_prefix` intact
+- [x] Owner decrypt writes an audit row; analyst gets 403; a transplanted ciphertext fails
+      to open (the AAD is the visit id)
+- [x] CI route-name job passes and **fails on a deliberately-bad route mounted on a real
+      application**, not only on a string
+- [x] `ruff`, `mypy --strict` clean. Unit tests: 400. Integration tests: 231, against real
+      PostgreSQL + PostGIS (ES3)
+- [x] Docs: DATA_MODEL sections 4–5, API sections 3, 6, 7 and 13 verified against the
+      implementation; ARCHITECTURE 2.1, 5.6, 6.3, 8, 9; RISKS R5, R7, R19, R20;
+      ERRORS.md E23–E26
+
+**Deviations from the original M2 scope, each with the doc updated in the same change:**
+
+- **`request_headers jsonb` added to `visits`.** F3.AC1 requires the full header set and
+  the Gate-3 model had nowhere to put it. Sanitised before storage — it is the one column
+  that could otherwise carry a plaintext address. DATA_MODEL 5.1.
+- **`header_order_hash` is never populated**, because header order cannot be observed
+  behind Caddy — measured, not assumed. This removes the JA4 substitute that SPEC F5.AC8
+  (amendment 5) and RISKS R7 depend on. **Needs an owner decision before M4** — RISKS R19
+  has the options and a recommendation.
+- **ASN, ISP, rDNS and connection class** have columns from M2 and values from M3, which
+  installs the offline databases and the resolver budget they come from.
+- **Three CHECK constraints beyond the Gate-3 model:** `stage='server'` exactly when
+  unfinalised; ciphertext and key version present or absent together; an archived link is
+  never the default. `is_datacenter` and its siblings are nullable, not `false` by default.
+- **The capture route owns its own transaction** rather than using the request middleware,
+  which would turn a failed commit into a JSON 500 for a visitor. ARCHITECTURE 2.1.
+- **A per-worker cache of live links**, consulted only when the database cannot answer, so
+  a database outage still redirects a link this worker has served before. RSS stated in
+  ARCHITECTURE 6.3.
+- **`tracelet.net` now verifies the Cloudflare edge for the admin API as well.** M1 left a
+  placeholder that deliberately did not read `CF-Connecting-IP` at all.
+- **Enrichment accepts the whole documented payload but does not yet persist `probes`**,
+  and the page sends no audio hash. What a headless probe *means* is M4's decision.
+- **`visit_candidates` is created in M3**, with the engine that writes it.
+- **The visits list implements the filters M2 has data for**; the rest arrive with their
+  columns. API section 7.
+- **Caddy:** L1 slow-loris and header-size limits; the client's HTTP and TLS versions
+  forwarded to the application; and the access log filtered (E26).
+- **The default link's behaviour is unspecified.** The invariant is enforced; what the
+  default *does* is not written anywhere. Raised, not invented.
+
+**Open for the owner:**
+
+1. **R19 — amend F5.AC8** now that header order is unobservable. Recommendation in RISKS.
+2. **R20 — the location prompt cannot be answered inside the interstitial.** Spike B
+   confirmed it: every real browser timed out. Recommendation in RISKS: amend F4.AC1 to ask
+   only where permission is already granted.
+3. **What the default link is for.** Nothing depends on it yet.
+4. **R21 — the Meta scanner.** No decision needed now; it is a stated requirement on M4.
 
 ---
 

@@ -15,6 +15,9 @@ from fastapi import FastAPI
 
 from tracelet.auth.admins_router import router as admins_router
 from tracelet.auth.router import router as auth_router
+from tracelet.capture.links_router import router as links_router
+from tracelet.capture.router import router as capture_router
+from tracelet.capture.visits_router import router as visits_router
 from tracelet.config import Settings, get_settings
 from tracelet.db.engine import dispose_engine, init_engine
 from tracelet.db.request_session import DatabaseSessionMiddleware
@@ -22,6 +25,7 @@ from tracelet.errors import install_error_handlers
 from tracelet.health.router import router as health_router
 from tracelet.logging import configure_logging
 from tracelet.middleware import AccessLogMiddleware, TraceIdMiddleware
+from tracelet.worker.scheduler import Scheduler
 
 log = structlog.get_logger(__name__)
 
@@ -52,9 +56,15 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     # /readyz reports it instead, and the redirect path degrades rather than
     # failing (NFR3.AC2).
 
+    # The sweeper and the IP purge (ADR-0009). Started in every worker; an advisory
+    # lock inside each job means only one worker actually runs any given tick.
+    scheduler = Scheduler()
+    scheduler.start()
+
     try:
         yield
     finally:
+        await scheduler.stop()
         await dispose_engine()
         log.info("shutdown")
 
@@ -105,8 +115,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     install_error_handlers(app)
 
     app.include_router(health_router)
+    app.include_router(capture_router)
     app.include_router(auth_router)
     app.include_router(admins_router)
+    app.include_router(links_router)
+    app.include_router(visits_router)
 
     return app
 
