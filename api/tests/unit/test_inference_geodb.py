@@ -17,6 +17,7 @@ from pydantic import SecretStr
 from tracelet.config import Settings
 from tracelet.inference.geodb import geonames, readers
 from tracelet.inference.geodb.catalog import BY_NAME
+from tracelet.inference.geodb.profiles import _place
 from tracelet.inference.types import Candidate, GeoLevel, InferenceSource
 
 S = InferenceSource
@@ -254,7 +255,15 @@ def test_a_gps_point_far_from_any_town_names_only_what_it_can(
 
 
 def test_a_keyed_database_without_credentials_is_not_configured() -> None:
-    settings = Settings()
+    # Explicitly empty: a developer's .env must not decide what this test sees.
+    settings = Settings.model_validate(
+        {
+            "MAXMIND_ACCOUNT_ID": "",
+            "MAXMIND_LICENSE_KEY": "",
+            "IP2LOCATION_TOKEN": "",
+            "IPINFO_TOKEN": "",
+        }
+    )
     for name in ("geolite2-city", "geolite2-asn", "ip2location-lite-db11", "ipinfo-lite"):
         assert BY_NAME[name].download(settings, dt.date(2026, 9, 29)) is None, name
 
@@ -281,3 +290,44 @@ def test_credentials_are_secret_in_settings() -> None:
     settings = Settings.model_validate({"IPINFO_TOKEN": "tok-123"})
     assert isinstance(settings.ipinfo_token, SecretStr)
     assert "tok-123" not in repr(settings)
+
+
+def test_a_country_only_claim_is_never_given_a_state(gazetteer: geonames.ReverseGeocoder) -> None:
+    """ERRORS.md E30: a country-level record's coordinates are the country's centroid;
+    naming that point would invent a state vote the source never cast."""
+    c = Candidate(
+        source=S.GEOLITE2, level=GeoLevel.COUNTRY, country_code="IN", lat=12.97, lng=77.59
+    )
+    assert gazetteer.place(c) == c
+
+
+def test_placing_renames_only_what_was_claimed(gazetteer: geonames.ReverseGeocoder) -> None:
+    c = Candidate(
+        source=S.DBIP,
+        level=GeoLevel.CITY,
+        country_code="IN",
+        city="Bangalore",
+        lat=12.97,
+        lng=77.59,
+    )
+    placed = gazetteer.place(c)
+    assert (placed.admin1, placed.city) == (None, "Bengaluru")
+
+
+def test_a_profile_ignores_records_without_a_city() -> None:
+    """ERRORS.md E30, in asn_profiles."""
+    centroid = {"country": {"iso_code": "IN"}, "location": {"latitude": 22.0, "longitude": 79.0}}
+    assert _place(centroid) is None
+    assert _place(GEOLITE_BENGALURU) is not None
+
+
+def test_a_download_never_shows_its_credentials() -> None:
+    """ERRORS.md E31: a repr lands in tracebacks and test output."""
+    settings = Settings.model_validate(
+        {"MAXMIND_ACCOUNT_ID": "123", "MAXMIND_LICENSE_KEY": "sekret-key", "IPINFO_TOKEN": "tok-9"}
+    )
+    today = dt.date(2026, 9, 29)
+    for name in ("geolite2-city", "ipinfo-lite"):
+        dl = BY_NAME[name].download(settings, today)
+        assert dl is not None
+        assert "sekret-key" not in repr(dl) and "tok-9" not in repr(dl), name

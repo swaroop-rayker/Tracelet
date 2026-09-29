@@ -65,7 +65,11 @@ class Thresholds(_Frozen):
     """
 
     country: float = Field(default=0.60, ge=0, le=1)
-    admin1: float = Field(default=0.70, ge=0, le=1)
+    # 0.75 with the admin1 priors below means: two agreeing databases and no dissent
+    # pass; one database alone, or two against a third, abstain. Chosen on real
+    # M3 lookups (Airtel Bengaluru: three databases agree, and 0.70 with the old
+    # priors could never be reached), not on ground truth -- M8 re-derives it.
+    admin1: float = Field(default=0.75, ge=0, le=1)
     admin2: float = Field(default=0.75, ge=0, le=1)
     city: float = Field(default=0.80, ge=0, le=1)
 
@@ -129,12 +133,12 @@ DEFAULT_CONFIG: Final = InferenceConfig(
         InferenceSource.GPS: SourceSettings(timeout_ms=50, priors=_p(0.99, 0.99, 0.99, 0.99)),
         # S2-S5 -- registry-derived. Right about the country; much less about the city
         # in India (MaxMind's own figure is ~50-60 % within 50 km; ADR-0005).
-        InferenceSource.GEOLITE2: SourceSettings(timeout_ms=100, priors=_p(0.95, 0.60, 0.40, 0.45)),
+        InferenceSource.GEOLITE2: SourceSettings(timeout_ms=100, priors=_p(0.95, 0.72, 0.40, 0.45)),
         InferenceSource.IP2LOCATION: SourceSettings(
-            timeout_ms=100, priors=_p(0.93, 0.55, 0.35, 0.40)
+            timeout_ms=100, priors=_p(0.93, 0.68, 0.35, 0.40)
         ),
         InferenceSource.IPINFO: SourceSettings(timeout_ms=100, priors=_p(0.95, 0.0, 0.0, 0.0)),
-        InferenceSource.DBIP: SourceSettings(timeout_ms=100, priors=_p(0.93, 0.55, 0.35, 0.40)),
+        InferenceSource.DBIP: SourceSettings(timeout_ms=100, priors=_p(0.93, 0.68, 0.35, 0.40)),
         # S6 -- a city code in the operator's own PTR record. Rare (Spike A: 2 %), and
         # the strongest free signal when present.
         InferenceSource.RDNS: SourceSettings(timeout_ms=1_200, priors=_p(0.95, 0.85, 0.5, 0.80)),
@@ -145,7 +149,7 @@ DEFAULT_CONFIG: Final = InferenceConfig(
         InferenceSource.CF_COLO: SourceSettings(timeout_ms=50, priors=_p(0.85, 0.45, 0.2, 0.30)),
         # S9 -- external APIs. Registry-derived like S2-S5.
         InferenceSource.EXTERNAL_API: SourceSettings(
-            timeout_ms=1_500, priors=_p(0.93, 0.55, 0.35, 0.40)
+            timeout_ms=1_500, priors=_p(0.93, 0.68, 0.35, 0.40)
         ),
         # S11 -- never proposes, so its priors are unused; it only penalises (F4.AC9).
         InferenceSource.TIMEZONE: SourceSettings(timeout_ms=50, priors=_p(0, 0, 0, 0)),

@@ -823,7 +823,7 @@ export interface components {
             };
             /**
              * @default {
-             *       "admin1": 0.7,
+             *       "admin1": 0.75,
              *       "admin2": 0.75,
              *       "city": 0.8,
              *       "country": 0.6
@@ -1219,7 +1219,7 @@ export interface components {
         Thresholds: {
             /**
              * Admin1
-             * @default 0.7
+             * @default 0.75
              */
             admin1: number;
             /**

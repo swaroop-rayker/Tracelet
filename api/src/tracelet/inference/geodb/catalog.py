@@ -13,7 +13,7 @@ from __future__ import annotations
 
 import datetime as dt
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Final, Literal
 
 from tracelet.config import Settings
@@ -25,8 +25,11 @@ Kind = Literal["mmdb", "ip2location_bin", "geonames_cities", "geonames_admin1"]
 
 @dataclass(frozen=True, slots=True)
 class Download:
-    url: str
-    auth: tuple[str, str] | None = None
+    # Neither appears in repr: two vendors carry their token in the URL and MaxMind
+    # sends its licence key as basic auth, and a repr ends up in tracebacks and test
+    # output (ERRORS.md E31).
+    url: str = field(repr=False)
+    auth: tuple[str, str] | None = field(default=None, repr=False)
     # A URL that yields the expected SHA-256 of the artifact, where the vendor
     # publishes one. Otherwise integrity rests on the archive's own CRC and on
     # validation opening the file and answering known lookups.

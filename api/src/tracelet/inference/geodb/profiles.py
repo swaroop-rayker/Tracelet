@@ -53,9 +53,15 @@ def _place(record: Any) -> Key | None:
     lat, lng = location.get("latitude"), location.get("longitude")
     if not isinstance(lat, int | float) or not isinstance(lng, int | float):
         return None
+    city = _english(record.get("city"))
+    if city is None:
+        # A record without a city carries the country's (or state's) centroid, not a
+        # placement. Counting it made MaxMind's middle-of-India point the "registry
+        # address" of Airtel, Tata and Tikona alike (ERRORS.md E30).
+        return None
     subdivisions = record.get("subdivisions") or []
     return (
-        _english(record.get("city")),
+        city,
         _english(subdivisions[0]) if subdivisions else None,
         round(float(lat), 3),
         round(float(lng), 3),

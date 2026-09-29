@@ -660,6 +660,19 @@ All of section 8 is in the **must never be lost** set (F12.AC12, NFR5.AC3).
 a registry artifact: it means the database has collapsed a whole ISP onto one point.
 That is exactly the Bangalore-recorded-as-Faridabad failure — F4.AC12(a).
 
+**As computed in M3** (`inference/geodb/profiles.py`, in a memory-capped subprocess):
+every IPv4 network of the installed ASN database is looked up in every installed city
+database and weighted by its address count. Only records that **name a city** count; a
+country-only record carries the country's centroid, not a placement (ERRORS.md E30).
+Only networks placed in India are counted: that is the primary audience, and an ASN
+elsewhere simply has no profile, so rule (a) cannot fire for it. An ASN smaller than a
+**/18** keeps its centroid but gets `modal_share = NULL`, because one point is not
+evidence when there was nowhere else to be. `modal_city`/`modal_admin1` are respelled
+through GeoNames exactly as candidates are, or the rule's name comparison could never
+match. `is_registry_artifact_source` uses the default 0.30 for display only; the engine
+applies the *active settings* threshold to `modal_share` (RISKS R24). The table is
+rebuilt after any location or ASN database update.
+
 ### 8.2 `rdns_city_codes` — the lexicon
 
 `id bigserial` PK, `pattern text` (regex), `code text`, `city`, `admin1`, `country_code`,
@@ -688,6 +701,15 @@ reasons in the file.
 **Invariant:** at most one row per `name` with `status='installed'` — partial unique
 index. Atomic symlink swap means a failed update leaves the previous version serving
 (F10.AC4).
+
+**As built in M3.** Every attempt is a row: `downloading` while in flight, then
+`installed`, or `failed` with a `last_error` that never contains a URL or credential.
+When a new version installs, the previous `installed` row becomes `stale`, meaning
+*superseded*; whether an installed copy is too old is a verdict computed from
+`installed_at` and `staleness_threshold_days`, not a status. An attempt that found the
+file unchanged leaves no row. On disk: `<geo_data_dir>/<name>/<version>-<sha8>/<file>`,
+with `<name>/current` a symlink to the serving version; the previous version is kept and
+older ones pruned.
 
 ### 8.4 `inference_settings`
 

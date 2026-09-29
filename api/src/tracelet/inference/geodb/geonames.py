@@ -160,6 +160,12 @@ class ReverseGeocoder:
             return c
         if c.source is InferenceSource.GPS:
             return self._name_gps(c)
+        # Only a claim that names a place gets its name respelled, and only the fields
+        # it asserts. A country-only record's coordinates are the country's centroid --
+        # MaxMind's middle-of-India point sits near Chhindwara -- and naming that point
+        # would invent a state vote the source never cast (ERRORS.md E30).
+        if c.level not in (GeoLevel.ADMIN1, GeoLevel.ADMIN2, GeoLevel.CITY):
+            return c
         near = self.nearest(c.lat, c.lng, CITY_KM)
         if near is None or (c.country_code and c.country_code.upper() != near.country):
             return c
@@ -171,8 +177,8 @@ class ReverseGeocoder:
         return replace(
             c,
             country_code=near.country,
-            admin1=near.admin1 or c.admin1,
-            city=near.name if c.level is GeoLevel.CITY else c.city,
+            admin1=(near.admin1 or c.admin1) if c.admin1 is not None else None,
+            city=near.name if c.level is GeoLevel.CITY and c.city is not None else c.city,
             evidence=evidence,
         )
 

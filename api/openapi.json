@@ -593,7 +593,7 @@
           "thresholds": {
             "$ref": "#/components/schemas/Thresholds",
             "default": {
-              "admin1": 0.7,
+              "admin1": 0.75,
               "admin2": 0.75,
               "city": 0.8,
               "country": 0.6
@@ -1635,7 +1635,7 @@
         "description": "Minimum confidence for a **strict** value at each level (F4.AC10).\n\nBelow it the strict field is NULL with ``abstain_reason='below_threshold'``; the\nadvisory field still carries the best guess.",
         "properties": {
           "admin1": {
-            "default": 0.7,
+            "default": 0.75,
             "maximum": 1.0,
             "minimum": 0.0,
             "title": "Admin1",

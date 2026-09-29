@@ -18,7 +18,7 @@ then open the PR (CLAUDE.md section 2).
 | M0 | Foundation and CI | M | **[x] done** — CI green on `main`, 69 tests |
 | M1 | Admin auth and account security | L | **[x] done** — 285 tests, 15 bugs recorded as E8–E22 |
 | M2 | Capture path, server-authoritative | L | **[x] done** — 631 tests, Spike B run (Android), 4 bugs recorded as E23–E26 |
-| M3 | Location inference engine | L | [~] step 1 of 3 — engine, schema, settings API; databases next |
+| M3 | Location inference engine | L | [~] step 2 of 3 — engine and all offline databases; S9 and Nominatim next |
 | M4 | Anti-spoofing and classification | L | [ ] |
 | M5 | Dashboard analytics and visualisation | L | [ ] |
 | M6 | Geofencing and Telegram notifications | M | [ ] |
@@ -428,17 +428,22 @@ F12.AC1–F12.AC4, F11.AC1–F11.AC4, F11.AC8, F11.AC10, F13.AC3, F13.AC6, F15.A
 **Done checklist**
 - [ ] A real visit shows the full derivation table: every source, weight, accepted or
       suppressed with reason, latency
-- [ ] **Registry-artifact suppression demonstrated** on a real Indian broadband IP that the
+- [x] **Registry-artifact suppression demonstrated** on a real Indian broadband IP that the
       databases place in the NCR — city collapses to the country with the reason recorded
-- [ ] Mobile ASN visit emits **no** city
-- [ ] Hosting ASN visit abstains on all strict levels
+      — *Tikona (AS45528) address placed in Delhi, real DB-IP data and the production
+      readers + consensus (a script, not a captured visit): admin1 and city abstain with
+      `registry_artifact`, advisory still Delhi. 2026-09-29.*
+- [x] Mobile ASN visit emits **no** city — *Jio (AS55836), real data, same method: `mobile_asn`, no city even advisory*
+- [x] Hosting ASN visit abstains on all strict levels — *AWS Mumbai (AS16509), real data, same method: `hosting_asn` on every level*
 - [ ] Consented visit resolves street address; **non-consented stores no coordinates** —
       `CHECK` constraint proven
 - [ ] Disabling every source still redirects and records `country=NULL` + reason (F4.AC18)
 - [ ] External API timeout opens the breaker; inference completes on remaining sources
-- [ ] Settings version bump then rollback, both audit-logged
-- [ ] Geo-database update succeeds; a **deliberately corrupted** download leaves the
+- [x] Settings version bump then rollback, both audit-logged — *integration tests, `test_inference_settings.py`*
+- [x] Geo-database update succeeds; a **deliberately corrupted** download leaves the
       previous version serving
+      — *seven real databases installed 2026-09-29; corruption, truncation, bad checksum,
+      size cap and 404 fallback in `test_geodb_installer.py`*
 - [ ] Docs: ARCHITECTURE section 3, DATA_MODEL sections 5.4, 8.1, 8.2 verified
 
 **Progress — step 1 of 3 (2026-09-29): the engine, without the databases.**
@@ -459,6 +464,28 @@ items above is ticked: each needs real databases or a real visit.
 
 **Raised for the owner during step 1, and decided:** RISKS R22 — the artifact collapse is
 to country (SPEC §11 row 11); R23 — S10 dropped (row 12).
+
+**Progress — step 2 of 3 (2026-09-29): the offline databases.** Installer (staging, size
+cap, SHA-256, vendor checksum, memory-capped validation, atomic swap), memory-mapped
+readers for S2–S5 and the two ASN files, GeoNames reverse geocoding and name
+canonicalisation (+9 MB per worker, measured), `asn_profiles`, the daily
+`geodb_update` job and `tracelet geodb status|update|profiles`. All seven databases
+installed in development. The full job ran end to end on a real Airtel Bengaluru
+address: four database candidates, network classified, every silent source recorded
+with its reason, no plaintext address in the row.
+
+Calibrated on real lookups: the admin1 defaults were raised (threshold 0.75; priors
+0.72 / 0.68 / 0.68), because with three agreeing databases the state could never be
+strict — which would have made F4.AC13's admin1 coverage unreachable. **This development
+database still runs settings version 1 from before that change** (versions are
+immutable); the new values reach it as version 2 through the settings API, an owner
+action. Found and fixed: E30 (MaxMind's country centroid read as a placement), E31
+(credentials in a repr). Raised: RISKS R24 (a regional ISP looks like a registry
+collapse).
+
+Not yet: S9 and its breaker, Nominatim (step 3); a test that *disables* every source
+through settings (the "every source silent" case is tested); a real captured visit viewed
+through the API; the docs checklist item.
 
 ---
 

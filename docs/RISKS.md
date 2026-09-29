@@ -28,6 +28,7 @@ Severity is `impact × likelihood` at the time of writing, reassessed after each
 | R21 | **A JavaScript-executing Meta scanner passes the crawler gate** | **High** | **Open — requirement on M4** |
 | R22 | **Registry-artifact collapse to admin1 still emits the artifact's state** | **High** | **Closed 2026-09-29: collapse to country (SPEC §11 row 11)** |
 | R23 | S10 latency triangulation cannot be built without third-party requests | Medium | **Closed 2026-09-29: S10 dropped (SPEC §11 row 12)** |
+| R24 | Rule (a) cannot tell a regional ISP from a registry collapse | Medium | **Accepted for M3 — tune in M8 with ground truth** |
 
 ---
 
@@ -514,6 +515,27 @@ it reports `unavailable` with reason `conflicts_with_f2_ac12` rather than preten
 **Decision, 2026-09-29 (repository owner):** option 1. S10 dropped (SPEC section 11 row 12);
 Spike D retired. The `latency` value stays in the `inference_source` enum, unused, because
 removing a PostgreSQL enum value costs a table rewrite for nothing.
+
+---
+
+## R24 — Rule (a) cannot tell a regional ISP from a registry collapse · MEDIUM
+
+**Measured in M3 on the installed databases.** `modal_share` is the fraction of an ASN's
+address space the databases put on one point. A registry collapse produces a high share —
+Tikona 44 % on Delhi, Jio 40 % on Mumbai. But so does an ISP that genuinely serves one
+city: ACT's Hyderabad network (AS18209) sat at 31 % on Hyderabad with DB-IP alone, just
+over the 0.30 threshold, and a Hyderabad visitor on it would have had a probably-correct
+city withheld. From database data alone the two are indistinguishable.
+
+**Why it is accepted for now.** The error is in the safe direction: a false collapse is an
+*abstention* (coverage), never a wrong strict value (precision) — ADR-0005's premise.
+With GeoLite2 added, AS18209 fell to 24 %, under the line. On the Cloudflare path an
+independent colo (S8) corroborates the city and the rule does not fire.
+
+**What would settle it.** Ground truth (F4.AC15, M8): per-ASN precision of the database
+city for labelled visits, which tells a regional ISP (right) from a collapse (wrong)
+directly. `registry_artifact.min_modal_share` is versioned configuration, so the
+re-tune is a settings version, not a deployment.
 
 ---
 

@@ -265,12 +265,30 @@ E28). A strict state is not a coordinate, and `geopoint` feeds geofencing.
 that produced nothing — disabled, empty, timed out, unavailable, failed — is an
 `inference.source_absent` entry in `signals` with its reason and latency.
 
-**What M3 step 1 does not yet have.** S2–S5 report `database_not_installed` until the
-geo-database installer lands, and without an ASN database the network is unclassified,
-so rules (a)–(c) cannot fire on real traffic yet. S1 is a bare point until GeoNames
-reverse geocoding names the place. S9 reports `not_configured`. S10 was dropped (SPEC
-section 11 row 12, RISKS R23). A registry-artifact city collapses to the country, not
-admin1 (row 11, R22).
+**The offline databases** (`inference/geodb/`, M3 step 2). Seven files: GeoLite2 City
+and ASN, IP2Location LITE DB11, IPinfo Lite, DB-IP City and ASN Lite, and GeoNames
+(`cities1000` + admin1 names). Each is installed by streaming to staging with a size cap
+and SHA-256 (checked against MaxMind's published hash), unpacking, validating in a
+memory-capped subprocess that must answer known lookups, then an atomic rename of a
+`current` symlink — so a corrupt download never replaces the serving version (F10.AC4).
+Readers are memory-mapped and reopened when `current` moves; no restart. The daily
+`geodb_update` job and `tracelet geodb update` are the same code. No download URL is ever
+logged or stored, and `Download`'s repr hides URL and credentials (ERRORS.md E31).
+
+**GeoNames does two jobs.** It names a GPS point, and it gives every source one
+spelling: a candidate with coordinates is renamed from the GeoNames place it is most
+*central* to, among those whose population-scaled cover contains it — so "Bangalore"
+and "Bengaluru", or DB-IP's "Kukatpally" and MaxMind's "Hyderabad", vote together
+instead of splitting. Only fields a candidate asserts are renamed, and country-only
+records are never placed: their coordinates are the country's centroid (ERRORS.md E30).
+
+**`asn_profiles`** walk each ASN's IPv4 space through every installed city database,
+counting only records that name a city, and only give an ASN a `modal_share` once it holds
+a /18 or more — below that, one point is not evidence of a registry collapse.
+
+**Still to come (step 3).** S9 reports `not_configured`, and there is no Nominatim
+street address yet. S10 was dropped (SPEC section 11 row 12, RISKS R23). A
+registry-artifact city collapses to the country, not admin1 (row 11, R22).
 
 ---
 
@@ -552,13 +570,26 @@ load. `TRACELET_DB_MAX_CONNECTIONS` must be kept in step with the
 | Jinja2 environment, per worker | Four compiled templates | Under 1 MB |
 | Cloudflare range table | 22 networks, module constant | Negligible |
 
+**Added in M3:**
+
+| State | Bound | Expected RSS |
+|---|---|---|
+| GeoNames index, per worker | ~35 k places: all of India plus 15 000+ elsewhere, `array` coordinates, interned names | **Measured +9 MB** (78 to 87 MB max RSS, production image, 2026-09-29) |
+| Open geo-database readers, per worker | Seven files, all memory-mapped | Page cache, not RSS: the files total ~470 MB, and a lookup touches a handful of pages |
+| S6 resolver pool | 4 threads, module constant | Negligible |
+| rDNS canary state | One boolean, ten-minute TTL | Negligible |
+
+`asn_profiles` computation is **not** in-process: it runs in a subprocess capped at 1.5 GB
+of address space, once after each database update, for under a minute.
+
 ### 6.4 Two dependency decisions that bought headroom
 
 - **Shapely was eliminated** because PostGIS does the geometry. Choosing PostGIS
   removed a Python dependency rather than adding one.
 - **`reverse_geocoder` was rejected** because it drags in `numpy` and `scipy`, roughly
-  80 MB. Offline reverse geocoding is implemented against GeoNames `cities15000` with a
-  coarse grid bucket plus haversine in pure Python, at roughly 10 MB.
+  80 MB. Offline reverse geocoding is implemented against GeoNames `cities1000`, filtered
+  to India plus places of 15 000+ elsewhere, with 1-degree grid buckets and haversine in
+  pure Python — **measured at 9 MB per worker** in M3.
 
 Before merging anything that adds a dependency, a container, or a long-lived in-process
 cache, state its expected RSS. That is a review gate, not a suggestion.
@@ -573,10 +604,10 @@ cache, state its expected RSS. That is a review gate, not a suggestion.
 |---|---|
 | OS + Docker images | ~4 GB |
 | PostgreSQL data: ~90 k visits, ~720 k candidate rows, rollups, indexes | ~1.5 GB |
-| Offline geo databases (5 installed + 1 staged during update) | ~0.6 GB |
+| Offline geo databases: ~470 MB serving (IP2Location 231, DB-IP City 127, GeoLite2 City 65, GeoNames 32, IPinfo 24, two ASN files 22), the previous version of each kept for rollback, one download staged at a time | **~1.2 GB** (revised in M3 from 0.6 GB) |
 | Backups: 7 daily + 4 weekly, compressed | ~1.5 GB |
 | WAL, logs, scratch | ~1 GB |
-| **Total** | **~8.6 GB**, comfortable |
+| **Total** | **~9.2 GB**, comfortable |
 
 Growth is monitored on the System Health page, with a banner below a configurable
 threshold (F10.AC14). No table partitioning in v1: 90 k rows does not need it, and

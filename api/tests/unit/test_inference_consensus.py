@@ -330,3 +330,33 @@ def test_a_stored_version_with_retired_keys_still_loads() -> None:
         "priors": {"country": 0.6, "admin1": 0.3, "admin2": 0.1, "city": 0.1},
     }
     assert InferenceConfig.from_stored(stored) == DEFAULT_CONFIG
+
+
+# ---------------------------------------------------------------------------
+# admin1 calibration (M3, real lookups; M8 re-derives it from ground truth)
+# ---------------------------------------------------------------------------
+
+
+def test_two_agreeing_databases_settle_the_state() -> None:
+    d = _decide([_db(S.GEOLITE2), _db(S.IP2LOCATION)])
+    assert d.levels[L.ADMIN1].strict == "Karnataka"
+
+
+def test_one_database_alone_does_not_settle_the_state() -> None:
+    d = _decide([_db(S.GEOLITE2)])
+    assert d.levels[L.ADMIN1].strict is None
+    assert d.levels[L.ADMIN1].abstain_reason == "below_threshold"
+
+
+def test_two_against_one_does_not_settle_the_state() -> None:
+    """Excitel, measured in M3: Faridabad, Delhi and Noida from three databases -- B1's
+    own words. Disagreement about the state must abstain, not pick a side."""
+    d = _decide(
+        [
+            _db(S.GEOLITE2, city="Delhi", admin1="Delhi"),
+            _db(S.IP2LOCATION, city="Noida", admin1="Uttar Pradesh"),
+            _db(S.DBIP, city="Faridabad", admin1="Haryana"),
+        ]
+    )
+    assert d.levels[L.ADMIN1].strict is None
+    assert d.levels[L.COUNTRY].strict == "IN"
