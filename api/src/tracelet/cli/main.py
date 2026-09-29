@@ -23,6 +23,7 @@ import sys
 from tracelet import __version__
 from tracelet.cli import admin as admin_cli
 from tracelet.cli import geodb as geodb_cli
+from tracelet.cli import inference as inference_cli
 
 # Commands the milestones add. Listed here so `tracelet --help` is useful now and
 # so the roadmap is visible from the tool itself.
@@ -34,6 +35,10 @@ PLANNED: dict[str, tuple[str, str]] = {
     "geodb status": ("M3", "SHIPPED — installed versions and staleness verdict"),
     "geodb update": ("M3", "SHIPPED — download, verify and atomically swap a geo database"),
     "geodb profiles": ("M3", "SHIPPED — recompute asn_profiles (automatic after an update)"),
+    "inference reset-defaults": (
+        "M3",
+        "SHIPPED — save the built-in defaults as a new settings version",
+    ),
     "label add": ("M8", "record ground truth for one visit"),
     "accuracy report": ("M8", "precision and coverage per level, with sample size"),
     "retention preview": ("M7", "dry run: exactly what a purge would delete"),
@@ -56,6 +61,7 @@ def _build_parser() -> argparse.ArgumentParser:
     sub.add_parser("check-config", help="validate configuration and exit")
     admin_cli.register(sub)
     geodb_cli.register(sub)
+    inference_cli.register(sub)
     return parser
 
 
@@ -117,6 +123,8 @@ def main(argv: list[str] | None = None) -> int:
         return admin_cli.dispatch(args)
     if args.command == "geodb":
         return geodb_cli.dispatch(args)
+    if args.command == "inference":
+        return inference_cli.dispatch(args)
 
     parser.print_help()
     return 0

@@ -18,7 +18,7 @@ then open the PR (CLAUDE.md section 2).
 | M0 | Foundation and CI | M | **[x] done** — CI green on `main`, 69 tests |
 | M1 | Admin auth and account security | L | **[x] done** — 285 tests, 15 bugs recorded as E8–E22 |
 | M2 | Capture path, server-authoritative | L | **[x] done** — 631 tests, Spike B run (Android), 4 bugs recorded as E23–E26 |
-| M3 | Location inference engine | L | [~] all three steps built; a real captured visit and the docs check remain |
+| M3 | Location inference engine | L | **[x] done** — 738 tests (463 unit, 275 integration); real-visit check deferred to M9 (owner decision); 5 bugs recorded as E27–E31 |
 | M4 | Anti-spoofing and classification | L | [ ] |
 | M5 | Dashboard analytics and visualisation | L | [ ] |
 | M6 | Geofencing and Telegram notifications | M | [ ] |
@@ -428,6 +428,11 @@ F12.AC1–F12.AC4, F11.AC1–F11.AC4, F11.AC8, F11.AC10, F13.AC3, F13.AC6, F15.A
 **Done checklist**
 - [ ] A real visit shows the full derivation table: every source, weight, accepted or
       suppressed with reason, latency
+      — ***deferred to M9** (owner decision 2026-09-29).* Locally the visitor is the Docker
+      gateway, because `CF-Connecting-IP` is trusted only from a verified Cloudflare peer
+      (F13.AC6) and a quick tunnel's peer is local; a development-only trust setting was
+      declined. The same pipeline has run end to end on a real address inside the
+      production image (step 2); what is deferred is a *captured* visit.
 - [x] **Registry-artifact suppression demonstrated** on a real Indian broadband IP that the
       databases place in the NCR — city collapses to the country with the reason recorded
       — *Tikona (AS45528) address placed in Delhi, real DB-IP data and the production
@@ -450,7 +455,8 @@ F12.AC1–F12.AC4, F11.AC1–F11.AC4, F11.AC8, F11.AC10, F13.AC3, F13.AC6, F15.A
       previous version serving
       — *seven real databases installed 2026-09-29; corruption, truncation, bad checksum,
       size cap and 404 fallback in `test_geodb_installer.py`*
-- [ ] Docs: ARCHITECTURE section 3, DATA_MODEL sections 5.4, 8.1, 8.2 verified
+- [x] Docs: ARCHITECTURE section 3, DATA_MODEL sections 5.4, 8.1, 8.2 verified — *against the
+      code at `b6aa0e0`; section 3.1 and each DATA_MODEL "as built" note were written with it*
 
 **Progress — step 1 of 3 (2026-09-29): the engine, without the databases.**
 
@@ -495,8 +501,9 @@ by prefix; Nominatim street addresses for consented visits, in-memory cache; sha
 budgets and per-process circuit breakers (`inference/outbound.py`); the privacy page
 discloses both and carries the ODbL attribution.
 
-Left for M3: **one real captured visit viewed through the API** (the first checklist
-item), and the docs verification item.
+A captured real visit was deferred to M9 by the owner (see the first checklist item).
+`tracelet inference reset-defaults` saves the built-in defaults as a new, audited version;
+this development database now runs them as version 31.
 
 ---
 
@@ -691,6 +698,11 @@ item), and the docs verification item.
 - [ ] Every degradation drill leaves **the redirect working**
 - [ ] **Restore drill onto a fresh VM succeeds, with `ip_enc` readable** — proving the
       out-of-band secret backup actually works (ADR-0014)
+- [ ] **Real visits through the Cloudflare path show the full derivation** (deferred from
+      M3, owner decision 2026-09-29): one on mobile data, one on Wi-Fi; every source
+      present in `candidates[]` or `inference.source_absent`, S8 colo populated
+- [ ] **The production resolver answers PTR** (ERRORS.md E27): S6's canary reports healthy
+      on the GCP host, and a real visit's `rdns_ptr` is populated where one exists
 - [ ] Safe Browsing review submitted; outcome recorded in RISKS R8 **whatever it is**
 - [ ] Every doc reconciled with the deployed system
 - [ ] **SC4**: every ADR still accurately describes what was built

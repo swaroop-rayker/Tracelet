@@ -18,9 +18,11 @@ from tests.integration import capture_helpers as ch
 from tests.integration import helpers
 from tests.integration.helpers import ClientFactory, SignedIn, TotpClock
 from tracelet.auth.models import AdminRole
+from tracelet.cli import inference as inference_cli
 from tracelet.config import Settings
 from tracelet.db.engine import get_engine, session_scope
 from tracelet.inference import engine, store
+from tracelet.inference.config import DEFAULT_CONFIG
 from tracelet.inference.sources import rdns
 
 pytestmark = pytest.mark.integration
@@ -225,3 +227,22 @@ async def test_with_every_source_disabled_the_visit_still_abstains_with_reasons(
     }
     assert set(statuses.values()) == {"disabled"}
     assert len(statuses) == len(off["sources"])
+
+
+async def test_the_cli_saves_the_built_in_defaults_as_a_new_audited_version(db_app: object) -> None:
+    """`tracelet inference reset-defaults`: a new version, never an edit, and audited."""
+    del db_app
+    stale = DEFAULT_CONFIG.model_copy(
+        update={"thresholds": DEFAULT_CONFIG.thresholds.model_copy(update={"admin1": 0.70})}
+    )
+    async with session_scope() as db:
+        await store.save_new_version(db, stale, note="pre-calibration", actor=None)
+
+    assert await inference_cli._reset_defaults("test reset") == 0
+
+    async with session_scope() as db:
+        assert (await store.active_settings(db)).config == DEFAULT_CONFIG
+    rows = await ch.audit_details_for_action("inference.settings_changed")
+    assert rows[-1]["via"] == "cli_reset_defaults"
+    assert await inference_cli._reset_defaults("again") == 0, "already defaults: a no-op"
+    assert len(await ch.audit_details_for_action("inference.settings_changed")) == len(rows)

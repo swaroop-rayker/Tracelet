@@ -727,7 +727,9 @@ stamps stay interpretable — F4.AC14.
 (migration 0005, the same shape as `audit_log`). Version 1 is the code default
 (`inference/config.py::DEFAULT_CONFIG`), written the first time anything asks for the
 active version. `inference_version` on a visit is `<engine revision>+s<settings version>`,
-e.g. `m3.1+s1`, naming both halves of what produced it.
+e.g. `m3.1+s1`, naming both halves of what produced it. `tracelet inference reset-defaults`
+saves the current built-in defaults as a new version from the host (audited, `via:
+cli_reset_defaults`), for a database seeded before the defaults changed.
 
 ### 8.5 `retention_policy`
 

@@ -67,10 +67,11 @@ async def active_settings(db: AsyncSession) -> ActiveSettings:
 
 
 async def save_new_version(
-    db: AsyncSession, config: InferenceConfig, *, note: str | None, actor: uuid.UUID
+    db: AsyncSession, config: InferenceConfig, *, note: str | None, actor: uuid.UUID | None
 ) -> InferenceSettingsVersion:
     """Store ``config`` as the next version and make it active. The previous version is
-    kept, inactive, forever."""
+    kept, inactive, forever. ``actor=None`` is the CLI, which is owner-level by virtue of
+    needing shell access to the host."""
     await active_settings(db)  # guarantees version 1 exists before we number from it
     await _lock(db)
     next_version = (

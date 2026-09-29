@@ -64,7 +64,10 @@ class Family(enum.StrEnum):
 
     CLIENT = "client"  # what the visitor's own device reported
     DATABASE = "database"  # registry-derived: S2-S5, S9
-    NETWORK = "network"  # what the network path itself reveals: S6, S7, S8
+    NETWORK = "network"  # the operator's own naming: S6 (PTR), S7 (organisation name)
+    # Cloudflare's edge is chosen by BGP routing, not by anything the operator names, so
+    # it corroborates S6/S7 independently rather than repeating them (m3.3).
+    EDGE = "edge"  # S8
     CONTEXT = "context"  # S11 -- rejects, never proposes
 
 
@@ -77,7 +80,7 @@ FAMILY: dict[InferenceSource, Family] = {
     InferenceSource.EXTERNAL_API: Family.DATABASE,
     InferenceSource.RDNS: Family.NETWORK,
     InferenceSource.ASN_ORG: Family.NETWORK,
-    InferenceSource.CF_COLO: Family.NETWORK,
+    InferenceSource.CF_COLO: Family.EDGE,
     InferenceSource.LATENCY: Family.NETWORK,
     InferenceSource.TIMEZONE: Family.CONTEXT,
 }

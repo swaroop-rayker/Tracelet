@@ -360,3 +360,22 @@ def test_two_against_one_does_not_settle_the_state() -> None:
     )
     assert d.levels[L.ADMIN1].strict is None
     assert d.levels[L.COUNTRY].strict == "IN"
+
+
+def test_the_edge_corroborates_the_operators_naming_independently() -> None:
+    """m3.3: S6 (the ISP's PTR naming) and S8 (Cloudflare's routing) are different
+    families. MTNL's `mum` code and a BOM edge together settle the state, not the city."""
+    rdns = Candidate(
+        source=S.RDNS,
+        level=L.CITY,
+        country_code="IN",
+        admin1="Maharashtra",
+        city="Mumbai",
+        raw_confidence=0.8,
+    )
+    edge = Candidate(
+        source=S.CF_COLO, level=L.CITY, country_code="IN", admin1="Maharashtra", city="Mumbai"
+    )
+    d = _decide([rdns, edge])
+    assert d.levels[L.ADMIN1].strict == "Maharashtra"
+    assert d.levels[L.CITY].strict is None

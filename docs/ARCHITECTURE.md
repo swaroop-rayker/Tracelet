@@ -247,8 +247,9 @@ which is masked before storage (DATA_MODEL 5.1).
 **How consensus weighs sources** (`inference/consensus.py`). Levels are decided
 shallowest first, and a candidate only votes at a level if it agrees with every level
 already chosen — B2's tolerance made structural. Support for a value is a noisy-OR over
-source **families**: the four registry databases and S9 are one family, S6/S7/S8
-another, GPS a third. Agreement *across* families counts in full; agreement *within* the
+source **families**: the four registry databases and S9 are one; S6 and S7, both the
+operator's own naming, another; S8, chosen by Cloudflare's routing, a third (since
+`m3.3`); GPS a fourth. Agreement *across* families counts in full; agreement *within* the
 registry family counts at `within_family_bonus` (0.25), because four databases repeating
 one registry record is the B1 mechanism, not corroboration. Confidence is support × the
 value's share of all weight at that level, so disagreement lowers it.
