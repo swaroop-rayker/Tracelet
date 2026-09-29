@@ -225,7 +225,8 @@ others into timeouts.
 
 ## B6 — Visitor browser refuses to provide data; endpoints mistaken for bot endpoints
 
-**Status:** Diagnosed, fix designed. Verified in **M2**.
+**Status:** Fixed in M2, every fix point under test (2026-09-29). **Not yet observed in a
+browser running a content blocker** — see *Verification* below.
 **Reported:** the visitor browser sometimes refuses to provide data because the capture and
 collection endpoints get mistaken for bot, scraper or crawler endpoints.
 
@@ -259,6 +260,20 @@ pixel-shaped GETs — all patterns filter lists target.
 - `CLAUDE.md` invariant 7 states the rule, because the natural instinct when adding an
   endpoint is to name it descriptively — `/api/v1/telemetry` — which would silently
   reintroduce this.
+
+**Verification — one test per fix point**
+
+| Fix | Test |
+|---|---|
+| 1. Neutral route names | `tests/unit/test_route_names.py` — the CI route-name job, proven in M2 to **fail** on a deliberately-bad route mounted on a real application |
+| 2. Same-origin only | `test_the_csp_permits_nothing_from_another_origin`, `test_the_page_references_no_external_resource` (`tests/unit/test_capture_pages.py`) |
+| 3. No cookies | `test_the_public_surface_sets_no_cookie` (`tests/integration/test_capture_path.py`) — neither the capture page nor the enrichment response sets one. Added 2026-09-29; until then this point was designed but unasserted |
+| 4. JSON POST, not a pixel | `test_enrichment_is_a_json_post_not_a_pixel` (`tests/unit/test_capture_pages.py`). Added 2026-09-29 |
+
+**Still unverified:** no request has been observed passing a real browser with uBlock
+Origin and EasyPrivacy enabled. The tests prove the page avoids what those lists match;
+they do not run the lists. Spike B's browsers delivered enrichment, but none was recorded
+as running a blocker.
 
 ---
 

@@ -84,6 +84,22 @@ async def test_a_visit_with_javascript_disabled_is_still_recorded_and_finalised(
     assert finalised.finalized_at is not None
 
 
+async def test_the_public_surface_sets_no_cookie(db_client: AsyncClient) -> None:
+    """B6 fix 3: nothing a visitor touches sets a cookie, first- or third-party."""
+    link = await ch.create_link()
+    page = await ch.visit(db_client, link.slug)
+    enrichment = await db_client.post(
+        f"/api/v1/s/{ch.nonce_from(page)}",
+        json={},
+        headers={"X-Tracelet-Peer-IP": ch.VISITOR_IP},
+    )
+
+    assert page.status_code == 200
+    assert enrichment.status_code == 204
+    assert "set-cookie" not in page.headers
+    assert "set-cookie" not in enrichment.headers
+
+
 async def test_the_page_is_never_cached(db_client: AsyncClient) -> None:
     """A cached interstitial skips the server, and the visit is never recorded."""
     link = await ch.create_link()
