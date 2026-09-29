@@ -813,7 +813,6 @@ export interface components {
             gps_max_accuracy_m: number;
             /**
              * @default {
-             *       "collapse_to": "admin1",
              *       "min_modal_share": 0.3
              *     }
              */
@@ -1128,12 +1127,6 @@ export interface components {
          * @description Suppression rule (a), F4.AC12(a) -- the B1 fix.
          */
         RegistryArtifact: {
-            /**
-             * Collapse To
-             * @default admin1
-             * @enum {string}
-             */
-            collapse_to: "admin1" | "country";
             /**
              * Min Modal Share
              * @default 0.3

@@ -121,7 +121,7 @@ async def test_a_finalised_visit_is_located_with_its_whole_derivation(
     # F4.AC11: a source that produced nothing still appears, with why.
     absent = _absent(visit)
     assert absent["geolite2"]["reason"] == "database_not_installed"
-    assert absent["latency"]["status"] == "disabled"
+    assert "latency" not in absent, "S10 was dropped (SPEC 11 row 12), not merely disabled"
     assert absent["gps"]["status"] == "empty"
 
 

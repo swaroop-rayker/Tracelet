@@ -45,7 +45,7 @@ than either alone.
 | S7 | ASN and ISP organisation-name parsing | Classifies the connection |
 | S8 | **`CF-Ray` edge colo** | Metro hint, server-side, **survives the WebView** |
 | S9 | ipwho.is, ip-api.com | External, toggleable, cached by prefix |
-| S10 | Latency triangulation | Implemented, **flag off** (RW-6) |
+| S10 | ~~Latency triangulation~~ | **Dropped in M3** — needs third-party requests (SPEC §11 row 12) |
 | S11 | Browser timezone cross-check | **Rejects**, never proposes |
 
 Each emits zero or more candidates and **every candidate is persisted** — winners,
@@ -64,7 +64,9 @@ contradiction lowers it.
 offline databases, along with `modal_share` — the fraction of that ASN entries sitting at
 that one point. A high share is the signature of a database collapsing a whole ISP onto
 its registration address. If the winning city equals that centroid **and** no non-database
-source (S1, S6, S8) corroborates it, the city collapses to `admin1`.
+source (S1, S6, S8) corroborates it, the city collapses to the **country** — amended in M3
+(SPEC section 11 row 11): the registry record that placed the city placed the state too,
+so stopping at `admin1` emitted B1's wrong state as a fact.
 
 **(b) Mobile and CGNAT ASNs.** City candidates are discarded outright; `admin1` is the
 deepest emittable level. Carrier gateways are geographically meaningless at city scale.
@@ -155,5 +157,6 @@ one or the other.
 - Spike A reports low rDNS coverage — revise F4.AC13 targets before building M3.
 - An external source proves consistently wrong for India; down-weight it with evidence
   from `visit_candidates` rather than by intuition.
-- Latency triangulation, once measured in M8, adds meaningful accuracy over S8 — then
-  reconsider the default-off decision in RW-6.
+- ~~Latency triangulation, once measured in M8, adds meaningful accuracy over S8.~~ S10 was
+  dropped in M3 (SPEC section 11 row 12); revisit only with a design that needs no
+  third-party request from the capture page.

@@ -89,7 +89,6 @@ class Settings(BaseSettings):
     # --- geolocation sources (F4.AC5) --------------------------------------
     geo_data_dir: Path = Path("/data/geoip")
     external_geo_enabled: bool = True
-    latency_triangulation_enabled: bool = False
 
     # --- data lifecycle (F12.AC7) ------------------------------------------
     retention_visit_days: int = Field(default=180, ge=1)

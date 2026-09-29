@@ -187,7 +187,6 @@ field sets. See ADR-0005; the deep explanation with worked numbers is in
   ASN + org    ────►│ S7  ISP org-name parsing                  │
   CF-Ray       ────►│ S8  edge colo → metro        ★ webview-safe│
   IP (outbound)────►│ S9  ipwho.is · ip-api.com    toggleable    │
-  RTT probes    ───►│ S10 latency triangulation    FLAG OFF      │
   browser tz   ────►│ S11 timezone cross-check     rejects only  │
                     └────────────────────┬──────────────────────┘
                                          │  candidates persisted, winners AND losers
@@ -204,7 +203,7 @@ field sets. See ADR-0005; the deep explanation with worked numbers is in
                     │ (a) REGISTRY ARTIFACT                     │
                     │     winning city == ASN modal centroid    │
                     │     AND no non-DB corroboration           │
-                    │     → collapse city to admin1   ★ FIXES B1│
+                    │     → collapse to country       ★ FIXES B1│
                     │ (b) MOBILE / CGNAT ASN                    │
                     │     → discard all city candidates         │
                     │ (c) HOSTING / VPN / TOR ASN               │
@@ -248,7 +247,7 @@ which is masked before storage (DATA_MODEL 5.1).
 **How consensus weighs sources** (`inference/consensus.py`). Levels are decided
 shallowest first, and a candidate only votes at a level if it agrees with every level
 already chosen — B2's tolerance made structural. Support for a value is a noisy-OR over
-source **families**: the four registry databases and S9 are one family, S6/S7/S8/S10
+source **families**: the four registry databases and S9 are one family, S6/S7/S8
 another, GPS a third. Agreement *across* families counts in full; agreement *within* the
 registry family counts at `within_family_bonus` (0.25), because four databases repeating
 one registry record is the B1 mechanism, not corroboration. Confidence is support × the
@@ -269,9 +268,9 @@ that produced nothing — disabled, empty, timed out, unavailable, failed — is
 **What M3 step 1 does not yet have.** S2–S5 report `database_not_installed` until the
 geo-database installer lands, and without an ASN database the network is unclassified,
 so rules (a)–(c) cannot fire on real traffic yet. S1 is a bare point until GeoNames
-reverse geocoding names the place. S9 reports `not_configured`. S10 is off and, if
-enabled, reports `conflicts_with_f2_ac12` — see RISKS R23. The registry-artifact collapse
-depth is configuration pending the owner's decision on RISKS R22.
+reverse geocoding names the place. S9 reports `not_configured`. S10 was dropped (SPEC
+section 11 row 12, RISKS R23). A registry-artifact city collapses to the country, not
+admin1 (row 11, R22).
 
 ---
 
@@ -622,8 +621,8 @@ for themselves.
 | `pyotp` | TOTP; small, focused, well-audited | hand-rolled RFC 6238 |
 | `cryptography` | AES-256-GCM for IP at rest; HMAC | `pycryptodome` |
 | `httpx` | Async outbound with timeouts, to external geo APIs and Telegram | `aiohttp` (heavier), `requests` (sync, would block the loop) |
-| `geoip2` | Reads `.mmdb` — GeoLite2, IPinfo Lite **and** DB-IP Lite all ship this format | hand-written mmdb parser |
-| `IP2Location` | IP2Location LITE ships a proprietary BIN format | converting BIN to mmdb ourselves, a maintenance liability |
+| `maxminddb` | Reads `.mmdb` — GeoLite2, IPinfo Lite **and** DB-IP Lite all ship this format — memory-mapped, so a database is page cache, not RSS (CLAUDE.md section 5). **Zero dependencies.** Replaced `geoip2` in M3 with the owner's approval: `geoip2` is a thin wrapper over this reader plus a web-service client, and installs aiohttp, requests and about ten more packages for a client Tracelet never uses (it has `httpx`) | `geoip2` (same reader, twelve extra packages), a hand-written mmdb parser |
+| `IP2Location` | IP2Location LITE ships a proprietary BIN format. Zero dependencies | converting BIN to mmdb ourselves, a maintenance liability |
 | `jinja2` | Server-rendered capture page; already a FastAPI-adjacent standard. **Installed in M2.** Autoescaping is the reason: the destination and the nonce are interpolated into attributes and an inline script | f-string templating, unsafe for HTML |
 | `structlog` | Structured JSON logs with redaction processors | stdlib logging plus a custom formatter |
 | `psutil` | Host CPU, RAM, disk, swap, uptime for System Health | parsing `/proc` by hand |

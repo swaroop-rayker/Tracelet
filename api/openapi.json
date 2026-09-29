@@ -577,7 +577,6 @@
           "registry_artifact": {
             "$ref": "#/components/schemas/RegistryArtifact",
             "default": {
-              "collapse_to": "admin1",
               "min_modal_share": 0.3
             }
           },
@@ -1433,15 +1432,6 @@
         "additionalProperties": false,
         "description": "Suppression rule (a), F4.AC12(a) -- the B1 fix.",
         "properties": {
-          "collapse_to": {
-            "default": "admin1",
-            "enum": [
-              "admin1",
-              "country"
-            ],
-            "title": "Collapse To",
-            "type": "string"
-          },
           "min_modal_share": {
             "default": 0.3,
             "maximum": 1.0,

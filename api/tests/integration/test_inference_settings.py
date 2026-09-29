@@ -51,7 +51,7 @@ async def test_reading_the_settings_seeds_version_one_from_the_defaults(owner: S
     body = response.json()
     assert body["inference_version"] == f"{body['engine_revision']}+s{body['active_version']}"
     assert any(v["version"] == 1 for v in body["versions"])
-    assert body["settings"]["sources"]["latency"]["enabled"] is False, "S10 is off (RW-6)"
+    assert "latency" not in body["settings"]["sources"], "S10 was dropped (SPEC 11 row 12)"
 
 
 async def test_a_change_is_a_new_version_and_is_audited(owner: SignedIn) -> None:

@@ -6,11 +6,9 @@ pure function and the rules are easiest to trust when each one is exercised alon
 
 from __future__ import annotations
 
-from typing import Literal
-
 import pytest
 
-from tracelet.inference.config import DEFAULT_CONFIG, RegistryArtifact
+from tracelet.inference.config import DEFAULT_CONFIG, InferenceConfig
 from tracelet.inference.consensus import Decision, decide
 from tracelet.inference.types import (
     AsnInfo,
@@ -74,12 +72,8 @@ def _decide(
     *,
     asn: AsnInfo = NO_ASN,
     tz: frozenset[str] | None = INDIA,
-    collapse_to: Literal["admin1", "country"] = "admin1",
 ) -> Decision:
-    config = DEFAULT_CONFIG.model_copy(
-        update={"registry_artifact": RegistryArtifact(collapse_to=collapse_to)}
-    )
-    return decide(candidates, asn=asn, tz_countries=tz, config=config)
+    return decide(candidates, asn=asn, tz_countries=tz, config=DEFAULT_CONFIG)
 
 
 def _strict(d: Decision) -> dict[str, str | None]:
@@ -152,19 +146,14 @@ def test_an_uncorroborated_artifact_city_collapses_with_its_reason() -> None:
     assert len(rejected) == 3, "every database that proposed the artifact says why it lost"
 
 
-def test_the_spec_collapse_still_emits_the_artifact_state() -> None:
-    """RISKS R22. F4.AC12(a) as written collapses to admin1 -- and in B1's own example
-    the admin1 is the registry's, not the visitor's. This test pins the behaviour the
-    SPEC asks for, so the owner's decision on R22 changes a test, not a surprise."""
-    d = _decide(_faridabad(), asn=AIRTEL_BROADBAND, collapse_to="admin1")
-    assert d.levels[L.ADMIN1].strict == "Haryana"
-
-
-def test_collapsing_to_country_voids_the_artifact_state_too() -> None:
-    d = _decide(_faridabad(), asn=AIRTEL_BROADBAND, collapse_to="country")
+def test_the_artifact_state_is_voided_with_the_city() -> None:
+    """SPEC section 11 row 11, RISKS R22. B1's visitor is in Karnataka; the registry says
+    Faridabad, Haryana. Collapsing only the city would still emit a strict wrong state."""
+    d = _decide(_faridabad(), asn=AIRTEL_BROADBAND)
 
     assert _strict(d) == {"country": "IN", "admin1": None, "admin2": None, "city": None}
     assert d.levels[L.ADMIN1].abstain_reason == "registry_artifact"
+    assert d.levels[L.ADMIN1].advisory == "Haryana", "the guess stays visible, as a guess"
 
 
 def test_rdns_corroboration_overrides_the_artifact_rule() -> None:
@@ -328,3 +317,16 @@ def test_the_timezone_row_never_carries_weight() -> None:
     d = _decide([*_four_databases(), tz_row])
     assert d.verdicts[-1].weight == 0 and d.verdicts[-1].effective_weight == 0
     assert d.verdicts[-1].accepted
+
+
+def test_a_stored_version_with_retired_keys_still_loads() -> None:
+    """F4.AC14: versions are immutable, so keys retired later are dropped on read --
+    `collapse_to` (SPEC 11 row 11) and S10's `latency` source (row 12)."""
+    stored = DEFAULT_CONFIG.model_dump(mode="json")
+    stored["registry_artifact"]["collapse_to"] = "admin1"
+    stored["sources"]["latency"] = {
+        "enabled": False,
+        "timeout_ms": 500,
+        "priors": {"country": 0.6, "admin1": 0.3, "admin2": 0.1, "city": 0.1},
+    }
+    assert InferenceConfig.from_stored(stored) == DEFAULT_CONFIG

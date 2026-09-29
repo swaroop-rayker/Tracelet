@@ -12,7 +12,7 @@ requires-python = ">=3.13"
 # Ledger). Do not add anything here without adding it there in the same change.
 #
 # Only what M0 actually uses is installed. Later milestones add their own
-# (jinja2 M2, cryptography/argon2-cffi/pyotp M1-M2, geoip2/IP2Location M3,
+# (jinja2 M2, cryptography/argon2-cffi/pyotp M1-M2, maxminddb/IP2Location M3,
 # psutil M7, httpx runtime M1). Installing unused packages would waste memory on
 # a 1 GB box and hide which milestone owns which dependency.
 #

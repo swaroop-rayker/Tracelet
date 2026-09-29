@@ -26,8 +26,8 @@ Severity is `impact × likelihood` at the time of writing, reassessed after each
 | R19 | **Header order and HTTP/2 detail are unobservable behind Caddy** | **High** | **Decided 2026-09-29: header set + re-weighting (SPEC §11 row 7); built in M4** |
 | R20 | A first-visit location prompt cannot be answered inside the interstitial | Medium | **Closed 2026-09-29: never prompt, read an existing grant (SPEC §11 row 8)** |
 | R21 | **A JavaScript-executing Meta scanner passes the crawler gate** | **High** | **Open — requirement on M4** |
-| R22 | **Registry-artifact collapse to admin1 still emits the artifact's state** | **High** | **Open — owner decision (F4.AC12(a))** |
-| R23 | S10 latency triangulation cannot be built without third-party requests | Medium | **Open — owner decision (F4.AC8, F2.AC12)** |
+| R22 | **Registry-artifact collapse to admin1 still emits the artifact's state** | **High** | **Closed 2026-09-29: collapse to country (SPEC §11 row 11)** |
+| R23 | S10 latency triangulation cannot be built without third-party requests | Medium | **Closed 2026-09-29: S10 dropped (SPEC §11 row 12)** |
 
 ---
 
@@ -465,9 +465,10 @@ databases that placed the city on the registry address placed the *state* there 
 collapsing to admin1 turns "wrong city" into "strict, wrong state" — which B2 names as the
 error that is not tolerable, and which CLAUDE.md invariant 5 forbids.
 
-**Measured in the engine, not argued:** `tests/unit/test_inference_consensus.py`
-`test_the_spec_collapse_still_emits_the_artifact_state` — four databases agreeing on
-Faridabad with Airtel's centroid there yield strict `admin1 = Haryana`.
+**Measured in the engine, not argued:** with the collapse at admin1, four databases
+agreeing on Faridabad with Airtel's centroid there yielded strict `admin1 = Haryana`
+(the test that showed it was replaced, after the decision, by
+`test_the_artifact_state_is_voided_with_the_city`).
 
 **What M3 does.** The collapse depth is versioned configuration,
 `registry_artifact.collapse_to`, defaulting to the SPEC's `admin1`. Setting it to
@@ -481,7 +482,11 @@ Faridabad with Airtel's centroid there yield strict `admin1 = Haryana`.
    impossible by construction here, since the artifact city and state come from the same
    registry record; listed so it is not proposed later as a fix.
 
-**Recommendation:** option 1, as a SPEC section 11 amendment to F4.AC12(a). Not applied.
+$1
+
+**Decision, 2026-09-29 (repository owner):** option 1. F4.AC12(a) amended (SPEC section 11
+row 11); the configuration knob is removed rather than kept, so no setting can reintroduce
+a strict wrong state. Engine revision bumped to `m3.2`.
 
 ---
 
@@ -505,6 +510,10 @@ it reports `unavailable` with reason `conflicts_with_f2_ac12` rather than preten
 3. **Keep it as a documented stub** until a design without third parties exists.
 
 **Recommendation:** option 1. Not applied.
+
+**Decision, 2026-09-29 (repository owner):** option 1. S10 dropped (SPEC section 11 row 12);
+Spike D retired. The `latency` value stays in the `inference_source` enum, unused, because
+removing a PostgreSQL enum value costs a table rewrite for nothing.
 
 ---
 
@@ -556,7 +565,7 @@ involve Telegram at all.
 | **A** | Indian residential rDNS metro-code coverage | M3 | M0/M1 | _pending_ |
 | **B** | `fetch(keepalive)` survival in the Instagram webview | M2 | M0/M1 | _pending_ |
 | C | `CF-Ray` colo assignment stability for India | — | M3 | _pending_ |
-| D | Latency-triangulation accuracy contribution over S8 | RW-6 decision | M8 | _pending_ |
+| D | Latency-triangulation accuracy contribution over S8 | RW-6 decision | M8 | **Retired 2026-09-29** — S10 dropped before it could be measured (SPEC §11 row 12, R23) |
 | E | Load behaviour and swap pressure at NFR1 on real hardware | NFR1, NFR6 | M9 | _pending_ |
 
 Record every result here, **including negative ones.** A spike that reports "this does not

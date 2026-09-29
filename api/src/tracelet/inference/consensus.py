@@ -383,9 +383,9 @@ def _registry_artifact(strict: _Pass, asn: AsnInfo, config: InferenceConfig) -> 
         return frozenset()
     if any(v.candidate.source in NON_DATABASE_CORROBORATORS for v in city.votes):
         return frozenset()
-    if rule.collapse_to == "country":
-        return frozenset({GeoLevel.ADMIN1, GeoLevel.ADMIN2, GeoLevel.CITY})
-    return frozenset({GeoLevel.ADMIN2, GeoLevel.CITY})
+    # To country, not admin1: the database that placed the city on the registry address
+    # placed the state there too (SPEC section 11 row 11, RISKS R22).
+    return frozenset({GeoLevel.ADMIN1, GeoLevel.ADMIN2, GeoLevel.CITY})
 
 
 def _artifact_members(strict: _Pass, levels: frozenset[GeoLevel]) -> list[int]:

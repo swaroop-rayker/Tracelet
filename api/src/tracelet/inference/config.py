@@ -13,7 +13,7 @@ in the comments below. They are starting values, to be re-derived from ground tr
 
 from __future__ import annotations
 
-from typing import Final, Literal
+from typing import Any, Final
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -21,7 +21,10 @@ from tracelet.inference.types import GeoLevel, InferenceSource
 
 # Bumped whenever the consensus *algorithm* changes. The settings version is stamped
 # beside it, so a visit's `inference_version` names both halves of what produced it.
-ENGINE_REVISION: Final = "m3.1"
+ENGINE_REVISION: Final = "m3.2"
+# m3.1 -- first cut; a registry-artifact city collapsed to admin1 by default.
+# m3.2 -- the collapse is to country (SPEC section 11 row 11, RISKS R22), and S10 is
+#         gone (row 12, R23). Visits stamped m3.1 keep meaning what they meant.
 
 
 def inference_version(settings_version: int) -> str:
@@ -76,10 +79,9 @@ class RegistryArtifact(_Frozen):
     # A database placing at least this share of an ASN's networks on one point has
     # collapsed the ISP onto its registration address.
     min_modal_share: float = Field(default=0.30, ge=0, le=1)
-    # Which strict level an uncorroborated artifact city falls back to. The SPEC says
-    # admin1. B1's own example -- a Bangalore visitor placed in Faridabad -- has the
-    # wrong *state* too, which is why this is configuration: see docs/RISKS.md R22.
-    collapse_to: Literal["admin1", "country"] = "admin1"
+    # There is deliberately no "collapse depth" here. An uncorroborated artifact city
+    # voids admin1 as well, because the artifact's state is the registry's too -- B1's
+    # Bangalore visitor was placed in Haryana (SPEC section 11 row 11, RISKS R22).
 
 
 class InferenceConfig(_Frozen):
@@ -98,6 +100,23 @@ class InferenceConfig(_Frozen):
 
     def source(self, source: InferenceSource) -> SourceSettings:
         return self.sources[source]
+
+    @classmethod
+    def from_stored(cls, raw: dict[str, Any]) -> InferenceConfig:
+        """Load a version from ``inference_settings``, however old.
+
+        Versions are immutable (F4.AC14), so a key this code no longer has must be
+        dropped on read, never by rewriting the row. Every retirement is listed here with
+        the decision that retired it.
+        """
+        data = dict(raw)
+        artifact = dict(data.get("registry_artifact") or {})
+        artifact.pop("collapse_to", None)  # SPEC 11 row 11: always to country now
+        data["registry_artifact"] = artifact
+        sources = dict(data.get("sources") or {})
+        sources.pop(InferenceSource.LATENCY.value, None)  # SPEC 11 row 12: S10 dropped
+        data["sources"] = sources
+        return cls.model_validate(data)
 
 
 def _p(country: float, admin1: float, admin2: float, city: float) -> LevelPriors:
@@ -127,10 +146,6 @@ DEFAULT_CONFIG: Final = InferenceConfig(
         # S9 -- external APIs. Registry-derived like S2-S5.
         InferenceSource.EXTERNAL_API: SourceSettings(
             timeout_ms=1_500, priors=_p(0.93, 0.55, 0.35, 0.40)
-        ),
-        # S10 -- implemented and OFF by default (RW-6, F4.AC8).
-        InferenceSource.LATENCY: SourceSettings(
-            enabled=False, timeout_ms=500, priors=_p(0.6, 0.3, 0.1, 0.1)
         ),
         # S11 -- never proposes, so its priors are unused; it only penalises (F4.AC9).
         InferenceSource.TIMEZONE: SourceSettings(timeout_ms=50, priors=_p(0, 0, 0, 0)),

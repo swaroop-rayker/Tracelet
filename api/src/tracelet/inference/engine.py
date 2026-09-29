@@ -252,10 +252,8 @@ async def infer_visit(
         InferenceSource.ASN_ORG: lambda: asn_org.produce(inp, toolkit.lexicon),
         InferenceSource.CF_COLO: lambda: colo.produce(inp),
         InferenceSource.TIMEZONE: lambda: timezone.produce(inp),
-        # S9 arrives in M3 step 3. S10 cannot be built as specified without
-        # third-party requests from the capture page, which F2.AC12 forbids (RISKS R23).
+        # S9 arrives in M3 step 3. (S10 was dropped: SPEC section 11 row 12.)
         InferenceSource.EXTERNAL_API: lambda: _unavailable("not_configured"),
-        InferenceSource.LATENCY: lambda: _unavailable("conflicts_with_f2_ac12"),
     }
     for source in _DATABASE_SOURCES:
         work[source] = _from_database(toolkit.databases.get(source), ip)

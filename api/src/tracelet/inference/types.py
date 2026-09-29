@@ -23,7 +23,7 @@ class InferenceSource(enum.StrEnum):
     ASN_ORG = "asn_org"  # S7
     CF_COLO = "cf_colo"  # S8
     EXTERNAL_API = "external_api"  # S9
-    LATENCY = "latency"  # S10
+    LATENCY = "latency"  # S10 -- dropped (SPEC 11 row 12); the DB enum value stays, unused
     TIMEZONE = "timezone"  # S11
 
 
@@ -64,7 +64,7 @@ class Family(enum.StrEnum):
 
     CLIENT = "client"  # what the visitor's own device reported
     DATABASE = "database"  # registry-derived: S2-S5, S9
-    NETWORK = "network"  # what the network path itself reveals: S6, S7, S8, S10
+    NETWORK = "network"  # what the network path itself reveals: S6, S7, S8
     CONTEXT = "context"  # S11 -- rejects, never proposes
 
 

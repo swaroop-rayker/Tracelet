@@ -423,13 +423,13 @@ F12.AC1–F12.AC4, F11.AC1–F11.AC4, F11.AC8, F11.AC10, F13.AC3, F13.AC6, F15.A
 - `inference_settings` versioned config + rollback
 - S9 external APIs: per-source toggle, prefix cache, timeout, circuit breaker
 - Nominatim client at 1 rps, cached, descriptive UA, consented visits only
-- S10 latency triangulation, **implemented and flag-off**
+- ~~S10 latency triangulation, implemented and flag-off~~ — **dropped** (SPEC §11 row 12)
 
 **Done checklist**
 - [ ] A real visit shows the full derivation table: every source, weight, accepted or
       suppressed with reason, latency
 - [ ] **Registry-artifact suppression demonstrated** on a real Indian broadband IP that the
-      databases place in the NCR — city collapses to admin1 with the reason recorded
+      databases place in the NCR — city collapses to the country with the reason recorded
 - [ ] Mobile ASN visit emits **no** city
 - [ ] Hosting ASN visit abstains on all strict levels
 - [ ] Consented visit resolves street address; **non-consented stores no coordinates** —
@@ -457,8 +457,8 @@ geocoding, without which S1 names no place; `asn_profiles` computation, without 
 rule (a) cannot fire on real traffic; S9 and Nominatim (step 3). None of the checklist
 items above is ticked: each needs real databases or a real visit.
 
-**Raised for the owner during step 1:** RISKS R22 (the admin1 collapse keeps the
-artifact's wrong state) and R23 (S10 needs third-party requests F2.AC12 forbids).
+**Raised for the owner during step 1, and decided:** RISKS R22 — the artifact collapse is
+to country (SPEC §11 row 11); R23 — S10 dropped (row 12).
 
 ---
 
@@ -609,7 +609,7 @@ artifact's wrong state) and R23 (S10 needs third-party requests F2.AC12 forbids)
 - CI accuracy job failing on regression below F4.AC13 targets
 - Dashboard accuracy panel with **`label_count` beside every figure**
 - Threshold tuning against real labels; lexicon expansion from observed PTR records
-- **Measure S10 latency triangulation** and decide whether default-off stands (RW-6)
+- ~~Measure S10 latency triangulation~~ — S10 was dropped in M3 (SPEC §11 row 12)
 - Re-run inference on retained ciphertext IPs to validate tuning (the ADR-0007 payoff)
 
 **Done checklist**
@@ -619,7 +619,7 @@ artifact's wrong state) and R23 (S10 needs third-party requests F2.AC12 forbids)
 - [ ] CI job fails on a deliberately-regressed threshold
 - [ ] Per-source accuracy reported; any consistently-wrong source down-weighted **with
       evidence from `visit_candidates`**, not intuition
-- [ ] S10 measured; decision recorded in RISKS and, if changed, an ADR-0005 amendment
+- [x] ~~S10 measured~~ — not applicable: S10 dropped in M3 (SPEC §11 row 12, RISKS R23)
 - [ ] **F4.AC13 targets either met or formally amended in SPEC section 11 with data**
 - [ ] Docs: SPEC F4.AC13 reconciled with measured reality
 

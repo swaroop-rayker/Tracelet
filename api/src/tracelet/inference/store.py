@@ -45,7 +45,7 @@ async def active_settings(db: AsyncSession) -> ActiveSettings:
         )
     ).scalar_one_or_none()
     if row is not None:
-        return ActiveSettings(row.version, InferenceConfig.model_validate(row.settings))
+        return ActiveSettings(row.version, InferenceConfig.from_stored(row.settings))
     await _lock(db)
     # Seed version 1 from the code default. ON CONFLICT covers a concurrent seeder.
     await db.execute(
@@ -63,7 +63,7 @@ async def active_settings(db: AsyncSession) -> ActiveSettings:
             select(InferenceSettingsVersion).where(InferenceSettingsVersion.is_active.is_(True))
         )
     ).scalar_one()
-    return ActiveSettings(row.version, InferenceConfig.model_validate(row.settings))
+    return ActiveSettings(row.version, InferenceConfig.from_stored(row.settings))
 
 
 async def save_new_version(

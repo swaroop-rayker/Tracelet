@@ -80,7 +80,7 @@ could not see it (docs/ERRORS.md E13).
 | `device_class` | `mobile`, `tablet`, `desktop`, `tv`, `server`, `bot`, `unknown` |
 | `geo_level` | `country`, `admin1`, `admin2`, `city`, `point` |
 | `geofence_state` | `inside`, `outside`, `undetermined` |
-| `inference_source` | `gps`, `geolite2`, `ip2location`, `ipinfo`, `dbip`, `rdns`, `asn_org`, `cf_colo`, `external_api`, `latency`, `timezone` |
+| `inference_source` | `gps`, `geolite2`, `ip2location`, `ipinfo`, `dbip`, `rdns`, `asn_org`, `cf_colo`, `external_api`, `latency`, `timezone` — `latency` (S10) is **unused since M3** (SPEC §11 row 12); kept because dropping a PostgreSQL enum value rewrites every table using the type |
 | `notify_priority` | `high`, `normal`, `silent` |
 | `outbox_kind` | `telegram.visit_alert`, `telegram.password_reset`, `telegram.health_alert`, `telegram.test` — `password_reset` is **unused**: reset links are sent synchronously, see the ADR-0009 amendment |
 | `outbox_status` | `pending`, `in_flight`, `done`, `failed`, `dead` |
