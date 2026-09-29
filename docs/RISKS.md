@@ -26,6 +26,8 @@ Severity is `impact × likelihood` at the time of writing, reassessed after each
 | R19 | **Header order and HTTP/2 detail are unobservable behind Caddy** | **High** | **Decided 2026-09-29: header set + re-weighting (SPEC §11 row 7); built in M4** |
 | R20 | A first-visit location prompt cannot be answered inside the interstitial | Medium | **Closed 2026-09-29: never prompt, read an existing grant (SPEC §11 row 8)** |
 | R21 | **A JavaScript-executing Meta scanner passes the crawler gate** | **High** | **Open — requirement on M4** |
+| R22 | **Registry-artifact collapse to admin1 still emits the artifact's state** | **High** | **Open — owner decision (F4.AC12(a))** |
+| R23 | S10 latency triangulation cannot be built without third-party requests | Medium | **Open — owner decision (F4.AC8, F2.AC12)** |
 
 ---
 
@@ -450,6 +452,59 @@ already has: a non-browser UA that executes script; UA-claimed OS vs. client-rep
 hardware; timezone vs. locale; missing WebGL renderer; implausible core count; the
 instant-denial pattern; and temporal clustering with a same-network link-preview burst.
 Spike B's row is the first labelled example.
+
+---
+
+## R22 — Registry-artifact collapse to admin1 still emits the artifact's state · **HIGH**
+
+**Found in M3, while writing suppression rule (a).** F4.AC12(a) says an uncorroborated
+city that sits on its ASN's registry centroid "collapses to admin1". B1 — the bug that
+rule exists to fix — is a Bangalore visitor recorded as **Faridabad or Noida**. Faridabad
+is in **Haryana**, Noida in **Uttar Pradesh**; the visitor is in **Karnataka**. The
+databases that placed the city on the registry address placed the *state* there too, so
+collapsing to admin1 turns "wrong city" into "strict, wrong state" — which B2 names as the
+error that is not tolerable, and which CLAUDE.md invariant 5 forbids.
+
+**Measured in the engine, not argued:** `tests/unit/test_inference_consensus.py`
+`test_the_spec_collapse_still_emits_the_artifact_state` — four databases agreeing on
+Faridabad with Airtel's centroid there yield strict `admin1 = Haryana`.
+
+**What M3 does.** The collapse depth is versioned configuration,
+`registry_artifact.collapse_to`, defaulting to the SPEC's `admin1`. Setting it to
+`country` abstains on admin1 as well, with reason `registry_artifact`. Nothing else changes.
+
+**Options, for the owner:**
+1. **Collapse to country** when the artifact state is also uncorroborated. Recommended: it
+   is the only setting under which B1's own example emits nothing false.
+2. **Keep admin1** as written, accepting a strict wrong state for B1-shaped visits.
+3. **Collapse to admin1 only when the artifact's admin1 differs from `modal_admin1`** —
+   impossible by construction here, since the artifact city and state come from the same
+   registry record; listed so it is not proposed later as a fix.
+
+**Recommendation:** option 1, as a SPEC section 11 amendment to F4.AC12(a). Not applied.
+
+---
+
+## R23 — S10 latency triangulation cannot be built without third-party requests · MEDIUM
+
+**Found in M3.** Triangulating by latency means timing round trips from the visitor to
+several endpoints in known places. This server is in one place, so the endpoints would be
+other people's — and F2.AC12 says the capture page issues **no third-party request**, for
+the reasons B6 records: content blockers kill them, and each one tells another company
+that this visitor exists. Measuring one server's RTT alone yields a distance, not a
+location, and TCP RTT through Cloudflare measures the edge, not the visitor.
+
+**What M3 does.** S10 exists as a source, disabled by default as F4.AC8 requires; enabled,
+it reports `unavailable` with reason `conflicts_with_f2_ac12` rather than pretending.
+
+**Options, for the owner:**
+1. **Drop S10** — amend F4.AC5/F4.AC8 and RW-6. S8 already carries most of its value
+   (RW-6 says so), and Spike D can be retired.
+2. **Allow a narrow exception to F2.AC12** for S10's probes when the flag is on — at the
+   cost B6 describes.
+3. **Keep it as a documented stub** until a design without third parties exists.
+
+**Recommendation:** option 1. Not applied.
 
 ---
 

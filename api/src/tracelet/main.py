@@ -23,6 +23,7 @@ from tracelet.db.engine import dispose_engine, init_engine
 from tracelet.db.request_session import DatabaseSessionMiddleware
 from tracelet.errors import install_error_handlers
 from tracelet.health.router import router as health_router
+from tracelet.inference.router import router as inference_router
 from tracelet.logging import configure_logging
 from tracelet.middleware import AccessLogMiddleware, TraceIdMiddleware
 from tracelet.worker.scheduler import Scheduler
@@ -120,6 +121,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(admins_router)
     app.include_router(links_router)
     app.include_router(visits_router)
+    app.include_router(inference_router)
 
     return app
 

@@ -18,7 +18,7 @@ then open the PR (CLAUDE.md section 2).
 | M0 | Foundation and CI | M | **[x] done** — CI green on `main`, 69 tests |
 | M1 | Admin auth and account security | L | **[x] done** — 285 tests, 15 bugs recorded as E8–E22 |
 | M2 | Capture path, server-authoritative | L | **[x] done** — 631 tests, Spike B run (Android), 4 bugs recorded as E23–E26 |
-| M3 | Location inference engine | L | [ ] |
+| M3 | Location inference engine | L | [~] step 1 of 3 — engine, schema, settings API; databases next |
 | M4 | Anti-spoofing and classification | L | [ ] |
 | M5 | Dashboard analytics and visualisation | L | [ ] |
 | M6 | Geofencing and Telegram notifications | M | [ ] |
@@ -440,6 +440,25 @@ F12.AC1–F12.AC4, F11.AC1–F11.AC4, F11.AC8, F11.AC10, F13.AC3, F13.AC6, F15.A
 - [ ] Geo-database update succeeds; a **deliberately corrupted** download leaves the
       previous version serving
 - [ ] Docs: ARCHITECTURE section 3, DATA_MODEL sections 5.4, 8.1, 8.2 verified
+
+**Progress — step 1 of 3 (2026-09-29): the engine, without the databases.**
+
+Built and tested: migration 0005 (candidates, reference tables, versioned settings, the
+inference queue); ADR-0015 (inference is a scheduled job, not part of a request);
+weighted consensus with family-discounted agreement, hierarchical strict output and the
+three suppression rules (unit-tested, including B1's own Faridabad case); S1 (point
+only), S6 with the E27 resolver canary and PTR masking, S7 classification, S8, S11;
+settings read / new version / rollback, owner-only and audited, with the table
+privilege-protected; `candidates[]` in visit detail.
+
+Not yet: S2–S5 and the installer (step 2 — DB-IP Lite and GeoNames download approved; the
+MaxMind, IP2Location and IPinfo keys are the owner's to add to `.env`); GeoNames reverse
+geocoding, without which S1 names no place; `asn_profiles` computation, without which
+rule (a) cannot fire on real traffic; S9 and Nominatim (step 3). None of the checklist
+items above is ticked: each needs real databases or a real visit.
+
+**Raised for the owner during step 1:** RISKS R22 (the admin1 collapse keeps the
+artifact's wrong state) and R23 (S10 needs third-party requests F2.AC12 forbids).
 
 ---
 

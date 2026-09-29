@@ -1,0 +1,30 @@
+{
+  "about": "S7 and suppression rules (b) and (c) (F4.AC12). Curated ASN lists plus organisation-name keywords. An ASN in 'mobile' has its city candidates discarded; one in 'hosting' abstains on every strict level. Mixed ASNs are classified by their dominant use, and the entry says so.",
+  "mobile": {
+    "45609": "Bharti Airtel -- mobile",
+    "55836": "Reliance Jio -- mobile and JioFiber share this ASN; dominated by mobile, so treated as mobile. JioFiber visitors lose city depth as a result.",
+    "38266": "Vodafone Idea -- mobile",
+    "45271": "Vodafone Idea (Idea Cellular) -- mobile",
+    "55410": "Vodafone Idea -- mobile",
+    "45820": "Tata Teleservices -- mobile"
+  },
+  "cgnat": {},
+  "hosting": {
+    "16509": "Amazon AWS", "14618": "Amazon AWS", "8987": "Amazon AWS",
+    "15169": "Google", "396982": "Google Cloud", "19527": "Google",
+    "8075": "Microsoft Azure", "8068": "Microsoft",
+    "31898": "Oracle Cloud", "14061": "DigitalOcean", "16276": "OVH", "24940": "Hetzner",
+    "63949": "Akamai Linode", "20473": "Vultr (Choopa)", "13335": "Cloudflare",
+    "45102": "Alibaba Cloud", "132203": "Tencent Cloud", "51167": "Contabo",
+    "9009": "M247 -- common VPN egress", "60781": "Leaseweb", "20940": "Akamai", "16625": "Akamai",
+    "54113": "Fastly", "32934": "Meta -- first-party infrastructure; its fetchers and scanners originate here (RISKS R21)",
+    "212238": "Datacamp (CDN77) -- common VPN egress", "136907": "Huawei Cloud", "135377": "UCloud",
+    "55293": "A2 Hosting", "46606": "Unified Layer", "36352": "ColoCrossing", "62567": "DigitalOcean",
+    "40021": "Contabo US", "197540": "netcup", "12876": "Scaleway", "35540": "OVH Telecom"
+  },
+  "hosting_org_keywords": [
+    "hosting", "host europe", "cloud", "data center", "datacenter", "data centre", "server",
+    "vps", "colocation", "colo ", "dedicated", "vpn", "proxy", "cdn"
+  ],
+  "mobile_org_keywords": ["mobile", "cellular", "wireless", "telemedia mobile"]
+}

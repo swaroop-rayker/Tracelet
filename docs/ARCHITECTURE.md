@@ -228,6 +228,51 @@ never fire on a guess. The advisory set is what you *learn from* — it is how y
 the engine thought "Faridabad" and why suppression was right to reject it. Gate 1 chose
 this hybrid explicitly (RW-1).
 
+### 3.1 As built in M3
+
+**Where it runs — ADR-0015.** Not in the enrichment request and not in the sweeper: an
+`infer` job on the ADR-0009 scheduler, every two seconds, over visits that are finalised
+and not yet inferred (`visits.inferred_at IS NULL`). It reads what it needs, runs the
+sources **outside any transaction**, then writes the location columns, the network
+columns and every candidate in one short conditional write, **one savepoint per visit**.
+A failing source is an outcome in the trail; a failing engine or a write the database
+refuses becomes `abstain_reason = engine_error | write_refused` with `inferred_at` set,
+so no visit can wedge the queue (F4.AC18).
+
+**The address is decrypted in memory, for the length of one inference.** ADR-0007 kept
+the ciphertext precisely so inference can run and be re-run; the owner-only, audited
+decrypt of API section 7 governs a *person* reading an address, and is unchanged. The
+engine never logs the address and never writes it — including inside a PTR record,
+which is masked before storage (DATA_MODEL 5.1).
+
+**How consensus weighs sources** (`inference/consensus.py`). Levels are decided
+shallowest first, and a candidate only votes at a level if it agrees with every level
+already chosen — B2's tolerance made structural. Support for a value is a noisy-OR over
+source **families**: the four registry databases and S9 are one family, S6/S7/S8/S10
+another, GPS a third. Agreement *across* families counts in full; agreement *within* the
+registry family counts at `within_family_bonus` (0.25), because four databases repeating
+one registry record is the B1 mechanism, not corroboration. Confidence is support × the
+value's share of all weight at that level, so disagreement lowers it.
+
+**Consent outranks the network.** The three suppression rules describe what an *address*
+can and cannot say. Consented GPS is not derived from the address, so it is exempt: a
+visitor on a VPN who has already granted location is located by GPS rather than abstained
+on (F4.AC1).
+
+**A strict point exists only with a strict city** (DATA_MODEL 5.3 invariant 11, ERRORS.md
+E28). A strict state is not a coordinate, and `geopoint` feeds geofencing.
+
+**Every source appears for every visit.** Candidates go to `visit_candidates`; a source
+that produced nothing — disabled, empty, timed out, unavailable, failed — is an
+`inference.source_absent` entry in `signals` with its reason and latency.
+
+**What M3 step 1 does not yet have.** S2–S5 report `database_not_installed` until the
+geo-database installer lands, and without an ASN database the network is unclassified,
+so rules (a)–(c) cannot fire on real traffic yet. S1 is a bare point until GeoNames
+reverse geocoding names the place. S9 reports `not_configured`. S10 is off and, if
+enabled, reports `conflicts_with_f2_ac12` — see RISKS R23. The registry-artifact collapse
+depth is configuration pending the owner's decision on RISKS R22.
+
 ---
 
 ## 4. Classification pipeline
@@ -647,7 +692,9 @@ tracelet/
 │       │                           #   range verification (F13.AC6)
 │       ├── capture/                # /r/{slug}, enrichment, honeypot, /privacy,
 │       │                           #   links and visits APIs, templates/
-│       ├── inference/              # sources/ S1..S11, consensus, suppression
+│       ├── inference/              # sources/ S1..S11, consensus, suppression,
+│       │                           #   engine.py (the ADR-0015 job), router.py
+│       │                           #   (settings versions), data/ seed files
 │       ├── classification/         # rules/, scoring, cross-checks, honeypot
 │       ├── identity/               # HMAC fingerprint, visitor_id
 │       ├── geofence/               # PostGIS evaluation, GeoJSON import/export
@@ -662,8 +709,11 @@ tracelet/
 │       ├── health/                 # psutil, geo DB freshness, flow diagram
 │       ├── lifecycle/              # retention, purge, backup, restore-verify
 │       ├── crypto/                 # AES-GCM envelope, key loading, rotation
-│       ├── worker/                 # scheduler (M2: sweeper, IP purge); outbox M6
+│       ├── worker/                 # scheduler: sweeper, IP purge (M2), infer
+│       │                           #   (M3); outbox M6
 │       └── cli/                    # tracelet admin …, database update, labelling
+│   ├── spikes/                     # measurement scripts + raw results (Spike A);
+│   │                               #   linted and typed, never in the image
 │   └── tests/
 │       ├── unit/                   # inference, scoring, GCRA, crypto, policy
 │       └── integration/            # API + real PostgreSQL + PostGIS

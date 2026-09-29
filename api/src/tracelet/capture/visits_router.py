@@ -36,6 +36,7 @@ from tracelet.capture.models import Classification, Link, Visit, VisitStage
 from tracelet.capture.service import DECRYPT_PER_ADMIN
 from tracelet.crypto.envelope import DecryptionError, Envelope, open_str
 from tracelet.errors import InternalError, IpPurged, NotFound, RateLimited, ValidationFailed
+from tracelet.inference.models import VisitCandidate
 from tracelet.net import prefix_of
 from tracelet.ratelimit import gcra
 
@@ -132,14 +133,35 @@ class VisitPage(BaseModel):
     next_cursor: str | None
 
 
+class CandidateOut(BaseModel):
+    """One row of the derivation trail (F4.AC11, DATA_MODEL section 5.4)."""
+
+    source: str
+    level: str
+    country_code: str | None
+    admin1: str | None
+    admin2: str | None
+    city: str | None
+    lat: float | None
+    lng: float | None
+    raw_confidence: float
+    weight: float
+    effective_weight: float
+    accepted: bool
+    suppressed_reason: str | None
+    evidence: dict[str, Any]
+    latency_ms: int
+
+
 class VisitDetail(VisitSummary):
     finalized_at: dt.datetime | None
+    inferred_at: dt.datetime | None
     trace_id: str | None
     classifier_version: str | None
     inference_version: str | None
     consent_state: str
     signals: list[dict[str, Any]]
-    candidates: list[dict[str, Any]]
+    candidates: list[CandidateOut]
     client: dict[str, Any]
     request: dict[str, Any]
     referer: str | None
@@ -195,7 +217,7 @@ def _summary(visit: Visit, link: Link) -> VisitSummary:
                 "city": _f(visit.confidence_city),
             },
             abstain_reason=dict(visit.abstain_reason),
-            primary_source=None,
+            primary_source=visit.geo_source_primary.value if visit.geo_source_primary else None,
             has_gps=visit.gps_lat is not None,
         ),
         network=NetworkBlock(
@@ -238,17 +260,38 @@ def _hex(value: bytes | None) -> str | None:
     return value.hex() if value else None
 
 
-def _detail(visit: Visit, link: Link) -> VisitDetail:
+def _candidate(c: VisitCandidate) -> CandidateOut:
+    return CandidateOut(
+        source=c.source.value,
+        level=c.level.value,
+        country_code=c.country_code,
+        admin1=c.admin1,
+        admin2=c.admin2,
+        city=c.city,
+        lat=_f(c.lat),
+        lng=_f(c.lng),
+        raw_confidence=float(c.raw_confidence),
+        weight=float(c.weight),
+        effective_weight=float(c.effective_weight),
+        accepted=c.accepted,
+        suppressed_reason=c.suppressed_reason,
+        evidence=dict(c.evidence),
+        latency_ms=c.latency_ms,
+    )
+
+
+def _detail(visit: Visit, link: Link, candidates: list[VisitCandidate]) -> VisitDetail:
     base = _summary(visit, link).model_dump()
     return VisitDetail(
         **base,
         finalized_at=visit.finalized_at,
+        inferred_at=visit.inferred_at,
         trace_id=visit.trace_id,
         classifier_version=visit.classifier_version,
         inference_version=visit.inference_version,
         consent_state=visit.consent_state.value,
         signals=list(visit.signals),
-        candidates=[],  # M3: the per-source inference trail (F4.AC11)
+        candidates=[_candidate(c) for c in candidates],
         client={
             "screen_w": visit.screen_w,
             "screen_h": visit.screen_h,
@@ -388,7 +431,14 @@ async def _load(db: DbSession, visit_id: str) -> tuple[Visit, Link]:
 async def get_visit(visit_id: str, principal: CurrentPrincipal, db: DbSession) -> VisitDetail:
     del principal
     visit, link = await _load(db, visit_id)
-    return _detail(visit, link)
+    candidates = (
+        await db.execute(
+            select(VisitCandidate)
+            .where(VisitCandidate.visit_id == visit.id)
+            .order_by(VisitCandidate.id)
+        )
+    ).scalars()
+    return _detail(visit, link, list(candidates))
 
 
 @router.get(

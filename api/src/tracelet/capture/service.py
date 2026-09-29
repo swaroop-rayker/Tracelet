@@ -632,10 +632,14 @@ async def stuck_visits(db: AsyncSession) -> int:
     is on the correctness path, that means visits are not being finalised, inferred or
     notified on (ADR-0009). Reported by the scheduler and, from M7, System Health.
     """
+    # Two queues, one question: never finalised (the sweeper), or finalised but never
+    # located (the inference job, ADR-0015). Either means visits are silently piling up.
     count = await db.execute(
         text(
             "SELECT count(*) FROM visits "
-            "WHERE finalized_at IS NULL AND occurred_at < now() - make_interval(secs => :after)"
+            "WHERE (finalized_at IS NULL AND occurred_at < now() - make_interval(secs => :after)) "
+            "OR (finalized_at IS NOT NULL AND inferred_at IS NULL AND stage <> 'rate_limited' "
+            "AND finalized_at < now() - make_interval(secs => :after))"
         ),
         {"after": STUCK_AFTER.total_seconds()},
     )

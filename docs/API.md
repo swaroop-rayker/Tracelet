@@ -455,6 +455,15 @@ classification rule with weight and evidence — F5.AC2), all raw client fields,
 `inference_version`, `classifier_version`, `trace_id`, and `ground_truth_label` when one
 exists.
 
+**As shipped in M3:** each candidate is
+`{source, level, country_code, admin1, admin2, city, lat, lng, raw_confidence, weight,
+effective_weight, accepted, suppressed_reason, evidence, latency_ms}` (DATA_MODEL 5.4).
+A source that produced **no** candidate appears in `signals[]` as
+`inference.source_absent` with its status and reason — together the two lists cover
+every source for every visit. `inferred_at` is added beside `finalized_at`; `null` means
+the visit is still in the inference queue (ADR-0015), not that inference failed.
+`location.primary_source` names the source behind the deepest advisory value.
+
 ### `GET /api/v1/visits/{id}/ip` — `owner` only
 
 Decrypts and returns the IP for one visit.
@@ -569,6 +578,21 @@ GEOFENCE_TOO_MANY_VERTICES` above 2000 (F6.AC4).
 `/health/retention/preview` exists because a purge is irreversible. **The UI must call
 preview before purge**; the API does not enforce ordering, but the dashboard does and
 the audit log records both.
+
+### `/api/v1/health/inference` — as shipped in M3
+
+`GET` returns `{engine_revision, active_version, inference_version, settings, versions[]}`,
+where `inference_version` is exactly what a visit inferred now will be stamped with
+(`m3.1+s2`), and `versions[]` lists every retained version with `is_active`, `note`,
+`created_at` and `created_by`. The first read seeds version 1 from the built-in defaults.
+
+`PATCH` takes `{settings, note?}` where **`settings` is the complete object**, not a
+fragment: it becomes the next version as a whole, so a version always means one exact,
+reviewable configuration. Validation is total — a threshold of `1.7` is a `422` and
+nothing is saved. `POST /rollback/{version}` reactivates an existing version (`404` if
+there is none; rolling back to the active version is a no-op and writes no audit row).
+Both writes are owner-only and record `inference.settings_changed` (with the dotted paths
+that changed) or `inference.settings_rolled_back`. `/flow` is M7's (F10.AC8).
 
 ---
 

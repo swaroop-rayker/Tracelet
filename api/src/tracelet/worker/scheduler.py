@@ -29,6 +29,7 @@ from sqlalchemy import text
 
 from tracelet.capture import service
 from tracelet.db.engine import session_scope
+from tracelet.inference import engine as inference
 
 log = structlog.get_logger(__name__)
 
@@ -86,6 +87,10 @@ JOBS: tuple[Job, ...] = (
     # The IP TTL is days; ten minutes of slack on a 30-day clock is irrelevant, and
     # running it often keeps each batch small.
     Job(name="ip_purge", every_seconds=600, run=service.run_ip_purge_once),
+    # Location inference over finalised visits (ADR-0015). Two seconds is the latency
+    # between a visit ending and its location being known; nothing a visitor sees
+    # waits on it.
+    Job(name="infer", every_seconds=2, run=inference.run_job_once),
 )
 
 

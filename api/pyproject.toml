@@ -65,7 +65,7 @@ where = ["src"]
 # The capture page is rendered from templates shipped inside the package, so the
 # production image needs them in the wheel -- not only in a source checkout.
 [tool.setuptools.package-data]
-tracelet = ["capture/templates/*.html"]
+tracelet = ["capture/templates/*.html", "inference/data/*.json"]
 
 # ---------------------------------------------------------------------------
 # Ruff — lint and format (ES2)

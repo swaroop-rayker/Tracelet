@@ -76,6 +76,10 @@ class Action:
     # visits (M2)
     IP_DECRYPTED: Final = "visit.ip_decrypted"  # F12.AC4
 
+    # location inference (M3, F4.AC14) -- owner-only configuration, invariant 9
+    INFERENCE_SETTINGS_CHANGED: Final = "inference.settings_changed"
+    INFERENCE_SETTINGS_ROLLED_BACK: Final = "inference.settings_rolled_back"
+
     # reserved for later milestones, listed so the vocabulary is visible
     RETENTION_PURGED: Final = "retention.purged"  # M7
     SETTINGS_CHANGED: Final = "settings.changed"  # M7
