@@ -52,7 +52,7 @@ revisiting it.
                        │ db  PG16+PostGIS  │ │ geo DB files │ │ outbound      │
                        │     mem_limit 260M│ │ • GeoLite2   │ │ • Telegram    │
                        │                   │ │ • IP2Loc     │ │ • ipwho.is    │
-                       │ visits            │ │ • IPinfo     │ │ • ip-api.com  │
+                       │ visits            │ │ • IPinfo     │ │   by /24 only │
                        │ visit_candidates  │ │ • DB-IP      │ │ • Nominatim   │
                        │ geofences (GiST)  │ │ • GeoNames   │ │ (all: timeout │
                        │ outbox · sessions │ └──────────────┘ │  + breaker)   │
@@ -186,7 +186,7 @@ field sets. See ADR-0005; the deep explanation with worked numbers is in
   PTR record   ────►│ S6  rDNS city-code lexicon   ★ India key  │
   ASN + org    ────►│ S7  ISP org-name parsing                  │
   CF-Ray       ────►│ S8  edge colo → metro        ★ webview-safe│
-  IP (outbound)────►│ S9  ipwho.is · ip-api.com    toggleable    │
+  IP /24 (out) ───►│ S9  ipwho.is, by prefix      toggleable    │
   browser tz   ────►│ S11 timezone cross-check     rejects only  │
                     └────────────────────┬──────────────────────┘
                                          │  candidates persisted, winners AND losers
@@ -286,9 +286,18 @@ records are never placed: their coordinates are the country's centroid (ERRORS.m
 counting only records that name a city, and only give an ASN a `modal_share` once it holds
 a /18 or more — below that, one point is not evidence of a registry collapse.
 
-**Still to come (step 3).** S9 reports `not_configured`, and there is no Nominatim
-street address yet. S10 was dropped (SPEC section 11 row 12, RISKS R23). A
-registry-artifact city collapses to the country, not admin1 (row 11, R22).
+**Outbound (step 3).** S9 asks ipwho.is — the only external API, ip-api.com having
+failed F4.AC5's HTTPS requirement (RISKS R2) — about the visitor's **/24 network
+address**, never the host, and caches the answer by prefix for seven days, negative
+answers included. Consented visits get a street address from Nominatim, after the
+decision; its cache is in memory (rounded to ~11 m, 256 entries, a day), deliberately not
+a table, so no second copy of consented addresses outlives visit retention. Both go
+through `inference/outbound.py`: a shared GCRA budget in PostgreSQL (ipwho.is 900/day;
+Nominatim 4/min, the policy's figure for scheduled use) and a per-process circuit
+breaker (five consecutive failures open it for two minutes, then one trial call).
+`TRACELET_EXTERNAL_GEO_ENABLED=false` stops both; `street_address_enabled` in the
+versioned settings stops Nominatim alone. S10 was dropped (SPEC section 11 row 12, RISKS
+R23). A registry-artifact city collapses to the country, not admin1 (row 11, R22).
 
 ---
 
@@ -362,7 +371,7 @@ every derivation be visible.
   TRUSTED    offline geo databases (checksum-verified on install),
              the process environment, the IP key file.
   ─────────────────────────────────────────────────────────────────────────────
-  EXTERNAL   Telegram, ipwho.is, ip-api.com, Nominatim: responses are data,
+  EXTERNAL   Telegram, ipwho.is, Nominatim: responses are data,
              never instructions; every call has a timeout and a breaker.
 ```
 

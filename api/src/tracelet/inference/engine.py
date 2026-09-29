@@ -31,7 +31,7 @@ from tracelet.capture.models import ConsentState, Visit, VisitStage
 from tracelet.config import Settings, get_settings
 from tracelet.crypto.envelope import DecryptionError, Envelope, open_str
 from tracelet.db.engine import session_scope
-from tracelet.inference import consensus, store
+from tracelet.inference import consensus, nominatim, store
 from tracelet.inference.config import InferenceConfig, inference_version
 from tracelet.inference.models import VisitCandidate
 from tracelet.inference.sources import (
@@ -41,6 +41,7 @@ from tracelet.inference.sources import (
     SourceUnavailable,
     asn_org,
     colo,
+    external,
     gps,
     rdns,
     timezone,
@@ -106,6 +107,10 @@ class Inferred:
     asn: AsnInfo
     ptr_masked: str | None
     error: str | None = None
+    # Street level, consented visits only (F4.AC3). The CHECK constraint refuses it on
+    # any other visit, so a bug here fails loudly rather than storing it.
+    resolved_address: str | None = None
+    address_absent: str | None = None
 
 
 # ---------------------------------------------------------------------------
@@ -160,10 +165,6 @@ async def _timed(
     latency = _ms(started)
     stamped = [dataclasses.replace(c, latency_ms=latency) for c in found]
     return stamped, SourceOutcome(source, "ok" if stamped else "empty", latency)
-
-
-async def _unavailable(reason: str) -> list[Candidate]:
-    raise SourceUnavailable(reason)
 
 
 def _from_database(
@@ -253,7 +254,9 @@ async def infer_visit(
         InferenceSource.CF_COLO: lambda: colo.produce(inp),
         InferenceSource.TIMEZONE: lambda: timezone.produce(inp),
         # S9 arrives in M3 step 3. (S10 was dropped: SPEC section 11 row 12.)
-        InferenceSource.EXTERNAL_API: lambda: _unavailable("not_configured"),
+        InferenceSource.EXTERNAL_API: lambda: external.produce(
+            inp, settings, config.source(InferenceSource.EXTERNAL_API).timeout_ms / 1000 * 0.9
+        ),
     }
     for source in _DATABASE_SOURCES:
         work[source] = _from_database(toolkit.databases.get(source), ip)
@@ -280,6 +283,7 @@ async def infer_visit(
         tz_countries=timezone.countries_for(facts.tz_iana),
         config=config,
     )
+    address, address_absent = await _street_address(facts, inp, settings, config)
     return Inferred(
         visit_id=facts.id,
         version=version,
@@ -288,7 +292,26 @@ async def infer_visit(
         decision=decision,
         asn=asn,
         ptr_masked=rdns.mask_ptr(ptr) if ptr else None,
+        resolved_address=address,
+        address_absent=address_absent,
     )
+
+
+async def _street_address(
+    facts: VisitFacts, inp: SourceInput, settings: Settings, config: InferenceConfig
+) -> tuple[str | None, str | None]:
+    """(address, reason it is absent). Only a visit with consented GPS is ever asked
+    about (F4.AC3); every other visit has no address and needs no reason."""
+    gps_point = inp.gps
+    if facts.consent_state is not ConsentState.GRANTED or gps_point is None:
+        return None, None
+    if not config.street_address_enabled:
+        return None, "disabled"
+    try:
+        address = await nominatim.street_address(settings, gps_point.lat, gps_point.lng)
+    except SourceUnavailable as exc:
+        return None, exc.reason
+    return address, None if address else "no_address_known"
 
 
 def _combine(classified: AsnInfo, profiled: AsnInfo) -> AsnInfo:
@@ -455,6 +478,17 @@ async def persist(db: AsyncSession, result: Inferred) -> bool:
                 "detail": {"error": result.error},
             }
         )
+    if result.address_absent is not None:
+        absences.append(
+            {
+                "rule_id": "inference.street_address_absent",
+                "category": "absence",
+                "weight": 0,
+                "detail": {"reason": result.address_absent},
+            }
+        )
+    if result.resolved_address is not None:
+        values["resolved_address"] = result.resolved_address
     if absences:
         values["signals"] = Visit.signals.op("||")(literal(absences, type_=pg.JSONB))
     row = (

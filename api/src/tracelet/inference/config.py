@@ -101,6 +101,10 @@ class InferenceConfig(_Frozen):
     # Coordinates from consented GPS are only trusted when the browser claims this
     # accuracy or better; a 50 km "fix" is a coarse IP guess in disguise.
     gps_max_accuracy_m: float = Field(default=5_000, gt=0)
+    # Street addresses for consented visits, from Nominatim (F4.AC4). The only lookup
+    # that sends coordinates rather than a network; off here stops it without touching
+    # the rest of inference.
+    street_address_enabled: bool = True
 
     def source(self, source: InferenceSource) -> SourceSettings:
         return self.sources[source]

@@ -189,3 +189,39 @@ async def test_a_visit_inferred_after_a_change_carries_the_new_version(
     assert detail.json()["inference_version"] == changed["inference_version"]
     assert detail.json()["inferred_at"] is not None
     rdns.reset_canary_for_tests()
+
+
+async def test_with_every_source_disabled_the_visit_still_abstains_with_reasons(
+    owner: SignedIn,
+    db_client: AsyncClient,
+    integration_settings: Settings,
+) -> None:
+    """M3 done-check, F4.AC18: every source switched off through settings -- not merely
+    silent -- still yields an inferred visit with country=NULL and a reason for each."""
+    current = (await owner.client.get(SETTINGS)).json()
+    off = dict(current["settings"])
+    off["sources"] = {k: {**v, "enabled": False} for k, v in current["settings"]["sources"].items()}
+    saved = await owner.client.patch(
+        SETTINGS, json={"settings": off, "note": "all off"}, headers=owner.headers()
+    )
+    assert saved.status_code == 200
+
+    link = await ch.create_link()
+    page = await ch.visit(db_client, link.slug)
+    await db_client.post(
+        f"/api/v1/s/{ch.nonce_from(page)}", json={}, headers={"X-Tracelet-Peer-IP": ch.VISITOR_IP}
+    )
+    visit_id = (await ch.latest_visit(link.id)).id
+    await engine.run_once(integration_settings, only=[visit_id])
+
+    visit = await ch.get_visit(visit_id)
+    assert visit.inferred_at is not None
+    assert visit.strict_country_code is None
+    assert visit.abstain_reason["country"] == "no_candidates"
+    statuses = {
+        s["detail"]["source"]: s["detail"]["status"]
+        for s in visit.signals
+        if s["rule_id"] == "inference.source_absent"
+    }
+    assert set(statuses.values()) == {"disabled"}
+    assert len(statuses) == len(off["sources"])

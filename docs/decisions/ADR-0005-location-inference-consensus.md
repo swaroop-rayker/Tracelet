@@ -44,7 +44,7 @@ than either alone.
 | S6 | **rDNS PTR city-code lexicon** | Highest-value free India signal |
 | S7 | ASN and ISP organisation-name parsing | Classifies the connection |
 | S8 | **`CF-Ray` edge colo** | Metro hint, server-side, **survives the WebView** |
-| S9 | ipwho.is, ip-api.com | External, toggleable, cached by prefix |
+| S9 | ipwho.is | External, toggleable, cached by prefix. **ip-api.com dropped in M3**: its free endpoint is HTTP-only and non-commercial, failing F4.AC5's "HTTPS" (RISKS R2) |
 | S10 | ~~Latency triangulation~~ | **Dropped in M3** — needs third-party requests (SPEC §11 row 12) |
 | S11 | Browser timezone cross-check | **Rejects**, never proposes |
 

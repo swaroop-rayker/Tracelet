@@ -822,6 +822,11 @@ export interface components {
                 [key: string]: components["schemas"]["SourceSettings"];
             };
             /**
+             * Street Address Enabled
+             * @default true
+             */
+            street_address_enabled: boolean;
+            /**
              * @default {
              *       "admin1": 0.75,
              *       "admin2": 0.75,

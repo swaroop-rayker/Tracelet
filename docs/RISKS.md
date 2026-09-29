@@ -210,6 +210,18 @@ silently to the remaining sources; outbound budgets (F11.AC7) so a traffic spike
 trigger a ban. **Consequence:** accuracy must never depend on any single external source,
 which the consensus design already enforces.
 
+**Checked in M3 (2026-09-29), and one service dropped.** ip-api.com's free endpoint is
+**HTTP only** — its docs: "256-bit SSL encryption is not available for this free API" —
+and licensed for non-commercial use only. It would send a visitor's network address in
+plaintext and fails F4.AC5's own "HTTPS", so S9 does not use it. **ipwho.is** is HTTPS,
+needs no key, allows commercial use, and publishes its limit: 1 000 requests a day per
+client address. The budget is set at 900/day; with the /24 cache and ~500 visits a day it
+is not approached. The lookup is made for the prefix's *network address*, not the
+visitor's, so the third party learns the network only. Nominatim's policy was checked
+too: 1 req/s absolute, **4/min for anything on a schedule**, identifying User-Agent,
+caching, ODbL attribution — the 4/min budget governs, the User-Agent is sent on every
+request, and the privacy page carries the attribution.
+
 ---
 
 ## R4 — Geo-database update memory spike

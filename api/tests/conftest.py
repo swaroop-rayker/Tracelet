@@ -103,6 +103,10 @@ def integration_settings(ip_key_file: Path) -> Settings:
         # reachable and reach their error branch honestly; the one test that asserts
         # successful delivery intercepts the send instead of letting it out.
         telegram_bot_token=SecretStr("integration-test-bot-token"),
+        # No test may reach ipwho.is or Nominatim by accident: the suite must not
+        # depend on a third party, nor spend its budget. The S9 and Nominatim tests
+        # switch this on with an intercepted transport.
+        external_geo_enabled=False,
         # The capture path degrades rather than failing when these are absent -- so a
         # suite without them would pass while testing visits with no ip_hmac and no
         # enrichment nonce. Present, so the real code paths run.

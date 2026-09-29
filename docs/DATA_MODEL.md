@@ -421,6 +421,8 @@ weight 0. M2 records three: `ua.link_preview_fetcher`, `edge.unverified_cf_heade
 `client.geolocation_absent`. M3 adds `inference.source_absent` — one per source that
 produced no candidate, with `{source, status, latency_ms, reason}`, where `status` is
 `empty`, `disabled`, `timeout`, `unavailable` or `error` — and `inference.engine_error`.
+`inference.street_address_absent` records why a consented visit has no street address
+(`disabled`, `circuit_open`, `rate_budget_spent`, `request_failed:*`, `no_address_known`).
 Together with `visit_candidates` they make every source visible for every visit
 (F4.AC11), including the ones that said nothing.
 

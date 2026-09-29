@@ -590,6 +590,11 @@
             "title": "Sources",
             "type": "object"
           },
+          "street_address_enabled": {
+            "default": true,
+            "title": "Street Address Enabled",
+            "type": "boolean"
+          },
           "thresholds": {
             "$ref": "#/components/schemas/Thresholds",
             "default": {

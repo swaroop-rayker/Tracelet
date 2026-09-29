@@ -18,7 +18,7 @@ then open the PR (CLAUDE.md section 2).
 | M0 | Foundation and CI | M | **[x] done** — CI green on `main`, 69 tests |
 | M1 | Admin auth and account security | L | **[x] done** — 285 tests, 15 bugs recorded as E8–E22 |
 | M2 | Capture path, server-authoritative | L | **[x] done** — 631 tests, Spike B run (Android), 4 bugs recorded as E23–E26 |
-| M3 | Location inference engine | L | [~] step 2 of 3 — engine and all offline databases; S9 and Nominatim next |
+| M3 | Location inference engine | L | [~] all three steps built; a real captured visit and the docs check remain |
 | M4 | Anti-spoofing and classification | L | [ ] |
 | M5 | Dashboard analytics and visualisation | L | [ ] |
 | M6 | Geofencing and Telegram notifications | M | [ ] |
@@ -435,10 +435,16 @@ F12.AC1–F12.AC4, F11.AC1–F11.AC4, F11.AC8, F11.AC10, F13.AC3, F13.AC6, F15.A
       `registry_artifact`, advisory still Delhi. 2026-09-29.*
 - [x] Mobile ASN visit emits **no** city — *Jio (AS55836), real data, same method: `mobile_asn`, no city even advisory*
 - [x] Hosting ASN visit abstains on all strict levels — *AWS Mumbai (AS16509), real data, same method: `hosting_asn` on every level*
-- [ ] Consented visit resolves street address; **non-consented stores no coordinates** —
+- [x] Consented visit resolves street address; **non-consented stores no coordinates** —
       `CHECK` constraint proven
-- [ ] Disabling every source still redirects and records `country=NULL` + reason (F4.AC18)
-- [ ] External API timeout opens the breaker; inference completes on remaining sources
+      — *`test_a_consented_visit_gets_a_street_address`,
+      `test_a_visit_without_consent_is_never_sent_to_nominatim`; the CHECK is proven by
+      `test_the_engine_itself_refuses_coordinates_without_consent` (M2)*
+- [x] Disabling every source still redirects and records `country=NULL` + reason (F4.AC18)
+      — *`test_with_every_source_disabled_the_visit_still_abstains_with_reasons`; the
+      redirect is independent of inference by construction (ADR-0015)*
+- [x] External API timeout opens the breaker; inference completes on remaining sources
+      — *`test_timeouts_open_the_breaker_and_inference_completes_without_it`*
 - [x] Settings version bump then rollback, both audit-logged — *integration tests, `test_inference_settings.py`*
 - [x] Geo-database update succeeds; a **deliberately corrupted** download leaves the
       previous version serving
@@ -483,9 +489,14 @@ action. Found and fixed: E30 (MaxMind's country centroid read as a placement), E
 (credentials in a repr). Raised: RISKS R24 (a regional ISP looks like a registry
 collapse).
 
-Not yet: S9 and its breaker, Nominatim (step 3); a test that *disables* every source
-through settings (the "every source silent" case is tested); a real captured visit viewed
-through the API; the docs checklist item.
+**Progress — step 3 of 3 (2026-09-29): outbound.** S9 on ipwho.is only (ip-api.com
+is HTTP-only and non-commercial; RISKS R2), asked about the /24 network address and cached
+by prefix; Nominatim street addresses for consented visits, in-memory cache; shared GCRA
+budgets and per-process circuit breakers (`inference/outbound.py`); the privacy page
+discloses both and carries the ODbL attribution.
+
+Left for M3: **one real captured visit viewed through the API** (the first checklist
+item), and the docs verification item.
 
 ---
 
