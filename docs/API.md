@@ -52,6 +52,11 @@ The tracking link. **Returns 200 `text/html`, never a 3xx** (F2.AC1) — a 302 o
 collection opportunity and is the pattern Safe Browsing classifies as an open
 redirector (B4).
 
+**`GET /r` and `GET /r/`** — the same, through the **default link** (F1.AC3 as amended). Both
+spellings answer directly, never with a slash redirect. With no default, or an inactive one,
+the answer is the same 404 as an unknown slug. It is not a fallback: a bad slug is still a
+404.
+
 | | |
 |---|---|
 | Auth | None |
@@ -648,7 +653,7 @@ redirects, or a 404. Any internal failure is logged and the redirect still happe
 
 | Route class | Limit | Key |
 |---|---|---|
-| `GET /r/{slug}` | 30/min, 300/hr, burst 10 | IP prefix |
+| `GET /r/{slug}`, `/r`, `/r/` | 30/min, 300/hr, burst 10 | IP prefix |
 | `POST /api/v1/s/{nonce}` | Once per nonce, ever (F11.AC4); and 60/min (burst 20) | nonce; IP prefix |
 | `GET /api/v1/hp/{token}` | 10/min | IP prefix |
 | `POST /api/v1/auth/login` | 5 per 15 min (burst 5); 20/hr (burst 10) | identifier; IP prefix |

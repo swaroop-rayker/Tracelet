@@ -13,11 +13,11 @@ from __future__ import annotations
 
 import ipaddress
 import re
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Awaitable
 from contextlib import asynccontextmanager
 
 import pytest
-from httpx import ASGITransport, AsyncClient
+from httpx import ASGITransport, AsyncClient, Response
 from sqlalchemy import text
 
 from tests.conftest import BASE_URL
@@ -27,6 +27,7 @@ from tracelet.capture import pages, service
 from tracelet.capture.models import (
     Classification,
     DeviceClass,
+    Link,
     VisitStage,
 )
 from tracelet.config import Settings
@@ -127,6 +128,93 @@ async def test_a_slug_matches_case_insensitively(db_client: AsyncClient) -> None
     response = await ch.visit(db_client, link.slug.upper())
     assert response.status_code == 200
     assert await ch.visit_count(link.id) == 1
+
+
+# ---------------------------------------------------------------------------
+# The bare /r/ goes through the default link (F1.AC3 as amended)
+# ---------------------------------------------------------------------------
+
+
+async def _default_link(*, is_active: bool = True, destination: str = ch.DESTINATION) -> Link:
+    """Make a fresh ``t-`` link the default; ``_restore_default_link`` undoes it."""
+    async with session_scope() as db:
+        await db.execute(
+            text("UPDATE links SET is_default = false WHERE is_default AND archived_at IS NULL")
+        )
+    return await ch.create_link(is_default=True, is_active=is_active, destination=destination)
+
+
+def _bare(client: AsyncClient, path: str) -> Awaitable[Response]:
+    return client.get(
+        path, headers={"User-Agent": ch.CHROME_UA, "X-Tracelet-Peer-IP": ch.VISITOR_IP}
+    )
+
+
+@pytest.mark.parametrize("path", ["/r", "/r/"])
+async def test_the_bare_capture_path_goes_through_the_default_link(
+    db_client: AsyncClient, path: str
+) -> None:
+    link = await _default_link()
+
+    response = await _bare(db_client, path)
+
+    assert response.status_code == 200, "a capture page, never a slash redirect (F2.AC1)"
+    assert "location" not in response.headers
+    assert await ch.visit_count(link.id) == 1
+
+
+async def test_an_inactive_default_is_a_404_like_any_other(db_client: AsyncClient) -> None:
+    """F1.AC4: deactivating the default stops it redirecting, from /r/ as from its slug."""
+    link = await _default_link(is_active=False)
+
+    bare = await _bare(db_client, "/r/")
+    unknown = await ch.visit(db_client, ch.new_slug())
+
+    assert bare.status_code == 404
+    assert _without_nonce(bare.text) == _without_nonce(unknown.text)
+    assert await ch.visit_count(link.id) == 0
+
+
+async def test_with_no_default_link_the_bare_path_is_a_404(db_client: AsyncClient) -> None:
+    async with session_scope() as db:
+        await db.execute(
+            text("UPDATE links SET is_default = false WHERE is_default AND archived_at IS NULL")
+        )
+    assert (await _bare(db_client, "/r/")).status_code == 404
+
+
+async def test_a_database_outage_still_redirects_the_bare_path(
+    db_client: AsyncClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    await _default_link()
+    await _bare(db_client, "/r/")  # primes the cached default
+    _broken_database(monkeypatch)
+
+    response = await _bare(db_client, "/r/")
+
+    assert response.status_code == 503
+    assert f'content="0;url={ch.DESTINATION}"' in response.text
+
+
+async def test_an_outage_never_serves_a_default_the_owner_has_replaced(
+    owner: SignedIn, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The cached default must not outlive a change of default: during an outage the
+    bare path would otherwise send visitors to the link the owner moved away from."""
+    await _default_link(destination="https://old.example.org/")
+    await _bare(owner.client, "/r/")  # primes the cached default
+    replacement = await ch.create_link()
+
+    response = await owner.client.post(
+        f"/api/v1/links/{replacement.id}/default", headers=owner.headers()
+    )
+    assert response.status_code == 200
+    _broken_database(monkeypatch)
+
+    outage = await _bare(owner.client, "/r/")
+
+    assert outage.status_code == 503
+    assert "old.example.org" not in outage.text
 
 
 # ---------------------------------------------------------------------------

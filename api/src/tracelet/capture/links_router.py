@@ -448,6 +448,7 @@ async def make_default(
             .values(is_default=False)
         )
         await db.execute(update(Link).where(Link.id == link.id).values(is_default=True))
+        link_cache.forget_default()
         await db.refresh(link)
         await audit.record(
             db,

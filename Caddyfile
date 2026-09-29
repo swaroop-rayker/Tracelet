@@ -74,14 +74,15 @@
 	}
 
 	# --- Application surfaces ------------------------------------------------
-	# /r/*     capture (M2)      /api/*  admin API + enrichment
+	# /r/*     capture (M2); bare /r and /r/ = the default link (F1.AC3)
+	# /api/*   admin API + enrichment
 	# /privacy public notice     /healthz /readyz  probes
 	#
 	# Route names are deliberately boring. Never introduce a public path or
 	# query key containing track, collect, analytics, pixel, beacon or
 	# telemetry — content blockers match those substrings and silently kill the
 	# request (B6, F2.AC11). A CI test asserts this.
-	@app path /api/* /r/* /privacy /healthz /readyz
+	@app path /api/* /r /r/* /privacy /healthz /readyz
 	handle @app {
 		reverse_proxy api:8000 {
 			# The actual TCP peer as Caddy sees it, overwriting anything the

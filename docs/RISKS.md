@@ -7,7 +7,7 @@ Severity is `impact × likelihood` at the time of writing, reassessed after each
 |---|---|---|---|
 | R1 | `CF-Ray` colo to metro mapping may be unstable for India | Medium | Open, spike in M3 |
 | R2 | External geo APIs: undocumented limits, ToS, breakage | Medium | Open, mitigated by design |
-| R3 | **rDNS city-code coverage may be too low to carry the accuracy plan** | **High** | **Spike A run 2026-09-29: 2.0 % — F4.AC13 amendment proposed, blocks M3** |
+| R3 | **rDNS city-code coverage may be too low to carry the accuracy plan** | **High** | **Spike A run 2026-09-29: 2.0 %. F4.AC13 amended (SPEC §11 row 9); M3 unblocked** |
 | R4 | Geo-database update memory spike could OOM the box | Medium | Open, mitigated by design |
 | R5 | `fetch(keepalive)` may not survive Instagram webview navigation | Medium | **Android: survives (Spike B, 2026-09-28). iOS: unmeasured — open** |
 | R6 | 1 GB steady state under real load; swap thrash | Medium | Open, verified in M9 |
@@ -94,8 +94,9 @@ Airtel fixed-line addresses, but `north` is a zone spanning several states.
 from firing. Combined with SPEC section 11 row 8 (consented location will be rare) and
 R10 (no S8 on the free-subdomain path), a non-consented visit will usually have **no
 non-database corroboration for city at all**. The F4.AC13 city target of ≥ 50 % strict
-coverage is unreachable as designed. **The amendment is proposed to the owner and not
-applied** (CLAUDE.md section 2).
+coverage is unreachable as designed. **Decision, 2026-09-29 (repository owner):** keep city strict
+precision ≥ 95 %, drop the coverage floor until M8 sets one from ground truth, and report
+coverage per path. SPEC section 11 row 9.
 
 ---
 

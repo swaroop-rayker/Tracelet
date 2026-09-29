@@ -63,6 +63,19 @@ def _facts(request: Request, settings: Settings) -> service.RequestFacts:
 )
 async def capture(slug: str, request: Request, settings: Config) -> Response:
     """F2.AC1: 200 text/html, never a 3xx -- except when rate-limited (F11.AC3)."""
+    return await _capture(slug, request, settings)
+
+
+# Both spellings, registered explicitly: relying on slash redirection would answer the
+# bare path with a 3xx, which F2.AC1 rules out.
+@router.get("/r", include_in_schema=False, summary="Capture through the default link")
+@router.get("/r/", include_in_schema=False, summary="Capture through the default link")
+async def capture_default(request: Request, settings: Config) -> Response:
+    """F1.AC3 as amended: the bare capture path goes through the default link."""
+    return await _capture(None, request, settings)
+
+
+async def _capture(slug: str | None, request: Request, settings: Settings) -> Response:
     destination: str | None = None
     try:
         result = await service.capture(settings, slug, _facts(request, settings))

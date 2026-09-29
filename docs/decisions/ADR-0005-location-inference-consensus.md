@@ -88,8 +88,14 @@ Plus `agreement_score`, `conflict_score`, and `inference_version` on every visit
 |---|---|---|
 | Country | ≥99.5 % accuracy, ~100 % coverage | same |
 | Admin1 | ≥99 % **precision** at ≥85 % coverage | ≥92 % accuracy |
-| City, no consent | ≥95 % precision at ≥50 % coverage | ≥70 % accuracy |
+| City, no consent | ≥95 % precision; coverage measured, floor set in M8 (amended — see below) | ≥70 % accuracy |
 | City, consented | ~100 % | — |
+
+> **Amended 2026-09-29 (SPEC section 11 row 9).** The city row originally read "≥95 %
+> precision at ≥50 % coverage". Spike A measured rDNS city-code coverage at 2.0 % (RISKS R3),
+> so the corroboration that coverage depended on does not exist for most visitors. Precision
+> is kept — this decision's premise is never being confidently wrong — and the coverage
+> floor waits for ground-truth data in M8.
 
 Verified in CI against an owner-labelled ground-truth set (F4.AC15, F14.AC12).
 

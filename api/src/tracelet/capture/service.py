@@ -120,6 +120,9 @@ _MAX_CACHED_LINKS: Final = 1000
 @dataclass
 class _LinkCache:
     entries: dict[str, LinkSnapshot] = field(default_factory=dict)
+    # The link behind the bare /r/ (F1.AC3). Like `entries`, read only when the
+    # database is unreachable.
+    default: LinkSnapshot | None = None
 
     def put(self, snapshot: LinkSnapshot) -> None:
         if snapshot.slug not in self.entries and len(self.entries) >= _MAX_CACHED_LINKS:
@@ -130,6 +133,11 @@ class _LinkCache:
 
     def forget(self, slug: str) -> None:
         self.entries.pop(slug.lower(), None)
+        if self.default is not None and self.default.slug == slug.lower():
+            self.default = None
+
+    def forget_default(self) -> None:
+        self.default = None
 
     def get(self, slug: str) -> LinkSnapshot | None:
         return self.entries.get(slug.lower())
@@ -291,21 +299,42 @@ async def _lookup(db: AsyncSession, slug: str) -> LinkSnapshot | None:
     return snapshot
 
 
-async def capture(settings: Settings, slug: str, facts: RequestFacts) -> CaptureResult:
+async def _lookup_default(db: AsyncSession) -> LinkSnapshot | None:
+    link = (
+        await db.execute(select(Link).where(Link.is_default.is_(True), Link.archived_at.is_(None)))
+    ).scalar_one_or_none()
+    if link is None:
+        link_cache.forget_default()
+        return None
+    snapshot = LinkSnapshot.of(link)
+    link_cache.put(snapshot)
+    link_cache.default = snapshot
+    return snapshot
+
+
+async def capture(settings: Settings, slug: str | None, facts: RequestFacts) -> CaptureResult:
     """Record a visit and decide what the visitor sees. Never raises.
+
+    ``slug=None`` is the bare ``/r/``, which goes through the default link (F1.AC3). An
+    inactive default is a 404 like any other inactive link (F1.AC4).
 
     The ``session_scope`` block commits on exit, so by the time this returns
     ``CAPTURED`` the row is durable -- which is F2.AC2, "the visit exists even if the
     client never runs a line of JavaScript", made literal.
     """
-    normalised = normalise_slug(slug)
-    if normalised is None:
-        return CaptureResult(outcome=Outcome.NOT_FOUND)
+    normalised: str | None = None
+    if slug is not None:
+        normalised = normalise_slug(slug)
+        if normalised is None:
+            return CaptureResult(outcome=Outcome.NOT_FOUND)
 
     link: LinkSnapshot | None = None
     try:
         async with session_scope() as db:
-            link = await _lookup(db, normalised)
+            if normalised is None:
+                link = await _lookup_default(db)
+            else:
+                link = await _lookup(db, normalised)
             if link is None or not link.is_live:
                 return CaptureResult(outcome=Outcome.NOT_FOUND)
 
@@ -341,7 +370,9 @@ async def capture(settings: Settings, slug: str, facts: RequestFacts) -> Capture
             visit_id = visit.id
     except Exception as exc:
         # Deliberately broad: the visitor is redirected whatever happened (F15.AC7).
-        cached = link or link_cache.get(normalised)
+        cached = link or (
+            link_cache.get(normalised) if normalised is not None else link_cache.default
+        )
         log.error(
             "capture_failed",
             slug_known=cached is not None,

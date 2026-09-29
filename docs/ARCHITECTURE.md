@@ -80,7 +80,7 @@ requests), and it is why `F2.AC2` is written the way it is. See ADR-0004.
 enrichment that is always allowed to fail.**
 
 ```
-GET /r/{slug}
+GET /r/{slug}        (bare /r and /r/ resolve the default link instead — F1.AC3)
  │
  ├─1  resolve slug ─── unknown/inactive ──► 404, leaks nothing               [F2.AC14]
  │
