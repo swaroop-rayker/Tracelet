@@ -20,7 +20,7 @@ import functools
 from pathlib import Path
 from typing import Any, Literal
 
-from pydantic import Field, SecretStr, model_validator
+from pydantic import AliasChoices, Field, SecretStr, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 Environment = Literal["development", "production"]
@@ -89,6 +89,25 @@ class Settings(BaseSettings):
     # --- geolocation sources (F4.AC5) --------------------------------------
     geo_data_dir: Path = Path("/data/geoip")
     external_geo_enabled: bool = True
+    # Vendor credentials for the keyed databases (Gate 1 accounts; section 11 row 3).
+    # Read under the names .env.example documents, with the TRACELET_ form accepted
+    # too. Empty means "not configured": that database is skipped with a reason, and
+    # nothing else is affected.
+    maxmind_account_id: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("MAXMIND_ACCOUNT_ID", "TRACELET_MAXMIND_ACCOUNT_ID"),
+    )
+    maxmind_license_key: SecretStr | None = Field(
+        default=None,
+        validation_alias=AliasChoices("MAXMIND_LICENSE_KEY", "TRACELET_MAXMIND_LICENSE_KEY"),
+    )
+    ip2location_token: SecretStr | None = Field(
+        default=None,
+        validation_alias=AliasChoices("IP2LOCATION_TOKEN", "TRACELET_IP2LOCATION_TOKEN"),
+    )
+    ipinfo_token: SecretStr | None = Field(
+        default=None, validation_alias=AliasChoices("IPINFO_TOKEN", "TRACELET_IPINFO_TOKEN")
+    )
 
     # --- data lifecycle (F12.AC7) ------------------------------------------
     retention_visit_days: int = Field(default=180, ge=1)

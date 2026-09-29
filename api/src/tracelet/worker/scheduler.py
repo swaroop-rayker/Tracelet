@@ -30,6 +30,7 @@ from sqlalchemy import text
 from tracelet.capture import service
 from tracelet.db.engine import session_scope
 from tracelet.inference import engine as inference
+from tracelet.inference.geodb import maintenance as geodb
 
 log = structlog.get_logger(__name__)
 
@@ -91,6 +92,9 @@ JOBS: tuple[Job, ...] = (
     # between a visit ending and its location being known; nothing a visitor sees
     # waits on it.
     Job(name="infer", every_seconds=2, run=inference.run_job_once),
+    # Offline geo databases (F10.AC3). Checked every six hours, fetched only when due
+    # -- DB-IP monthly, the keyed vendors weekly -- then asn_profiles recomputed.
+    Job(name="geodb_update", every_seconds=6 * 3600, run=geodb.run_job_once),
 )
 
 
