@@ -127,9 +127,13 @@ claim** — it is cross-checked against server-observed signals, never trusted
   must degrade to fewer signals, never to a `422` that loses all of them.
 * A `422` does **not** spend the nonce -- validation runs before the conditional update,
   so a malformed first attempt can be retried (the lesson of docs/ERRORS.md E15).
-* `geolocation.state` is one of `granted`, `denied`, `unavailable`, `unsupported` or
-  `timeout`. `timeout` -- a prompt shown and not answered before the redirect -- is stored
-  as `consent_state='unavailable'` with the reason in `signals`. Coordinates are stored
+* `geolocation.state` is one of `granted`, `denied`, `prompt`, `unavailable`, `unsupported`
+  or `timeout`. The page consults the Permissions API and **never shows a prompt** (F4.AC1
+  as amended, RISKS R20). `prompt` -- permission not yet decided, so not asked -- is stored
+  as `consent_state='not_asked'`. `unsupported` -- no Permissions API, so the page cannot
+  know without prompting -- and `timeout` -- permission granted but no position before the
+  redirect -- are stored, like `unavailable`, as `consent_state='unavailable'` with the
+  reason in `signals`. Coordinates are stored
   only with `granted`; with anything else they are dropped, not rejected. See RISKS R20.
 * `probes` is validated and **not yet persisted**: what a headless-browser probe *means*
   is M4's decision. `hashes.audio` is always `null` from the M2 page -- an

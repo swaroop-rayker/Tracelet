@@ -120,7 +120,7 @@ GET /r/{slug}
              • timezone, language list
              • canvas / audio / font / WebGL hashes
              • headless + spoof probes                                      [F5.AC3-5]
-             • navigator.geolocation.getCurrentPosition()                   [F4.AC1]
+             • geolocation only if already granted, never prompts           [F4.AC1]
              • POST /api/v1/s/{nonce}   fetch(…, {keepalive: true})
              • hard redirect timer at link.interstitial_ms, cap 1500 ms      [F2.AC5]
                     │

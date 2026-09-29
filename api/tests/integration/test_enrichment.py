@@ -92,7 +92,7 @@ async def test_enrichment_is_merged_and_finalises_the_visit(db_client: AsyncClie
     assert stored.canvas_hash is not None
 
 
-async def test_an_unanswered_location_prompt_is_recorded_with_its_reason(
+async def test_a_position_that_did_not_arrive_in_time_is_recorded_with_its_reason(
     db_client: AsyncClient,
 ) -> None:
     """F3.AC5: an absent value carries its reason."""
@@ -103,6 +103,19 @@ async def test_an_unanswered_location_prompt_is_recorded_with_its_reason(
     assert stored.consent_state is ConsentState.UNAVAILABLE
     assert stored.gps_lat is None
     assert any(s["rule_id"] == "client.geolocation_absent" for s in stored.signals)
+
+
+async def test_permission_not_yet_decided_is_recorded_as_not_asked(
+    db_client: AsyncClient,
+) -> None:
+    """F4.AC1 as amended: the page never prompts, so an undecided permission is not_asked."""
+    slug, token = await _captured(db_client)
+    payload = {**PAYLOAD, "geolocation": {"state": "prompt", "lat": 12.97, "lng": 77.59}}
+    await _enrich(db_client, token, payload)
+
+    stored = await _visit_for(slug)
+    assert stored.consent_state is ConsentState.NOT_ASKED
+    assert stored.gps_lat is None
 
 
 async def test_granted_coordinates_are_stored(db_client: AsyncClient) -> None:

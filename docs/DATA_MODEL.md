@@ -427,7 +427,8 @@ writes them back out sorted. Measured on 2026-09-28: a request sent `Zzz-Last`,
 `Aaa-First`, `Mmm-Middle`, and the application received them alphabetically. A hash of
 that order would be identical for every client with the same header *set* — a value that
 looks exactly like a fingerprint and carries none of the information. The column is kept
-so M4 can populate it if a way to observe order is found (docs/RISKS.md R19).
+so M4 can populate it if a way to observe order is ever found (docs/RISKS.md R19); F5.AC8
+now uses the header *set* instead (SPEC section 11 row 7).
 
 > **Why `signals` is JSONB but `visit_candidates` is a table.** Signals are read as a
 > whole for one visit and filtered with a GIN containment query; only fired rules are

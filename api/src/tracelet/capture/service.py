@@ -412,11 +412,12 @@ def _decimal(value: float | None, places: str) -> Decimal | None:
 _GEO_STATES: Final[dict[str, ConsentState]] = {
     "granted": ConsentState.GRANTED,
     "denied": ConsentState.DENIED,
+    # F4.AC1 as amended (SPEC section 11 row 8): permission is neither granted nor
+    # denied, and the page never shows a prompt it cannot wait for (RISKS R20).
+    "prompt": ConsentState.NOT_ASKED,
     "unavailable": ConsentState.UNAVAILABLE,
     "unsupported": ConsentState.UNAVAILABLE,
-    # The prompt was shown and not answered before the redirect. Recorded as
-    # unavailable, with the reason, because the enum has no "unanswered" and
-    # "not_asked" would be false -- it was asked.
+    # Permission was already granted, but no position arrived before the redirect.
     "timeout": ConsentState.UNAVAILABLE,
 }
 

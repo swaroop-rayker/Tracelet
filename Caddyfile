@@ -60,9 +60,9 @@
 		Cross-Origin-Opener-Policy "same-origin"
 		X-Frame-Options "DENY"
 
-		# geolocation=(self) is deliberate and load-bearing: F4.AC1 asks the
-		# visitor for location permission on the capture page. A restrictive
-		# default here would silently disable consent collection.
+		# geolocation=(self) is deliberate and load-bearing: F4.AC1 reads the
+		# visitor's location on the capture page where they have already
+		# granted it. A restrictive value here would silently disable it.
 		Permissions-Policy "geolocation=(self), camera=(), microphone=(), payment=(), usb=(), magnetometer=(), gyroscope=()"
 
 		-Server

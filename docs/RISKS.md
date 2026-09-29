@@ -11,7 +11,7 @@ Severity is `impact × likelihood` at the time of writing, reassessed after each
 | R4 | Geo-database update memory spike could OOM the box | Medium | Open, mitigated by design |
 | R5 | `fetch(keepalive)` may not survive Instagram webview navigation | Medium | **Android: survives (Spike B, 2026-09-28). iOS: unmeasured — open** |
 | R6 | 1 GB steady state under real load; swap thrash | Medium | Open, verified in M9 |
-| R7 | Bot-detection ceiling without JA4 | **High** | **Mitigation void — see R19** |
+| R7 | Bot-detection ceiling without JA4 | **High** | **Accepted with a weaker substitute: header set (R19, SPEC §11 row 7)** |
 | R8 | Safe Browsing may flag the site regardless | Medium | Accepted, no guaranteed remedy |
 | R9 | 30–60 ground-truth labels give wide confidence intervals | Medium | Accepted, disclosed |
 | R10 | Free-subdomain path is materially weaker than documented parity suggests | Medium | Accepted, owner-chosen |
@@ -23,8 +23,8 @@ Severity is `impact × likelihood` at the time of writing, reassessed after each
 | R16 | GCP free-tier egress ceiling (1 GB/month) | Low | Open, monitor |
 | R17 | Fingerprint instability inflates unique-visitor counts | Medium | Accepted, disclosed |
 | R18 | Telegram becomes a security dependency, not just a notifier | Medium | Accepted, mitigated |
-| R19 | **Header order and HTTP/2 detail are unobservable behind Caddy** | **High** | **Open — owner decision needed before M4** |
-| R20 | A first-visit location prompt cannot be answered inside the interstitial | Medium | **Confirmed by Spike B — owner decision needed (F4.AC1)** |
+| R19 | **Header order and HTTP/2 detail are unobservable behind Caddy** | **High** | **Decided 2026-09-29: header set + re-weighting (SPEC §11 row 7); built in M4** |
+| R20 | A first-visit location prompt cannot be answered inside the interstitial | Medium | **Closed 2026-09-29: never prompt, read an existing grant (SPEC §11 row 8)** |
 | R21 | **A JavaScript-executing Meta scanner passes the crawler gate** | **High** | **Open — requirement on M4** |
 
 ---
@@ -327,6 +327,10 @@ exactly like a fingerprint and carries none of the information — so M2 stores 
 it. That needs the owner's approval (CLAUDE.md section 2), so it is recorded here and not
 applied.
 
+**Decision, 2026-09-29 (repository owner):** option 2 with option 1's re-weighting. F5.AC8
+and F3.AC1 amended (SPEC section 11 row 7). Implemented in M4; until then nothing reads
+the header set as a signal. R7's ceiling is correspondingly lower.
+
 ---
 
 ## R20 — A first-visit location prompt cannot be answered inside the interstitial · MEDIUM
@@ -367,6 +371,13 @@ is effectively never captured, and every such visitor sees a prompt vanish under
 **Recommendation, updated with the data:** option 2 — query the Permissions API and ask
 only where permission is already granted — which requires amending F4.AC1. Owner decision;
 not applied.
+
+**Decision, 2026-09-29 (repository owner):** option 2. F4.AC1 amended (SPEC section 11
+row 8) and applied on the M3 branch: the capture page consults the Permissions API, reads a
+position only where permission is already `granted`, records `denied` as `denied`, and
+records an undecided permission as `consent_state='not_asked'`. It never prompts.
+**Accepted consequence:** consented (S1) location will be rare, since nothing on this
+origin ever asks.
 
 ---
 

@@ -394,11 +394,14 @@ F12.AC1–F12.AC4, F11.AC1–F11.AC4, F11.AC8, F11.AC10, F13.AC3, F13.AC6, F15.A
 
 **Open for the owner:**
 
-1. **R19 — amend F5.AC8** now that header order is unobservable. Recommendation in RISKS.
-2. **R20 — the location prompt cannot be answered inside the interstitial.** Spike B
-   confirmed it: every real browser timed out. Recommendation in RISKS: amend F4.AC1 to ask
-   only where permission is already granted.
-3. **What the default link is for.** Nothing depends on it yet.
+1. ~~**R19 — amend F5.AC8**~~ **Decided 2026-09-29:** header set + re-weighting, SPEC
+   section 11 row 7. Built in M4.
+2. ~~**R20 — the location prompt cannot be answered inside the interstitial.**~~
+   **Decided 2026-09-29:** never prompt; read an existing grant. SPEC section 11 row 8,
+   applied at the start of M3.
+3. **What the default link is for.** Still open. Serving `/` through it collides with the
+   dashboard, which the SPA serves at `/`; a fallback for bad slugs contradicts F1.AC4 and
+   F2.AC14. Nothing depends on it yet.
 4. **R21 — the Meta scanner.** No decision needed now; it is a stated requirement on M4.
 
 ---
