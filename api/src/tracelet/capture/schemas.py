@@ -83,7 +83,7 @@ class Probes(_Part):
     outerWidth: int | None = Field(default=None, ge=0, le=20_000)  # noqa: N815 - wire name
 
 
-GeoState = Literal["granted", "denied", "unavailable", "unsupported", "timeout"]
+GeoState = Literal["granted", "denied", "prompt", "unavailable", "unsupported", "timeout"]
 
 
 class Geolocation(_Part):

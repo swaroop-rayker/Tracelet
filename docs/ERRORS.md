@@ -225,7 +225,8 @@ others into timeouts.
 
 ## B6 — Visitor browser refuses to provide data; endpoints mistaken for bot endpoints
 
-**Status:** Diagnosed, fix designed. Verified in **M2**.
+**Status:** Fixed in M2, every fix point under test (2026-09-29). **Not yet observed in a
+browser running a content blocker** — see *Verification* below.
 **Reported:** the visitor browser sometimes refuses to provide data because the capture and
 collection endpoints get mistaken for bot, scraper or crawler endpoints.
 
@@ -259,6 +260,20 @@ pixel-shaped GETs — all patterns filter lists target.
 - `CLAUDE.md` invariant 7 states the rule, because the natural instinct when adding an
   endpoint is to name it descriptively — `/api/v1/telemetry` — which would silently
   reintroduce this.
+
+**Verification — one test per fix point**
+
+| Fix | Test |
+|---|---|
+| 1. Neutral route names | `tests/unit/test_route_names.py` — the CI route-name job, proven in M2 to **fail** on a deliberately-bad route mounted on a real application |
+| 2. Same-origin only | `test_the_csp_permits_nothing_from_another_origin`, `test_the_page_references_no_external_resource` (`tests/unit/test_capture_pages.py`) |
+| 3. No cookies | `test_the_public_surface_sets_no_cookie` (`tests/integration/test_capture_path.py`) — neither the capture page nor the enrichment response sets one. Added 2026-09-29; until then this point was designed but unasserted |
+| 4. JSON POST, not a pixel | `test_enrichment_is_a_json_post_not_a_pixel` (`tests/unit/test_capture_pages.py`). Added 2026-09-29 |
+
+**Still unverified:** no request has been observed passing a real browser with uBlock
+Origin and EasyPrivacy enabled. The tests prove the page avoids what those lists match;
+they do not run the lists. Spike B's browsers delivered enrichment, but none was recorded
+as running a blocker.
 
 ---
 
@@ -1248,6 +1263,149 @@ box the same would be real visitors, which is why this had to be fixed before M9
 after.
 
 **Related:** F12.AC13, CLAUDE.md invariant 4, RW-3, ADR-0012.
+
+---
+
+### E27 — Every reverse-DNS lookup from a container came back "no PTR", including 8.8.8.8
+
+**Status:** Worked around for Spike A; guard owed by M3. **Milestone:** M3 (Spike A).
+**Date:** 2026-09-29.
+
+**Symptom.** The first Spike A run resolved 900 sampled Indian ISP addresses and found a
+PTR record for **none** of them — 0 % for every ISP, IPv4 and IPv6. A result that clean is
+more likely a broken instrument than a finding, so it was checked before being believed:
+from inside the `api-tools` container, `gethostbyaddr("8.8.8.8")` failed with
+`[Errno 4] No address associated with name`, while `nslookup 8.8.8.8` on the Windows host
+returned `dns.google`.
+
+**Root cause.** Docker Desktop's DNS proxy — what a container reaches through the compose
+network's embedded resolver (`127.0.0.11`) and on the default bridge alike — answers
+forward lookups but not `PTR` queries. The same image started with `--dns 8.8.8.8`
+resolved both controls correctly. The failure is indistinguishable from "this address has
+no PTR record": `gethostbyaddr` raises the same `OSError` for both.
+
+**Fix.** Spike A was re-run with `--dns 8.8.8.8 --dns 1.1.1.1` and the first run discarded
+(RISKS R3). No production code does reverse DNS yet, so nothing shipped was affected.
+
+**Prevention — owed by M3, recorded here so it is not forgotten.** S6 runs its lookups
+inside the `api` container, so the same fault would turn every visit's rDNS into a silent
+"no PTR". S6 must (a) distinguish NXDOMAIN from SERVFAIL, timeout and resolver refusal,
+recording the latter as an *absence with a reason* (F3.AC5) rather than as "no record", and
+(b) run a canary PTR lookup against a known address and surface a failure on System Health
+as "S6 resolver unavailable". Whether the production resolver on the GCP host answers PTR
+is **unverified** until M9's deployment.
+
+**Worth noting.** The spike's decision rule had been fixed in advance; the broken run
+would have "passed" it as a catastrophic 0 % and been rationalised as the ISPs' fault.
+Controls before conclusions.
+
+**Related:** RISKS R3, F4.AC5 (S6), F3.AC5, ADR-0005.
+
+---
+
+### E28 — A strict state alone produced a strict *city* coordinate
+
+**Status:** Fixed before commit. **Milestone:** M3. **Date:** 2026-09-29.
+
+**Symptom.** Found while writing the engine's persistence: a visit whose strict output was
+`IN / Karnataka / — / —` still carried `strict_lat, strict_lng` of central Bengaluru, and
+`geopoint` with them.
+
+**Root cause.** The consensus took the strict point from "the deepest strict level", and
+the admin1 winners' candidates carry *city* coordinates — a database record for Karnataka
+is really a record for some city in it. So the coordinate was one level more precise than
+anything the engine had decided to believe.
+
+**Why it matters.** `geopoint` is the geofence input (DATA_MODEL 5.1). M6 would have
+treated a visitor known only to be in Karnataka as standing in Bengaluru and fired
+"inside" alerts on it — exactly the "location we do not believe" CLAUDE.md invariant 5
+forbids, and the one failure ADR-0005's strict set exists to prevent.
+
+**Fix.** A strict point exists only when the strict city does
+(`inference/consensus.py`). The advisory point is unchanged — a guess, shown as one.
+
+**Prevention.** `test_a_strict_state_alone_yields_no_strict_point`.
+
+**Related:** F4.AC10, F6.AC6, CLAUDE.md invariant 5, ADR-0005.
+
+---
+
+### E29 — Alembic's autogenerate would have proposed dropping `links` and `visits`
+
+**Status:** Fixed. **Milestone:** M3 (the defect dates from M2). **Date:** 2026-09-29.
+
+**Symptom.** Found while registering the M3 models: `alembic/env.py` imported the auth
+models for their side effect of registering on `Base.metadata`, and nothing else. The
+capture models of M2 were never registered.
+
+**Root cause.** Autogenerate compares the database against the metadata it can see. Two
+tables it cannot see look like tables that should not exist, so the next
+`tl revision --autogenerate` would have emitted `op.drop_table("visits")` — on the
+busiest table in the system, inside a file a reviewer skims. No such revision was ever
+generated; migration 0004 was written by hand, which is why this stayed latent.
+
+**Fix.** `env.py` registers the capture and inference models alongside auth.
+
+**Prevention.** Worth a CI check that autogenerate against a migrated database produces
+an empty diff; recorded here rather than built, because it needs the database service in
+the lint job. Until then, **read every autogenerated revision for `drop_`**.
+
+**Related:** CLAUDE.md §2 (schema changes ship with a migration), DATA_MODEL.
+
+---
+
+### E30 — MaxMind's middle-of-India point became the "registry address" of half the country
+
+**Status:** Fixed before commit. **Milestone:** M3. **Date:** 2026-09-29.
+
+**Symptom.** After GeoLite2 was installed, `asn_profiles` put the modal centroid of Airtel
+(AS24560 and AS9498), Tata (AS4755) and Tikona (AS45528) all in **Chhindwara, Madhya
+Pradesh**. Separately, the consensus trail could show a country-only candidate voting for
+"Madhya Pradesh" as a state.
+
+**Root cause.** When MaxMind knows only that an address is in India, its record carries
+the country and **the country's centroid** as coordinates, and no city. Two pieces of
+code trusted the coordinates. The profile builder counted every located record as a
+placement, so the centroid became the most common "place" of large ISPs. And the
+GeoNames placer named the point near a candidate's coordinates and **filled in an admin1
+the source had never claimed**. The GeoNames city nearest that centroid is Chhindwara.
+
+**Fix.** Profiles count only records that name a city. The placer renames only fields a
+candidate already asserts, and never places a country-level candidate. After the fix:
+Tikona 44 % on Delhi, Jio 40 % on Mumbai, Airtel broadband spread (8 %).
+
+**Prevention.** `test_a_country_only_claim_is_never_given_a_state`,
+`test_placing_renames_only_what_was_claimed`, `test_a_profile_ignores_records_without_a_city`.
+The general lesson, for every source: **a coordinate is only as precise as the level the
+record claims** — the same shape as E28.
+
+**Related:** F4.AC12(a), B1, ADR-0005, DATA_MODEL 8.1.
+
+---
+
+### E31 — A failing unit test printed the MaxMind account ID and the start of the licence key
+
+**Status:** Fixed. **Milestone:** M3. **Date:** 2026-09-29.
+
+**Symptom.** Once the owner added vendor credentials to `.env`, a unit test that assumed
+there were none failed, and pytest's assertion message printed the `Download` object —
+including its `auth` tuple: the account ID in full and the first characters of the
+licence key, before pytest truncated it. It reached local test output only; nothing was
+committed, logged or sent anywhere.
+
+**Root cause.** Two faults. `Download` was a plain dataclass, so its generated `repr`
+contained the credentials — and for IP2Location and IPinfo the URL itself carries the
+token, so any traceback, log line or assertion touching it would leak them. And the test
+built `Settings()` from the environment, so its outcome depended on the developer's `.env`.
+
+**Fix.** `url` and `auth` are `field(repr=False)`. The test pins the credentials to empty.
+
+**Prevention.** `test_a_download_never_shows_its_credentials`. **Any object that holds a
+secret gets a repr that does not show it** — `SecretStr` does this for settings; a
+dataclass needs `repr=False`. The owner may choose to rotate the MaxMind licence key; the
+exposure was local and partial.
+
+**Related:** F12.AC13, CLAUDE.md invariant 4 (the same principle, for credentials).
 
 ---
 

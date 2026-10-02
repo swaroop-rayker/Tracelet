@@ -20,6 +20,8 @@ from sqlalchemy import engine_from_config, pool
 # which --autogenerate would propose dropping every table.
 from tracelet.auth import challenges as _auth_challenges  # noqa: F401
 from tracelet.auth import models as _auth_models  # noqa: F401
+from tracelet.capture import models as _capture_models  # noqa: F401
+from tracelet.inference import models as _inference_models  # noqa: F401
 from tracelet.db.base import Base
 
 config = context.config

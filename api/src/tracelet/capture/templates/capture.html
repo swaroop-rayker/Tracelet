@@ -195,20 +195,33 @@
   var deadline = Math.max(leaveAt - 150, 0);
   setTimeout(function () { send({ state: "timeout" }); }, deadline);
 
-  // F4.AC1: ask for location. On a first visit the prompt usually cannot be answered
-  // inside the interstitial -- recorded honestly as a timeout rather than a denial.
+  // F4.AC1 (amended, SPEC section 11 row 8): read location only where permission is
+  // already granted, and never show a prompt -- one cannot be answered inside the
+  // interstitial (RISKS R20). Without the Permissions API there is no way to know
+  // without prompting, so the answer is "unsupported".
   safe(function () {
-    if (!navigator.geolocation) { send({ state: "unsupported" }); return; }
-    navigator.geolocation.getCurrentPosition(
-      function (p) {
-        send({ state: "granted", lat: p.coords.latitude, lng: p.coords.longitude,
-               accuracyM: p.coords.accuracy });
-      },
-      function (err) {
-        send({ state: err && err.code === 1 ? "denied" : err && err.code === 3 ? "timeout" : "unavailable" });
-      },
-      { enableHighAccuracy: false, maximumAge: 600000, timeout: deadline }
-    );
+    if (!navigator.geolocation || !navigator.permissions || !navigator.permissions.query) {
+      send({ state: "unsupported" });
+      return;
+    }
+    // Some engines throw synchronously on an unrecognised permission name rather than
+    // rejecting; either way the honest answer is "unsupported", not the timer's "timeout".
+    var query = safe(function () { return navigator.permissions.query({ name: "geolocation" }); });
+    if (!query || typeof query.then !== "function") { send({ state: "unsupported" }); return; }
+    query.then(function (status) {
+      if (status.state === "denied") { send({ state: "denied" }); return; }
+      if (status.state !== "granted") { send({ state: "prompt" }); return; }
+      navigator.geolocation.getCurrentPosition(
+        function (p) {
+          send({ state: "granted", lat: p.coords.latitude, lng: p.coords.longitude,
+                 accuracyM: p.coords.accuracy });
+        },
+        function (err) {
+          send({ state: err && err.code === 1 ? "denied" : err && err.code === 3 ? "timeout" : "unavailable" });
+        },
+        { enableHighAccuracy: false, maximumAge: 600000, timeout: deadline }
+      );
+    }, function () { send({ state: "unsupported" }); });
   });
 
   var copy = document.getElementById("copy");

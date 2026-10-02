@@ -95,6 +95,140 @@
         "title": "AdminSummary",
         "type": "object"
       },
+      "CandidateOut": {
+        "description": "One row of the derivation trail (F4.AC11, DATA_MODEL section 5.4).",
+        "properties": {
+          "accepted": {
+            "title": "Accepted",
+            "type": "boolean"
+          },
+          "admin1": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Admin1"
+          },
+          "admin2": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Admin2"
+          },
+          "city": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "City"
+          },
+          "country_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Country Code"
+          },
+          "effective_weight": {
+            "title": "Effective Weight",
+            "type": "number"
+          },
+          "evidence": {
+            "additionalProperties": true,
+            "title": "Evidence",
+            "type": "object"
+          },
+          "lat": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lat"
+          },
+          "latency_ms": {
+            "title": "Latency Ms",
+            "type": "integer"
+          },
+          "level": {
+            "title": "Level",
+            "type": "string"
+          },
+          "lng": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lng"
+          },
+          "raw_confidence": {
+            "title": "Raw Confidence",
+            "type": "number"
+          },
+          "source": {
+            "title": "Source",
+            "type": "string"
+          },
+          "suppressed_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Suppressed Reason"
+          },
+          "weight": {
+            "title": "Weight",
+            "type": "number"
+          }
+        },
+        "required": [
+          "source",
+          "level",
+          "country_code",
+          "admin1",
+          "admin2",
+          "city",
+          "lat",
+          "lng",
+          "raw_confidence",
+          "weight",
+          "effective_weight",
+          "accepted",
+          "suppressed_reason",
+          "evidence",
+          "latency_ms"
+        ],
+        "title": "CandidateOut",
+        "type": "object"
+      },
       "ChangePasswordRequest": {
         "properties": {
           "current_password": {
@@ -429,6 +563,183 @@
           }
         },
         "title": "HTTPValidationError",
+        "type": "object"
+      },
+      "InferenceConfig": {
+        "additionalProperties": false,
+        "properties": {
+          "gps_max_accuracy_m": {
+            "default": 5000,
+            "exclusiveMinimum": 0.0,
+            "title": "Gps Max Accuracy M",
+            "type": "number"
+          },
+          "registry_artifact": {
+            "$ref": "#/components/schemas/RegistryArtifact",
+            "default": {
+              "min_modal_share": 0.3
+            }
+          },
+          "sources": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/SourceSettings"
+            },
+            "propertyNames": {
+              "$ref": "#/components/schemas/InferenceSource"
+            },
+            "title": "Sources",
+            "type": "object"
+          },
+          "street_address_enabled": {
+            "default": true,
+            "title": "Street Address Enabled",
+            "type": "boolean"
+          },
+          "thresholds": {
+            "$ref": "#/components/schemas/Thresholds",
+            "default": {
+              "admin1": 0.75,
+              "admin2": 0.75,
+              "city": 0.8,
+              "country": 0.6
+            }
+          },
+          "tz_penalty": {
+            "default": 0.3,
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Tz Penalty",
+            "type": "number"
+          },
+          "within_family_bonus": {
+            "default": 0.25,
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Within Family Bonus",
+            "type": "number"
+          }
+        },
+        "required": [
+          "sources"
+        ],
+        "title": "InferenceConfig",
+        "type": "object"
+      },
+      "InferenceSettingsChange": {
+        "properties": {
+          "note": {
+            "anyOf": [
+              {
+                "maxLength": 500,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          },
+          "settings": {
+            "$ref": "#/components/schemas/InferenceConfig",
+            "description": "The complete settings object. It becomes the next version as a whole."
+          }
+        },
+        "required": [
+          "settings"
+        ],
+        "title": "InferenceSettingsChange",
+        "type": "object"
+      },
+      "InferenceSettingsOut": {
+        "properties": {
+          "active_version": {
+            "title": "Active Version",
+            "type": "integer"
+          },
+          "engine_revision": {
+            "title": "Engine Revision",
+            "type": "string"
+          },
+          "inference_version": {
+            "description": "What a visit inferred now is stamped with (F4.AC16).",
+            "title": "Inference Version",
+            "type": "string"
+          },
+          "settings": {
+            "$ref": "#/components/schemas/InferenceConfig"
+          },
+          "versions": {
+            "items": {
+              "$ref": "#/components/schemas/SettingsVersionOut"
+            },
+            "title": "Versions",
+            "type": "array"
+          }
+        },
+        "required": [
+          "engine_revision",
+          "active_version",
+          "inference_version",
+          "settings",
+          "versions"
+        ],
+        "title": "InferenceSettingsOut",
+        "type": "object"
+      },
+      "InferenceSource": {
+        "description": "Values match the ``inference_source`` enum created by migration 0004.",
+        "enum": [
+          "gps",
+          "geolite2",
+          "ip2location",
+          "ipinfo",
+          "dbip",
+          "rdns",
+          "asn_org",
+          "cf_colo",
+          "external_api",
+          "latency",
+          "timezone"
+        ],
+        "title": "InferenceSource",
+        "type": "string"
+      },
+      "LevelPriors": {
+        "additionalProperties": false,
+        "description": "How far a source is trusted at each level, 0..1.\n\nA database that is right about the country 99 % of the time can be right about the\ncity half the time; one number per source cannot say that.",
+        "properties": {
+          "admin1": {
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Admin1",
+            "type": "number"
+          },
+          "admin2": {
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Admin2",
+            "type": "number"
+          },
+          "city": {
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "City",
+            "type": "number"
+          },
+          "country": {
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Country",
+            "type": "number"
+          }
+        },
+        "required": [
+          "country",
+          "admin1",
+          "admin2",
+          "city"
+        ],
+        "title": "LevelPriors",
         "type": "object"
       },
       "LinkClone": {
@@ -1122,6 +1433,21 @@
         "title": "RecoveryCodeRequest",
         "type": "object"
       },
+      "RegistryArtifact": {
+        "additionalProperties": false,
+        "description": "Suppression rule (a), F4.AC12(a) -- the B1 fix.",
+        "properties": {
+          "min_modal_share": {
+            "default": 0.3,
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Min Modal Share",
+            "type": "number"
+          }
+        },
+        "title": "RegistryArtifact",
+        "type": "object"
+      },
       "ResetConfirm": {
         "properties": {
           "new_password": {
@@ -1208,6 +1534,79 @@
         "title": "SessionSummary",
         "type": "object"
       },
+      "SettingsVersionOut": {
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "created_by": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Created By"
+          },
+          "is_active": {
+            "title": "Is Active",
+            "type": "boolean"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          },
+          "version": {
+            "title": "Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "version",
+          "is_active",
+          "note",
+          "created_at",
+          "created_by"
+        ],
+        "title": "SettingsVersionOut",
+        "type": "object"
+      },
+      "SourceSettings": {
+        "additionalProperties": false,
+        "properties": {
+          "enabled": {
+            "default": true,
+            "title": "Enabled",
+            "type": "boolean"
+          },
+          "priors": {
+            "$ref": "#/components/schemas/LevelPriors"
+          },
+          "timeout_ms": {
+            "default": 800,
+            "maximum": 10000.0,
+            "minimum": 10.0,
+            "title": "Timeout Ms",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "priors"
+        ],
+        "title": "SourceSettings",
+        "type": "object"
+      },
       "TelegramVerifyConfirm": {
         "properties": {
           "code": {
@@ -1234,6 +1633,42 @@
           "chat_id"
         ],
         "title": "TelegramVerifyStart",
+        "type": "object"
+      },
+      "Thresholds": {
+        "additionalProperties": false,
+        "description": "Minimum confidence for a **strict** value at each level (F4.AC10).\n\nBelow it the strict field is NULL with ``abstain_reason='below_threshold'``; the\nadvisory field still carries the best guess.",
+        "properties": {
+          "admin1": {
+            "default": 0.75,
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Admin1",
+            "type": "number"
+          },
+          "admin2": {
+            "default": 0.75,
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Admin2",
+            "type": "number"
+          },
+          "city": {
+            "default": 0.8,
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "City",
+            "type": "number"
+          },
+          "country": {
+            "default": 0.6,
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Country",
+            "type": "number"
+          }
+        },
+        "title": "Thresholds",
         "type": "object"
       },
       "TotpConfirmRequest": {
@@ -1345,8 +1780,7 @@
           },
           "candidates": {
             "items": {
-              "additionalProperties": true,
-              "type": "object"
+              "$ref": "#/components/schemas/CandidateOut"
             },
             "title": "Candidates",
             "type": "array"
@@ -1410,6 +1844,18 @@
               }
             ],
             "title": "Inference Version"
+          },
+          "inferred_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Inferred At"
           },
           "is_returning": {
             "anyOf": [
@@ -1526,6 +1972,7 @@
           "visitor_id",
           "is_returning",
           "finalized_at",
+          "inferred_at",
           "trace_id",
           "classifier_version",
           "inference_version",
@@ -2408,6 +2855,109 @@
         "summary": "Issue a fresh set of recovery codes, invalidating the old ones",
         "tags": [
           "auth"
+        ]
+      }
+    },
+    "/api/v1/health/inference": {
+      "get": {
+        "operationId": "get_settings_api_v1_health_inference_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InferenceSettingsOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "The active inference settings and every retained version",
+        "tags": [
+          "inference"
+        ]
+      },
+      "patch": {
+        "description": "Never edits a version in place: the submitted settings become the next version, and every earlier one stays available for rollback (F4.AC14). Visits inferred from now on carry the new `inference_version`; visits already inferred keep theirs.",
+        "operationId": "change_settings_api_v1_health_inference_patch",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/InferenceSettingsChange"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InferenceSettingsOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Save a new settings version and make it active (owner only)",
+        "tags": [
+          "inference"
+        ]
+      }
+    },
+    "/api/v1/health/inference/rollback/{version}": {
+      "post": {
+        "operationId": "rollback_api_v1_health_inference_rollback__version__post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "version",
+            "required": true,
+            "schema": {
+              "title": "Version",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InferenceSettingsOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Reactivate an earlier settings version (owner only)",
+        "tags": [
+          "inference"
         ]
       }
     },

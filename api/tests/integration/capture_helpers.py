@@ -150,3 +150,12 @@ async def audit_details_for(target_id: uuid.UUID, action: str) -> list[dict[str,
             {"t": str(target_id), "a": action},
         )
         return [dict(row) for row in rows.scalars()]
+
+
+async def audit_details_for_action(action: str) -> list[dict[str, Any]]:
+    """Every audit detail recorded for ``action``, oldest first."""
+    async with session_scope() as db:
+        rows = await db.execute(
+            text("SELECT detail FROM audit_log WHERE action = :a ORDER BY id"), {"a": action}
+        )
+        return [dict(row) for row in rows.scalars()]

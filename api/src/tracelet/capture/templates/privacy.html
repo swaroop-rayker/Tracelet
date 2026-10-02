@@ -54,8 +54,9 @@ JavaScript runs.</p>
   <li>Your time zone and preferred languages.</li>
   <li>Short hashes of how your device draws text and graphics. These cannot be reversed
       into anything about you; they help tell repeat visits and automated traffic apart.</li>
-  <li><strong>Your precise location, only if you grant permission</strong> when your
-      browser asks. If you do not, no precise location is recorded.</li>
+  <li><strong>Your precise location, only if you have already allowed this site to use
+      it</strong> in your browser settings. This page never asks for it, and if the
+      permission has not been granted no precise location is recorded.</li>
 </ul>
 
 <h2>Never recorded</h2>
@@ -66,12 +67,17 @@ request to any other website.</p>
 <h2>How approximate location is estimated</h2>
 <p>Without your permission, location is estimated from your network address using
 public IP-location databases (MaxMind GeoLite2, IP2Location LITE, IPinfo Lite and DB-IP
-Lite), the name your network operator gives your address, and the location of the
-network edge that served the request. These estimates are usually regional rather than
+Lite), the registered name of the network your address belongs to, the name your
+network operator gives your address, and the location of the network edge that served
+the request. These estimates are usually regional rather than
 precise, and where the sources disagree no location is recorded.</p>
 {% if external_geo_enabled %}
-<p>External IP-location lookup services may also be consulted. Only the network address
-is sent to them.</p>
+<p>An external IP-location service (ipwho.is) may also be consulted. It is sent the
+address of your <em>network</em> — the first address of its block — never your own
+address, and its answer is reused for everyone on that network.</p>
+<p>If you had already allowed this site to use your precise location, those coordinates
+are sent to OpenStreetMap's Nominatim service to find the street address. Nothing else
+about your visit is sent.</p>
 {% else %}
 <p>No external lookup service is consulted: all estimation happens on this server.</p>
 {% endif %}
@@ -99,6 +105,8 @@ recorded every time.</p>
   <li>This site includes IP2Location LITE data available from
       <a href="https://lite.ip2location.com" rel="noopener">lite.ip2location.com</a>.</li>
   <li>IP address data powered by <a href="https://ipinfo.io" rel="noopener">IPinfo</a>.</li>
+  <li>Street addresses © <a href="https://www.openstreetmap.org/copyright" rel="noopener">OpenStreetMap</a>
+      contributors, available under the Open Database Licence, via Nominatim.</li>
 </ul>
 </main>
 </body>

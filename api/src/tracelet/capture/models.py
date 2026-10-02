@@ -36,6 +36,7 @@ from sqlalchemy.dialects import postgresql as pg
 from sqlalchemy.orm import Mapped, mapped_column
 
 from tracelet.db.base import Base
+from tracelet.inference.types import InferenceSource
 
 __all__ = [
     "AsnType",
@@ -312,16 +313,25 @@ class Visit(Base):
     strict_admin1: Mapped[str | None] = mapped_column(Text)
     strict_admin2: Mapped[str | None] = mapped_column(Text)
     strict_city: Mapped[str | None] = mapped_column(Text)
+    strict_lat: Mapped[Decimal | None] = mapped_column(Numeric(9, 6))
+    strict_lng: Mapped[Decimal | None] = mapped_column(Numeric(9, 6))
     advisory_country_code: Mapped[str | None] = mapped_column(CHAR(2))
     advisory_admin1: Mapped[str | None] = mapped_column(Text)
     advisory_admin2: Mapped[str | None] = mapped_column(Text)
     advisory_city: Mapped[str | None] = mapped_column(Text)
+    advisory_lat: Mapped[Decimal | None] = mapped_column(Numeric(9, 6))
+    advisory_lng: Mapped[Decimal | None] = mapped_column(Numeric(9, 6))
     confidence_country: Mapped[Decimal | None] = mapped_column(Numeric(4, 3))
     confidence_admin1: Mapped[Decimal | None] = mapped_column(Numeric(4, 3))
     confidence_admin2: Mapped[Decimal | None] = mapped_column(Numeric(4, 3))
     confidence_city: Mapped[Decimal | None] = mapped_column(Numeric(4, 3))
     abstain_reason: Mapped[dict[str, Any]] = mapped_column(pg.JSONB, nullable=False, default=dict)
+    geo_source_primary: Mapped[InferenceSource | None] = mapped_column(
+        _pg_enum(InferenceSource, "inference_source")
+    )
     inference_version: Mapped[str | None] = mapped_column(Text)
+    # ADR-0015: the inference job's work queue is "finalised and not yet inferred".
+    inferred_at: Mapped[dt.datetime | None] = mapped_column(DateTime(timezone=True))
 
     # --- geofence (M6) ------------------------------------------------------
     matched_geofence_ids: Mapped[list[uuid.UUID]] = mapped_column(

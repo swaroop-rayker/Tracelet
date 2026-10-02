@@ -61,11 +61,11 @@ jobs:
       matrix:
         include:
           - label: "2 · ruff check"
-            cmd: "ruff check src tests"
+            cmd: "ruff check src tests spikes"
           - label: "3 · ruff format"
-            cmd: "ruff format --check src tests"
+            cmd: "ruff format --check src tests spikes"
           - label: "4 · mypy --strict"
-            cmd: "mypy src tests"
+            cmd: "mypy src tests spikes"
           - label: "5 · pytest unit"
             cmd: "pytest tests/unit -q"
           - label: "10 · route-name guard"

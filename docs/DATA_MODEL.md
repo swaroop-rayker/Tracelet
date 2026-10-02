@@ -80,7 +80,7 @@ could not see it (docs/ERRORS.md E13).
 | `device_class` | `mobile`, `tablet`, `desktop`, `tv`, `server`, `bot`, `unknown` |
 | `geo_level` | `country`, `admin1`, `admin2`, `city`, `point` |
 | `geofence_state` | `inside`, `outside`, `undetermined` |
-| `inference_source` | `gps`, `geolite2`, `ip2location`, `ipinfo`, `dbip`, `rdns`, `asn_org`, `cf_colo`, `external_api`, `latency`, `timezone` |
+| `inference_source` | `gps`, `geolite2`, `ip2location`, `ipinfo`, `dbip`, `rdns`, `asn_org`, `cf_colo`, `external_api`, `latency`, `timezone` — `latency` (S10) is **unused since M3** (SPEC §11 row 12); kept because dropping a PostgreSQL enum value rewrites every table using the type |
 | `notify_priority` | `high`, `normal`, `silent` |
 | `outbox_kind` | `telegram.visit_alert`, `telegram.password_reset`, `telegram.health_alert`, `telegram.test` — `password_reset` is **unused**: reset links are sent synchronously, see the ADR-0009 amendment |
 | `outbox_status` | `pending`, `in_flight`, `done`, `failed`, `dead` |
@@ -354,6 +354,7 @@ partitioning in v1** — it would be complexity without benefit.
 | `finalized_at` | `timestamptz` NULL | |
 | `enrichment_consumed_at` | `timestamptz` NULL | **Makes the nonce single-use without a separate table** — F2.AC6 |
 | `trace_id` | `text` | Ties the row to every log line for that request |
+| `inferred_at` | `timestamptz` NULL | **Added in M3** (ADR-0015). Set by the inference job's conditional write; "finalised and not inferred" is its work queue |
 
 **Network — see F12.AC1 and RW-3**
 
@@ -378,6 +379,13 @@ partitioning in v1** — it would be complexity without benefit.
 `asn`, `asn_org`, `asn_type`, `rdns_ptr` and `connection_class` exist from M2 and are
 populated from M3, because they come from the offline databases and the resolver budget
 M3 introduces. Until then they hold `NULL` or `'unknown'`, never a guess.
+
+**`rdns_ptr` is stored masked.** A PTR record frequently *contains* the address
+(`49.204.83.225.actcorp.in`), so every digit run and hex-group run is replaced with `#`
+before storage — `triband-mum-#.mtnl.net.in`. The lexicon matches the real name in memory
+only (`inference/sources/rdns.py::mask_ptr`); a test searches the row and the candidate
+evidence for the visitor's address. Without this, S6 would be a plaintext-IP column
+(CLAUDE.md invariant 4).
 
 **Client identity — ADR-0006**
 
@@ -410,7 +418,13 @@ smallint CHECK 0..100`, `agreement_score numeric(4,3)`, `conflict_score numeric(
 **`signals jsonb`** — array of fired rules `[{rule_id, category, weight, detail}]`, and
 the reasons for absent client values (F3.AC5), which use `category: "absence"` and
 weight 0. M2 records three: `ua.link_preview_fetcher`, `edge.unverified_cf_header` and
-`client.geolocation_absent`.
+`client.geolocation_absent`. M3 adds `inference.source_absent` — one per source that
+produced no candidate, with `{source, status, latency_ms, reason}`, where `status` is
+`empty`, `disabled`, `timeout`, `unavailable` or `error` — and `inference.engine_error`.
+`inference.street_address_absent` records why a consented visit has no street address
+(`disabled`, `circuit_open`, `rate_budget_spent`, `request_failed:*`, `no_address_known`).
+Together with `visit_candidates` they make every source visible for every visit
+(F4.AC11), including the ones that said nothing.
 
 **`request_headers` — added in M2, not in the Gate-3 model.** F3.AC1 requires the "full
 header set", and the Gate-3 model had nowhere to put it. It is also the one column that
@@ -427,7 +441,8 @@ writes them back out sorted. Measured on 2026-09-28: a request sent `Zzz-Last`,
 `Aaa-First`, `Mmm-Middle`, and the application received them alphabetically. A hash of
 that order would be identical for every client with the same header *set* — a value that
 looks exactly like a fingerprint and carries none of the information. The column is kept
-so M4 can populate it if a way to observe order is found (docs/RISKS.md R19).
+so M4 can populate it if a way to observe order is ever found (docs/RISKS.md R19); F5.AC8
+now uses the header *set* instead (SPEC section 11 row 7).
 
 > **Why `signals` is JSONB but `visit_candidates` is a table.** Signals are read as a
 > whole for one visit and filtered with a GIN containment query; only fired rules are
@@ -479,6 +494,7 @@ so M4 can populate it if a way to observe order is found (docs/RISKS.md R19).
 | partial `(occurred_at)` where `stage='server'` | **The 90 s sweeper** — F2.AC7 |
 | partial `(ip_purge_after)` where `ip_enc IS NOT NULL` | The IP purge job — F12.AC2 |
 | partial `(occurred_at)` where `finalized_at IS NULL` | Stuck-visit detection |
+| partial `(finalized_at)` where finalised, `inferred_at IS NULL` and not `rate_limited` | **The inference job's queue** — ADR-0015, added in M3 |
 
 ### 5.3 Invariants on `visits`
 
@@ -506,6 +522,13 @@ so M4 can populate it if a way to observe order is found (docs/RISKS.md R19).
    disagree about what is pending.
 10. **`(ip_enc IS NULL) = (ip_key_version IS NULL)`** — `CHECK`, added in M2. A purge nulls
     both; a key version pointing at nothing is a bug.
+11. **`strict_lat`/`strict_lng` — and the `geopoint` derived from them — exist only when
+    `strict_city` does.** Added in M3 (ERRORS.md E28). A strict *state* is not a coordinate:
+    the admin1 winners' records carry city coordinates, and geofencing would act on them.
+    Application-enforced in `inference/consensus.py`. The advisory point has no such limit;
+    it is a guess and is displayed as one.
+12. **Rate-limited visits are never inferred** — the inference queue's partial index
+    excludes `stage = 'rate_limited'` (invariant 8).
 
 Invariants 2 and 5 are `CHECK` constraints (`ck_visits_gps_requires_consent`,
 `ck_visits_no_geopoint_is_undetermined`), not conventions. Each is exercised by a test
@@ -518,8 +541,17 @@ unmapped in the ORM until then.
 
 ### 5.4 `visit_candidates` — the derivation trail
 
-**Created in M3**, with the inference engine that writes it. `GET /api/v1/visits/{id}`
-returns `candidates: []` until then.
+**Created in M3** (migration 0005), with the inference engine that writes it.
+
+**What a row means.** `level` is the deepest level the candidate asserts; its shallower
+fields are filled in. `weight` is the source's prior at that level × `raw_confidence`;
+`effective_weight` is `weight` after S11's timezone penalty. `accepted` means the
+candidate is on the winning side at every level it asserts **and** no suppression rule
+rejected it. The reasons the M3 engine writes are `registry_artifact`, `mobile_asn`,
+`hosting_asn`, `tz_mismatch` (it lost, and the browser timezone contradicted it) and
+`outvoted`; `below_threshold` is allowed by the CHECK but reserved — a level that fails
+its threshold is recorded in `visits.abstain_reason`, not held against the candidates
+that agreed with it. An S11 row always has weight 0: it rejects, never votes (F4.AC9).
 
 | Column | Type | Notes |
 |---|---|---|
@@ -542,7 +574,9 @@ returns `candidates: []` until then.
 `accepted`.
 
 **Invariants:** losers and suppressed candidates are retained — that *is* the audit
-trail (F4.AC6, F4.AC11). Every `accepted=false` row has a `suppressed_reason`.
+trail (F4.AC6, F4.AC11). **`accepted = (suppressed_reason IS NULL)`** is a `CHECK`
+(`rejection_has_reason`), as is the list of known reasons, so a rejection without a
+reason cannot be stored. `evidence` never holds an unmasked PTR (section 5.1).
 Cascade-deleted with the visit.
 
 ---
@@ -628,6 +662,19 @@ All of section 8 is in the **must never be lost** set (F12.AC12, NFR5.AC3).
 a registry artifact: it means the database has collapsed a whole ISP onto one point.
 That is exactly the Bangalore-recorded-as-Faridabad failure — F4.AC12(a).
 
+**As computed in M3** (`inference/geodb/profiles.py`, in a memory-capped subprocess):
+every IPv4 network of the installed ASN database is looked up in every installed city
+database and weighted by its address count. Only records that **name a city** count; a
+country-only record carries the country's centroid, not a placement (ERRORS.md E30).
+Only networks placed in India are counted: that is the primary audience, and an ASN
+elsewhere simply has no profile, so rule (a) cannot fire for it. An ASN smaller than a
+**/18** keeps its centroid but gets `modal_share = NULL`, because one point is not
+evidence when there was nowhere else to be. `modal_city`/`modal_admin1` are respelled
+through GeoNames exactly as candidates are, or the rule's name comparison could never
+match. `is_registry_artifact_source` uses the default 0.30 for display only; the engine
+applies the *active settings* threshold to `modal_share` (RISKS R24). The table is
+rebuilt after any location or ASN database update.
+
 ### 8.2 `rdns_city_codes` — the lexicon
 
 `id bigserial` PK, `pattern text` (regex), `code text`, `city`, `admin1`, `country_code`,
@@ -637,7 +684,15 @@ boolean`, `lexicon_version integer`, `created_at`, `updated_at`.
 **Indexes:** `(is_active, country_code)`, `UNIQUE(pattern, lexicon_version)`.
 Seeded from a versioned data file, editable from the dashboard. **Spike A in KICKOFF
 section 6 measures whether this table can carry the weight the accuracy plan puts on
-it** — RISKS R3.
+it** — RISKS R3. **Measured: 2.0 %.**
+
+The seed is `api/src/tracelet/inference/data/rdns_lexicon.json`, one row per code, loaded
+once per `lexicon_version` the first time inference runs and never re-applied over an
+admin's edits. Every `IN` entry applies only to a PTR under an Indian domain (the file's
+`in_domain_gate`), because short codes such as `del` or `pat` are meaningless elsewhere.
+Airtel telecom-circle codes (`kk`, `tn`, …) are admin1-only entries restricted to
+`airtelbroadband.in`; circles spanning two states are deliberately absent, with the
+reasons in the file.
 
 ### 8.3 `geo_databases`
 
@@ -649,6 +704,15 @@ it** — RISKS R3.
 index. Atomic symlink swap means a failed update leaves the previous version serving
 (F10.AC4).
 
+**As built in M3.** Every attempt is a row: `downloading` while in flight, then
+`installed`, or `failed` with a `last_error` that never contains a URL or credential.
+When a new version installs, the previous `installed` row becomes `stale`, meaning
+*superseded*; whether an installed copy is too old is a verdict computed from
+`installed_at` and `staleness_threshold_days`, not a status. An attempt that found the
+file unchanged leaves no row. On disk: `<geo_data_dir>/<name>/<version>-<sha8>/<file>`,
+with `<name>/current` a symlink to the serving version; the previous version is kept and
+older ones pruned.
+
 ### 8.4 `inference_settings`
 
 `id`, `version integer` UNIQUE, `settings jsonb` (source toggles, weights, thresholds,
@@ -657,6 +721,15 @@ suppression parameters), `is_active boolean`, `note text`, `created_by`, `create
 **Invariants:** exactly one `is_active` (partial unique index); **every version is
 retained**, so a bad tuning change can be rolled back and old `inference_version`
 stamps stay interpretable — F4.AC14.
+
+**Enforced by privilege, since M3:** the application role holds `INSERT` and
+`UPDATE (is_active)` only — it cannot rewrite a version's `settings` or delete one
+(migration 0005, the same shape as `audit_log`). Version 1 is the code default
+(`inference/config.py::DEFAULT_CONFIG`), written the first time anything asks for the
+active version. `inference_version` on a visit is `<engine revision>+s<settings version>`,
+e.g. `m3.1+s1`, naming both halves of what produced it. `tracelet inference reset-defaults`
+saves the current built-in defaults as a new version from the host (audited, `via:
+cli_reset_defaults`), for a database seeded before the defaults changed.
 
 ### 8.5 `retention_policy`
 

@@ -44,8 +44,8 @@ than either alone.
 | S6 | **rDNS PTR city-code lexicon** | Highest-value free India signal |
 | S7 | ASN and ISP organisation-name parsing | Classifies the connection |
 | S8 | **`CF-Ray` edge colo** | Metro hint, server-side, **survives the WebView** |
-| S9 | ipwho.is, ip-api.com | External, toggleable, cached by prefix |
-| S10 | Latency triangulation | Implemented, **flag off** (RW-6) |
+| S9 | ipwho.is | External, toggleable, cached by prefix. **ip-api.com dropped in M3**: its free endpoint is HTTP-only and non-commercial, failing F4.AC5's "HTTPS" (RISKS R2) |
+| S10 | ~~Latency triangulation~~ | **Dropped in M3** — needs third-party requests (SPEC §11 row 12) |
 | S11 | Browser timezone cross-check | **Rejects**, never proposes |
 
 Each emits zero or more candidates and **every candidate is persisted** — winners,
@@ -64,7 +64,9 @@ contradiction lowers it.
 offline databases, along with `modal_share` — the fraction of that ASN entries sitting at
 that one point. A high share is the signature of a database collapsing a whole ISP onto
 its registration address. If the winning city equals that centroid **and** no non-database
-source (S1, S6, S8) corroborates it, the city collapses to `admin1`.
+source (S1, S6, S8) corroborates it, the city collapses to the **country** — amended in M3
+(SPEC section 11 row 11): the registry record that placed the city placed the state too,
+so stopping at `admin1` emitted B1's wrong state as a fact.
 
 **(b) Mobile and CGNAT ASNs.** City candidates are discarded outright; `admin1` is the
 deepest emittable level. Carrier gateways are geographically meaningless at city scale.
@@ -88,8 +90,14 @@ Plus `agreement_score`, `conflict_score`, and `inference_version` on every visit
 |---|---|---|
 | Country | ≥99.5 % accuracy, ~100 % coverage | same |
 | Admin1 | ≥99 % **precision** at ≥85 % coverage | ≥92 % accuracy |
-| City, no consent | ≥95 % precision at ≥50 % coverage | ≥70 % accuracy |
+| City, no consent | ≥95 % precision; coverage measured, floor set in M8 (amended — see below) | ≥70 % accuracy |
 | City, consented | ~100 % | — |
+
+> **Amended 2026-09-29 (SPEC section 11 row 9).** The city row originally read "≥95 %
+> precision at ≥50 % coverage". Spike A measured rDNS city-code coverage at 2.0 % (RISKS R3),
+> so the corroboration that coverage depended on does not exist for most visitors. Precision
+> is kept — this decision's premise is never being confidently wrong — and the coverage
+> floor waits for ground-truth data in M8.
 
 Verified in CI against an owner-labelled ground-truth set (F4.AC15, F14.AC12).
 
@@ -149,5 +157,6 @@ one or the other.
 - Spike A reports low rDNS coverage — revise F4.AC13 targets before building M3.
 - An external source proves consistently wrong for India; down-weight it with evidence
   from `visit_candidates` rather than by intuition.
-- Latency triangulation, once measured in M8, adds meaningful accuracy over S8 — then
-  reconsider the default-off decision in RW-6.
+- ~~Latency triangulation, once measured in M8, adds meaningful accuracy over S8.~~ S10 was
+  dropped in M3 (SPEC section 11 row 12); revisit only with a design that needs no
+  third-party request from the capture page.

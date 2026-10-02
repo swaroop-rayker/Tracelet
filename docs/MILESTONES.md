@@ -18,7 +18,7 @@ then open the PR (CLAUDE.md section 2).
 | M0 | Foundation and CI | M | **[x] done** — CI green on `main`, 69 tests |
 | M1 | Admin auth and account security | L | **[x] done** — 285 tests, 15 bugs recorded as E8–E22 |
 | M2 | Capture path, server-authoritative | L | **[x] done** — 631 tests, Spike B run (Android), 4 bugs recorded as E23–E26 |
-| M3 | Location inference engine | L | [ ] |
+| M3 | Location inference engine | L | **[x] done** — 738 tests (463 unit, 275 integration); real-visit check deferred to M9 (owner decision); 5 bugs recorded as E27–E31 |
 | M4 | Anti-spoofing and classification | L | [ ] |
 | M5 | Dashboard analytics and visualisation | L | [ ] |
 | M6 | Geofencing and Telegram notifications | M | [ ] |
@@ -30,7 +30,7 @@ then open the PR (CLAUDE.md section 2).
 
 | | Spike | Blocks | Status |
 |---|---|---|---|
-| Spike A | rDNS city-code coverage for Indian residential IPs (RISKS R3) | **M3** | [ ] |
+| Spike A | rDNS city-code coverage for Indian residential IPs (RISKS R3) | **M3** | [x] 2026-09-29 — 2.0 %, below the 30 % line |
 | Spike B | `fetch(keepalive)` survival in the Instagram webview (RISKS R5) | **M2** — runs inside M2 against the real capture page (owner decision 2026-09-28) | **[x] Android: survives. iOS unmeasured** — R5 |
 
 ---
@@ -394,11 +394,13 @@ F12.AC1–F12.AC4, F11.AC1–F11.AC4, F11.AC8, F11.AC10, F13.AC3, F13.AC6, F15.A
 
 **Open for the owner:**
 
-1. **R19 — amend F5.AC8** now that header order is unobservable. Recommendation in RISKS.
-2. **R20 — the location prompt cannot be answered inside the interstitial.** Spike B
-   confirmed it: every real browser timed out. Recommendation in RISKS: amend F4.AC1 to ask
-   only where permission is already granted.
-3. **What the default link is for.** Nothing depends on it yet.
+1. ~~**R19 — amend F5.AC8**~~ **Decided 2026-09-29:** header set + re-weighting, SPEC
+   section 11 row 7. Built in M4.
+2. ~~**R20 — the location prompt cannot be answered inside the interstitial.**~~
+   **Decided 2026-09-29:** never prompt; read an existing grant. SPEC section 11 row 8,
+   applied at the start of M3.
+3. ~~**What the default link is for.**~~ **Decided 2026-09-29:** the bare `/r` and `/r/`
+   capture through it. SPEC section 11 row 10, applied at the start of M3.
 4. **R21 — the Meta scanner.** No decision needed now; it is a stated requirement on M4.
 
 ---
@@ -421,23 +423,87 @@ F12.AC1–F12.AC4, F11.AC1–F11.AC4, F11.AC8, F11.AC10, F13.AC3, F13.AC6, F15.A
 - `inference_settings` versioned config + rollback
 - S9 external APIs: per-source toggle, prefix cache, timeout, circuit breaker
 - Nominatim client at 1 rps, cached, descriptive UA, consented visits only
-- S10 latency triangulation, **implemented and flag-off**
+- ~~S10 latency triangulation, implemented and flag-off~~ — **dropped** (SPEC §11 row 12)
 
 **Done checklist**
 - [ ] A real visit shows the full derivation table: every source, weight, accepted or
       suppressed with reason, latency
-- [ ] **Registry-artifact suppression demonstrated** on a real Indian broadband IP that the
-      databases place in the NCR — city collapses to admin1 with the reason recorded
-- [ ] Mobile ASN visit emits **no** city
-- [ ] Hosting ASN visit abstains on all strict levels
-- [ ] Consented visit resolves street address; **non-consented stores no coordinates** —
+      — ***deferred to M9** (owner decision 2026-09-29).* Locally the visitor is the Docker
+      gateway, because `CF-Connecting-IP` is trusted only from a verified Cloudflare peer
+      (F13.AC6) and a quick tunnel's peer is local; a development-only trust setting was
+      declined. The same pipeline has run end to end on a real address inside the
+      production image (step 2); what is deferred is a *captured* visit.
+- [x] **Registry-artifact suppression demonstrated** on a real Indian broadband IP that the
+      databases place in the NCR — city collapses to the country with the reason recorded
+      — *Tikona (AS45528) address placed in Delhi, real DB-IP data and the production
+      readers + consensus (a script, not a captured visit): admin1 and city abstain with
+      `registry_artifact`, advisory still Delhi. 2026-09-29.*
+- [x] Mobile ASN visit emits **no** city — *Jio (AS55836), real data, same method: `mobile_asn`, no city even advisory*
+- [x] Hosting ASN visit abstains on all strict levels — *AWS Mumbai (AS16509), real data, same method: `hosting_asn` on every level*
+- [x] Consented visit resolves street address; **non-consented stores no coordinates** —
       `CHECK` constraint proven
-- [ ] Disabling every source still redirects and records `country=NULL` + reason (F4.AC18)
-- [ ] External API timeout opens the breaker; inference completes on remaining sources
-- [ ] Settings version bump then rollback, both audit-logged
-- [ ] Geo-database update succeeds; a **deliberately corrupted** download leaves the
+      — *`test_a_consented_visit_gets_a_street_address`,
+      `test_a_visit_without_consent_is_never_sent_to_nominatim`; the CHECK is proven by
+      `test_the_engine_itself_refuses_coordinates_without_consent` (M2)*
+- [x] Disabling every source still redirects and records `country=NULL` + reason (F4.AC18)
+      — *`test_with_every_source_disabled_the_visit_still_abstains_with_reasons`; the
+      redirect is independent of inference by construction (ADR-0015)*
+- [x] External API timeout opens the breaker; inference completes on remaining sources
+      — *`test_timeouts_open_the_breaker_and_inference_completes_without_it`*
+- [x] Settings version bump then rollback, both audit-logged — *integration tests, `test_inference_settings.py`*
+- [x] Geo-database update succeeds; a **deliberately corrupted** download leaves the
       previous version serving
-- [ ] Docs: ARCHITECTURE section 3, DATA_MODEL sections 5.4, 8.1, 8.2 verified
+      — *seven real databases installed 2026-09-29; corruption, truncation, bad checksum,
+      size cap and 404 fallback in `test_geodb_installer.py`*
+- [x] Docs: ARCHITECTURE section 3, DATA_MODEL sections 5.4, 8.1, 8.2 verified — *against the
+      code at `b6aa0e0`; section 3.1 and each DATA_MODEL "as built" note were written with it*
+
+**Progress — step 1 of 3 (2026-09-29): the engine, without the databases.**
+
+Built and tested: migration 0005 (candidates, reference tables, versioned settings, the
+inference queue); ADR-0015 (inference is a scheduled job, not part of a request);
+weighted consensus with family-discounted agreement, hierarchical strict output and the
+three suppression rules (unit-tested, including B1's own Faridabad case); S1 (point
+only), S6 with the E27 resolver canary and PTR masking, S7 classification, S8, S11;
+settings read / new version / rollback, owner-only and audited, with the table
+privilege-protected; `candidates[]` in visit detail.
+
+Not yet: S2–S5 and the installer (step 2 — DB-IP Lite and GeoNames download approved; the
+MaxMind, IP2Location and IPinfo keys are the owner's to add to `.env`); GeoNames reverse
+geocoding, without which S1 names no place; `asn_profiles` computation, without which
+rule (a) cannot fire on real traffic; S9 and Nominatim (step 3). None of the checklist
+items above is ticked: each needs real databases or a real visit.
+
+**Raised for the owner during step 1, and decided:** RISKS R22 — the artifact collapse is
+to country (SPEC §11 row 11); R23 — S10 dropped (row 12).
+
+**Progress — step 2 of 3 (2026-09-29): the offline databases.** Installer (staging, size
+cap, SHA-256, vendor checksum, memory-capped validation, atomic swap), memory-mapped
+readers for S2–S5 and the two ASN files, GeoNames reverse geocoding and name
+canonicalisation (+9 MB per worker, measured), `asn_profiles`, the daily
+`geodb_update` job and `tracelet geodb status|update|profiles`. All seven databases
+installed in development. The full job ran end to end on a real Airtel Bengaluru
+address: four database candidates, network classified, every silent source recorded
+with its reason, no plaintext address in the row.
+
+Calibrated on real lookups: the admin1 defaults were raised (threshold 0.75; priors
+0.72 / 0.68 / 0.68), because with three agreeing databases the state could never be
+strict — which would have made F4.AC13's admin1 coverage unreachable. **This development
+database still runs settings version 1 from before that change** (versions are
+immutable); the new values reach it as version 2 through the settings API, an owner
+action. Found and fixed: E30 (MaxMind's country centroid read as a placement), E31
+(credentials in a repr). Raised: RISKS R24 (a regional ISP looks like a registry
+collapse).
+
+**Progress — step 3 of 3 (2026-09-29): outbound.** S9 on ipwho.is only (ip-api.com
+is HTTP-only and non-commercial; RISKS R2), asked about the /24 network address and cached
+by prefix; Nominatim street addresses for consented visits, in-memory cache; shared GCRA
+budgets and per-process circuit breakers (`inference/outbound.py`); the privacy page
+discloses both and carries the ODbL attribution.
+
+A captured real visit was deferred to M9 by the owner (see the first checklist item).
+`tracelet inference reset-defaults` saves the built-in defaults as a new, audited version;
+this development database now runs them as version 31.
 
 ---
 
@@ -588,7 +654,7 @@ F12.AC1–F12.AC4, F11.AC1–F11.AC4, F11.AC8, F11.AC10, F13.AC3, F13.AC6, F15.A
 - CI accuracy job failing on regression below F4.AC13 targets
 - Dashboard accuracy panel with **`label_count` beside every figure**
 - Threshold tuning against real labels; lexicon expansion from observed PTR records
-- **Measure S10 latency triangulation** and decide whether default-off stands (RW-6)
+- ~~Measure S10 latency triangulation~~ — S10 was dropped in M3 (SPEC §11 row 12)
 - Re-run inference on retained ciphertext IPs to validate tuning (the ADR-0007 payoff)
 
 **Done checklist**
@@ -598,7 +664,7 @@ F12.AC1–F12.AC4, F11.AC1–F11.AC4, F11.AC8, F11.AC10, F13.AC3, F13.AC6, F15.A
 - [ ] CI job fails on a deliberately-regressed threshold
 - [ ] Per-source accuracy reported; any consistently-wrong source down-weighted **with
       evidence from `visit_candidates`**, not intuition
-- [ ] S10 measured; decision recorded in RISKS and, if changed, an ADR-0005 amendment
+- [x] ~~S10 measured~~ — not applicable: S10 dropped in M3 (SPEC §11 row 12, RISKS R23)
 - [ ] **F4.AC13 targets either met or formally amended in SPEC section 11 with data**
 - [ ] Docs: SPEC F4.AC13 reconciled with measured reality
 
@@ -632,6 +698,11 @@ F12.AC1–F12.AC4, F11.AC1–F11.AC4, F11.AC8, F11.AC10, F13.AC3, F13.AC6, F15.A
 - [ ] Every degradation drill leaves **the redirect working**
 - [ ] **Restore drill onto a fresh VM succeeds, with `ip_enc` readable** — proving the
       out-of-band secret backup actually works (ADR-0014)
+- [ ] **Real visits through the Cloudflare path show the full derivation** (deferred from
+      M3, owner decision 2026-09-29): one on mobile data, one on Wi-Fi; every source
+      present in `candidates[]` or `inference.source_absent`, S8 colo populated
+- [ ] **The production resolver answers PTR** (ERRORS.md E27): S6's canary reports healthy
+      on the GCP host, and a real visit's `rdns_ptr` is populated where one exists
 - [ ] Safe Browsing review submitted; outcome recorded in RISKS R8 **whatever it is**
 - [ ] Every doc reconciled with the deployed system
 - [ ] **SC4**: every ADR still accurately describes what was built

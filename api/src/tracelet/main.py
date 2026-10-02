@@ -23,6 +23,9 @@ from tracelet.db.engine import dispose_engine, init_engine
 from tracelet.db.request_session import DatabaseSessionMiddleware
 from tracelet.errors import install_error_handlers
 from tracelet.health.router import router as health_router
+from tracelet.inference import engine as inference_engine
+from tracelet.inference.geodb import readers as geodb_readers
+from tracelet.inference.router import router as inference_router
 from tracelet.logging import configure_logging
 from tracelet.middleware import AccessLogMiddleware, TraceIdMiddleware
 from tracelet.worker.scheduler import Scheduler
@@ -56,8 +59,13 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     # /readyz reports it instead, and the redirect path degrades rather than
     # failing (NFR3.AC2).
 
-    # The sweeper and the IP purge (ADR-0009). Started in every worker; an advisory
-    # lock inside each job means only one worker actually runs any given tick.
+    # Inference reads whatever geo databases are installed right now; an update swaps
+    # them under a running worker without a restart (inference/geodb/readers.py).
+    inference_engine.set_toolkit_factory(geodb_readers.build_toolkit)
+
+    # The sweeper, the IP purge, inference and database updates (ADR-0009, ADR-0015).
+    # Started in every worker; an advisory lock inside each job means only one worker
+    # actually runs any given tick.
     scheduler = Scheduler()
     scheduler.start()
 
@@ -120,6 +128,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(admins_router)
     app.include_router(links_router)
     app.include_router(visits_router)
+    app.include_router(inference_router)
 
     return app
 

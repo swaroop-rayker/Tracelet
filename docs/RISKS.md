@@ -7,11 +7,11 @@ Severity is `impact × likelihood` at the time of writing, reassessed after each
 |---|---|---|---|
 | R1 | `CF-Ray` colo to metro mapping may be unstable for India | Medium | Open, spike in M3 |
 | R2 | External geo APIs: undocumented limits, ToS, breakage | Medium | Open, mitigated by design |
-| R3 | **rDNS city-code coverage may be too low to carry the accuracy plan** | **High** | **Open, Spike A, blocks M3** |
+| R3 | **rDNS city-code coverage may be too low to carry the accuracy plan** | **High** | **Spike A run 2026-09-29: 2.0 %. F4.AC13 amended (SPEC §11 row 9); M3 unblocked** |
 | R4 | Geo-database update memory spike could OOM the box | Medium | Open, mitigated by design |
 | R5 | `fetch(keepalive)` may not survive Instagram webview navigation | Medium | **Android: survives (Spike B, 2026-09-28). iOS: unmeasured — open** |
 | R6 | 1 GB steady state under real load; swap thrash | Medium | Open, verified in M9 |
-| R7 | Bot-detection ceiling without JA4 | **High** | **Mitigation void — see R19** |
+| R7 | Bot-detection ceiling without JA4 | **High** | **Accepted with a weaker substitute: header set (R19, SPEC §11 row 7)** |
 | R8 | Safe Browsing may flag the site regardless | Medium | Accepted, no guaranteed remedy |
 | R9 | 30–60 ground-truth labels give wide confidence intervals | Medium | Accepted, disclosed |
 | R10 | Free-subdomain path is materially weaker than documented parity suggests | Medium | Accepted, owner-chosen |
@@ -23,9 +23,12 @@ Severity is `impact × likelihood` at the time of writing, reassessed after each
 | R16 | GCP free-tier egress ceiling (1 GB/month) | Low | Open, monitor |
 | R17 | Fingerprint instability inflates unique-visitor counts | Medium | Accepted, disclosed |
 | R18 | Telegram becomes a security dependency, not just a notifier | Medium | Accepted, mitigated |
-| R19 | **Header order and HTTP/2 detail are unobservable behind Caddy** | **High** | **Open — owner decision needed before M4** |
-| R20 | A first-visit location prompt cannot be answered inside the interstitial | Medium | **Confirmed by Spike B — owner decision needed (F4.AC1)** |
+| R19 | **Header order and HTTP/2 detail are unobservable behind Caddy** | **High** | **Decided 2026-09-29: header set + re-weighting (SPEC §11 row 7); built in M4** |
+| R20 | A first-visit location prompt cannot be answered inside the interstitial | Medium | **Closed 2026-09-29: never prompt, read an existing grant (SPEC §11 row 8)** |
 | R21 | **A JavaScript-executing Meta scanner passes the crawler gate** | **High** | **Open — requirement on M4** |
+| R22 | **Registry-artifact collapse to admin1 still emits the artifact's state** | **High** | **Closed 2026-09-29: collapse to country (SPEC §11 row 11)** |
+| R23 | S10 latency triangulation cannot be built without third-party requests | Medium | **Closed 2026-09-29: S10 dropped (SPEC §11 row 12)** |
+| R24 | Rule (a) cannot tell a regional ISP from a registry collapse | Medium | **Accepted for M3 — tune in M8 with ground truth** |
 
 ---
 
@@ -56,7 +59,47 @@ code, and per-ISP breakdown. Half a day.
 | 30–50 % | Proceed, but lower the F4.AC13 city coverage target to match, via a SPEC section 11 amendment |
 | **Below 30 %** | **Amend F4.AC13 before building M3.** Shift city expectation onto S8 + consented GPS, and be explicit that non-consented non-Cloudflare visits will usually abstain at city |
 
-**Result:** _not yet run._
+**Result (2026-09-29): 2.0 % — below the 30 % line. Decision rule outcome: amend F4.AC13
+before building M3.**
+
+*Method.* Script and raw results: `api/spikes/spike_a_rdns.py`, `api/spikes/spike_a_result_2026-09-29.json`. Announced prefixes for each ISP fetched from RIPEstat on the day (Airtel AS24560
++ AS45609, Jio AS55836, ACT AS24309 + AS18209, BSNL AS9829, Vi AS38266 + AS45271 +
+AS55410). Per ISP, 150 random IPv4 addresses — at most one per /24, /24s drawn uniformly
+over the announced space — and 30 random IPv6 addresses. Seed 20260929. PTR resolved
+through Google and Cloudflare public DNS. A city-code lexicon of ~150 Indian IATA codes,
+city names and common abbreviations, and a separate telecom-circle/state lexicon, were
+**written into the script before the first lookup**. The first run was discarded: it
+reported 0 % everywhere because Docker Desktop's resolver does not answer PTR at all
+(ERRORS.md E27), which a control lookup of 8.8.8.8 exposed.
+
+| ISP (IPv4, n = 150 each) | Has a PTR | City code | Circle/state only |
+|---|---|---|---|
+| Airtel | 34.7 % | 0.7 % | 30.7 % (`north`, `tn`, `kk`, `ap`, `mp`) |
+| Jio | 3.3 % — all Akamai cache nodes, not subscribers | 0 % | 0 % |
+| ACT | 99.3 % — encode the address only (`49.204.83.225.actcorp.in`) | 0 % | 0 % |
+| BSNL | 15.3 % | 9.3 % — mostly MTNL `triband-del-` / `-mum-` | 0 % |
+| Vi | 0 % | 0 % | 0 % |
+| **Pooled** | **30.5 %** | **2.0 %** | 6.1 % |
+
+IPv6: **0 PTR records in 150** lookups, every ISP.
+
+*Would a better lexicon change it?* No. The only unmatched place-like tokens were three
+BSNL exchange-area codes (`ktm`, `gya`, `mld`); counting them moves pooled coverage from
+2.0 % to about 2.4 %.
+
+*Bias, stated.* Uniform over announced address space is not uniform over visitors. The
+visitor mix for an India-primary audience is dominated by Jio and Vi mobile — the two ISPs
+at 0 % — and increasingly by IPv6, also 0 %. A visitor-weighted figure would be **lower**,
+not higher. Airtel's circle codes are real **admin1-level** evidence for about a third of
+Airtel fixed-line addresses, but `north` is a zone spanning several states.
+
+**What it means.** S6 cannot be the corroborator that keeps suppression rule F4.AC12(a)
+from firing. Combined with SPEC section 11 row 8 (consented location will be rare) and
+R10 (no S8 on the free-subdomain path), a non-consented visit will usually have **no
+non-database corroboration for city at all**. The F4.AC13 city target of ≥ 50 % strict
+coverage is unreachable as designed. **Decision, 2026-09-29 (repository owner):** keep city strict
+precision ≥ 95 %, drop the coverage floor until M8 sets one from ground truth, and report
+coverage per path. SPEC section 11 row 9.
 
 ---
 
@@ -166,6 +209,18 @@ repeat visitors cost nothing; hard timeouts; circuit breakers; a source failure 
 silently to the remaining sources; outbound budgets (F11.AC7) so a traffic spike cannot
 trigger a ban. **Consequence:** accuracy must never depend on any single external source,
 which the consensus design already enforces.
+
+**Checked in M3 (2026-09-29), and one service dropped.** ip-api.com's free endpoint is
+**HTTP only** — its docs: "256-bit SSL encryption is not available for this free API" —
+and licensed for non-commercial use only. It would send a visitor's network address in
+plaintext and fails F4.AC5's own "HTTPS", so S9 does not use it. **ipwho.is** is HTTPS,
+needs no key, allows commercial use, and publishes its limit: 1 000 requests a day per
+client address. The budget is set at 900/day; with the /24 cache and ~500 visits a day it
+is not approached. The lookup is made for the prefix's *network address*, not the
+visitor's, so the third party learns the network only. Nominatim's policy was checked
+too: 1 req/s absolute, **4/min for anything on a schedule**, identifying User-Agent,
+caching, ODbL attribution — the 4/min budget governs, the User-Agent is sent on every
+request, and the privacy page carries the attribution.
 
 ---
 
@@ -327,6 +382,10 @@ exactly like a fingerprint and carries none of the information — so M2 stores 
 it. That needs the owner's approval (CLAUDE.md section 2), so it is recorded here and not
 applied.
 
+**Decision, 2026-09-29 (repository owner):** option 2 with option 1's re-weighting. F5.AC8
+and F3.AC1 amended (SPEC section 11 row 7). Implemented in M4; until then nothing reads
+the header set as a signal. R7's ceiling is correspondingly lower.
+
 ---
 
 ## R20 — A first-visit location prompt cannot be answered inside the interstitial · MEDIUM
@@ -368,6 +427,13 @@ is effectively never captured, and every such visitor sees a prompt vanish under
 only where permission is already granted — which requires amending F4.AC1. Owner decision;
 not applied.
 
+**Decision, 2026-09-29 (repository owner):** option 2. F4.AC1 amended (SPEC section 11
+row 8) and applied on the M3 branch: the capture page consults the Permissions API, reads a
+position only where permission is already `granted`, records `denied` as `denied`, and
+records an undecided permission as `consent_state='not_asked'`. It never prompts.
+**Accepted consequence:** consented (S1) location will be rare, since nothing on this
+origin ever asks.
+
 ---
 
 ## R21 — A JavaScript-executing Meta scanner passes the crawler gate · **HIGH**
@@ -399,6 +465,89 @@ already has: a non-browser UA that executes script; UA-claimed OS vs. client-rep
 hardware; timezone vs. locale; missing WebGL renderer; implausible core count; the
 instant-denial pattern; and temporal clustering with a same-network link-preview burst.
 Spike B's row is the first labelled example.
+
+---
+
+## R22 — Registry-artifact collapse to admin1 still emits the artifact's state · **HIGH**
+
+**Found in M3, while writing suppression rule (a).** F4.AC12(a) says an uncorroborated
+city that sits on its ASN's registry centroid "collapses to admin1". B1 — the bug that
+rule exists to fix — is a Bangalore visitor recorded as **Faridabad or Noida**. Faridabad
+is in **Haryana**, Noida in **Uttar Pradesh**; the visitor is in **Karnataka**. The
+databases that placed the city on the registry address placed the *state* there too, so
+collapsing to admin1 turns "wrong city" into "strict, wrong state" — which B2 names as the
+error that is not tolerable, and which CLAUDE.md invariant 5 forbids.
+
+**Measured in the engine, not argued:** with the collapse at admin1, four databases
+agreeing on Faridabad with Airtel's centroid there yielded strict `admin1 = Haryana`
+(the test that showed it was replaced, after the decision, by
+`test_the_artifact_state_is_voided_with_the_city`).
+
+**What M3 does.** The collapse depth is versioned configuration,
+`registry_artifact.collapse_to`, defaulting to the SPEC's `admin1`. Setting it to
+`country` abstains on admin1 as well, with reason `registry_artifact`. Nothing else changes.
+
+**Options, for the owner:**
+1. **Collapse to country** when the artifact state is also uncorroborated. Recommended: it
+   is the only setting under which B1's own example emits nothing false.
+2. **Keep admin1** as written, accepting a strict wrong state for B1-shaped visits.
+3. **Collapse to admin1 only when the artifact's admin1 differs from `modal_admin1`** —
+   impossible by construction here, since the artifact city and state come from the same
+   registry record; listed so it is not proposed later as a fix.
+
+$1
+
+**Decision, 2026-09-29 (repository owner):** option 1. F4.AC12(a) amended (SPEC section 11
+row 11); the configuration knob is removed rather than kept, so no setting can reintroduce
+a strict wrong state. Engine revision bumped to `m3.2`.
+
+---
+
+## R23 — S10 latency triangulation cannot be built without third-party requests · MEDIUM
+
+**Found in M3.** Triangulating by latency means timing round trips from the visitor to
+several endpoints in known places. This server is in one place, so the endpoints would be
+other people's — and F2.AC12 says the capture page issues **no third-party request**, for
+the reasons B6 records: content blockers kill them, and each one tells another company
+that this visitor exists. Measuring one server's RTT alone yields a distance, not a
+location, and TCP RTT through Cloudflare measures the edge, not the visitor.
+
+**What M3 does.** S10 exists as a source, disabled by default as F4.AC8 requires; enabled,
+it reports `unavailable` with reason `conflicts_with_f2_ac12` rather than pretending.
+
+**Options, for the owner:**
+1. **Drop S10** — amend F4.AC5/F4.AC8 and RW-6. S8 already carries most of its value
+   (RW-6 says so), and Spike D can be retired.
+2. **Allow a narrow exception to F2.AC12** for S10's probes when the flag is on — at the
+   cost B6 describes.
+3. **Keep it as a documented stub** until a design without third parties exists.
+
+**Recommendation:** option 1. Not applied.
+
+**Decision, 2026-09-29 (repository owner):** option 1. S10 dropped (SPEC section 11 row 12);
+Spike D retired. The `latency` value stays in the `inference_source` enum, unused, because
+removing a PostgreSQL enum value costs a table rewrite for nothing.
+
+---
+
+## R24 — Rule (a) cannot tell a regional ISP from a registry collapse · MEDIUM
+
+**Measured in M3 on the installed databases.** `modal_share` is the fraction of an ASN's
+address space the databases put on one point. A registry collapse produces a high share —
+Tikona 44 % on Delhi, Jio 40 % on Mumbai. But so does an ISP that genuinely serves one
+city: ACT's Hyderabad network (AS18209) sat at 31 % on Hyderabad with DB-IP alone, just
+over the 0.30 threshold, and a Hyderabad visitor on it would have had a probably-correct
+city withheld. From database data alone the two are indistinguishable.
+
+**Why it is accepted for now.** The error is in the safe direction: a false collapse is an
+*abstention* (coverage), never a wrong strict value (precision) — ADR-0005's premise.
+With GeoLite2 added, AS18209 fell to 24 %, under the line. On the Cloudflare path an
+independent colo (S8) corroborates the city and the rule does not fire.
+
+**What would settle it.** Ground truth (F4.AC15, M8): per-ASN precision of the database
+city for labelled visits, which tells a regional ISP (right) from a collapse (wrong)
+directly. `registry_artifact.min_modal_share` is versioned configuration, so the
+re-tune is a settings version, not a deployment.
 
 ---
 
@@ -450,7 +599,7 @@ involve Telegram at all.
 | **A** | Indian residential rDNS metro-code coverage | M3 | M0/M1 | _pending_ |
 | **B** | `fetch(keepalive)` survival in the Instagram webview | M2 | M0/M1 | _pending_ |
 | C | `CF-Ray` colo assignment stability for India | — | M3 | _pending_ |
-| D | Latency-triangulation accuracy contribution over S8 | RW-6 decision | M8 | _pending_ |
+| D | Latency-triangulation accuracy contribution over S8 | RW-6 decision | M8 | **Retired 2026-09-29** — S10 dropped before it could be measured (SPEC §11 row 12, R23) |
 | E | Load behaviour and swap pressure at NFR1 on real hardware | NFR1, NFR6 | M9 | _pending_ |
 
 Record every result here, **including negative ones.** A spike that reports "this does not

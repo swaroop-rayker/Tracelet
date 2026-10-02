@@ -104,9 +104,9 @@ task_revision() {
 
 task_fmt() {
     step "ruff format"
-    $API_RUN ruff format src tests
+    $API_RUN ruff format src tests spikes
     step "ruff check --fix"
-    $API_RUN ruff check --fix src tests
+    $API_RUN ruff check --fix src tests spikes
     step "prettier --write"
     $WEB_RUN npx prettier --write "src/**/*.{ts,tsx,css}" "*.{json,js,cjs}"
 }
@@ -117,13 +117,13 @@ task_verify() {
     failed=""
 
     step "1/12  ruff check"
-    $API_RUN ruff check src tests || failed="$failed ruff-check"
+    $API_RUN ruff check src tests spikes || failed="$failed ruff-check"
 
     step "2/12  ruff format --check"
-    $API_RUN ruff format --check src tests || failed="$failed ruff-format"
+    $API_RUN ruff format --check src tests spikes || failed="$failed ruff-format"
 
     step "3/12  mypy --strict"
-    $API_RUN mypy src tests || failed="$failed mypy"
+    $API_RUN mypy src tests spikes || failed="$failed mypy"
 
     step "4/12  pytest unit"
     $API_RUN pytest tests/unit -q || failed="$failed pytest-unit"

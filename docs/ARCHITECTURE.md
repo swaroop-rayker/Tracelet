@@ -52,7 +52,7 @@ revisiting it.
                        │ db  PG16+PostGIS  │ │ geo DB files │ │ outbound      │
                        │     mem_limit 260M│ │ • GeoLite2   │ │ • Telegram    │
                        │                   │ │ • IP2Loc     │ │ • ipwho.is    │
-                       │ visits            │ │ • IPinfo     │ │ • ip-api.com  │
+                       │ visits            │ │ • IPinfo     │ │   by /24 only │
                        │ visit_candidates  │ │ • DB-IP      │ │ • Nominatim   │
                        │ geofences (GiST)  │ │ • GeoNames   │ │ (all: timeout │
                        │ outbox · sessions │ └──────────────┘ │  + breaker)   │
@@ -80,7 +80,7 @@ requests), and it is why `F2.AC2` is written the way it is. See ADR-0004.
 enrichment that is always allowed to fail.**
 
 ```
-GET /r/{slug}
+GET /r/{slug}        (bare /r and /r/ resolve the default link instead — F1.AC3)
  │
  ├─1  resolve slug ─── unknown/inactive ──► 404, leaks nothing               [F2.AC14]
  │
@@ -120,7 +120,7 @@ GET /r/{slug}
              • timezone, language list
              • canvas / audio / font / WebGL hashes
              • headless + spoof probes                                      [F5.AC3-5]
-             • navigator.geolocation.getCurrentPosition()                   [F4.AC1]
+             • geolocation only if already granted, never prompts           [F4.AC1]
              • POST /api/v1/s/{nonce}   fetch(…, {keepalive: true})
              • hard redirect timer at link.interstitial_ms, cap 1500 ms      [F2.AC5]
                     │
@@ -186,8 +186,7 @@ field sets. See ADR-0005; the deep explanation with worked numbers is in
   PTR record   ────►│ S6  rDNS city-code lexicon   ★ India key  │
   ASN + org    ────►│ S7  ISP org-name parsing                  │
   CF-Ray       ────►│ S8  edge colo → metro        ★ webview-safe│
-  IP (outbound)────►│ S9  ipwho.is · ip-api.com    toggleable    │
-  RTT probes    ───►│ S10 latency triangulation    FLAG OFF      │
+  IP /24 (out) ───►│ S9  ipwho.is, by prefix      toggleable    │
   browser tz   ────►│ S11 timezone cross-check     rejects only  │
                     └────────────────────┬──────────────────────┘
                                          │  candidates persisted, winners AND losers
@@ -204,7 +203,7 @@ field sets. See ADR-0005; the deep explanation with worked numbers is in
                     │ (a) REGISTRY ARTIFACT                     │
                     │     winning city == ASN modal centroid    │
                     │     AND no non-DB corroboration           │
-                    │     → collapse city to admin1   ★ FIXES B1│
+                    │     → collapse to country       ★ FIXES B1│
                     │ (b) MOBILE / CGNAT ASN                    │
                     │     → discard all city candidates         │
                     │ (c) HOSTING / VPN / TOR ASN               │
@@ -227,6 +226,79 @@ field sets. See ADR-0005; the deep explanation with worked numbers is in
 never fire on a guess. The advisory set is what you *learn from* — it is how you see that
 the engine thought "Faridabad" and why suppression was right to reject it. Gate 1 chose
 this hybrid explicitly (RW-1).
+
+### 3.1 As built in M3
+
+**Where it runs — ADR-0015.** Not in the enrichment request and not in the sweeper: an
+`infer` job on the ADR-0009 scheduler, every two seconds, over visits that are finalised
+and not yet inferred (`visits.inferred_at IS NULL`). It reads what it needs, runs the
+sources **outside any transaction**, then writes the location columns, the network
+columns and every candidate in one short conditional write, **one savepoint per visit**.
+A failing source is an outcome in the trail; a failing engine or a write the database
+refuses becomes `abstain_reason = engine_error | write_refused` with `inferred_at` set,
+so no visit can wedge the queue (F4.AC18).
+
+**The address is decrypted in memory, for the length of one inference.** ADR-0007 kept
+the ciphertext precisely so inference can run and be re-run; the owner-only, audited
+decrypt of API section 7 governs a *person* reading an address, and is unchanged. The
+engine never logs the address and never writes it — including inside a PTR record,
+which is masked before storage (DATA_MODEL 5.1).
+
+**How consensus weighs sources** (`inference/consensus.py`). Levels are decided
+shallowest first, and a candidate only votes at a level if it agrees with every level
+already chosen — B2's tolerance made structural. Support for a value is a noisy-OR over
+source **families**: the four registry databases and S9 are one; S6 and S7, both the
+operator's own naming, another; S8, chosen by Cloudflare's routing, a third (since
+`m3.3`); GPS a fourth. Agreement *across* families counts in full; agreement *within* the
+registry family counts at `within_family_bonus` (0.25), because four databases repeating
+one registry record is the B1 mechanism, not corroboration. Confidence is support × the
+value's share of all weight at that level, so disagreement lowers it.
+
+**Consent outranks the network.** The three suppression rules describe what an *address*
+can and cannot say. Consented GPS is not derived from the address, so it is exempt: a
+visitor on a VPN who has already granted location is located by GPS rather than abstained
+on (F4.AC1).
+
+**A strict point exists only with a strict city** (DATA_MODEL 5.3 invariant 11, ERRORS.md
+E28). A strict state is not a coordinate, and `geopoint` feeds geofencing.
+
+**Every source appears for every visit.** Candidates go to `visit_candidates`; a source
+that produced nothing — disabled, empty, timed out, unavailable, failed — is an
+`inference.source_absent` entry in `signals` with its reason and latency.
+
+**The offline databases** (`inference/geodb/`, M3 step 2). Seven files: GeoLite2 City
+and ASN, IP2Location LITE DB11, IPinfo Lite, DB-IP City and ASN Lite, and GeoNames
+(`cities1000` + admin1 names). Each is installed by streaming to staging with a size cap
+and SHA-256 (checked against MaxMind's published hash), unpacking, validating in a
+memory-capped subprocess that must answer known lookups, then an atomic rename of a
+`current` symlink — so a corrupt download never replaces the serving version (F10.AC4).
+Readers are memory-mapped and reopened when `current` moves; no restart. The daily
+`geodb_update` job and `tracelet geodb update` are the same code. No download URL is ever
+logged or stored, and `Download`'s repr hides URL and credentials (ERRORS.md E31).
+
+**GeoNames does two jobs.** It names a GPS point, and it gives every source one
+spelling: a candidate with coordinates is renamed from the GeoNames place it is most
+*central* to, among those whose population-scaled cover contains it — so "Bangalore"
+and "Bengaluru", or DB-IP's "Kukatpally" and MaxMind's "Hyderabad", vote together
+instead of splitting. Only fields a candidate asserts are renamed, and country-only
+records are never placed: their coordinates are the country's centroid (ERRORS.md E30).
+
+**`asn_profiles`** walk each ASN's IPv4 space through every installed city database,
+counting only records that name a city, and only give an ASN a `modal_share` once it holds
+a /18 or more — below that, one point is not evidence of a registry collapse.
+
+**Outbound (step 3).** S9 asks ipwho.is — the only external API, ip-api.com having
+failed F4.AC5's HTTPS requirement (RISKS R2) — about the visitor's **/24 network
+address**, never the host, and caches the answer by prefix for seven days, negative
+answers included. Consented visits get a street address from Nominatim, after the
+decision; its cache is in memory (rounded to ~11 m, 256 entries, a day), deliberately not
+a table, so no second copy of consented addresses outlives visit retention. Both go
+through `inference/outbound.py`: a shared GCRA budget in PostgreSQL (ipwho.is 900/day;
+Nominatim 4/min, the policy's figure for scheduled use) and a per-process circuit
+breaker (five consecutive failures open it for two minutes, then one trial call).
+`TRACELET_EXTERNAL_GEO_ENABLED=false` stops both; `street_address_enabled` in the
+versioned settings stops Nominatim alone. S10 was dropped (SPEC section 11 row 12, RISKS
+R23). A registry-artifact city collapses to the country, not admin1 (row 11, R22).
 
 ---
 
@@ -300,7 +372,7 @@ every derivation be visible.
   TRUSTED    offline geo databases (checksum-verified on install),
              the process environment, the IP key file.
   ─────────────────────────────────────────────────────────────────────────────
-  EXTERNAL   Telegram, ipwho.is, ip-api.com, Nominatim: responses are data,
+  EXTERNAL   Telegram, ipwho.is, Nominatim: responses are data,
              never instructions; every call has a timeout and a breaker.
 ```
 
@@ -508,13 +580,26 @@ load. `TRACELET_DB_MAX_CONNECTIONS` must be kept in step with the
 | Jinja2 environment, per worker | Four compiled templates | Under 1 MB |
 | Cloudflare range table | 22 networks, module constant | Negligible |
 
+**Added in M3:**
+
+| State | Bound | Expected RSS |
+|---|---|---|
+| GeoNames index, per worker | ~35 k places: all of India plus 15 000+ elsewhere, `array` coordinates, interned names | **Measured +9 MB** (78 to 87 MB max RSS, production image, 2026-09-29) |
+| Open geo-database readers, per worker | Seven files, all memory-mapped | Page cache, not RSS: the files total ~470 MB, and a lookup touches a handful of pages |
+| S6 resolver pool | 4 threads, module constant | Negligible |
+| rDNS canary state | One boolean, ten-minute TTL | Negligible |
+
+`asn_profiles` computation is **not** in-process: it runs in a subprocess capped at 1.5 GB
+of address space, once after each database update, for under a minute.
+
 ### 6.4 Two dependency decisions that bought headroom
 
 - **Shapely was eliminated** because PostGIS does the geometry. Choosing PostGIS
   removed a Python dependency rather than adding one.
 - **`reverse_geocoder` was rejected** because it drags in `numpy` and `scipy`, roughly
-  80 MB. Offline reverse geocoding is implemented against GeoNames `cities15000` with a
-  coarse grid bucket plus haversine in pure Python, at roughly 10 MB.
+  80 MB. Offline reverse geocoding is implemented against GeoNames `cities1000`, filtered
+  to India plus places of 15 000+ elsewhere, with 1-degree grid buckets and haversine in
+  pure Python — **measured at 9 MB per worker** in M3.
 
 Before merging anything that adds a dependency, a container, or a long-lived in-process
 cache, state its expected RSS. That is a review gate, not a suggestion.
@@ -529,10 +614,10 @@ cache, state its expected RSS. That is a review gate, not a suggestion.
 |---|---|
 | OS + Docker images | ~4 GB |
 | PostgreSQL data: ~90 k visits, ~720 k candidate rows, rollups, indexes | ~1.5 GB |
-| Offline geo databases (5 installed + 1 staged during update) | ~0.6 GB |
+| Offline geo databases: ~470 MB serving (IP2Location 231, DB-IP City 127, GeoLite2 City 65, GeoNames 32, IPinfo 24, two ASN files 22), the previous version of each kept for rollback, one download staged at a time | **~1.2 GB** (revised in M3 from 0.6 GB) |
 | Backups: 7 daily + 4 weekly, compressed | ~1.5 GB |
 | WAL, logs, scratch | ~1 GB |
-| **Total** | **~8.6 GB**, comfortable |
+| **Total** | **~9.2 GB**, comfortable |
 
 Growth is monitored on the System Health page, with a banner below a configurable
 threshold (F10.AC14). No table partitioning in v1: 90 k rows does not need it, and
@@ -577,8 +662,8 @@ for themselves.
 | `pyotp` | TOTP; small, focused, well-audited | hand-rolled RFC 6238 |
 | `cryptography` | AES-256-GCM for IP at rest; HMAC | `pycryptodome` |
 | `httpx` | Async outbound with timeouts, to external geo APIs and Telegram | `aiohttp` (heavier), `requests` (sync, would block the loop) |
-| `geoip2` | Reads `.mmdb` — GeoLite2, IPinfo Lite **and** DB-IP Lite all ship this format | hand-written mmdb parser |
-| `IP2Location` | IP2Location LITE ships a proprietary BIN format | converting BIN to mmdb ourselves, a maintenance liability |
+| `maxminddb` | Reads `.mmdb` — GeoLite2, IPinfo Lite **and** DB-IP Lite all ship this format — memory-mapped, so a database is page cache, not RSS (CLAUDE.md section 5). **Zero dependencies.** Replaced `geoip2` in M3 with the owner's approval: `geoip2` is a thin wrapper over this reader plus a web-service client, and installs aiohttp, requests and about ten more packages for a client Tracelet never uses (it has `httpx`) | `geoip2` (same reader, twelve extra packages), a hand-written mmdb parser |
+| `IP2Location` | IP2Location LITE ships a proprietary BIN format. Zero dependencies | converting BIN to mmdb ourselves, a maintenance liability |
 | `jinja2` | Server-rendered capture page; already a FastAPI-adjacent standard. **Installed in M2.** Autoescaping is the reason: the destination and the nonce are interpolated into attributes and an inline script | f-string templating, unsafe for HTML |
 | `structlog` | Structured JSON logs with redaction processors | stdlib logging plus a custom formatter |
 | `psutil` | Host CPU, RAM, disk, swap, uptime for System Health | parsing `/proc` by hand |
@@ -647,7 +732,9 @@ tracelet/
 │       │                           #   range verification (F13.AC6)
 │       ├── capture/                # /r/{slug}, enrichment, honeypot, /privacy,
 │       │                           #   links and visits APIs, templates/
-│       ├── inference/              # sources/ S1..S11, consensus, suppression
+│       ├── inference/              # sources/ S1..S11, consensus, suppression,
+│       │                           #   engine.py (the ADR-0015 job), router.py
+│       │                           #   (settings versions), data/ seed files
 │       ├── classification/         # rules/, scoring, cross-checks, honeypot
 │       ├── identity/               # HMAC fingerprint, visitor_id
 │       ├── geofence/               # PostGIS evaluation, GeoJSON import/export
@@ -662,8 +749,11 @@ tracelet/
 │       ├── health/                 # psutil, geo DB freshness, flow diagram
 │       ├── lifecycle/              # retention, purge, backup, restore-verify
 │       ├── crypto/                 # AES-GCM envelope, key loading, rotation
-│       ├── worker/                 # scheduler (M2: sweeper, IP purge); outbox M6
+│       ├── worker/                 # scheduler: sweeper, IP purge (M2), infer
+│       │                           #   (M3); outbox M6
 │       └── cli/                    # tracelet admin …, database update, labelling
+│   ├── spikes/                     # measurement scripts + raw results (Spike A);
+│   │                               #   linted and typed, never in the image
 │   └── tests/
 │       ├── unit/                   # inference, scoring, GCRA, crypto, policy
 │       └── integration/            # API + real PostgreSQL + PostGIS

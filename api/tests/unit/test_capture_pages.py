@@ -108,6 +108,18 @@ def test_the_page_references_no_external_resource() -> None:
         assert tag not in body
 
 
+def test_enrichment_is_a_json_post_not_a_pixel() -> None:
+    """B6 fix 4: filter lists target pixel-shaped GETs and beacons; a same-origin JSON
+    POST is neither."""
+    body = _body(_page())
+    assert 'fetch("/api/v1/s/"' in body
+    assert 'method: "POST"' in body
+    assert '"Content-Type": "application/json"' in body
+    # Call shapes, not bare words: the script's comments explain why it avoids them.
+    for shape in ("new Image(", ".sendBeacon(", "<img"):
+        assert shape not in body
+
+
 # ---------------------------------------------------------------------------
 # Escaping
 # ---------------------------------------------------------------------------

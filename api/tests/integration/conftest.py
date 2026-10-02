@@ -226,8 +226,10 @@ def _empty_link_cache() -> Iterator[None]:
     """The link cache is process-wide. A link a previous test deleted must not be
     served from it -- that would test the cache, not the code under test."""
     link_cache.entries.clear()
+    link_cache.forget_default()
     yield
     link_cache.entries.clear()
+    link_cache.forget_default()
 
 
 @pytest.fixture

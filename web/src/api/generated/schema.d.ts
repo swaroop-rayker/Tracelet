@@ -348,6 +348,44 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/health/inference": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The active inference settings and every retained version */
+        get: operations["get_settings_api_v1_health_inference_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Save a new settings version and make it active (owner only)
+         * @description Never edits a version in place: the submitted settings become the next version, and every earlier one stays available for rollback (F4.AC14). Visits inferred from now on carry the new `inference_version`; visits already inferred keep theirs.
+         */
+        patch: operations["change_settings_api_v1_health_inference_patch"];
+        trace?: never;
+    };
+    "/api/v1/health/inference/rollback/{version}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Reactivate an earlier settings version (owner only) */
+        post: operations["rollback_api_v1_health_inference_rollback__version__post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/links": {
         parameters: {
             query?: never;
@@ -613,6 +651,44 @@ export interface components {
             /** Totp Enrolled */
             totp_enrolled: boolean;
         };
+        /**
+         * CandidateOut
+         * @description One row of the derivation trail (F4.AC11, DATA_MODEL section 5.4).
+         */
+        CandidateOut: {
+            /** Accepted */
+            accepted: boolean;
+            /** Admin1 */
+            admin1: string | null;
+            /** Admin2 */
+            admin2: string | null;
+            /** City */
+            city: string | null;
+            /** Country Code */
+            country_code: string | null;
+            /** Effective Weight */
+            effective_weight: number;
+            /** Evidence */
+            evidence: {
+                [key: string]: unknown;
+            };
+            /** Lat */
+            lat: number | null;
+            /** Latency Ms */
+            latency_ms: number;
+            /** Level */
+            level: string;
+            /** Lng */
+            lng: number | null;
+            /** Raw Confidence */
+            raw_confidence: number;
+            /** Source */
+            source: string;
+            /** Suppressed Reason */
+            suppressed_reason: string | null;
+            /** Weight */
+            weight: number;
+        };
         /** ChangePasswordRequest */
         ChangePasswordRequest: {
             /** Current Password */
@@ -727,6 +803,93 @@ export interface components {
         HTTPValidationError: {
             /** Detail */
             detail?: components["schemas"]["ValidationError"][];
+        };
+        /** InferenceConfig */
+        InferenceConfig: {
+            /**
+             * Gps Max Accuracy M
+             * @default 5000
+             */
+            gps_max_accuracy_m: number;
+            /**
+             * @default {
+             *       "min_modal_share": 0.3
+             *     }
+             */
+            registry_artifact: components["schemas"]["RegistryArtifact"];
+            /** Sources */
+            sources: {
+                [key: string]: components["schemas"]["SourceSettings"];
+            };
+            /**
+             * Street Address Enabled
+             * @default true
+             */
+            street_address_enabled: boolean;
+            /**
+             * @default {
+             *       "admin1": 0.75,
+             *       "admin2": 0.75,
+             *       "city": 0.8,
+             *       "country": 0.6
+             *     }
+             */
+            thresholds: components["schemas"]["Thresholds"];
+            /**
+             * Tz Penalty
+             * @default 0.3
+             */
+            tz_penalty: number;
+            /**
+             * Within Family Bonus
+             * @default 0.25
+             */
+            within_family_bonus: number;
+        };
+        /** InferenceSettingsChange */
+        InferenceSettingsChange: {
+            /** Note */
+            note?: string | null;
+            /** @description The complete settings object. It becomes the next version as a whole. */
+            settings: components["schemas"]["InferenceConfig"];
+        };
+        /** InferenceSettingsOut */
+        InferenceSettingsOut: {
+            /** Active Version */
+            active_version: number;
+            /** Engine Revision */
+            engine_revision: string;
+            /**
+             * Inference Version
+             * @description What a visit inferred now is stamped with (F4.AC16).
+             */
+            inference_version: string;
+            settings: components["schemas"]["InferenceConfig"];
+            /** Versions */
+            versions: components["schemas"]["SettingsVersionOut"][];
+        };
+        /**
+         * InferenceSource
+         * @description Values match the ``inference_source`` enum created by migration 0004.
+         * @enum {string}
+         */
+        InferenceSource: "gps" | "geolite2" | "ip2location" | "ipinfo" | "dbip" | "rdns" | "asn_org" | "cf_colo" | "external_api" | "latency" | "timezone";
+        /**
+         * LevelPriors
+         * @description How far a source is trusted at each level, 0..1.
+         *
+         *     A database that is right about the country 99 % of the time can be right about the
+         *     city half the time; one number per source cannot say that.
+         */
+        LevelPriors: {
+            /** Admin1 */
+            admin1: number;
+            /** Admin2 */
+            admin2: number;
+            /** City */
+            city: number;
+            /** Country */
+            country: number;
         };
         /** LinkClone */
         LinkClone: {
@@ -964,6 +1127,17 @@ export interface components {
             /** Email */
             email: string;
         };
+        /**
+         * RegistryArtifact
+         * @description Suppression rule (a), F4.AC12(a) -- the B1 fix.
+         */
+        RegistryArtifact: {
+            /**
+             * Min Modal Share
+             * @default 0.3
+             */
+            min_modal_share: number;
+        };
         /** ResetConfirm */
         ResetConfirm: {
             /** New Password */
@@ -1000,6 +1174,36 @@ export interface components {
              */
             last_seen_at: string;
         };
+        /** SettingsVersionOut */
+        SettingsVersionOut: {
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Created By */
+            created_by: string | null;
+            /** Is Active */
+            is_active: boolean;
+            /** Note */
+            note: string | null;
+            /** Version */
+            version: number;
+        };
+        /** SourceSettings */
+        SourceSettings: {
+            /**
+             * Enabled
+             * @default true
+             */
+            enabled: boolean;
+            priors: components["schemas"]["LevelPriors"];
+            /**
+             * Timeout Ms
+             * @default 800
+             */
+            timeout_ms: number;
+        };
         /** TelegramVerifyConfirm */
         TelegramVerifyConfirm: {
             /** Code */
@@ -1009,6 +1213,35 @@ export interface components {
         TelegramVerifyStart: {
             /** Chat Id */
             chat_id: number;
+        };
+        /**
+         * Thresholds
+         * @description Minimum confidence for a **strict** value at each level (F4.AC10).
+         *
+         *     Below it the strict field is NULL with ``abstain_reason='below_threshold'``; the
+         *     advisory field still carries the best guess.
+         */
+        Thresholds: {
+            /**
+             * Admin1
+             * @default 0.75
+             */
+            admin1: number;
+            /**
+             * Admin2
+             * @default 0.75
+             */
+            admin2: number;
+            /**
+             * City
+             * @default 0.8
+             */
+            city: number;
+            /**
+             * Country
+             * @default 0.6
+             */
+            country: number;
         };
         /** TotpConfirmRequest */
         TotpConfirmRequest: {
@@ -1038,9 +1271,7 @@ export interface components {
             /** Bot Score */
             bot_score: number | null;
             /** Candidates */
-            candidates: {
-                [key: string]: unknown;
-            }[];
+            candidates: components["schemas"]["CandidateOut"][];
             classification: components["schemas"]["Classification"];
             /** Classifier Version */
             classifier_version: string | null;
@@ -1060,6 +1291,8 @@ export interface components {
             id: string;
             /** Inference Version */
             inference_version: string | null;
+            /** Inferred At */
+            inferred_at: string | null;
             /** Is Returning */
             is_returning: boolean | null;
             link: components["schemas"]["LinkRef"];
@@ -1742,6 +1975,90 @@ export interface operations {
                 };
                 content: {
                     "application/json": string[];
+                };
+            };
+        };
+    };
+    get_settings_api_v1_health_inference_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InferenceSettingsOut"];
+                };
+            };
+        };
+    };
+    change_settings_api_v1_health_inference_patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["InferenceSettingsChange"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InferenceSettingsOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    rollback_api_v1_health_inference_rollback__version__post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                version: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InferenceSettingsOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };
