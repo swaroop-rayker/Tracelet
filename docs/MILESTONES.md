@@ -19,8 +19,8 @@ then open the PR (CLAUDE.md section 2).
 | M1 | Admin auth and account security | L | **[x] done** — 285 tests, 15 bugs recorded as E8–E22 |
 | M2 | Capture path, server-authoritative | L | **[x] done** — 631 tests, Spike B run (Android), 4 bugs recorded as E23–E26 |
 | M3 | Location inference engine | L | **[x] done** — 738 tests (463 unit, 275 integration); real-visit check deferred to M9 (owner decision); 5 bugs recorded as E27–E31 |
-| M4 | Anti-spoofing and classification | L | **[x] done** — 9 of 10 items; the UI item moves to M5; bugs E32–E33; R19 and R21 closed |
-| M5 | Dashboard analytics and visualisation | L | [ ] |
+| M4 | Anti-spoofing and classification | L | **[x] done** — 10 of 10 items (the UI item ticked in M5); bugs E32–E33; R19 and R21 closed |
+| M5 | Dashboard analytics and visualisation | L | **[x] done** — 10 of 10 items; rollups p95 ≤ 70 ms at design load; raw fallback slow on long windows (R25); bugs E34–E36 |
 | M6 | Geofencing and Telegram notifications | M | [ ] |
 | M7 | System health and operations | L | [ ] |
 | M8 | Accuracy hardening and ground truth | M | [ ] |
@@ -544,9 +544,9 @@ this development database now runs them as version 31.
 - [x] Same fingerprint across 3+ ASNs sets `is_proxy_suspected` — *`test_one_device_on_three_networks_is_a_proxy`*
 - [x] **Many fingerprints behind one prefix classified as NAT, not proxy** — the regression
       that would otherwise misclassify most Indian mobile traffic — *`test_many_devices_behind_one_prefix_is_a_gateway_not_a_proxy` (unit and integration)*
-- [ ] Every verdict shows its fired rules with weights in the UI — *the API serves them
+- [x] Every verdict shows its fired rules with weights in the UI — *the API serves them
       (`signals[]` with category and weight, `client.probes`); the UI is M5's, and this
-      item is ticked there*
+      item was ticked there, 2026-10-02*
 - [x] A `server_only` visit still classifies from server signals alone — *`test_a_server_only_visit_classifies_from_server_signals_alone`*
 - [x] Docs: ARCHITECTURE section 4 verified — *4.1 written with the code; the diagram's header line amended*
 
@@ -571,18 +571,51 @@ this development database now runs them as version 31.
 - Generated TS client + zod schemas, CI drift check
 
 **Done checklist**
-- [ ] Every chart in F9.AC1–F9.AC12 renders with real data
-- [ ] **No panel can render blank** — empty, loading and error states all exercised by test
-- [ ] Filters compose; a shared URL reproduces the exact view
-- [ ] Dashboard API p95 under 300 ms **reading rollups** on target-equivalent hardware
-- [ ] Export streams and contains no plaintext IP
-- [ ] All three themes pass WCAG AA contrast; no chart relies on colour alone
-- [ ] Keyboard navigation works across all controls
-- [ ] A visit's detail shows every fired rule with its weight and evidence, and the full
+- [x] Every chart in F9.AC1–F9.AC12 renders with real data — *2026-10-02, in the browser:
+      160 visits from real Airtel, Jio, ACT, BSNL and Vi addresses (the Spike A set) sent
+      through the real capture path, enrichment, sweeper, inference engine (all eight
+      databases) and classifier, inside the compose network; timestamps then spread over 30
+      days so the time charts have shape. Every page rendered with no empty or error state.
+      **Not real visitors** -- that is M9. Two charts render explicit "not measured" states
+      by design: accuracy (no ground truth until M8, `label_count` 0) and the funnel's
+      notified step (M6)*
+- [x] **No panel can render blank** — empty, loading and error states all exercised by test
+      — *`web/src/components/Panel.test.tsx`: every state renders readable text, including
+      the trace id on error and the reason when empty; every chart and table renders through
+      `Panel`, whose `empty` prop is required*
+- [x] Filters compose; a shared URL reproduces the exact view — *`test_list_filters_compose`
+      (API, real database); `web/src/filters.test.ts` (URL round trip, local-day windows).
+      A custom range reproduces exactly; a preset ("last 7 days") is deliberately relative*
+- [x] Dashboard API p95 under 300 ms **reading rollups** on target-equivalent hardware —
+      *2026-10-02: 90 k visits (design load), API and database capped to one CPU each:
+      every endpoint p95 ≤ 70 ms from rollups (ADR-0016, "Measured"). "Target-equivalent"
+      here is a CPU cap on the dev machine, not the e2-micro itself, which M9's load test
+      covers. **The raw fallback misses 300 ms on three endpoints over long windows --
+      RISKS R25***
+- [x] Export streams and contains no plaintext IP — *`test_the_csv_export_streams_every_row_without_the_address`
+      (also: formula cells neutralised), `test_the_ndjson_export_is_one_visit_per_line`;
+      server-side cursor, 500 rows at a time*
+- [x] All three themes pass WCAG AA contrast; no chart relies on colour alone —
+      *`web/src/theme.test.ts`, 45 checks read from the stylesheet (it caught light-theme
+      `--ok`/`--warn` at 4.45 and 4.27 on the new panel tint; fixed); decal patterns on every
+      series and every chart's data as a table (`web/src/charts.test.ts`)*
+- [x] Keyboard navigation works across all controls — *2026-10-02, in the browser: 51
+      focusable controls on the overview, all native (links, selects, inputs, buttons,
+      summaries), none interactive but unreachable; Tab lands first on the skip link with a
+      visible focus ring; the map pans and zooms from the keyboard. Not tested with a screen
+      reader*
+- [x] A visit's detail shows every fired rule with its weight and evidence, and the full
       location derivation (every source, accepted or suppressed with reason) — *carried
-      from M4 and M3; the API already serves both*
-- [ ] OpenAPI drift check fails on a deliberate response-model change
-- [ ] Docs: API section 8 verified
+      from M4 and M3; the API already serves both* — *2026-10-02, in the browser on real
+      visits: a visit on a mobile ASN shows five candidates with weights, three of them
+      "suppressed: mobile ASN",
+      and five sources that said nothing with their reasons; a curl visit shows
+      `ua.automation_tool`, weight 80, evidence `curl/`, and the score arithmetic*
+- [x] OpenAPI drift check fails on a deliberate response-model change — *2026-10-02, on a
+      clean tree: a field added to `StageMix` made `./scripts/tl openapi-check` exit 1 with
+      the diff; reverted*
+- [x] Docs: API section 8 verified — *8.1 "As shipped in M5" written with the code;
+      section 7 (filters, export) and 14 (zod) amended*
 
 ---
 
