@@ -48,6 +48,7 @@ __all__ = [
     "Link",
     "Visit",
     "VisitStage",
+    "pg_enum",
     "uuid7",
 ]
 
@@ -140,7 +141,7 @@ class GeofenceState(enum.StrEnum):
     UNDETERMINED = "undetermined"
 
 
-def _pg_enum(py_enum: type[enum.StrEnum], name: str) -> pg.ENUM:
+def pg_enum(py_enum: type[enum.StrEnum], name: str) -> pg.ENUM:
     return pg.ENUM(
         py_enum, name=name, create_type=False, values_callable=lambda e: [m.value for m in e]
     )
@@ -216,7 +217,7 @@ class Visit(Base):
     occurred_at: Mapped[dt.datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )
-    stage: Mapped[VisitStage] = mapped_column(_pg_enum(VisitStage, "visit_stage"), nullable=False)
+    stage: Mapped[VisitStage] = mapped_column(pg_enum(VisitStage, "visit_stage"), nullable=False)
     finalized_at: Mapped[dt.datetime | None] = mapped_column(DateTime(timezone=True))
     enrichment_consumed_at: Mapped[dt.datetime | None] = mapped_column(DateTime(timezone=True))
     trace_id: Mapped[str | None] = mapped_column(Text)
@@ -231,11 +232,11 @@ class Visit(Base):
     asn: Mapped[int | None] = mapped_column(Integer)
     asn_org: Mapped[str | None] = mapped_column(Text)
     asn_type: Mapped[AsnType] = mapped_column(
-        _pg_enum(AsnType, "asn_type"), nullable=False, default=AsnType.UNKNOWN
+        pg_enum(AsnType, "asn_type"), nullable=False, default=AsnType.UNKNOWN
     )
     rdns_ptr: Mapped[str | None] = mapped_column(Text)
     connection_class: Mapped[ConnectionClass] = mapped_column(
-        _pg_enum(ConnectionClass, "connection_class"),
+        pg_enum(ConnectionClass, "connection_class"),
         nullable=False,
         default=ConnectionClass.UNKNOWN,
     )
@@ -258,7 +259,7 @@ class Visit(Base):
     os_family: Mapped[str | None] = mapped_column(Text)
     os_version: Mapped[str | None] = mapped_column(Text)
     device_class: Mapped[DeviceClass] = mapped_column(
-        _pg_enum(DeviceClass, "device_class"), nullable=False, default=DeviceClass.UNKNOWN
+        pg_enum(DeviceClass, "device_class"), nullable=False, default=DeviceClass.UNKNOWN
     )
     is_inapp_webview: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     webview_host: Mapped[str | None] = mapped_column(Text)
@@ -283,7 +284,7 @@ class Visit(Base):
 
     # --- classification ------------------------------------------------------
     classification: Mapped[Classification] = mapped_column(
-        _pg_enum(Classification, "classification"),
+        pg_enum(Classification, "classification"),
         nullable=False,
         default=Classification.UNKNOWN,
     )
@@ -303,7 +304,7 @@ class Visit(Base):
 
     # --- location (M3) ------------------------------------------------------
     consent_state: Mapped[ConsentState] = mapped_column(
-        _pg_enum(ConsentState, "consent_state"),
+        pg_enum(ConsentState, "consent_state"),
         nullable=False,
         default=ConsentState.NOT_ASKED,
     )
@@ -329,7 +330,7 @@ class Visit(Base):
     confidence_city: Mapped[Decimal | None] = mapped_column(Numeric(4, 3))
     abstain_reason: Mapped[dict[str, Any]] = mapped_column(pg.JSONB, nullable=False, default=dict)
     geo_source_primary: Mapped[InferenceSource | None] = mapped_column(
-        _pg_enum(InferenceSource, "inference_source")
+        pg_enum(InferenceSource, "inference_source")
     )
     inference_version: Mapped[str | None] = mapped_column(Text)
     # ADR-0015: the inference job's work queue is "finalised and not yet inferred".
@@ -340,7 +341,7 @@ class Visit(Base):
         pg.ARRAY(pg.UUID(as_uuid=True)), nullable=False, default=list
     )
     geofence_state: Mapped[GeofenceState] = mapped_column(
-        _pg_enum(GeofenceState, "geofence_state"),
+        pg_enum(GeofenceState, "geofence_state"),
         nullable=False,
         default=GeofenceState.UNDETERMINED,
     )

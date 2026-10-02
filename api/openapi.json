@@ -1,6 +1,54 @@
 {
   "components": {
     "schemas": {
+      "Accuracy": {
+        "properties": {
+          "inferred": {
+            "title": "Inferred",
+            "type": "integer"
+          },
+          "levels": {
+            "items": {
+              "$ref": "#/components/schemas/LevelAccuracy"
+            },
+            "title": "Levels",
+            "type": "array"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/Meta"
+          }
+        },
+        "required": [
+          "meta",
+          "inferred",
+          "levels"
+        ],
+        "title": "Accuracy",
+        "type": "object"
+      },
+      "Admin1Count": {
+        "properties": {
+          "admin1": {
+            "title": "Admin1",
+            "type": "string"
+          },
+          "count": {
+            "title": "Count",
+            "type": "integer"
+          },
+          "country_code": {
+            "title": "Country Code",
+            "type": "string"
+          }
+        },
+        "required": [
+          "country_code",
+          "admin1",
+          "count"
+        ],
+        "title": "Admin1Count",
+        "type": "object"
+      },
       "AdminRole": {
         "description": "Two roles only.\n\n``owner`` performs every destructive and configuration action, and each one\nwrites an audit row (CLAUDE.md invariant 9). ``analyst`` is strictly read-only.",
         "enum": [
@@ -93,6 +141,125 @@
           "created_at"
         ],
         "title": "AdminSummary",
+        "type": "object"
+      },
+      "Breakdown": {
+        "properties": {
+          "dimension": {
+            "$ref": "#/components/schemas/BreakdownDimension"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/Meta"
+          },
+          "other": {
+            "title": "Other",
+            "type": "integer"
+          },
+          "rows": {
+            "items": {
+              "$ref": "#/components/schemas/BreakdownRow"
+            },
+            "title": "Rows",
+            "type": "array"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          },
+          "unknown": {
+            "title": "Unknown",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "meta",
+          "dimension",
+          "total",
+          "rows",
+          "unknown",
+          "other"
+        ],
+        "title": "Breakdown",
+        "type": "object"
+      },
+      "BreakdownDimension": {
+        "enum": [
+          "country",
+          "admin1",
+          "city",
+          "asn",
+          "isp",
+          "device_class",
+          "browser",
+          "app_medium",
+          "os",
+          "screen",
+          "connection_class",
+          "classification"
+        ],
+        "title": "BreakdownDimension",
+        "type": "string"
+      },
+      "BreakdownRow": {
+        "properties": {
+          "count": {
+            "title": "Count",
+            "type": "integer"
+          },
+          "key": {
+            "title": "Key",
+            "type": "string"
+          },
+          "share": {
+            "title": "Share",
+            "type": "number"
+          }
+        },
+        "required": [
+          "key",
+          "count",
+          "share"
+        ],
+        "title": "BreakdownRow",
+        "type": "object"
+      },
+      "Calendar": {
+        "properties": {
+          "days": {
+            "items": {
+              "$ref": "#/components/schemas/CalendarDay"
+            },
+            "title": "Days",
+            "type": "array"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/Meta"
+          }
+        },
+        "required": [
+          "meta",
+          "days"
+        ],
+        "title": "Calendar",
+        "type": "object"
+      },
+      "CalendarDay": {
+        "properties": {
+          "count": {
+            "title": "Count",
+            "type": "integer"
+          },
+          "day": {
+            "format": "date",
+            "title": "Day",
+            "type": "string"
+          }
+        },
+        "required": [
+          "day",
+          "count"
+        ],
+        "title": "CalendarDay",
         "type": "object"
       },
       "CandidateOut": {
@@ -379,6 +546,68 @@
         "title": "ClassifierConfig",
         "type": "object"
       },
+      "Confidence": {
+        "properties": {
+          "levels": {
+            "items": {
+              "$ref": "#/components/schemas/Histogram"
+            },
+            "title": "Levels",
+            "type": "array"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/Meta"
+          }
+        },
+        "required": [
+          "meta",
+          "levels"
+        ],
+        "title": "Confidence",
+        "type": "object"
+      },
+      "ConnectionClass": {
+        "enum": [
+          "broadband",
+          "mobile",
+          "datacenter",
+          "vpn_suspected",
+          "tor",
+          "business",
+          "unknown"
+        ],
+        "title": "ConnectionClass",
+        "type": "string"
+      },
+      "ConsentState": {
+        "enum": [
+          "granted",
+          "denied",
+          "unavailable",
+          "not_asked",
+          "blocked_by_webview"
+        ],
+        "title": "ConsentState",
+        "type": "string"
+      },
+      "CountryCount": {
+        "properties": {
+          "count": {
+            "title": "Count",
+            "type": "integer"
+          },
+          "country_code": {
+            "title": "Country Code",
+            "type": "string"
+          }
+        },
+        "required": [
+          "country_code",
+          "count"
+        ],
+        "title": "CountryCount",
+        "type": "object"
+      },
       "CreateAdminRequest": {
         "properties": {
           "display_name": {
@@ -550,6 +779,77 @@
         "title": "DeviceBlock",
         "type": "object"
       },
+      "DeviceClass": {
+        "enum": [
+          "mobile",
+          "tablet",
+          "desktop",
+          "tv",
+          "server",
+          "bot",
+          "unknown"
+        ],
+        "title": "DeviceClass",
+        "type": "string"
+      },
+      "Drift": {
+        "description": "What changed between two consecutive visits by the same visitor.",
+        "properties": {
+          "at": {
+            "format": "date-time",
+            "title": "At",
+            "type": "string"
+          },
+          "device_changed": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Device Changed",
+            "type": "array"
+          },
+          "distance_km": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Distance Km"
+          },
+          "from_visit": {
+            "title": "From Visit",
+            "type": "string"
+          },
+          "location_changed": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Location Changed",
+            "type": "array"
+          },
+          "network_changed": {
+            "title": "Network Changed",
+            "type": "boolean"
+          },
+          "to_visit": {
+            "title": "To Visit",
+            "type": "string"
+          }
+        },
+        "required": [
+          "at",
+          "from_visit",
+          "to_visit",
+          "location_changed",
+          "distance_km",
+          "device_changed",
+          "network_changed"
+        ],
+        "title": "Drift",
+        "type": "object"
+      },
       "EnrollRequest": {
         "properties": {
           "password": {
@@ -628,6 +928,157 @@
         "title": "EnrollmentTokenResponse",
         "type": "object"
       },
+      "ExportFormat": {
+        "enum": [
+          "csv",
+          "ndjson"
+        ],
+        "title": "ExportFormat",
+        "type": "string"
+      },
+      "FlowLink": {
+        "properties": {
+          "source": {
+            "title": "Source",
+            "type": "string"
+          },
+          "target": {
+            "title": "Target",
+            "type": "string"
+          },
+          "value": {
+            "title": "Value",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "source",
+          "target",
+          "value"
+        ],
+        "title": "FlowLink",
+        "type": "object"
+      },
+      "Funnel": {
+        "properties": {
+          "meta": {
+            "$ref": "#/components/schemas/Meta"
+          },
+          "steps": {
+            "items": {
+              "$ref": "#/components/schemas/FunnelStep"
+            },
+            "title": "Steps",
+            "type": "array"
+          }
+        },
+        "required": [
+          "meta",
+          "steps"
+        ],
+        "title": "Funnel",
+        "type": "object"
+      },
+      "FunnelStep": {
+        "properties": {
+          "count": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Count"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          },
+          "step": {
+            "enum": [
+              "requests",
+              "captured",
+              "enriched",
+              "consented",
+              "notified"
+            ],
+            "title": "Step",
+            "type": "string"
+          }
+        },
+        "required": [
+          "step",
+          "count"
+        ],
+        "title": "FunnelStep",
+        "type": "object"
+      },
+      "Geo": {
+        "properties": {
+          "abstained": {
+            "title": "Abstained",
+            "type": "integer"
+          },
+          "admin1": {
+            "items": {
+              "$ref": "#/components/schemas/Admin1Count"
+            },
+            "title": "Admin1",
+            "type": "array"
+          },
+          "cell_degrees": {
+            "title": "Cell Degrees",
+            "type": "number"
+          },
+          "countries": {
+            "items": {
+              "$ref": "#/components/schemas/CountryCount"
+            },
+            "title": "Countries",
+            "type": "array"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/Meta"
+          },
+          "points": {
+            "items": {
+              "$ref": "#/components/schemas/PointCluster"
+            },
+            "title": "Points",
+            "type": "array"
+          },
+          "points_computed_from": {
+            "const": "raw",
+            "title": "Points Computed From",
+            "type": "string"
+          },
+          "points_truncated": {
+            "title": "Points Truncated",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "meta",
+          "countries",
+          "admin1",
+          "abstained",
+          "cell_degrees",
+          "points_computed_from",
+          "points",
+          "points_truncated"
+        ],
+        "title": "Geo",
+        "type": "object"
+      },
       "GeofenceBlock": {
         "properties": {
           "matched": {
@@ -649,6 +1100,14 @@
         "title": "GeofenceBlock",
         "type": "object"
       },
+      "Grain": {
+        "enum": [
+          "day",
+          "hour"
+        ],
+        "title": "Grain",
+        "type": "string"
+      },
       "HTTPValidationError": {
         "properties": {
           "detail": {
@@ -660,6 +1119,38 @@
           }
         },
         "title": "HTTPValidationError",
+        "type": "object"
+      },
+      "Histogram": {
+        "properties": {
+          "bins": {
+            "items": {
+              "type": "integer"
+            },
+            "title": "Bins",
+            "type": "array"
+          },
+          "level": {
+            "enum": [
+              "country",
+              "admin1",
+              "admin2",
+              "city"
+            ],
+            "title": "Level",
+            "type": "string"
+          },
+          "unscored": {
+            "title": "Unscored",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "level",
+          "bins",
+          "unscored"
+        ],
+        "title": "Histogram",
         "type": "object"
       },
       "InferenceConfig": {
@@ -853,6 +1344,147 @@
         ],
         "title": "InferenceSource",
         "type": "string"
+      },
+      "Kpi": {
+        "properties": {
+          "change": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Change"
+          },
+          "key": {
+            "title": "Key",
+            "type": "string"
+          },
+          "previous": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Previous"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          },
+          "unit": {
+            "enum": [
+              "count",
+              "ratio"
+            ],
+            "title": "Unit",
+            "type": "string"
+          },
+          "value": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Value"
+          }
+        },
+        "required": [
+          "key",
+          "unit",
+          "value",
+          "previous",
+          "change"
+        ],
+        "title": "Kpi",
+        "type": "object"
+      },
+      "LevelAccuracy": {
+        "properties": {
+          "coverage": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Coverage"
+          },
+          "emission_rate": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Emission Rate"
+          },
+          "label_count": {
+            "title": "Label Count",
+            "type": "integer"
+          },
+          "level": {
+            "enum": [
+              "country",
+              "admin1",
+              "admin2",
+              "city"
+            ],
+            "title": "Level",
+            "type": "string"
+          },
+          "precision": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Precision"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          }
+        },
+        "required": [
+          "level",
+          "label_count",
+          "precision",
+          "coverage",
+          "emission_rate",
+          "reason"
+        ],
+        "title": "LevelAccuracy",
+        "type": "object"
       },
       "LevelPriors": {
         "additionalProperties": false,
@@ -1342,6 +1974,65 @@
         "title": "MeResponse",
         "type": "object"
       },
+      "Meta": {
+        "properties": {
+          "computed_from": {
+            "enum": [
+              "rollup",
+              "raw"
+            ],
+            "title": "Computed From",
+            "type": "string"
+          },
+          "end": {
+            "format": "date-time",
+            "title": "End",
+            "type": "string"
+          },
+          "refreshed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Refreshed At"
+          },
+          "reporting_tz": {
+            "title": "Reporting Tz",
+            "type": "string"
+          },
+          "stage_mix": {
+            "$ref": "#/components/schemas/StageMix"
+          },
+          "start": {
+            "format": "date-time",
+            "title": "Start",
+            "type": "string"
+          }
+        },
+        "required": [
+          "start",
+          "end",
+          "reporting_tz",
+          "computed_from",
+          "refreshed_at",
+          "stage_mix"
+        ],
+        "title": "Meta",
+        "type": "object"
+      },
+      "Metric": {
+        "enum": [
+          "visits",
+          "consented"
+        ],
+        "title": "Metric",
+        "type": "string"
+      },
       "MfaRequest": {
         "properties": {
           "code": {
@@ -1534,6 +2225,66 @@
         "title": "NotifyPolicy",
         "type": "object"
       },
+      "PointCluster": {
+        "properties": {
+          "count": {
+            "title": "Count",
+            "type": "integer"
+          },
+          "lat": {
+            "title": "Lat",
+            "type": "number"
+          },
+          "lng": {
+            "title": "Lng",
+            "type": "number"
+          }
+        },
+        "required": [
+          "lat",
+          "lng",
+          "count"
+        ],
+        "title": "PointCluster",
+        "type": "object"
+      },
+      "PreferencesRequest": {
+        "additionalProperties": false,
+        "description": "Display preferences: per admin, persisted, and harmless (F9.AC16).",
+        "properties": {
+          "theme": {
+            "anyOf": [
+              {
+                "enum": [
+                  "semi_dark",
+                  "light",
+                  "dark"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Theme"
+          },
+          "timezone": {
+            "anyOf": [
+              {
+                "maxLength": 64,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Timezone"
+          }
+        },
+        "title": "PreferencesRequest",
+        "type": "object"
+      },
       "ReadinessResponse": {
         "properties": {
           "checks": {
@@ -1636,6 +2387,32 @@
         "title": "ResetRequest",
         "type": "object"
       },
+      "Series": {
+        "properties": {
+          "key": {
+            "title": "Key",
+            "type": "string"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "values": {
+            "items": {
+              "type": "integer"
+            },
+            "title": "Values",
+            "type": "array"
+          }
+        },
+        "required": [
+          "key",
+          "label",
+          "values"
+        ],
+        "title": "Series",
+        "type": "object"
+      },
       "SessionSummary": {
         "properties": {
           "created_at": {
@@ -1732,6 +2509,108 @@
         "title": "SettingsVersionOut",
         "type": "object"
       },
+      "SignalRow": {
+        "properties": {
+          "category": {
+            "title": "Category",
+            "type": "string"
+          },
+          "count": {
+            "title": "Count",
+            "type": "integer"
+          },
+          "rule_id": {
+            "title": "Rule Id",
+            "type": "string"
+          },
+          "share": {
+            "title": "Share",
+            "type": "number"
+          }
+        },
+        "required": [
+          "rule_id",
+          "category",
+          "count",
+          "share"
+        ],
+        "title": "SignalRow",
+        "type": "object"
+      },
+      "Signals": {
+        "properties": {
+          "meta": {
+            "$ref": "#/components/schemas/Meta"
+          },
+          "rows": {
+            "items": {
+              "$ref": "#/components/schemas/SignalRow"
+            },
+            "title": "Rows",
+            "type": "array"
+          },
+          "visits": {
+            "title": "Visits",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "meta",
+          "visits",
+          "rows"
+        ],
+        "title": "Signals",
+        "type": "object"
+      },
+      "Sort": {
+        "enum": [
+          "newest",
+          "oldest"
+        ],
+        "title": "Sort",
+        "type": "string"
+      },
+      "SourceFlow": {
+        "properties": {
+          "levels": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Levels",
+            "type": "array"
+          },
+          "links": {
+            "items": {
+              "$ref": "#/components/schemas/FlowLink"
+            },
+            "title": "Links",
+            "type": "array"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/Meta"
+          },
+          "sources": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Sources",
+            "type": "array"
+          },
+          "visits": {
+            "title": "Visits",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "meta",
+          "visits",
+          "sources",
+          "levels",
+          "links"
+        ],
+        "title": "SourceFlow",
+        "type": "object"
+      },
       "SourceSettings": {
         "additionalProperties": false,
         "properties": {
@@ -1755,6 +2634,79 @@
           "priors"
         ],
         "title": "SourceSettings",
+        "type": "object"
+      },
+      "SplitBy": {
+        "enum": [
+          "none",
+          "classification",
+          "device_class",
+          "connection_class",
+          "country",
+          "admin1",
+          "link"
+        ],
+        "title": "SplitBy",
+        "type": "string"
+      },
+      "StageMix": {
+        "description": "How complete the visits behind a figure were (F9.AC20).",
+        "properties": {
+          "enriched": {
+            "title": "Enriched",
+            "type": "integer"
+          },
+          "rate_limited": {
+            "title": "Rate Limited",
+            "type": "integer"
+          },
+          "server": {
+            "title": "Server",
+            "type": "integer"
+          },
+          "server_only": {
+            "title": "Server Only",
+            "type": "integer"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "total",
+          "server",
+          "enriched",
+          "server_only",
+          "rate_limited"
+        ],
+        "title": "StageMix",
+        "type": "object"
+      },
+      "Summary": {
+        "properties": {
+          "kpis": {
+            "items": {
+              "$ref": "#/components/schemas/Kpi"
+            },
+            "title": "Kpis",
+            "type": "array"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/Meta"
+          },
+          "previous_start": {
+            "format": "date-time",
+            "title": "Previous Start",
+            "type": "string"
+          }
+        },
+        "required": [
+          "meta",
+          "previous_start",
+          "kpis"
+        ],
+        "title": "Summary",
         "type": "object"
       },
       "TelegramVerifyConfirm": {
@@ -1819,6 +2771,39 @@
           }
         },
         "title": "Thresholds",
+        "type": "object"
+      },
+      "TimeSeries": {
+        "properties": {
+          "bucket": {
+            "$ref": "#/components/schemas/Grain"
+          },
+          "buckets": {
+            "items": {
+              "format": "date-time",
+              "type": "string"
+            },
+            "title": "Buckets",
+            "type": "array"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/Meta"
+          },
+          "series": {
+            "items": {
+              "$ref": "#/components/schemas/Series"
+            },
+            "title": "Series",
+            "type": "array"
+          }
+        },
+        "required": [
+          "meta",
+          "bucket",
+          "buckets",
+          "series"
+        ],
+        "title": "TimeSeries",
         "type": "object"
       },
       "TotpConfirmRequest": {
@@ -2271,6 +3256,71 @@
         ],
         "title": "VisitSummary",
         "type": "object"
+      },
+      "VisitorView": {
+        "properties": {
+          "drift": {
+            "items": {
+              "$ref": "#/components/schemas/Drift"
+            },
+            "title": "Drift",
+            "type": "array"
+          },
+          "first_seen": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "First Seen"
+          },
+          "last_seen": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Seen"
+          },
+          "truncated": {
+            "title": "Truncated",
+            "type": "boolean"
+          },
+          "visit_count": {
+            "title": "Visit Count",
+            "type": "integer"
+          },
+          "visitor_id": {
+            "title": "Visitor Id",
+            "type": "string"
+          },
+          "visits": {
+            "items": {
+              "$ref": "#/components/schemas/VisitSummary"
+            },
+            "title": "Visits",
+            "type": "array"
+          }
+        },
+        "required": [
+          "visitor_id",
+          "visit_count",
+          "first_seen",
+          "last_seen",
+          "truncated",
+          "visits",
+          "drift"
+        ],
+        "title": "VisitorView",
+        "type": "object"
       }
     }
   },
@@ -2516,6 +3566,4049 @@
         ]
       }
     },
+    "/api/v1/analytics/accuracy": {
+      "get": {
+        "description": "Precision and coverage need the ground-truth set (F4.AC15), which M8 builds. Until then both are null with reason `no_ground_truth_labels` and `label_count` is 0. `emission_rate` is reported meanwhile and is explicitly not accuracy: it says how often strict answered, not whether it was right.",
+        "operationId": "accuracy_api_v1_analytics_accuracy_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "from",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date-time",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "From"
+            }
+          },
+          {
+            "in": "query",
+            "name": "to",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date-time",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "To"
+            }
+          },
+          {
+            "in": "query",
+            "name": "link_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Link Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "stage",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "items": {
+                    "$ref": "#/components/schemas/VisitStage"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Stage"
+            }
+          },
+          {
+            "in": "query",
+            "name": "classification",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "items": {
+                    "$ref": "#/components/schemas/Classification"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Classification"
+            }
+          },
+          {
+            "in": "query",
+            "name": "include_automated",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "Include Automated",
+              "type": "boolean"
+            }
+          },
+          {
+            "in": "query",
+            "name": "country_code",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 2,
+                  "minLength": 2,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Country Code"
+            }
+          },
+          {
+            "in": "query",
+            "name": "admin1",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 120,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Admin1"
+            }
+          },
+          {
+            "in": "query",
+            "name": "city",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 120,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "City"
+            }
+          },
+          {
+            "in": "query",
+            "name": "asn",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maximum": 4294967295,
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Asn"
+            }
+          },
+          {
+            "in": "query",
+            "name": "device_class",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "items": {
+                    "$ref": "#/components/schemas/DeviceClass"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Device Class"
+            }
+          },
+          {
+            "in": "query",
+            "name": "connection_class",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "items": {
+                    "$ref": "#/components/schemas/ConnectionClass"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Connection Class"
+            }
+          },
+          {
+            "in": "query",
+            "name": "consent_state",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/ConsentState"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Consent State"
+            }
+          },
+          {
+            "in": "query",
+            "name": "geofence_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Geofence Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "visitor_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 64,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Visitor Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "min_confidence_admin1",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maximum": 1,
+                  "minimum": 0,
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Min Confidence Admin1"
+            }
+          },
+          {
+            "in": "query",
+            "name": "min_confidence_city",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maximum": 1,
+                  "minimum": 0,
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Min Confidence City"
+            }
+          },
+          {
+            "in": "query",
+            "name": "has_gps",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Has Gps"
+            }
+          },
+          {
+            "in": "query",
+            "name": "is_proxy_suspected",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Is Proxy Suspected"
+            }
+          },
+          {
+            "in": "query",
+            "name": "webview_host",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 32,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Webview Host"
+            }
+          },
+          {
+            "in": "query",
+            "name": "search",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 100,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Search"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Accuracy"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Precision and coverage per level, with label counts (F9.AC10)",
+        "tags": [
+          "analytics"
+        ]
+      }
+    },
+    "/api/v1/analytics/breakdown": {
+      "get": {
+        "description": "Location dimensions use the strict fields only; abstentions are counted in `unknown`. `admin1` and `city` keys are qualified (`IN|Karnataka`, `IN|Karnataka|Bengaluru`) because names repeat across countries.",
+        "operationId": "breakdown_api_v1_analytics_breakdown_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "dimension",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/BreakdownDimension"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 20,
+              "maximum": 100,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "from",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date-time",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "From"
+            }
+          },
+          {
+            "in": "query",
+            "name": "to",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date-time",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "To"
+            }
+          },
+          {
+            "in": "query",
+            "name": "link_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Link Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "stage",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "items": {
+                    "$ref": "#/components/schemas/VisitStage"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Stage"
+            }
+          },
+          {
+            "in": "query",
+            "name": "classification",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "items": {
+                    "$ref": "#/components/schemas/Classification"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Classification"
+            }
+          },
+          {
+            "in": "query",
+            "name": "include_automated",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "Include Automated",
+              "type": "boolean"
+            }
+          },
+          {
+            "in": "query",
+            "name": "country_code",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 2,
+                  "minLength": 2,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Country Code"
+            }
+          },
+          {
+            "in": "query",
+            "name": "admin1",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 120,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Admin1"
+            }
+          },
+          {
+            "in": "query",
+            "name": "city",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 120,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "City"
+            }
+          },
+          {
+            "in": "query",
+            "name": "asn",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maximum": 4294967295,
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Asn"
+            }
+          },
+          {
+            "in": "query",
+            "name": "device_class",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "items": {
+                    "$ref": "#/components/schemas/DeviceClass"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Device Class"
+            }
+          },
+          {
+            "in": "query",
+            "name": "connection_class",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "items": {
+                    "$ref": "#/components/schemas/ConnectionClass"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Connection Class"
+            }
+          },
+          {
+            "in": "query",
+            "name": "consent_state",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/ConsentState"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Consent State"
+            }
+          },
+          {
+            "in": "query",
+            "name": "geofence_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Geofence Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "visitor_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 64,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Visitor Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "min_confidence_admin1",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maximum": 1,
+                  "minimum": 0,
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Min Confidence Admin1"
+            }
+          },
+          {
+            "in": "query",
+            "name": "min_confidence_city",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maximum": 1,
+                  "minimum": 0,
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Min Confidence City"
+            }
+          },
+          {
+            "in": "query",
+            "name": "has_gps",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Has Gps"
+            }
+          },
+          {
+            "in": "query",
+            "name": "is_proxy_suspected",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Is Proxy Suspected"
+            }
+          },
+          {
+            "in": "query",
+            "name": "webview_host",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 32,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Webview Host"
+            }
+          },
+          {
+            "in": "query",
+            "name": "search",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 100,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Search"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Breakdown"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Visits by one dimension (F9.AC4)",
+        "tags": [
+          "analytics"
+        ]
+      }
+    },
+    "/api/v1/analytics/calendar": {
+      "get": {
+        "operationId": "calendar_api_v1_analytics_calendar_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "from",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date-time",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "From"
+            }
+          },
+          {
+            "in": "query",
+            "name": "to",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date-time",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "To"
+            }
+          },
+          {
+            "in": "query",
+            "name": "link_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Link Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "stage",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "items": {
+                    "$ref": "#/components/schemas/VisitStage"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Stage"
+            }
+          },
+          {
+            "in": "query",
+            "name": "classification",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "items": {
+                    "$ref": "#/components/schemas/Classification"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Classification"
+            }
+          },
+          {
+            "in": "query",
+            "name": "include_automated",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "Include Automated",
+              "type": "boolean"
+            }
+          },
+          {
+            "in": "query",
+            "name": "country_code",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 2,
+                  "minLength": 2,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Country Code"
+            }
+          },
+          {
+            "in": "query",
+            "name": "admin1",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 120,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Admin1"
+            }
+          },
+          {
+            "in": "query",
+            "name": "city",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 120,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "City"
+            }
+          },
+          {
+            "in": "query",
+            "name": "asn",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maximum": 4294967295,
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Asn"
+            }
+          },
+          {
+            "in": "query",
+            "name": "device_class",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "items": {
+                    "$ref": "#/components/schemas/DeviceClass"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Device Class"
+            }
+          },
+          {
+            "in": "query",
+            "name": "connection_class",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "items": {
+                    "$ref": "#/components/schemas/ConnectionClass"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Connection Class"
+            }
+          },
+          {
+            "in": "query",
+            "name": "consent_state",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/ConsentState"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Consent State"
+            }
+          },
+          {
+            "in": "query",
+            "name": "geofence_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Geofence Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "visitor_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 64,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Visitor Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "min_confidence_admin1",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maximum": 1,
+                  "minimum": 0,
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Min Confidence Admin1"
+            }
+          },
+          {
+            "in": "query",
+            "name": "min_confidence_city",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maximum": 1,
+                  "minimum": 0,
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Min Confidence City"
+            }
+          },
+          {
+            "in": "query",
+            "name": "has_gps",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Has Gps"
+            }
+          },
+          {
+            "in": "query",
+            "name": "is_proxy_suspected",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Is Proxy Suspected"
+            }
+          },
+          {
+            "in": "query",
+            "name": "webview_host",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 32,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Webview Host"
+            }
+          },
+          {
+            "in": "query",
+            "name": "search",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 100,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Search"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Calendar"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Daily volume for the calendar heatmap (F9.AC6)",
+        "tags": [
+          "analytics"
+        ]
+      }
+    },
+    "/api/v1/analytics/confidence": {
+      "get": {
+        "operationId": "confidence_api_v1_analytics_confidence_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "from",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date-time",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "From"
+            }
+          },
+          {
+            "in": "query",
+            "name": "to",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date-time",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "To"
+            }
+          },
+          {
+            "in": "query",
+            "name": "link_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Link Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "stage",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "items": {
+                    "$ref": "#/components/schemas/VisitStage"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Stage"
+            }
+          },
+          {
+            "in": "query",
+            "name": "classification",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "items": {
+                    "$ref": "#/components/schemas/Classification"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Classification"
+            }
+          },
+          {
+            "in": "query",
+            "name": "include_automated",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "Include Automated",
+              "type": "boolean"
+            }
+          },
+          {
+            "in": "query",
+            "name": "country_code",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 2,
+                  "minLength": 2,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Country Code"
+            }
+          },
+          {
+            "in": "query",
+            "name": "admin1",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 120,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Admin1"
+            }
+          },
+          {
+            "in": "query",
+            "name": "city",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 120,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "City"
+            }
+          },
+          {
+            "in": "query",
+            "name": "asn",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maximum": 4294967295,
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Asn"
+            }
+          },
+          {
+            "in": "query",
+            "name": "device_class",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "items": {
+                    "$ref": "#/components/schemas/DeviceClass"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Device Class"
+            }
+          },
+          {
+            "in": "query",
+            "name": "connection_class",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "items": {
+                    "$ref": "#/components/schemas/ConnectionClass"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Connection Class"
+            }
+          },
+          {
+            "in": "query",
+            "name": "consent_state",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/ConsentState"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Consent State"
+            }
+          },
+          {
+            "in": "query",
+            "name": "geofence_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Geofence Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "visitor_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 64,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Visitor Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "min_confidence_admin1",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maximum": 1,
+                  "minimum": 0,
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Min Confidence Admin1"
+            }
+          },
+          {
+            "in": "query",
+            "name": "min_confidence_city",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maximum": 1,
+                  "minimum": 0,
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Min Confidence City"
+            }
+          },
+          {
+            "in": "query",
+            "name": "has_gps",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Has Gps"
+            }
+          },
+          {
+            "in": "query",
+            "name": "is_proxy_suspected",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Is Proxy Suspected"
+            }
+          },
+          {
+            "in": "query",
+            "name": "webview_host",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 32,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Webview Host"
+            }
+          },
+          {
+            "in": "query",
+            "name": "search",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 100,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Search"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Confidence"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Confidence distribution per level (F9.AC9)",
+        "tags": [
+          "analytics"
+        ]
+      }
+    },
+    "/api/v1/analytics/funnel": {
+      "get": {
+        "description": "`requests` includes rate-limited requests; `captured` excludes them. `notified` is null with a reason until Telegram notification is built (M6).",
+        "operationId": "funnel_api_v1_analytics_funnel_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "from",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date-time",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "From"
+            }
+          },
+          {
+            "in": "query",
+            "name": "to",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date-time",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "To"
+            }
+          },
+          {
+            "in": "query",
+            "name": "link_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Link Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "stage",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "items": {
+                    "$ref": "#/components/schemas/VisitStage"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Stage"
+            }
+          },
+          {
+            "in": "query",
+            "name": "classification",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "items": {
+                    "$ref": "#/components/schemas/Classification"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Classification"
+            }
+          },
+          {
+            "in": "query",
+            "name": "include_automated",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "Include Automated",
+              "type": "boolean"
+            }
+          },
+          {
+            "in": "query",
+            "name": "country_code",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 2,
+                  "minLength": 2,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Country Code"
+            }
+          },
+          {
+            "in": "query",
+            "name": "admin1",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 120,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Admin1"
+            }
+          },
+          {
+            "in": "query",
+            "name": "city",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 120,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "City"
+            }
+          },
+          {
+            "in": "query",
+            "name": "asn",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maximum": 4294967295,
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Asn"
+            }
+          },
+          {
+            "in": "query",
+            "name": "device_class",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "items": {
+                    "$ref": "#/components/schemas/DeviceClass"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Device Class"
+            }
+          },
+          {
+            "in": "query",
+            "name": "connection_class",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "items": {
+                    "$ref": "#/components/schemas/ConnectionClass"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Connection Class"
+            }
+          },
+          {
+            "in": "query",
+            "name": "consent_state",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/ConsentState"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Consent State"
+            }
+          },
+          {
+            "in": "query",
+            "name": "geofence_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Geofence Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "visitor_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 64,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Visitor Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "min_confidence_admin1",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maximum": 1,
+                  "minimum": 0,
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Min Confidence Admin1"
+            }
+          },
+          {
+            "in": "query",
+            "name": "min_confidence_city",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maximum": 1,
+                  "minimum": 0,
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Min Confidence City"
+            }
+          },
+          {
+            "in": "query",
+            "name": "has_gps",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Has Gps"
+            }
+          },
+          {
+            "in": "query",
+            "name": "is_proxy_suspected",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Is Proxy Suspected"
+            }
+          },
+          {
+            "in": "query",
+            "name": "webview_host",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 32,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Webview Host"
+            }
+          },
+          {
+            "in": "query",
+            "name": "search",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 100,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Search"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Funnel"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "requests \u2192 captured \u2192 enriched \u2192 consented \u2192 notified (F9.AC8)",
+        "tags": [
+          "analytics"
+        ]
+      }
+    },
+    "/api/v1/analytics/geo": {
+      "get": {
+        "description": "Strict location only. Points are consented GPS where it exists, otherwise the strict coordinates, which exist only with a strict city (DATA_MODEL 5.3 invariant 11). They are clustered on a grid of `cell_degrees`, server-side.",
+        "operationId": "geo_api_v1_analytics_geo_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "cell_degrees",
+            "required": false,
+            "schema": {
+              "default": 0.25,
+              "maximum": 10,
+              "minimum": 0.01,
+              "title": "Cell Degrees",
+              "type": "number"
+            }
+          },
+          {
+            "in": "query",
+            "name": "from",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date-time",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "From"
+            }
+          },
+          {
+            "in": "query",
+            "name": "to",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date-time",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "To"
+            }
+          },
+          {
+            "in": "query",
+            "name": "link_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Link Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "stage",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "items": {
+                    "$ref": "#/components/schemas/VisitStage"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Stage"
+            }
+          },
+          {
+            "in": "query",
+            "name": "classification",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "items": {
+                    "$ref": "#/components/schemas/Classification"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Classification"
+            }
+          },
+          {
+            "in": "query",
+            "name": "include_automated",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "Include Automated",
+              "type": "boolean"
+            }
+          },
+          {
+            "in": "query",
+            "name": "country_code",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 2,
+                  "minLength": 2,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Country Code"
+            }
+          },
+          {
+            "in": "query",
+            "name": "admin1",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 120,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Admin1"
+            }
+          },
+          {
+            "in": "query",
+            "name": "city",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 120,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "City"
+            }
+          },
+          {
+            "in": "query",
+            "name": "asn",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maximum": 4294967295,
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Asn"
+            }
+          },
+          {
+            "in": "query",
+            "name": "device_class",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "items": {
+                    "$ref": "#/components/schemas/DeviceClass"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Device Class"
+            }
+          },
+          {
+            "in": "query",
+            "name": "connection_class",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "items": {
+                    "$ref": "#/components/schemas/ConnectionClass"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Connection Class"
+            }
+          },
+          {
+            "in": "query",
+            "name": "consent_state",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/ConsentState"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Consent State"
+            }
+          },
+          {
+            "in": "query",
+            "name": "geofence_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Geofence Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "visitor_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 64,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Visitor Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "min_confidence_admin1",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maximum": 1,
+                  "minimum": 0,
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Min Confidence Admin1"
+            }
+          },
+          {
+            "in": "query",
+            "name": "min_confidence_city",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maximum": 1,
+                  "minimum": 0,
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Min Confidence City"
+            }
+          },
+          {
+            "in": "query",
+            "name": "has_gps",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Has Gps"
+            }
+          },
+          {
+            "in": "query",
+            "name": "is_proxy_suspected",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Is Proxy Suspected"
+            }
+          },
+          {
+            "in": "query",
+            "name": "webview_host",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 32,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Webview Host"
+            }
+          },
+          {
+            "in": "query",
+            "name": "search",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 100,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Search"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Geo"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Choropleth counts and clustered points (F9.AC5)",
+        "tags": [
+          "analytics"
+        ]
+      }
+    },
+    "/api/v1/analytics/signals": {
+      "get": {
+        "description": "Rules of category bot, spoof, spam and network. Absences and inference bookkeeping are reasons, not detections, and are not counted.",
+        "operationId": "signals_api_v1_analytics_signals_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "from",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date-time",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "From"
+            }
+          },
+          {
+            "in": "query",
+            "name": "to",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date-time",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "To"
+            }
+          },
+          {
+            "in": "query",
+            "name": "link_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Link Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "stage",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "items": {
+                    "$ref": "#/components/schemas/VisitStage"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Stage"
+            }
+          },
+          {
+            "in": "query",
+            "name": "classification",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "items": {
+                    "$ref": "#/components/schemas/Classification"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Classification"
+            }
+          },
+          {
+            "in": "query",
+            "name": "include_automated",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "Include Automated",
+              "type": "boolean"
+            }
+          },
+          {
+            "in": "query",
+            "name": "country_code",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 2,
+                  "minLength": 2,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Country Code"
+            }
+          },
+          {
+            "in": "query",
+            "name": "admin1",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 120,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Admin1"
+            }
+          },
+          {
+            "in": "query",
+            "name": "city",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 120,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "City"
+            }
+          },
+          {
+            "in": "query",
+            "name": "asn",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maximum": 4294967295,
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Asn"
+            }
+          },
+          {
+            "in": "query",
+            "name": "device_class",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "items": {
+                    "$ref": "#/components/schemas/DeviceClass"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Device Class"
+            }
+          },
+          {
+            "in": "query",
+            "name": "connection_class",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "items": {
+                    "$ref": "#/components/schemas/ConnectionClass"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Connection Class"
+            }
+          },
+          {
+            "in": "query",
+            "name": "consent_state",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/ConsentState"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Consent State"
+            }
+          },
+          {
+            "in": "query",
+            "name": "geofence_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Geofence Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "visitor_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 64,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Visitor Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "min_confidence_admin1",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maximum": 1,
+                  "minimum": 0,
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Min Confidence Admin1"
+            }
+          },
+          {
+            "in": "query",
+            "name": "min_confidence_city",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maximum": 1,
+                  "minimum": 0,
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Min Confidence City"
+            }
+          },
+          {
+            "in": "query",
+            "name": "has_gps",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Has Gps"
+            }
+          },
+          {
+            "in": "query",
+            "name": "is_proxy_suspected",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Is Proxy Suspected"
+            }
+          },
+          {
+            "in": "query",
+            "name": "webview_host",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 32,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Webview Host"
+            }
+          },
+          {
+            "in": "query",
+            "name": "search",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 100,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Search"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Signals"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Which detection rules fire most often (F9.AC11)",
+        "tags": [
+          "analytics"
+        ]
+      }
+    },
+    "/api/v1/analytics/source-flow": {
+      "get": {
+        "description": "One link per (source, emitted level): how many inferred visits that source proposed a candidate for, by the deepest strict level the engine finally emitted. `none` as a level is a full abstention; `none` as a source is a visit no source had anything to say about.",
+        "operationId": "source_flow_api_v1_analytics_source_flow_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "from",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date-time",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "From"
+            }
+          },
+          {
+            "in": "query",
+            "name": "to",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date-time",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "To"
+            }
+          },
+          {
+            "in": "query",
+            "name": "link_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Link Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "stage",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "items": {
+                    "$ref": "#/components/schemas/VisitStage"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Stage"
+            }
+          },
+          {
+            "in": "query",
+            "name": "classification",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "items": {
+                    "$ref": "#/components/schemas/Classification"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Classification"
+            }
+          },
+          {
+            "in": "query",
+            "name": "include_automated",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "Include Automated",
+              "type": "boolean"
+            }
+          },
+          {
+            "in": "query",
+            "name": "country_code",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 2,
+                  "minLength": 2,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Country Code"
+            }
+          },
+          {
+            "in": "query",
+            "name": "admin1",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 120,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Admin1"
+            }
+          },
+          {
+            "in": "query",
+            "name": "city",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 120,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "City"
+            }
+          },
+          {
+            "in": "query",
+            "name": "asn",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maximum": 4294967295,
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Asn"
+            }
+          },
+          {
+            "in": "query",
+            "name": "device_class",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "items": {
+                    "$ref": "#/components/schemas/DeviceClass"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Device Class"
+            }
+          },
+          {
+            "in": "query",
+            "name": "connection_class",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "items": {
+                    "$ref": "#/components/schemas/ConnectionClass"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Connection Class"
+            }
+          },
+          {
+            "in": "query",
+            "name": "consent_state",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/ConsentState"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Consent State"
+            }
+          },
+          {
+            "in": "query",
+            "name": "geofence_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Geofence Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "visitor_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 64,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Visitor Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "min_confidence_admin1",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maximum": 1,
+                  "minimum": 0,
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Min Confidence Admin1"
+            }
+          },
+          {
+            "in": "query",
+            "name": "min_confidence_city",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maximum": 1,
+                  "minimum": 0,
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Min Confidence City"
+            }
+          },
+          {
+            "in": "query",
+            "name": "has_gps",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Has Gps"
+            }
+          },
+          {
+            "in": "query",
+            "name": "is_proxy_suspected",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Is Proxy Suspected"
+            }
+          },
+          {
+            "in": "query",
+            "name": "webview_host",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 32,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Webview Host"
+            }
+          },
+          {
+            "in": "query",
+            "name": "search",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 100,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Search"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SourceFlow"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Inference sources to the level emitted (F9.AC7)",
+        "tags": [
+          "analytics"
+        ]
+      }
+    },
+    "/api/v1/analytics/summary": {
+      "get": {
+        "description": "The previous period is the window of equal length immediately before this one. Human and bot shares are computed across every classification, whatever the classification filter, because they are about classification. Unique visitors is always counted from raw rows and is null past the visit retention window.",
+        "operationId": "summary_api_v1_analytics_summary_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "from",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date-time",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "From"
+            }
+          },
+          {
+            "in": "query",
+            "name": "to",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date-time",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "To"
+            }
+          },
+          {
+            "in": "query",
+            "name": "link_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Link Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "stage",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "items": {
+                    "$ref": "#/components/schemas/VisitStage"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Stage"
+            }
+          },
+          {
+            "in": "query",
+            "name": "classification",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "items": {
+                    "$ref": "#/components/schemas/Classification"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Classification"
+            }
+          },
+          {
+            "in": "query",
+            "name": "include_automated",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "Include Automated",
+              "type": "boolean"
+            }
+          },
+          {
+            "in": "query",
+            "name": "country_code",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 2,
+                  "minLength": 2,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Country Code"
+            }
+          },
+          {
+            "in": "query",
+            "name": "admin1",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 120,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Admin1"
+            }
+          },
+          {
+            "in": "query",
+            "name": "city",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 120,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "City"
+            }
+          },
+          {
+            "in": "query",
+            "name": "asn",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maximum": 4294967295,
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Asn"
+            }
+          },
+          {
+            "in": "query",
+            "name": "device_class",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "items": {
+                    "$ref": "#/components/schemas/DeviceClass"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Device Class"
+            }
+          },
+          {
+            "in": "query",
+            "name": "connection_class",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "items": {
+                    "$ref": "#/components/schemas/ConnectionClass"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Connection Class"
+            }
+          },
+          {
+            "in": "query",
+            "name": "consent_state",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/ConsentState"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Consent State"
+            }
+          },
+          {
+            "in": "query",
+            "name": "geofence_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Geofence Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "visitor_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 64,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Visitor Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "min_confidence_admin1",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maximum": 1,
+                  "minimum": 0,
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Min Confidence Admin1"
+            }
+          },
+          {
+            "in": "query",
+            "name": "min_confidence_city",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maximum": 1,
+                  "minimum": 0,
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Min Confidence City"
+            }
+          },
+          {
+            "in": "query",
+            "name": "has_gps",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Has Gps"
+            }
+          },
+          {
+            "in": "query",
+            "name": "is_proxy_suspected",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Is Proxy Suspected"
+            }
+          },
+          {
+            "in": "query",
+            "name": "webview_host",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 32,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Webview Host"
+            }
+          },
+          {
+            "in": "query",
+            "name": "search",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 100,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Search"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Summary"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "KPIs with period-over-period change (F9.AC2)",
+        "tags": [
+          "analytics"
+        ]
+      }
+    },
+    "/api/v1/analytics/timeseries": {
+      "get": {
+        "description": "Buckets are local to the reporting timezone and zero-filled. A split keeps the 7 largest keys and folds the rest into 'other'. Hourly windows are limited to 31 days.",
+        "operationId": "timeseries_api_v1_analytics_timeseries_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "bucket",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/Grain",
+              "default": "day"
+            }
+          },
+          {
+            "in": "query",
+            "name": "split_by",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/SplitBy",
+              "default": "none"
+            }
+          },
+          {
+            "in": "query",
+            "name": "metric",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/Metric",
+              "default": "visits"
+            }
+          },
+          {
+            "in": "query",
+            "name": "from",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date-time",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "From"
+            }
+          },
+          {
+            "in": "query",
+            "name": "to",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date-time",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "To"
+            }
+          },
+          {
+            "in": "query",
+            "name": "link_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Link Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "stage",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "items": {
+                    "$ref": "#/components/schemas/VisitStage"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Stage"
+            }
+          },
+          {
+            "in": "query",
+            "name": "classification",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "items": {
+                    "$ref": "#/components/schemas/Classification"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Classification"
+            }
+          },
+          {
+            "in": "query",
+            "name": "include_automated",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "Include Automated",
+              "type": "boolean"
+            }
+          },
+          {
+            "in": "query",
+            "name": "country_code",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 2,
+                  "minLength": 2,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Country Code"
+            }
+          },
+          {
+            "in": "query",
+            "name": "admin1",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 120,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Admin1"
+            }
+          },
+          {
+            "in": "query",
+            "name": "city",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 120,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "City"
+            }
+          },
+          {
+            "in": "query",
+            "name": "asn",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maximum": 4294967295,
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Asn"
+            }
+          },
+          {
+            "in": "query",
+            "name": "device_class",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "items": {
+                    "$ref": "#/components/schemas/DeviceClass"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Device Class"
+            }
+          },
+          {
+            "in": "query",
+            "name": "connection_class",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "items": {
+                    "$ref": "#/components/schemas/ConnectionClass"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Connection Class"
+            }
+          },
+          {
+            "in": "query",
+            "name": "consent_state",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/ConsentState"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Consent State"
+            }
+          },
+          {
+            "in": "query",
+            "name": "geofence_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Geofence Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "visitor_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 64,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Visitor Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "min_confidence_admin1",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maximum": 1,
+                  "minimum": 0,
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Min Confidence Admin1"
+            }
+          },
+          {
+            "in": "query",
+            "name": "min_confidence_city",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maximum": 1,
+                  "minimum": 0,
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Min Confidence City"
+            }
+          },
+          {
+            "in": "query",
+            "name": "has_gps",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Has Gps"
+            }
+          },
+          {
+            "in": "query",
+            "name": "is_proxy_suspected",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Is Proxy Suspected"
+            }
+          },
+          {
+            "in": "query",
+            "name": "webview_host",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 32,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Webview Host"
+            }
+          },
+          {
+            "in": "query",
+            "name": "search",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 100,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Search"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TimeSeries"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Visits by hour or day, optionally split (F9.AC3)",
+        "tags": [
+          "analytics"
+        ]
+      }
+    },
+    "/api/v1/analytics/visitor/{visitor_id}": {
+      "get": {
+        "description": "Oldest first, at most 500. Every classification is included: a visitor who is sometimes classified as a bot is exactly what this view is for.",
+        "operationId": "visitor_api_v1_analytics_visitor__visitor_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "visitor_id",
+            "required": true,
+            "schema": {
+              "maxLength": 64,
+              "minLength": 64,
+              "pattern": "^[0-9a-fA-F]+$",
+              "title": "Visitor Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VisitorView"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Every visit by one visitor, with location drift and device changes (F9.AC12)",
+        "tags": [
+          "analytics"
+        ]
+      }
+    },
     "/api/v1/auth/enroll": {
       "post": {
         "description": "Sets the first password and returns the TOTP secret plus ten recovery codes. **Returned exactly once** -- neither is retrievable afterwards. The account becomes active only after /totp/confirm proves the authenticator works.",
@@ -2630,6 +7723,48 @@
           }
         },
         "summary": "The signed-in admin",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/api/v1/auth/me/preferences": {
+      "patch": {
+        "description": "Display only. The theme is semi-dark unless changed (F9.AC16); the timezone is how timestamps are shown to you, not how analytics are bucketed (ADR-0016). Not audited: it changes nothing anyone else sees.",
+        "operationId": "update_preferences_api_v1_auth_me_preferences_patch",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PreferencesRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MeResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Change your own theme or display timezone",
         "tags": [
           "auth"
         ]
@@ -3505,9 +8640,47 @@
     },
     "/api/v1/visits": {
       "get": {
-        "description": "Automated traffic -- crawlers, bots and the rest -- is excluded unless include_automated is set, so the default view is people. The exclusion is a flag rather than hidden so that what is being left out stays visible.",
+        "description": "Every F9.AC13 filter, composable. Automated traffic -- crawlers, bots and the rest -- is excluded unless include_automated is set, so the default view is people; the exclusion is a flag rather than hidden so that what is being left out stays visible. Location filters match the strict fields only. `search` matches link slug and label, ISP, city, browser, OS and webview host.",
         "operationId": "list_visits_api_v1_visits_get",
         "parameters": [
+          {
+            "in": "query",
+            "name": "sort",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/Sort",
+              "default": "newest"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 200,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Cursor"
+            }
+          },
           {
             "in": "query",
             "name": "from",
@@ -3599,6 +8772,242 @@
           },
           {
             "in": "query",
+            "name": "include_automated",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "Include Automated",
+              "type": "boolean"
+            }
+          },
+          {
+            "in": "query",
+            "name": "country_code",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 2,
+                  "minLength": 2,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Country Code"
+            }
+          },
+          {
+            "in": "query",
+            "name": "admin1",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 120,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Admin1"
+            }
+          },
+          {
+            "in": "query",
+            "name": "city",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 120,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "City"
+            }
+          },
+          {
+            "in": "query",
+            "name": "asn",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maximum": 4294967295,
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Asn"
+            }
+          },
+          {
+            "in": "query",
+            "name": "device_class",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "items": {
+                    "$ref": "#/components/schemas/DeviceClass"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Device Class"
+            }
+          },
+          {
+            "in": "query",
+            "name": "connection_class",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "items": {
+                    "$ref": "#/components/schemas/ConnectionClass"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Connection Class"
+            }
+          },
+          {
+            "in": "query",
+            "name": "consent_state",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/ConsentState"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Consent State"
+            }
+          },
+          {
+            "in": "query",
+            "name": "geofence_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Geofence Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "visitor_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 64,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Visitor Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "min_confidence_admin1",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maximum": 1,
+                  "minimum": 0,
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Min Confidence Admin1"
+            }
+          },
+          {
+            "in": "query",
+            "name": "min_confidence_city",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maximum": 1,
+                  "minimum": 0,
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Min Confidence City"
+            }
+          },
+          {
+            "in": "query",
+            "name": "has_gps",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Has Gps"
+            }
+          },
+          {
+            "in": "query",
+            "name": "is_proxy_suspected",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Is Proxy Suspected"
+            }
+          },
+          {
+            "in": "query",
             "name": "webview_host",
             "required": false,
             "schema": {
@@ -3616,41 +9025,20 @@
           },
           {
             "in": "query",
-            "name": "include_automated",
-            "required": false,
-            "schema": {
-              "default": false,
-              "title": "Include Automated",
-              "type": "boolean"
-            }
-          },
-          {
-            "in": "query",
-            "name": "limit",
-            "required": false,
-            "schema": {
-              "default": 50,
-              "maximum": 200,
-              "minimum": 1,
-              "title": "Limit",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "query",
-            "name": "cursor",
+            "name": "search",
             "required": false,
             "schema": {
               "anyOf": [
                 {
-                  "maxLength": 200,
+                  "maxLength": 100,
+                  "minLength": 1,
                   "type": "string"
                 },
                 {
                   "type": "null"
                 }
               ],
-              "title": "Cursor"
+              "title": "Search"
             }
           }
         ],
@@ -3676,7 +9064,416 @@
             "description": "Validation Error"
           }
         },
-        "summary": "List visits, newest first",
+        "summary": "List visits",
+        "tags": [
+          "visits"
+        ]
+      }
+    },
+    "/api/v1/visits/export": {
+      "get": {
+        "description": "Honours every filter the list takes. Streamed row by row rather than buffered. **No plaintext IP**: the network prefix is the only address-derived column, as in the list. CSV cells that a spreadsheet would read as a formula are prefixed with an apostrophe.",
+        "operationId": "export_visits_api_v1_visits_export_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "format",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/ExportFormat",
+              "default": "csv"
+            }
+          },
+          {
+            "in": "query",
+            "name": "sort",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/Sort",
+              "default": "newest"
+            }
+          },
+          {
+            "in": "query",
+            "name": "from",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date-time",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "From"
+            }
+          },
+          {
+            "in": "query",
+            "name": "to",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date-time",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "To"
+            }
+          },
+          {
+            "in": "query",
+            "name": "link_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Link Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "stage",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "items": {
+                    "$ref": "#/components/schemas/VisitStage"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Stage"
+            }
+          },
+          {
+            "in": "query",
+            "name": "classification",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "items": {
+                    "$ref": "#/components/schemas/Classification"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Classification"
+            }
+          },
+          {
+            "in": "query",
+            "name": "include_automated",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "Include Automated",
+              "type": "boolean"
+            }
+          },
+          {
+            "in": "query",
+            "name": "country_code",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 2,
+                  "minLength": 2,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Country Code"
+            }
+          },
+          {
+            "in": "query",
+            "name": "admin1",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 120,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Admin1"
+            }
+          },
+          {
+            "in": "query",
+            "name": "city",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 120,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "City"
+            }
+          },
+          {
+            "in": "query",
+            "name": "asn",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maximum": 4294967295,
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Asn"
+            }
+          },
+          {
+            "in": "query",
+            "name": "device_class",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "items": {
+                    "$ref": "#/components/schemas/DeviceClass"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Device Class"
+            }
+          },
+          {
+            "in": "query",
+            "name": "connection_class",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "items": {
+                    "$ref": "#/components/schemas/ConnectionClass"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Connection Class"
+            }
+          },
+          {
+            "in": "query",
+            "name": "consent_state",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/ConsentState"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Consent State"
+            }
+          },
+          {
+            "in": "query",
+            "name": "geofence_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Geofence Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "visitor_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 64,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Visitor Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "min_confidence_admin1",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maximum": 1,
+                  "minimum": 0,
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Min Confidence Admin1"
+            }
+          },
+          {
+            "in": "query",
+            "name": "min_confidence_city",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maximum": 1,
+                  "minimum": 0,
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Min Confidence City"
+            }
+          },
+          {
+            "in": "query",
+            "name": "has_gps",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Has Gps"
+            }
+          },
+          {
+            "in": "query",
+            "name": "is_proxy_suspected",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Is Proxy Suspected"
+            }
+          },
+          {
+            "in": "query",
+            "name": "webview_host",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 32,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Webview Host"
+            }
+          },
+          {
+            "in": "query",
+            "name": "search",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 100,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Search"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/x-ndjson": {},
+              "text/csv": {}
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Export visits as CSV or NDJSON, streamed (F9.AC15)",
         "tags": [
           "visits"
         ]

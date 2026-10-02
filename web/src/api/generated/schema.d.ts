@@ -67,6 +67,220 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/analytics/accuracy": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Precision and coverage per level, with label counts (F9.AC10)
+         * @description Precision and coverage need the ground-truth set (F4.AC15), which M8 builds. Until then both are null with reason `no_ground_truth_labels` and `label_count` is 0. `emission_rate` is reported meanwhile and is explicitly not accuracy: it says how often strict answered, not whether it was right.
+         */
+        get: operations["accuracy_api_v1_analytics_accuracy_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/analytics/breakdown": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Visits by one dimension (F9.AC4)
+         * @description Location dimensions use the strict fields only; abstentions are counted in `unknown`. `admin1` and `city` keys are qualified (`IN|Karnataka`, `IN|Karnataka|Bengaluru`) because names repeat across countries.
+         */
+        get: operations["breakdown_api_v1_analytics_breakdown_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/analytics/calendar": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Daily volume for the calendar heatmap (F9.AC6) */
+        get: operations["calendar_api_v1_analytics_calendar_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/analytics/confidence": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Confidence distribution per level (F9.AC9) */
+        get: operations["confidence_api_v1_analytics_confidence_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/analytics/funnel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * requests → captured → enriched → consented → notified (F9.AC8)
+         * @description `requests` includes rate-limited requests; `captured` excludes them. `notified` is null with a reason until Telegram notification is built (M6).
+         */
+        get: operations["funnel_api_v1_analytics_funnel_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/analytics/geo": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Choropleth counts and clustered points (F9.AC5)
+         * @description Strict location only. Points are consented GPS where it exists, otherwise the strict coordinates, which exist only with a strict city (DATA_MODEL 5.3 invariant 11). They are clustered on a grid of `cell_degrees`, server-side.
+         */
+        get: operations["geo_api_v1_analytics_geo_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/analytics/signals": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Which detection rules fire most often (F9.AC11)
+         * @description Rules of category bot, spoof, spam and network. Absences and inference bookkeeping are reasons, not detections, and are not counted.
+         */
+        get: operations["signals_api_v1_analytics_signals_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/analytics/source-flow": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Inference sources to the level emitted (F9.AC7)
+         * @description One link per (source, emitted level): how many inferred visits that source proposed a candidate for, by the deepest strict level the engine finally emitted. `none` as a level is a full abstention; `none` as a source is a visit no source had anything to say about.
+         */
+        get: operations["source_flow_api_v1_analytics_source_flow_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/analytics/summary": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * KPIs with period-over-period change (F9.AC2)
+         * @description The previous period is the window of equal length immediately before this one. Human and bot shares are computed across every classification, whatever the classification filter, because they are about classification. Unique visitors is always counted from raw rows and is null past the visit retention window.
+         */
+        get: operations["summary_api_v1_analytics_summary_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/analytics/timeseries": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Visits by hour or day, optionally split (F9.AC3)
+         * @description Buckets are local to the reporting timezone and zero-filled. A split keeps the 7 largest keys and folds the rest into 'other'. Hourly windows are limited to 31 days.
+         */
+        get: operations["timeseries_api_v1_analytics_timeseries_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/analytics/visitor/{visitor_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Every visit by one visitor, with location drift and device changes (F9.AC12)
+         * @description Oldest first, at most 500. Every classification is included: a visitor who is sometimes classified as a bot is exactly what this view is for.
+         */
+        get: operations["visitor_api_v1_analytics_visitor__visitor_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/auth/enroll": {
         parameters: {
             query?: never;
@@ -139,6 +353,26 @@ export interface paths {
         options?: never;
         head?: never;
         patch?: never;
+        trace?: never;
+    };
+    "/api/v1/auth/me/preferences": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Change your own theme or display timezone
+         * @description Display only. The theme is semi-dark unless changed (F9.AC16); the timezone is how timestamps are shown to you, not how analytics are bucketed (ADR-0016). Not audited: it changes nothing anyone else sees.
+         */
+        patch: operations["update_preferences_api_v1_auth_me_preferences_patch"];
         trace?: never;
     };
     "/api/v1/auth/mfa": {
@@ -520,10 +754,30 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * List visits, newest first
-         * @description Automated traffic -- crawlers, bots and the rest -- is excluded unless include_automated is set, so the default view is people. The exclusion is a flag rather than hidden so that what is being left out stays visible.
+         * List visits
+         * @description Every F9.AC13 filter, composable. Automated traffic -- crawlers, bots and the rest -- is excluded unless include_automated is set, so the default view is people; the exclusion is a flag rather than hidden so that what is being left out stays visible. Location filters match the strict fields only. `search` matches link slug and label, ISP, city, browser, OS and webview host.
          */
         get: operations["list_visits_api_v1_visits_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/visits/export": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Export visits as CSV or NDJSON, streamed (F9.AC15)
+         * @description Honours every filter the list takes. Streamed row by row rather than buffered. **No plaintext IP**: the network prefix is the only address-derived column, as in the list. CSV cells that a spreadsheet would read as a formula are prefixed with an apostrophe.
+         */
+        get: operations["export_visits_api_v1_visits_export_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -613,6 +867,23 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /** Accuracy */
+        Accuracy: {
+            /** Inferred */
+            inferred: number;
+            /** Levels */
+            levels: components["schemas"]["LevelAccuracy"][];
+            meta: components["schemas"]["Meta"];
+        };
+        /** Admin1Count */
+        Admin1Count: {
+            /** Admin1 */
+            admin1: string;
+            /** Count */
+            count: number;
+            /** Country Code */
+            country_code: string;
+        };
         /**
          * AdminRole
          * @description Two roles only.
@@ -650,6 +921,49 @@ export interface components {
             telegram_verified: boolean;
             /** Totp Enrolled */
             totp_enrolled: boolean;
+        };
+        /** Breakdown */
+        Breakdown: {
+            dimension: components["schemas"]["BreakdownDimension"];
+            meta: components["schemas"]["Meta"];
+            /** Other */
+            other: number;
+            /** Rows */
+            rows: components["schemas"]["BreakdownRow"][];
+            /** Total */
+            total: number;
+            /** Unknown */
+            unknown: number;
+        };
+        /**
+         * BreakdownDimension
+         * @enum {string}
+         */
+        BreakdownDimension: "country" | "admin1" | "city" | "asn" | "isp" | "device_class" | "browser" | "app_medium" | "os" | "screen" | "connection_class" | "classification";
+        /** BreakdownRow */
+        BreakdownRow: {
+            /** Count */
+            count: number;
+            /** Key */
+            key: string;
+            /** Share */
+            share: number;
+        };
+        /** Calendar */
+        Calendar: {
+            /** Days */
+            days: components["schemas"]["CalendarDay"][];
+            meta: components["schemas"]["Meta"];
+        };
+        /** CalendarDay */
+        CalendarDay: {
+            /** Count */
+            count: number;
+            /**
+             * Day
+             * Format: date
+             */
+            day: string;
         };
         /**
          * CandidateOut
@@ -775,6 +1089,29 @@ export interface components {
                 [key: string]: number;
             };
         };
+        /** Confidence */
+        Confidence: {
+            /** Levels */
+            levels: components["schemas"]["Histogram"][];
+            meta: components["schemas"]["Meta"];
+        };
+        /**
+         * ConnectionClass
+         * @enum {string}
+         */
+        ConnectionClass: "broadband" | "mobile" | "datacenter" | "vpn_suspected" | "tor" | "business" | "unknown";
+        /**
+         * ConsentState
+         * @enum {string}
+         */
+        ConsentState: "granted" | "denied" | "unavailable" | "not_asked" | "blocked_by_webview";
+        /** CountryCount */
+        CountryCount: {
+            /** Count */
+            count: number;
+            /** Country Code */
+            country_code: string;
+        };
         /** CreateAdminRequest */
         CreateAdminRequest: {
             /** Display Name */
@@ -826,6 +1163,34 @@ export interface components {
             /** Webview Host */
             webview_host: string | null;
         };
+        /**
+         * DeviceClass
+         * @enum {string}
+         */
+        DeviceClass: "mobile" | "tablet" | "desktop" | "tv" | "server" | "bot" | "unknown";
+        /**
+         * Drift
+         * @description What changed between two consecutive visits by the same visitor.
+         */
+        Drift: {
+            /**
+             * At
+             * Format: date-time
+             */
+            at: string;
+            /** Device Changed */
+            device_changed: string[];
+            /** Distance Km */
+            distance_km: number | null;
+            /** From Visit */
+            from_visit: string;
+            /** Location Changed */
+            location_changed: string[];
+            /** Network Changed */
+            network_changed: boolean;
+            /** To Visit */
+            to_visit: string;
+        };
         /** EnrollRequest */
         EnrollRequest: {
             /** Password */
@@ -859,6 +1224,59 @@ export interface components {
             /** Url */
             url: string;
         };
+        /**
+         * ExportFormat
+         * @enum {string}
+         */
+        ExportFormat: "csv" | "ndjson";
+        /** FlowLink */
+        FlowLink: {
+            /** Source */
+            source: string;
+            /** Target */
+            target: string;
+            /** Value */
+            value: number;
+        };
+        /** Funnel */
+        Funnel: {
+            meta: components["schemas"]["Meta"];
+            /** Steps */
+            steps: components["schemas"]["FunnelStep"][];
+        };
+        /** FunnelStep */
+        FunnelStep: {
+            /** Count */
+            count: number | null;
+            /** Reason */
+            reason?: string | null;
+            /**
+             * Step
+             * @enum {string}
+             */
+            step: "requests" | "captured" | "enriched" | "consented" | "notified";
+        };
+        /** Geo */
+        Geo: {
+            /** Abstained */
+            abstained: number;
+            /** Admin1 */
+            admin1: components["schemas"]["Admin1Count"][];
+            /** Cell Degrees */
+            cell_degrees: number;
+            /** Countries */
+            countries: components["schemas"]["CountryCount"][];
+            meta: components["schemas"]["Meta"];
+            /** Points */
+            points: components["schemas"]["PointCluster"][];
+            /**
+             * Points Computed From
+             * @constant
+             */
+            points_computed_from: "raw";
+            /** Points Truncated */
+            points_truncated: boolean;
+        };
         /** GeofenceBlock */
         GeofenceBlock: {
             /** Matched */
@@ -866,10 +1284,27 @@ export interface components {
             /** State */
             state: string;
         };
+        /**
+         * Grain
+         * @enum {string}
+         */
+        Grain: "day" | "hour";
         /** HTTPValidationError */
         HTTPValidationError: {
             /** Detail */
             detail?: components["schemas"]["ValidationError"][];
+        };
+        /** Histogram */
+        Histogram: {
+            /** Bins */
+            bins: number[];
+            /**
+             * Level
+             * @enum {string}
+             */
+            level: "country" | "admin1" | "admin2" | "city";
+            /** Unscored */
+            unscored: number;
         };
         /** InferenceConfig */
         InferenceConfig: {
@@ -994,6 +1429,42 @@ export interface components {
          * @enum {string}
          */
         InferenceSource: "gps" | "geolite2" | "ip2location" | "ipinfo" | "dbip" | "rdns" | "asn_org" | "cf_colo" | "external_api" | "latency" | "timezone";
+        /** Kpi */
+        Kpi: {
+            /** Change */
+            change: number | null;
+            /** Key */
+            key: string;
+            /** Previous */
+            previous: number | null;
+            /** Reason */
+            reason?: string | null;
+            /**
+             * Unit
+             * @enum {string}
+             */
+            unit: "count" | "ratio";
+            /** Value */
+            value: number | null;
+        };
+        /** LevelAccuracy */
+        LevelAccuracy: {
+            /** Coverage */
+            coverage: number | null;
+            /** Emission Rate */
+            emission_rate: number | null;
+            /** Label Count */
+            label_count: number;
+            /**
+             * Level
+             * @enum {string}
+             */
+            level: "country" | "admin1" | "admin2" | "city";
+            /** Precision */
+            precision: number | null;
+            /** Reason */
+            reason: string | null;
+        };
         /**
          * LevelPriors
          * @description How far a source is trusted at each level, 0..1.
@@ -1165,6 +1636,34 @@ export interface components {
             /** Totp Enrolled */
             totp_enrolled: boolean;
         };
+        /** Meta */
+        Meta: {
+            /**
+             * Computed From
+             * @enum {string}
+             */
+            computed_from: "rollup" | "raw";
+            /**
+             * End
+             * Format: date-time
+             */
+            end: string;
+            /** Refreshed At */
+            refreshed_at: string | null;
+            /** Reporting Tz */
+            reporting_tz: string;
+            stage_mix: components["schemas"]["StageMix"];
+            /**
+             * Start
+             * Format: date-time
+             */
+            start: string;
+        };
+        /**
+         * Metric
+         * @enum {string}
+         */
+        Metric: "visits" | "consented";
         /** MfaRequest */
         MfaRequest: {
             /** Code */
@@ -1229,6 +1728,25 @@ export interface components {
              */
             outside: "high" | "normal" | "silent";
         };
+        /** PointCluster */
+        PointCluster: {
+            /** Count */
+            count: number;
+            /** Lat */
+            lat: number;
+            /** Lng */
+            lng: number;
+        };
+        /**
+         * PreferencesRequest
+         * @description Display preferences: per admin, persisted, and harmless (F9.AC16).
+         */
+        PreferencesRequest: {
+            /** Theme */
+            theme?: ("semi_dark" | "light" | "dark") | null;
+            /** Timezone */
+            timezone?: string | null;
+        };
         /** ReadinessResponse */
         ReadinessResponse: {
             /** Checks */
@@ -1270,6 +1788,15 @@ export interface components {
             /** Email */
             email: string;
         };
+        /** Series */
+        Series: {
+            /** Key */
+            key: string;
+            /** Label */
+            label: string;
+            /** Values */
+            values: number[];
+        };
         /** SessionSummary */
         SessionSummary: {
             /**
@@ -1310,6 +1837,42 @@ export interface components {
             /** Version */
             version: number;
         };
+        /** SignalRow */
+        SignalRow: {
+            /** Category */
+            category: string;
+            /** Count */
+            count: number;
+            /** Rule Id */
+            rule_id: string;
+            /** Share */
+            share: number;
+        };
+        /** Signals */
+        Signals: {
+            meta: components["schemas"]["Meta"];
+            /** Rows */
+            rows: components["schemas"]["SignalRow"][];
+            /** Visits */
+            visits: number;
+        };
+        /**
+         * Sort
+         * @enum {string}
+         */
+        Sort: "newest" | "oldest";
+        /** SourceFlow */
+        SourceFlow: {
+            /** Levels */
+            levels: string[];
+            /** Links */
+            links: components["schemas"]["FlowLink"][];
+            meta: components["schemas"]["Meta"];
+            /** Sources */
+            sources: string[];
+            /** Visits */
+            visits: number;
+        };
         /** SourceSettings */
         SourceSettings: {
             /**
@@ -1323,6 +1886,38 @@ export interface components {
              * @default 800
              */
             timeout_ms: number;
+        };
+        /**
+         * SplitBy
+         * @enum {string}
+         */
+        SplitBy: "none" | "classification" | "device_class" | "connection_class" | "country" | "admin1" | "link";
+        /**
+         * StageMix
+         * @description How complete the visits behind a figure were (F9.AC20).
+         */
+        StageMix: {
+            /** Enriched */
+            enriched: number;
+            /** Rate Limited */
+            rate_limited: number;
+            /** Server */
+            server: number;
+            /** Server Only */
+            server_only: number;
+            /** Total */
+            total: number;
+        };
+        /** Summary */
+        Summary: {
+            /** Kpis */
+            kpis: components["schemas"]["Kpi"][];
+            meta: components["schemas"]["Meta"];
+            /**
+             * Previous Start
+             * Format: date-time
+             */
+            previous_start: string;
         };
         /** TelegramVerifyConfirm */
         TelegramVerifyConfirm: {
@@ -1362,6 +1957,15 @@ export interface components {
              * @default 0.6
              */
             country: number;
+        };
+        /** TimeSeries */
+        TimeSeries: {
+            bucket: components["schemas"]["Grain"];
+            /** Buckets */
+            buckets: string[];
+            meta: components["schemas"]["Meta"];
+            /** Series */
+            series: components["schemas"]["Series"][];
         };
         /** TotpConfirmRequest */
         TotpConfirmRequest: {
@@ -1485,6 +2089,23 @@ export interface components {
             stage: components["schemas"]["VisitStage"];
             /** Visitor Id */
             visitor_id: string | null;
+        };
+        /** VisitorView */
+        VisitorView: {
+            /** Drift */
+            drift: components["schemas"]["Drift"][];
+            /** First Seen */
+            first_seen: string | null;
+            /** Last Seen */
+            last_seen: string | null;
+            /** Truncated */
+            truncated: boolean;
+            /** Visit Count */
+            visit_count: number;
+            /** Visitor Id */
+            visitor_id: string;
+            /** Visits */
+            visits: components["schemas"]["VisitSummary"][];
         };
     };
     responses: never;
@@ -1674,6 +2295,553 @@ export interface operations {
             };
         };
     };
+    accuracy_api_v1_analytics_accuracy_get: {
+        parameters: {
+            query?: {
+                from?: string | null;
+                to?: string | null;
+                link_id?: string | null;
+                stage?: components["schemas"]["VisitStage"][] | null;
+                classification?: components["schemas"]["Classification"][] | null;
+                include_automated?: boolean;
+                country_code?: string | null;
+                admin1?: string | null;
+                city?: string | null;
+                asn?: number | null;
+                device_class?: components["schemas"]["DeviceClass"][] | null;
+                connection_class?: components["schemas"]["ConnectionClass"][] | null;
+                consent_state?: components["schemas"]["ConsentState"] | null;
+                geofence_id?: string | null;
+                visitor_id?: string | null;
+                min_confidence_admin1?: number | null;
+                min_confidence_city?: number | null;
+                has_gps?: boolean | null;
+                is_proxy_suspected?: boolean | null;
+                webview_host?: string | null;
+                search?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Accuracy"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    breakdown_api_v1_analytics_breakdown_get: {
+        parameters: {
+            query: {
+                dimension: components["schemas"]["BreakdownDimension"];
+                limit?: number;
+                from?: string | null;
+                to?: string | null;
+                link_id?: string | null;
+                stage?: components["schemas"]["VisitStage"][] | null;
+                classification?: components["schemas"]["Classification"][] | null;
+                include_automated?: boolean;
+                country_code?: string | null;
+                admin1?: string | null;
+                city?: string | null;
+                asn?: number | null;
+                device_class?: components["schemas"]["DeviceClass"][] | null;
+                connection_class?: components["schemas"]["ConnectionClass"][] | null;
+                consent_state?: components["schemas"]["ConsentState"] | null;
+                geofence_id?: string | null;
+                visitor_id?: string | null;
+                min_confidence_admin1?: number | null;
+                min_confidence_city?: number | null;
+                has_gps?: boolean | null;
+                is_proxy_suspected?: boolean | null;
+                webview_host?: string | null;
+                search?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Breakdown"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    calendar_api_v1_analytics_calendar_get: {
+        parameters: {
+            query?: {
+                from?: string | null;
+                to?: string | null;
+                link_id?: string | null;
+                stage?: components["schemas"]["VisitStage"][] | null;
+                classification?: components["schemas"]["Classification"][] | null;
+                include_automated?: boolean;
+                country_code?: string | null;
+                admin1?: string | null;
+                city?: string | null;
+                asn?: number | null;
+                device_class?: components["schemas"]["DeviceClass"][] | null;
+                connection_class?: components["schemas"]["ConnectionClass"][] | null;
+                consent_state?: components["schemas"]["ConsentState"] | null;
+                geofence_id?: string | null;
+                visitor_id?: string | null;
+                min_confidence_admin1?: number | null;
+                min_confidence_city?: number | null;
+                has_gps?: boolean | null;
+                is_proxy_suspected?: boolean | null;
+                webview_host?: string | null;
+                search?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Calendar"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    confidence_api_v1_analytics_confidence_get: {
+        parameters: {
+            query?: {
+                from?: string | null;
+                to?: string | null;
+                link_id?: string | null;
+                stage?: components["schemas"]["VisitStage"][] | null;
+                classification?: components["schemas"]["Classification"][] | null;
+                include_automated?: boolean;
+                country_code?: string | null;
+                admin1?: string | null;
+                city?: string | null;
+                asn?: number | null;
+                device_class?: components["schemas"]["DeviceClass"][] | null;
+                connection_class?: components["schemas"]["ConnectionClass"][] | null;
+                consent_state?: components["schemas"]["ConsentState"] | null;
+                geofence_id?: string | null;
+                visitor_id?: string | null;
+                min_confidence_admin1?: number | null;
+                min_confidence_city?: number | null;
+                has_gps?: boolean | null;
+                is_proxy_suspected?: boolean | null;
+                webview_host?: string | null;
+                search?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Confidence"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    funnel_api_v1_analytics_funnel_get: {
+        parameters: {
+            query?: {
+                from?: string | null;
+                to?: string | null;
+                link_id?: string | null;
+                stage?: components["schemas"]["VisitStage"][] | null;
+                classification?: components["schemas"]["Classification"][] | null;
+                include_automated?: boolean;
+                country_code?: string | null;
+                admin1?: string | null;
+                city?: string | null;
+                asn?: number | null;
+                device_class?: components["schemas"]["DeviceClass"][] | null;
+                connection_class?: components["schemas"]["ConnectionClass"][] | null;
+                consent_state?: components["schemas"]["ConsentState"] | null;
+                geofence_id?: string | null;
+                visitor_id?: string | null;
+                min_confidence_admin1?: number | null;
+                min_confidence_city?: number | null;
+                has_gps?: boolean | null;
+                is_proxy_suspected?: boolean | null;
+                webview_host?: string | null;
+                search?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Funnel"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    geo_api_v1_analytics_geo_get: {
+        parameters: {
+            query?: {
+                cell_degrees?: number;
+                from?: string | null;
+                to?: string | null;
+                link_id?: string | null;
+                stage?: components["schemas"]["VisitStage"][] | null;
+                classification?: components["schemas"]["Classification"][] | null;
+                include_automated?: boolean;
+                country_code?: string | null;
+                admin1?: string | null;
+                city?: string | null;
+                asn?: number | null;
+                device_class?: components["schemas"]["DeviceClass"][] | null;
+                connection_class?: components["schemas"]["ConnectionClass"][] | null;
+                consent_state?: components["schemas"]["ConsentState"] | null;
+                geofence_id?: string | null;
+                visitor_id?: string | null;
+                min_confidence_admin1?: number | null;
+                min_confidence_city?: number | null;
+                has_gps?: boolean | null;
+                is_proxy_suspected?: boolean | null;
+                webview_host?: string | null;
+                search?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Geo"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    signals_api_v1_analytics_signals_get: {
+        parameters: {
+            query?: {
+                from?: string | null;
+                to?: string | null;
+                link_id?: string | null;
+                stage?: components["schemas"]["VisitStage"][] | null;
+                classification?: components["schemas"]["Classification"][] | null;
+                include_automated?: boolean;
+                country_code?: string | null;
+                admin1?: string | null;
+                city?: string | null;
+                asn?: number | null;
+                device_class?: components["schemas"]["DeviceClass"][] | null;
+                connection_class?: components["schemas"]["ConnectionClass"][] | null;
+                consent_state?: components["schemas"]["ConsentState"] | null;
+                geofence_id?: string | null;
+                visitor_id?: string | null;
+                min_confidence_admin1?: number | null;
+                min_confidence_city?: number | null;
+                has_gps?: boolean | null;
+                is_proxy_suspected?: boolean | null;
+                webview_host?: string | null;
+                search?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Signals"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    source_flow_api_v1_analytics_source_flow_get: {
+        parameters: {
+            query?: {
+                from?: string | null;
+                to?: string | null;
+                link_id?: string | null;
+                stage?: components["schemas"]["VisitStage"][] | null;
+                classification?: components["schemas"]["Classification"][] | null;
+                include_automated?: boolean;
+                country_code?: string | null;
+                admin1?: string | null;
+                city?: string | null;
+                asn?: number | null;
+                device_class?: components["schemas"]["DeviceClass"][] | null;
+                connection_class?: components["schemas"]["ConnectionClass"][] | null;
+                consent_state?: components["schemas"]["ConsentState"] | null;
+                geofence_id?: string | null;
+                visitor_id?: string | null;
+                min_confidence_admin1?: number | null;
+                min_confidence_city?: number | null;
+                has_gps?: boolean | null;
+                is_proxy_suspected?: boolean | null;
+                webview_host?: string | null;
+                search?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SourceFlow"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    summary_api_v1_analytics_summary_get: {
+        parameters: {
+            query?: {
+                from?: string | null;
+                to?: string | null;
+                link_id?: string | null;
+                stage?: components["schemas"]["VisitStage"][] | null;
+                classification?: components["schemas"]["Classification"][] | null;
+                include_automated?: boolean;
+                country_code?: string | null;
+                admin1?: string | null;
+                city?: string | null;
+                asn?: number | null;
+                device_class?: components["schemas"]["DeviceClass"][] | null;
+                connection_class?: components["schemas"]["ConnectionClass"][] | null;
+                consent_state?: components["schemas"]["ConsentState"] | null;
+                geofence_id?: string | null;
+                visitor_id?: string | null;
+                min_confidence_admin1?: number | null;
+                min_confidence_city?: number | null;
+                has_gps?: boolean | null;
+                is_proxy_suspected?: boolean | null;
+                webview_host?: string | null;
+                search?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Summary"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    timeseries_api_v1_analytics_timeseries_get: {
+        parameters: {
+            query?: {
+                bucket?: components["schemas"]["Grain"];
+                split_by?: components["schemas"]["SplitBy"];
+                metric?: components["schemas"]["Metric"];
+                from?: string | null;
+                to?: string | null;
+                link_id?: string | null;
+                stage?: components["schemas"]["VisitStage"][] | null;
+                classification?: components["schemas"]["Classification"][] | null;
+                include_automated?: boolean;
+                country_code?: string | null;
+                admin1?: string | null;
+                city?: string | null;
+                asn?: number | null;
+                device_class?: components["schemas"]["DeviceClass"][] | null;
+                connection_class?: components["schemas"]["ConnectionClass"][] | null;
+                consent_state?: components["schemas"]["ConsentState"] | null;
+                geofence_id?: string | null;
+                visitor_id?: string | null;
+                min_confidence_admin1?: number | null;
+                min_confidence_city?: number | null;
+                has_gps?: boolean | null;
+                is_proxy_suspected?: boolean | null;
+                webview_host?: string | null;
+                search?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TimeSeries"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    visitor_api_v1_analytics_visitor__visitor_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                visitor_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VisitorView"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     enroll_api_v1_auth_enroll_post: {
         parameters: {
             query?: never;
@@ -1774,6 +2942,39 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["MeResponse"];
+                };
+            };
+        };
+    };
+    update_preferences_api_v1_auth_me_preferences_patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PreferencesRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MeResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };
@@ -2478,15 +3679,30 @@ export interface operations {
     list_visits_api_v1_visits_get: {
         parameters: {
             query?: {
+                sort?: components["schemas"]["Sort"];
+                limit?: number;
+                cursor?: string | null;
                 from?: string | null;
                 to?: string | null;
                 link_id?: string | null;
                 stage?: components["schemas"]["VisitStage"][] | null;
                 classification?: components["schemas"]["Classification"][] | null;
-                webview_host?: string | null;
                 include_automated?: boolean;
-                limit?: number;
-                cursor?: string | null;
+                country_code?: string | null;
+                admin1?: string | null;
+                city?: string | null;
+                asn?: number | null;
+                device_class?: components["schemas"]["DeviceClass"][] | null;
+                connection_class?: components["schemas"]["ConnectionClass"][] | null;
+                consent_state?: components["schemas"]["ConsentState"] | null;
+                geofence_id?: string | null;
+                visitor_id?: string | null;
+                min_confidence_admin1?: number | null;
+                min_confidence_city?: number | null;
+                has_gps?: boolean | null;
+                is_proxy_suspected?: boolean | null;
+                webview_host?: string | null;
+                search?: string | null;
             };
             header?: never;
             path?: never;
@@ -2501,6 +3717,60 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["VisitPage"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    export_visits_api_v1_visits_export_get: {
+        parameters: {
+            query?: {
+                format?: components["schemas"]["ExportFormat"];
+                sort?: components["schemas"]["Sort"];
+                from?: string | null;
+                to?: string | null;
+                link_id?: string | null;
+                stage?: components["schemas"]["VisitStage"][] | null;
+                classification?: components["schemas"]["Classification"][] | null;
+                include_automated?: boolean;
+                country_code?: string | null;
+                admin1?: string | null;
+                city?: string | null;
+                asn?: number | null;
+                device_class?: components["schemas"]["DeviceClass"][] | null;
+                connection_class?: components["schemas"]["ConnectionClass"][] | null;
+                consent_state?: components["schemas"]["ConsentState"] | null;
+                geofence_id?: string | null;
+                visitor_id?: string | null;
+                min_confidence_admin1?: number | null;
+                min_confidence_city?: number | null;
+                has_gps?: boolean | null;
+                is_proxy_suspected?: boolean | null;
+                webview_host?: string | null;
+                search?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/x-ndjson": unknown;
+                    "text/csv": unknown;
                 };
             };
             /** @description Validation Error */

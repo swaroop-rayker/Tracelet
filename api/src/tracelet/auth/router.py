@@ -9,10 +9,12 @@ another, and ``/reset/request`` returns 202 whether or not the account exists
 from __future__ import annotations
 
 import datetime as dt
+import zoneinfo
+from typing import Literal
 
 import structlog
 from fastapi import APIRouter, Request, Response, status
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from tracelet.audit import log as audit
 from tracelet.auth import recovery, sessions, totp
@@ -40,6 +42,8 @@ from tracelet.errors import NotFound, RateLimited
 from tracelet.ratelimit import gcra
 
 log = structlog.get_logger(__name__)
+
+Theme = Literal["semi_dark", "light", "dark"]
 
 router = APIRouter(prefix="/api/v1/auth", tags=["auth"])
 
@@ -333,6 +337,48 @@ async def me(principal: CurrentPrincipal, db: DbSession) -> MeResponse:
         session_id=str(principal.session.id),
         session_expires_at=principal.session.expires_at,
     )
+
+
+class PreferencesRequest(BaseModel):
+    """Display preferences: per admin, persisted, and harmless (F9.AC16)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    theme: Theme | None = None
+    timezone: str | None = Field(default=None, min_length=1, max_length=64)
+
+    @field_validator("timezone")
+    @classmethod
+    def _known_zone(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        try:
+            zoneinfo.ZoneInfo(value)
+        except (zoneinfo.ZoneInfoNotFoundError, ValueError) as exc:
+            msg = "Not an IANA timezone name."
+            raise ValueError(msg) from exc
+        return value
+
+
+@router.patch(
+    "/me/preferences",
+    response_model=MeResponse,
+    summary="Change your own theme or display timezone",
+    description=(
+        "Display only. The theme is semi-dark unless changed (F9.AC16); the timezone is "
+        "how timestamps are shown to you, not how analytics are bucketed (ADR-0016). "
+        "Not audited: it changes nothing anyone else sees."
+    ),
+)
+async def update_preferences(
+    payload: PreferencesRequest, principal: CurrentPrincipal, db: DbSession
+) -> MeResponse:
+    if payload.theme is not None:
+        principal.admin.theme = payload.theme
+    if payload.timezone is not None:
+        principal.admin.timezone = payload.timezone
+    await db.flush()
+    return await me(principal, db)
 
 
 # ---------------------------------------------------------------------------

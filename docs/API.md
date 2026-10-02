@@ -190,6 +190,7 @@ generated TypeScript client are regenerated from it and checked for drift by CI 
 | `POST` | `/api/v1/auth/recovery-code` | — | `{email, code}` → `204` + session + `X-Recovery-Remaining` |
 | `POST` | `/api/v1/auth/logout` | any | `204`, revokes the current session |
 | `GET` | `/api/v1/auth/me` | any | Current admin, role, TOTP state, `recovery_codes_remaining`, `csrf_token`, theme, timezone |
+| `PATCH` | `/api/v1/auth/me/preferences` | any | `{theme?, timezone?}` → the `/me` body. Theme `semi_dark` (default), `light` or `dark`; timezone an IANA name. **Added in M5** (F9.AC16). Display only, so not audited |
 | `POST` | `/api/v1/auth/reset/request` | — | `{email}` → **always `202`**. Telegram-delivered link |
 | `POST` | `/api/v1/auth/reset/confirm` | — | `{token, new_password}` → `204`, revokes every session |
 | `POST` | `/api/v1/auth/password` | any | `{current_password, new_password}` → `204`, revokes every **other** session |
@@ -407,6 +408,22 @@ Filters, all optional and composable (F9.AC13):
 `include_automated` defaults to `false` so bots and crawlers do not pollute the default
 view; the flag makes their exclusion explicit rather than hidden.
 
+**As shipped in M5:** every filter above except `geofence_id`'s data (M6 fills
+`matched_geofence_ids`; the filter already works). One definition
+(`analytics/filters.py`) serves the list, the export and every analytics endpoint, so a
+chart and the table under it cannot disagree about what a filter means. Specifics:
+
+- **Location filters match the strict fields only** (`country_code` is case-insensitive).
+  A filter asserts where visits came from, so it is held to CLAUDE.md invariant 5.
+- `visitor_id` is the 64-character hex shown on a visit; anything else is `422`.
+- `is_proxy_suspected` matches `true` or `false` only; `NULL` (not assessed) matches
+  neither.
+- `search` (1–100 characters) is a case-insensitive substring of the link slug or label,
+  ISP, strict or advisory city, browser, OS or webview host.
+- `sort` is `newest` (default) or `oldest`; the cursor follows it.
+- `is_returning` is now computed: `true` when the same `visitor_id` has an earlier visit
+  on any link, `null` for a visit with no `visitor_id`.
+
 **Response item** (summary form)
 
 ```json
@@ -496,6 +513,16 @@ Per-visit data-subject export (F12.AC14), and bulk export honouring active filte
 `csv` or `ndjson`, **streamed** rather than buffered (F9.AC15). Exports contain no
 plaintext IP, ever.
 
+**As shipped in M5:** the bulk export, `?format=csv|ndjson` (default `csv`) plus every
+list filter and `sort`. Rows are read through a server-side cursor 500 at a time and
+written as they arrive, from the export's own database session (the request's session
+has already committed, ARCHITECTURE 5.8). NDJSON lines are the list's summary shape; CSV
+flattens it into 38 columns. The network prefix is the only address-derived column, as
+in the list. **CSV cells that a spreadsheet would read as a formula** (`=`, `+`, `-`,
+`@`, tab, carriage return) are prefixed with `'`: user agents and ISP names are
+attacker-controlled. The per-visit export (F12.AC14) is not in any milestone's scope
+yet and is not built.
+
 ---
 
 ## 8. Analytics
@@ -521,6 +548,48 @@ mislead when enrichment coverage shifts (F9.AC20).
 `/analytics/accuracy` always returns `label_count` alongside every metric. A precision
 figure computed over 30 labels is not the same claim as one computed over 3000, and the
 API must not let a caller forget that (RISKS R9).
+
+### 8.1 As shipped in M5 (ADR-0016)
+
+Every endpoint takes **the visit list's filters** (section 7) and the window `from`/`to`
+(default: the last 30 local days, today included; at most 800 days). Every response has
+a `meta` block:
+
+```json
+{
+  "start": "2026-09-03T00:00:00+05:30",
+  "end": "2026-10-03T00:00:00+05:30",
+  "reporting_tz": "Asia/Kolkata",
+  "computed_from": "rollup",
+  "refreshed_at": "2026-10-02T12:05:00Z",
+  "stage_mix": { "total": 412, "server": 3, "enriched": 301, "server_only": 96, "rate_limited": 12 }
+}
+```
+
+`computed_from` is `rollup` when every filter set is a rollup dimension, the window is on
+bucket boundaries in the reporting timezone, and every day in it has been built;
+otherwise `raw`. Both paths use one projection, and a parity test asserts they return
+identical figures. `refreshed_at` is the oldest refresh among the days read (rollup) or
+the request time (raw).
+
+**Conventions.** Rate-limited requests appear in `stage_mix` and the funnel's first step
+and nowhere else. Location is strict only; an abstention is counted, under `unknown`,
+`abstained` or the key `''`, never dropped. A figure the system cannot produce yet is
+`null` with a `reason`.
+
+| Path | Parameters | Shape |
+|---|---|---|
+| `/summary` | — | `kpis[]`: `{key, unit: count\|ratio, value, previous, change, reason}` for `visits`, `unique_visitors`, `human_share`, `bot_share`, `consent_grant_rate`, `geofence_hit_rate`, `enrichment_completion_rate`; `previous_start`. The previous period is the equal-length window before. `change` is relative for counts, percentage points for ratios. Shares are over every classification whatever the filter. `unique_visitors` is raw and `null` (`past_visit_retention`) beyond retention |
+| `/timeseries` | `bucket=day\|hour`, `split_by=none\|classification\|device_class\|connection_class\|country\|admin1\|link`, `metric=visits\|consented` | `buckets[]` (local bucket starts, zero-filled), `series[]` `{key, label, values[]}`; at most 7 keys plus `other`. Hourly windows ≤ 31 days |
+| `/breakdown` | `dimension=country\|admin1\|city\|asn\|isp\|device_class\|browser\|app_medium\|os\|screen\|connection_class\|classification`, `limit` 1–100 (20) | `total`, `rows[]` `{key, count, share}`, `unknown`, `other`. `admin1`/`city` keys are qualified (`IN\|Karnataka`) |
+| `/geo` | `cell_degrees` 0.01–10 (0.25) | `countries[]`, `admin1[]`, `abstained`, `points[]` `{lat, lng, count}` clustered on a grid server-side, `points_computed_from: "raw"`, `points_truncated` (over 2000 clusters) |
+| `/calendar` | — | `days[]` `{day, count}`, every day in the window |
+| `/source-flow` | — | `sources[]`, `levels[]`, `links[]` `{source, target, value}`; `visits` = inferred visits in scope |
+| `/funnel` | — | `steps[]` `{step, count, reason}`: requests, captured, enriched, consented, notified. **`notified` is `null`, reason `notifications_not_built`, until M6** |
+| `/confidence` | — | `levels[]` `{level, bins[10], unscored}` |
+| `/signals` | — | `visits`, `rows[]` `{rule_id, category, count, share}`; categories bot, spoof, spam, network |
+| `/accuracy` | — | `inferred`, `levels[]` `{level, label_count, precision, coverage, emission_rate, reason}`. **Until M8 builds the ground-truth set, `label_count` is 0 and precision and coverage are `null` with reason `no_ground_truth_labels`.** `emission_rate` is how often strict answered, explicitly not accuracy |
+| `/visitor/{visitor_id}` | — | `visit_count`, `first_seen`, `last_seen`, `visits[]` (summary shape, oldest first, at most 500, `truncated`), `drift[]` `{at, from_visit, to_visit, location_changed[], distance_km, device_changed[], network_changed}`. Drift compares advisory location, labelled as such |
 
 ---
 

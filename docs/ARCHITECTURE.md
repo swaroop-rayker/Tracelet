@@ -490,6 +490,14 @@ is logged on every request, and the visit is still recorded and redirected.
 preferred timezone, defaulting to `Asia/Kolkata`. Rollup day boundaries are computed in
 a configured reporting timezone, stored explicitly, so a chart never silently shifts.
 
+**As built in M5:** the reporting timezone is `TRACELET_REPORTING_TZ` (default
+`Asia/Kolkata`, validated at boot). Days *and hours* are cut in it -- India is UTC+05:30,
+so a UTC hour straddles every Indian one. Each built day records the zone it was built in
+(`rollup_state.reporting_tz`), so changing the setting makes every day "unbuilt" and
+answered from raw rows until `tracelet analytics rebuild` runs, rather than serving
+buckets cut in the old zone. The admin's own `timezone` (`PATCH /auth/me/preferences`)
+only changes how timestamps are displayed.
+
 ### 5.8 The request transaction boundary
 
 Added in M1, after a bug that reported a failed transaction as `200 OK` and in doing so hid
@@ -533,6 +541,43 @@ code, a lockout — are written on their own connection and committed immediatel
 
 `/healthz` skips session creation entirely: it runs every ten seconds and would otherwise
 spend a pool slot reserved for maintenance (6.2).
+
+**A streamed response outlives its request's session.** The visit export (F9.AC15) is a
+`StreamingResponse` whose body is generated after the middleware has committed and
+closed the request's session, so the generator opens its own session and reads through a
+server-side cursor. It holds one pool connection for the length of the download.
+
+### 5.9 The analytics read path — added in M5
+
+ADR-0016. The dashboard reads rollups, and says when it did not.
+
+```
+ visits ──► projection.py ──┬──► rollup job (5 min: yesterday+today; daily: last 7 days
+   (raw)    one SQL          │     + up to 31 never-built days) ──► rollup_visit_daily
+            definition per   │                                       rollup_visit_hourly
+            measure and      │                                       rollup_visit_dim_daily
+            dimension        │                                       rollup_state
+                             └──► raw fallback (same expressions, the caller's filters)
+
+ request ──► VisitFilter ──► sources.py: every filter a rollup dimension? window on local
+             (F9.AC13)       bucket boundaries? every day built in this zone?
+                               yes ─► rollup subquery ┐  identical column names, so the
+                               no  ─► raw subquery    ┘  endpoint cannot tell them apart
+                             ──► response.meta: computed_from, refreshed_at, stage_mix
+```
+
+- **A raw visit is projected as a cell of size one** -- the rollup's own column names,
+  `visit_count = 1` and every conditional count `0` or `1` -- so each endpoint is written
+  once against "a cell source". A parametrised integration test runs every endpoint both
+  ways over the same rows and requires identical output.
+- **Rebuild, never increment.** A refresh deletes and re-inserts whole local days under
+  one blocking advisory lock (two refreshes interleaving on a day would be a primary-key
+  violation). A re-inferred, re-classified or purged visit is reflected the next time its
+  day is rebuilt.
+- **Per-visit questions are always raw**: map points, unique visitors (a distinct count
+  does not add), the visitor view, the list and the export.
+- No new process and no new dependency. The jobs run in the ADR-0009 scheduler; the raw
+  path is bounded by retention (≤ 90 k visits at the design load).
 
 ---
 
@@ -760,7 +805,11 @@ tracelet/
 │       ├── net.py                  # which client address to believe; Cloudflare
 │       │                           #   range verification (F13.AC6)
 │       ├── capture/                # /r/{slug}, enrichment, honeypot, /privacy,
-│       │                           #   links and visits APIs, templates/
+│       │                           #   links and visits APIs (list, detail,
+│       │                           #   export), templates/
+│       ├── analytics/              # M5, ADR-0016: filters.py (F9.AC13, shared
+│       │                           #   with visits), projection.py, rollup.py
+│       │                           #   (jobs), sources.py, router.py
 │       ├── inference/              # sources/ S1..S11, consensus, suppression,
 │       │                           #   engine.py (the ADR-0015 job), router.py
 │       │                           #   (settings versions), data/ seed files
