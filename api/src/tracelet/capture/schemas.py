@@ -69,18 +69,19 @@ class Hashes(_Part):
 
 
 class Probes(_Part):
-    """Accepted so the contract is stable, not yet persisted.
-
-    What a headless-browser probe *means* is M4's decision. Storing raw values before
-    that decision exists would only fix a schema around a guess.
+    """Headless-browser probes (F5.AC3). Persisted to ``visits.client_probes`` since M4,
+    when what each one means was decided (ADR-0011 amendment). Every value is a claim the
+    client made about itself; the classifier treats it as evidence, never as proof.
     """
 
     webdriver: bool | None = None
     chromeObject: bool | None = None  # noqa: N815 - wire name
     pluginCount: int | None = Field(default=None, ge=0, le=1000)  # noqa: N815 - wire name
+    mimeTypeCount: int | None = Field(default=None, ge=0, le=1000)  # noqa: N815 - wire name
     permissionsAnomaly: bool | None = None  # noqa: N815 - wire name
     fontCount: int | None = Field(default=None, ge=0, le=10_000)  # noqa: N815 - wire name
     outerWidth: int | None = Field(default=None, ge=0, le=20_000)  # noqa: N815 - wire name
+    cdpArtefacts: bool | None = None  # noqa: N815 - wire name
 
 
 GeoState = Literal["granted", "denied", "prompt", "unavailable", "unsupported", "timeout"]

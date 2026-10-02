@@ -1409,6 +1409,49 @@ exposure was local and partial.
 
 ---
 
+### E32 — The `outerWidth` probe could never report the value it exists to catch
+
+**Status:** Fixed before it was relied on. **Milestone:** M4 (the defect dates from M2).
+**Date:** 2026-10-02.
+
+**Symptom.** Found while writing the `client.zero_outer_width` rule: the capture page sent
+`outerWidth: window.outerWidth || null`.
+
+**Root cause.** In JavaScript `0 || null` is `null`. A window width of **0** — the headless
+signal F5.AC3 names — was converted into "not reported" before it left the browser, so the
+rule could never fire, and the stored value said the browser had declined to answer when it
+had answered 0.
+
+**Fix.** `typeof window.outerWidth === "number" ? window.outerWidth : null`.
+
+**Prevention.** The general rule, for every probe: **a falsy value is still a value.** Never
+`|| null` a measurement whose meaningful values include 0 or `false`.
+
+**Related:** F5.AC3, F3.AC5.
+
+---
+
+### E33 — Unassessed network flags were stored as `false`
+
+**Status:** Fixed before commit. **Milestone:** M4. **Date:** 2026-10-02.
+
+**Symptom.** Found while documenting the flags: `is_tor` was `false` on every visit when
+no exit list was installed, `is_datacenter` was `false` when no ASN was known, and
+`is_proxy_suspected` was `false` on `server_only` visits, which have no fingerprint.
+
+**Root cause.** The verdict carried booleans whose default was `false`, and persistence
+wrote them as they were. Each `false` asserted a fact — "not a Tor exit" — that nothing
+had checked. M2 chose nullable columns precisely to prevent this (DATA_MODEL 5.1).
+
+**Fix.** Each flag is written only when its evidence existed, otherwise `NULL`.
+
+**Prevention.** `test_a_server_only_visit_classifies_from_server_signals_alone` and
+`test_an_enriched_browser_visit_is_human_with_identity` assert `NULL` vs assessed values.
+
+**Related:** F3.AC5, F5.AC7, F5.AC9.
+
+---
+
 Add entries here as bugs are found and fixed. Use the next available `E<n>` identifier and
 the same structure: symptom, root cause, fix, **prevention**.
 

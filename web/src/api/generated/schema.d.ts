@@ -708,6 +708,73 @@ export interface components {
          * @enum {string}
          */
         Classification: "human" | "bot" | "crawler" | "datacenter" | "spam" | "spoofed" | "unknown";
+        /** ClassifierConfig */
+        ClassifierConfig: {
+            /**
+             * Bot Threshold
+             * @default 60
+             */
+            bot_threshold: number;
+            /**
+             * Collision Min Asns
+             * @default 3
+             */
+            collision_min_asns: number;
+            /**
+             * Collision Window Hours
+             * @default 24
+             */
+            collision_window_hours: number;
+            /**
+             * Gateway Min Fingerprints
+             * @default 10
+             */
+            gateway_min_fingerprints: number;
+            /**
+             * Human Max Bot
+             * @default 25
+             */
+            human_max_bot: number;
+            /**
+             * Human Max Spoof
+             * @default 25
+             */
+            human_max_spoof: number;
+            /**
+             * Impossible Travel Kmh
+             * @default 900
+             */
+            impossible_travel_kmh: number;
+            /**
+             * Rate Max Visits
+             * @default 20
+             */
+            rate_max_visits: number;
+            /**
+             * Rate Mobile Multiplier
+             * @default 5
+             */
+            rate_mobile_multiplier: number;
+            /**
+             * Rate Window Minutes
+             * @default 10
+             */
+            rate_window_minutes: number;
+            /**
+             * Spam Threshold
+             * @default 60
+             */
+            spam_threshold: number;
+            /**
+             * Spoof Threshold
+             * @default 50
+             */
+            spoof_threshold: number;
+            /** Weights */
+            weights?: {
+                [key: string]: number;
+            };
+        };
         /** CreateAdminRequest */
         CreateAdminRequest: {
             /** Display Name */
@@ -806,6 +873,59 @@ export interface components {
         };
         /** InferenceConfig */
         InferenceConfig: {
+            /**
+             * @default {
+             *       "bot_threshold": 60,
+             *       "collision_min_asns": 3,
+             *       "collision_window_hours": 24,
+             *       "gateway_min_fingerprints": 10,
+             *       "human_max_bot": 25,
+             *       "human_max_spoof": 25,
+             *       "impossible_travel_kmh": 900,
+             *       "rate_max_visits": 20,
+             *       "rate_mobile_multiplier": 5,
+             *       "rate_window_minutes": 10,
+             *       "spam_threshold": 60,
+             *       "spoof_threshold": 50,
+             *       "weights": {
+             *         "capture.exploit_probe": 80,
+             *         "client.cdp_artefacts": 80,
+             *         "client.chrome_object_missing": 30,
+             *         "client.few_fonts": 15,
+             *         "client.honeypot": 100,
+             *         "client.no_plugins_desktop_chromium": 30,
+             *         "client.permissions_anomaly": 40,
+             *         "client.software_renderer": 60,
+             *         "client.webdriver": 80,
+             *         "client.zero_outer_width": 40,
+             *         "hdr.accept_any_only": 25,
+             *         "hdr.chromium_without_client_hints": 30,
+             *         "hdr.no_accept_language": 20,
+             *         "hdr.no_fetch_metadata": 30,
+             *         "http.version_1_0": 30,
+             *         "net.fingerprint_across_asns": 30,
+             *         "net.rate_anomaly": 30,
+             *         "rdns.scanner": 60,
+             *         "tls.outdated_for_browser": 30,
+             *         "ua.automation_tool": 80,
+             *         "ua.headless": 70,
+             *         "ua.missing": 50,
+             *         "ua.scanner": 90,
+             *         "uach.brand_missing": 30,
+             *         "uach.mobile_mismatch": 25,
+             *         "uach.platform_mismatch": 40,
+             *         "uach.version_mismatch": 30,
+             *         "xcheck.cores_device_class": 30,
+             *         "xcheck.gpu_os": 50,
+             *         "xcheck.impossible_travel": 40,
+             *         "xcheck.ios_device_memory": 70,
+             *         "xcheck.screen_device_class": 35,
+             *         "xcheck.touch_mobile": 30,
+             *         "xcheck.tz_country": 15
+             *       }
+             *     }
+             */
+            classifier: components["schemas"]["ClassifierConfig"];
             /**
              * Gps Max Accuracy M
              * @default 5000

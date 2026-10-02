@@ -23,9 +23,9 @@ Severity is `impact × likelihood` at the time of writing, reassessed after each
 | R16 | GCP free-tier egress ceiling (1 GB/month) | Low | Open, monitor |
 | R17 | Fingerprint instability inflates unique-visitor counts | Medium | Accepted, disclosed |
 | R18 | Telegram becomes a security dependency, not just a notifier | Medium | Accepted, mitigated |
-| R19 | **Header order and HTTP/2 detail are unobservable behind Caddy** | **High** | **Decided 2026-09-29: header set + re-weighting (SPEC §11 row 7); built in M4** |
+| R19 | **Header order and HTTP/2 detail are unobservable behind Caddy** | **High** | **Closed: header set + re-weighting built in M4 (SPEC §11 row 7)** |
 | R20 | A first-visit location prompt cannot be answered inside the interstitial | Medium | **Closed 2026-09-29: never prompt, read an existing grant (SPEC §11 row 8)** |
-| R21 | **A JavaScript-executing Meta scanner passes the crawler gate** | **High** | **Open — requirement on M4** |
+| R21 | **A JavaScript-executing Meta scanner passes the crawler gate** | **High** | **Closed in M4: classified `datacenter`, never `human` (test fixture)** |
 | R22 | **Registry-artifact collapse to admin1 still emits the artifact's state** | **High** | **Closed 2026-09-29: collapse to country (SPEC §11 row 11)** |
 | R23 | S10 latency triangulation cannot be built without third-party requests | Medium | **Closed 2026-09-29: S10 dropped (SPEC §11 row 12)** |
 | R24 | Rule (a) cannot tell a regional ISP from a registry collapse | Medium | **Accepted for M3 — tune in M8 with ground truth** |
@@ -466,6 +466,11 @@ hardware; timezone vs. locale; missing WebGL renderer; implausible core count; t
 instant-denial pattern; and temporal clustering with a same-network link-preview burst.
 Spike B's row is the first labelled example.
 
+
+**Closed in M4 (2026-10-02).** The scanner comes from Meta's own network (AS32934), a
+hosting ASN, so it classifies `datacenter` before any score is needed; its 2000x2000
+"phone" screen and 52 cores would also fire `xcheck.screen_device_class` and
+`xcheck.cores_device_class`. `test_the_meta_scanner_is_never_human` pins it.
 ---
 
 ## R22 — Registry-artifact collapse to admin1 still emits the artifact's state · **HIGH**

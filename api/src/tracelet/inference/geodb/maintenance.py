@@ -41,6 +41,8 @@ REFRESH_DAYS: Final = {
     "ip2location-lite-db11": 30,
     "geonames-cities1000": 30,
     "geonames-admin1": 90,
+    # Exits come and go within hours; daily is the floor of what is worth fetching.
+    "tor-exits": 1,
 }
 # After a failed attempt, wait before trying that database again.
 RETRY_AFTER: Final = dt.timedelta(hours=6)

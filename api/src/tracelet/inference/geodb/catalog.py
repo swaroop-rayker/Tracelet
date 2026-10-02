@@ -20,7 +20,7 @@ from tracelet.config import Settings
 from tracelet.inference.types import InferenceSource
 
 Packing = Literal["none", "gz", "tar.gz", "zip"]
-Kind = Literal["mmdb", "ip2location_bin", "geonames_cities", "geonames_admin1"]
+Kind = Literal["mmdb", "ip2location_bin", "geonames_cities", "geonames_admin1", "tor_exits"]
 
 
 @dataclass(frozen=True, slots=True)
@@ -130,6 +130,11 @@ def _geonames(file: str) -> UrlBuilder:
     return build
 
 
+def _tor(settings: Settings, today: dt.date) -> Download:
+    del settings, today
+    return Download(url="https://check.torproject.org/torbulkexitlist")
+
+
 MB: Final = 1024 * 1024
 
 CATALOG: Final[tuple[DatabaseSpec, ...]] = (
@@ -216,6 +221,17 @@ CATALOG: Final[tuple[DatabaseSpec, ...]] = (
         max_bytes=100 * MB,
     ),
     DatabaseSpec(
+        name="tor-exits",
+        kind="tor_exits",
+        packing="none",
+        member=None,
+        installed_as="torbulkexitlist.txt",
+        feeds=None,  # classification and location rule (c), not a place (M4, F5.AC9)
+        attribution="Tor exit list from the Tor Project (check.torproject.org)",
+        staleness_days=3,
+        max_bytes=5 * MB,
+    ),
+    DatabaseSpec(
         name="geonames-admin1",
         kind="geonames_admin1",
         packing="none",
@@ -239,4 +255,5 @@ _URLS: Final[dict[str, UrlBuilder]] = {
     "ipinfo-lite": _ipinfo,
     "geonames-cities1000": _geonames("cities1000.zip"),
     "geonames-admin1": _geonames("admin1CodesASCII.txt"),
+    "tor-exits": _tor,
 }

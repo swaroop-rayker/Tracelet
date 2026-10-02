@@ -311,6 +311,8 @@ def _detail(visit: Visit, link: Link, candidates: list[VisitCandidate]) -> Visit
             "audio_hash": _hex(visit.audio_hash),
             "font_hash": _hex(visit.font_hash),
             "webgl_hash": _hex(visit.webgl_hash),
+            # M4: the headless probes as reported -- evidence behind client.* rules (F5.AC2).
+            "probes": dict(visit.client_probes) if visit.client_probes is not None else None,
             "gps": {
                 "lat": _f(visit.gps_lat),
                 "lng": _f(visit.gps_lng),

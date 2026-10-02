@@ -136,6 +136,31 @@
     });
   }
 
+  // Headless Chrome answers "prompt" to a permissions query for notifications while
+  // reporting Notification.permission as "denied" -- a contradiction no real browser
+  // produces. Asynchronous, so it is started now and read at send time; if it has not
+  // answered by then the probe is null, never a guess.
+  var permissionsAnomaly = null;
+  safe(function () {
+    if (!window.Notification || !navigator.permissions || !navigator.permissions.query) { return; }
+    var q = navigator.permissions.query({ name: "notifications" });
+    if (q && q.then) {
+      q.then(function (s) {
+        permissionsAnomaly = Notification.permission === "denied" && s.state === "prompt";
+      }, function () {});
+    }
+  });
+
+  // Names that WebDriver, Selenium, Puppeteer and Playwright leave on the page.
+  function cdpArtefacts() {
+    return safe(function () {
+      var marks = /^\$?cdc_|^\$wdc_|__webdriver|__selenium|__driver_|__fxdriver|__playwright|__pw_|__puppeteer/;
+      var names = Object.getOwnPropertyNames(document).concat(Object.getOwnPropertyNames(window));
+      for (var i = 0; i < names.length; i++) { if (marks.test(names[i])) { return true; } }
+      return !!(window.callPhantom || window._phantom || window.domAutomation);
+    });
+  }
+
   function honeypotFilled() {
     var f = document.getElementById("hpf");
     return !!(f && f.value);
@@ -165,8 +190,12 @@
         webdriver: navigator.webdriver === true,
         chromeObject: typeof window.chrome === "object",
         pluginCount: safe(function () { return navigator.plugins.length; }),
+        mimeTypeCount: safe(function () { return navigator.mimeTypes.length; }),
         fontCount: fo ? fo.count : null,
-        outerWidth: window.outerWidth || null
+        // 0 is the headless signal (F5.AC3), so it must survive: `|| null` erased it.
+        outerWidth: typeof window.outerWidth === "number" ? window.outerWidth : null,
+        permissionsAnomaly: permissionsAnomaly,
+        cdpArtefacts: cdpArtefacts()
       },
       geolocation: geo,
       honeypot: { linkClicked: false, fieldFilled: honeypotFilled() },
