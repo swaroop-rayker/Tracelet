@@ -1,0 +1,22 @@
+{
+  "about": "Classifier lists (ADR-0011, F5.AC13). Case-insensitive substrings of the User-Agent, or of the masked PTR for rdns_scanners. 'automation_tools' are HTTP libraries and drivers -- automation, not necessarily hostile. 'scanners' are vulnerability and internet-wide scanners -- malicious automation, classification 'spam'. Link-preview fetchers are NOT here: capture/useragent.py owns those, because they are crawlers, a different class.",
+  "automation_tools": [
+    "curl/", "wget/", "python-requests", "python-urllib", "python-httpx", "aiohttp/", "httpie/",
+    "go-http-client", "java/", "okhttp/", "apache-httpclient", "libwww-perl", "lwp::",
+    "scrapy", "axios/", "node-fetch", "undici", "got (", "guzzlehttp", "postmanruntime",
+    "insomnia/", "powershell/", "winhttp", "phantomjs", "puppeteer", "playwright", "selenium",
+    "webdriver", "headlesschrome", "mechanize", "httpclient/", "restsharp",
+    "ruby", "dart:io", "reqwest/", "colly"
+  ],
+  "headless_markers": ["headlesschrome", "headless"],
+  "scanners": [
+    "sqlmap", "nikto", "nmap", "masscan", "zgrab", "nuclei", "wpscan", "dirbuster", "gobuster",
+    "ffuf", "feroxbuster", "acunetix", "nessus", "openvas", "qualys", "burp", "owasp zap",
+    "w3af", "arachni", "censysinspect", "censys", "shodan", "expanse", "internet-measurement",
+    "paloaltonetworks", "l9explore", "leakix", "netcraft", "zmap", "binaryedge"
+  ],
+  "rdns_scanners": [
+    "shodan", "censys", "binaryedge", "shadowserver", "stretchoid", "internet-measurement",
+    "recyber", "onyphe", "scanner", "scan.", "-scan"
+  ]
+}

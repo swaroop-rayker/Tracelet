@@ -282,6 +282,103 @@
         "title": "Classification",
         "type": "string"
       },
+      "ClassifierConfig": {
+        "additionalProperties": false,
+        "properties": {
+          "bot_threshold": {
+            "default": 60,
+            "maximum": 100.0,
+            "minimum": 1.0,
+            "title": "Bot Threshold",
+            "type": "integer"
+          },
+          "collision_min_asns": {
+            "default": 3,
+            "maximum": 50.0,
+            "minimum": 2.0,
+            "title": "Collision Min Asns",
+            "type": "integer"
+          },
+          "collision_window_hours": {
+            "default": 24,
+            "maximum": 720.0,
+            "minimum": 1.0,
+            "title": "Collision Window Hours",
+            "type": "integer"
+          },
+          "gateway_min_fingerprints": {
+            "default": 10,
+            "maximum": 10000.0,
+            "minimum": 2.0,
+            "title": "Gateway Min Fingerprints",
+            "type": "integer"
+          },
+          "human_max_bot": {
+            "default": 25,
+            "maximum": 100.0,
+            "minimum": 0.0,
+            "title": "Human Max Bot",
+            "type": "integer"
+          },
+          "human_max_spoof": {
+            "default": 25,
+            "maximum": 100.0,
+            "minimum": 0.0,
+            "title": "Human Max Spoof",
+            "type": "integer"
+          },
+          "impossible_travel_kmh": {
+            "default": 900.0,
+            "exclusiveMinimum": 0.0,
+            "title": "Impossible Travel Kmh",
+            "type": "number"
+          },
+          "rate_max_visits": {
+            "default": 20,
+            "maximum": 100000.0,
+            "minimum": 2.0,
+            "title": "Rate Max Visits",
+            "type": "integer"
+          },
+          "rate_mobile_multiplier": {
+            "default": 5,
+            "maximum": 100.0,
+            "minimum": 1.0,
+            "title": "Rate Mobile Multiplier",
+            "type": "integer"
+          },
+          "rate_window_minutes": {
+            "default": 10,
+            "maximum": 1440.0,
+            "minimum": 1.0,
+            "title": "Rate Window Minutes",
+            "type": "integer"
+          },
+          "spam_threshold": {
+            "default": 60,
+            "maximum": 100.0,
+            "minimum": 1.0,
+            "title": "Spam Threshold",
+            "type": "integer"
+          },
+          "spoof_threshold": {
+            "default": 50,
+            "maximum": 100.0,
+            "minimum": 1.0,
+            "title": "Spoof Threshold",
+            "type": "integer"
+          },
+          "weights": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "title": "Weights",
+            "type": "object"
+          }
+        },
+        "title": "ClassifierConfig",
+        "type": "object"
+      },
       "CreateAdminRequest": {
         "properties": {
           "display_name": {
@@ -568,6 +665,59 @@
       "InferenceConfig": {
         "additionalProperties": false,
         "properties": {
+          "classifier": {
+            "$ref": "#/components/schemas/ClassifierConfig",
+            "default": {
+              "bot_threshold": 60,
+              "collision_min_asns": 3,
+              "collision_window_hours": 24,
+              "gateway_min_fingerprints": 10,
+              "human_max_bot": 25,
+              "human_max_spoof": 25,
+              "impossible_travel_kmh": 900.0,
+              "rate_max_visits": 20,
+              "rate_mobile_multiplier": 5,
+              "rate_window_minutes": 10,
+              "spam_threshold": 60,
+              "spoof_threshold": 50,
+              "weights": {
+                "capture.exploit_probe": 80,
+                "client.cdp_artefacts": 80,
+                "client.chrome_object_missing": 30,
+                "client.few_fonts": 15,
+                "client.honeypot": 100,
+                "client.no_plugins_desktop_chromium": 30,
+                "client.permissions_anomaly": 40,
+                "client.software_renderer": 60,
+                "client.webdriver": 80,
+                "client.zero_outer_width": 40,
+                "hdr.accept_any_only": 25,
+                "hdr.chromium_without_client_hints": 30,
+                "hdr.no_accept_language": 20,
+                "hdr.no_fetch_metadata": 30,
+                "http.version_1_0": 30,
+                "net.fingerprint_across_asns": 30,
+                "net.rate_anomaly": 30,
+                "rdns.scanner": 60,
+                "tls.outdated_for_browser": 30,
+                "ua.automation_tool": 80,
+                "ua.headless": 70,
+                "ua.missing": 50,
+                "ua.scanner": 90,
+                "uach.brand_missing": 30,
+                "uach.mobile_mismatch": 25,
+                "uach.platform_mismatch": 40,
+                "uach.version_mismatch": 30,
+                "xcheck.cores_device_class": 30,
+                "xcheck.gpu_os": 50,
+                "xcheck.impossible_travel": 40,
+                "xcheck.ios_device_memory": 70,
+                "xcheck.screen_device_class": 35,
+                "xcheck.touch_mobile": 30,
+                "xcheck.tz_country": 15
+              }
+            }
+          },
           "gps_max_accuracy_m": {
             "default": 5000,
             "exclusiveMinimum": 0.0,

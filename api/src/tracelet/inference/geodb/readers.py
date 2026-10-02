@@ -168,6 +168,24 @@ class _Open:
 
 _open: dict[str, _Open] = {}
 _geocoder: tuple[tuple[Path, Path], ReverseGeocoder] | None = None
+_tor: tuple[Path, frozenset[str]] | None = None
+
+
+def tor_exits(settings: Settings) -> frozenset[str] | None:
+    """The installed Tor exit list, read once per version (a few thousand addresses)."""
+    global _tor  # noqa: PLW0603 - a process-wide cache, like the readers
+    path = current_path(settings, BY_NAME["tor-exits"])
+    if not path.exists():
+        return None
+    real = path.resolve()
+    if _tor is None or _tor[0] != real:
+        with real.open(encoding="utf-8") as f:
+            exits = frozenset(
+                line.strip() for line in f if line.strip() and not line.startswith("#")
+            )
+        _tor = (real, exits)
+        log.info("tor_exits_loaded", exits=len(exits))
+    return _tor[1]
 
 
 def _handle(settings: Settings, spec: DatabaseSpec) -> Any | None:
@@ -255,4 +273,5 @@ async def build_toolkit(db: AsyncSession) -> Toolkit:
         asn_lookup=_asn_lookup(settings),
         databases=databases,
         place=gc.place if gc is not None else None,
+        tor_exits=tor_exits(settings),
     )

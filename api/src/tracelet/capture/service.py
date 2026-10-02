@@ -249,6 +249,16 @@ def _build_visit(
                 "detail": {"fetcher": agent.crawler},
             }
         )
+    if probes := sig.exploit_probes(facts.query):
+        # F5.AC13: weighted by the classifier, not here -- capture only records it.
+        fired.append(
+            {
+                "rule_id": "capture.exploit_probe",
+                "category": "spam",
+                "weight": 0,
+                "detail": {"patterns": probes},
+            }
+        )
     if facts.client.forged_edge_header:
         # Evidence only this request can carry -- it is gone once the response is
         # sent. Recorded unweighted: what it *means* is M4's classifier's decision.
@@ -519,6 +529,11 @@ def enrichment_values(
                     "detail": {"reason": geo.state},
                 }
             )
+
+    if payload.probes is not None:
+        # Stored as reported -- unset probes omitted, never coerced to false (F3.AC5).
+        # What each one means is the classifier's business (ADR-0011 amendment).
+        values["client_probes"] = payload.probes.model_dump(exclude_none=True)
 
     if payload.honeypot and (payload.honeypot.fieldFilled or payload.honeypot.linkClicked):
         values["honeypot_tripped"] = True

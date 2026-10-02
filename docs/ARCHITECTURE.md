@@ -310,7 +310,7 @@ Weighted rules, not machine learning. ADR-0011; attacker-perspective analysis in
 ```
   SERVER-SIDE RULES (always evaluated)          CLIENT-SIDE RULES (when enriched)
   ├ UA denylist / crawler regex                 ├ navigator.webdriver
-  ├ header-order hash vs claimed client         ├ window.chrome absent + Chrome UA
+  ├ header SET vs claimed client  [F5.AC8]     ├ window.chrome absent + Chrome UA
   ├ missing Accept-Language                    ├ WebGL renderer: SwiftShader /
   ├ HTTP/1.0, or Accept: */* only               │   Mesa OffScreen / llvmpipe
   ├ TLS version vs claimed browser             ├ screen.width==0, outerWidth==0
@@ -345,6 +345,35 @@ Weighted rules, not machine learning. ADR-0011; attacker-perspective analysis in
 Every fired rule is stored with its weight and evidence, so no verdict is
 unexplainable — required by F5.AC2 and by the brief requirement that the *source* of
 every derivation be visible.
+
+### 4.1 As built in M4
+
+`classify/rules.py` is a pure function; `classify/job.py` runs it inside the ADR-0015 job,
+after inference and in the same write, with four small reads for context (distinct ASNs
+per fingerprint, distinct fingerprints per prefix, visits per prefix in the rate window,
+the previous located visit of the same fingerprint). Weights and thresholds are the
+`classifier` section of the versioned `inference_settings`; `classifier_version` is
+`m4.1+s<version>`. See the ADR-0011 and ADR-0006 amendments for the decisions.
+
+- **Header set, not order** (SPEC §11 row 7): Fetch Metadata is required of any modern
+  browser, `Sec-CH-UA*` of Chromium; the UA-CH platform, mobile flag, brand and major
+  version are cross-checked against the UA string. Chrome on Android's "desktop site"
+  (Linux UA, Android hint) is exempt.
+- **Webviews are protected.** Rules that read a desktop browser's internals
+  (`window.chrome`, plugins, `outerWidth`) never fire on an in-app webview, and the
+  Fetch-Metadata rule is halved there: a false `bot` on an Instagram visitor costs a real
+  alert.
+- **Precedence:** crawler, spam, bot, datacenter (hosting ASN or Tor exit), spoofed,
+  human, unknown. `human` needs positive evidence: a screen, or for a `server_only` visit a
+  recognised browser whose header set raised nothing.
+- **Identity** (ADR-0006 as amended): three HMACs from a bucketed canonical form;
+  `session_fp`'s daily key is derived from the rotating pepper and the date;
+  `server_only` visits get no `fingerprint_id`; impossible travel is per `fingerprint_id`.
+- **Exploit probes** on the capture path are matched at capture and stored by pattern
+  name only, never the payload.
+- **Measured against real headless Chromium** (Playwright, 2026-10-02): plain headless
+  scored bot 100 on eight rules; with a real Chrome UA and `webdriver` hidden it still
+  scored bot 100 on six, among them a UA-vs-Client-Hints version contradiction.
 
 ---
 

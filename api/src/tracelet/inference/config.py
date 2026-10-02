@@ -17,6 +17,7 @@ from typing import Any, Final
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from tracelet.classify.config import ClassifierConfig
 from tracelet.inference.types import GeoLevel, InferenceSource
 
 # Bumped whenever the consensus *algorithm* changes. The settings version is stamped
@@ -107,6 +108,8 @@ class InferenceConfig(_Frozen):
     # that sends coordinates rather than a network; off here stops it without touching
     # the rest of inference.
     street_address_enabled: bool = True
+    # M4: bot, spoof and automation classification (ADR-0011 amendment, item 4).
+    classifier: ClassifierConfig = ClassifierConfig()
 
     def source(self, source: InferenceSource) -> SourceSettings:
         return self.sources[source]

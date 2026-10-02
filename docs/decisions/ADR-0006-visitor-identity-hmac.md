@@ -109,3 +109,21 @@ space of plausible fingerprint values.
   would indicate the bucketing tolerance needs adjusting.
 - A first-party cookie becomes worthwhile because a use case emerges that genuinely needs
   cross-session accuracy — at which point the consent implications must be reassessed.
+
+---
+
+## Amendment (M4, 2026-09-29) — as built
+
+1. **Header set, not header order**, in the canonical fingerprint's server-side part:
+   header order never reaches the application (RISKS R19, SPEC section 11 row 7). The
+   component is the sorted set of *names* of the browser-characteristic headers present.
+2. **A `server_only` visit gets no `fingerprint_id`.** Its canonical form would be only
+   the UA family, major version, language and platform — shared by every Chrome 131 user
+   with `en-IN` — so the collision rule (F5.AC7) would read ordinary people as one device
+   on many networks. `visitor_id` and `session_fp` are still derived, from the server part
+   and the prefix, and are marked as server-only in `signals`.
+3. **The daily rotation of `session_fp` is derived, not operated.** The day's key is
+   `HMAC(pepper_rotating, UTC date)`; no one has to rotate an environment variable every
+   midnight, and yesterday's values are unlinkable to today's once the day passes.
+4. **A missing pepper degrades the identifier, never the visit**: the field is `NULL` with
+   an `identity.pepper_missing` absence signal, as M2 already does for `ip_hmac`.

@@ -94,6 +94,23 @@ def _geonames_admin1(path: Path) -> dict[str, Any]:
     return {"codes": len(codes)}
 
 
+def _tor_exits(path: Path) -> dict[str, Any]:
+    import ipaddress  # noqa: PLC0415 - only this kind needs it
+
+    count = 0
+    with path.open(encoding="utf-8") as f:
+        for line in f:
+            entry = line.strip()
+            if not entry or entry.startswith("#"):
+                continue
+            ipaddress.ip_address(entry)  # anything else in the file is a corrupt download
+            count += 1
+    if count < 300:
+        msg = f"{count} exit addresses -- the live list has well over a thousand"
+        raise ValueError(msg)
+    return {"exits": count}
+
+
 def validate(kind: str, path: Path, database_type: str | None) -> dict[str, Any]:
     if kind == "mmdb":
         return _mmdb(path, database_type)
@@ -103,6 +120,8 @@ def validate(kind: str, path: Path, database_type: str | None) -> dict[str, Any]
         return _geonames_cities(path)
     if kind == "geonames_admin1":
         return _geonames_admin1(path)
+    if kind == "tor_exits":
+        return _tor_exits(path)
     msg = f"unknown kind {kind!r}"
     raise ValueError(msg)
 

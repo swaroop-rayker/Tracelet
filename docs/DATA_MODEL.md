@@ -370,7 +370,7 @@ partitioning in v1** — it would be complexity without benefit.
 | `asn_type` | `asn_type` | |
 | `rdns_ptr` | `text` NULL | |
 | `connection_class` | `connection_class` | |
-| `is_datacenter`, `is_vpn_suspected`, `is_tor`, `is_proxy_suspected` | `boolean` NULL | F5.AC7, F5.AC9. **`NULL` until assessed (M4)** — a default of `false` would assert "not a datacenter" with no evidence (F3.AC5) |
+| `is_datacenter`, `is_vpn_suspected`, `is_tor`, `is_proxy_suspected` | `boolean` NULL | F5.AC7, F5.AC9. **`NULL` until assessed** — a default of `false` would assert "not a datacenter" with no evidence (F3.AC5). Assessed by the M4 classifier: `is_datacenter` from the ASN classification, `is_vpn_suspected` for a hosting ASN whose organisation reads as VPN or proxy, `is_tor` from the Tor Project exit list, `is_proxy_suspected` from fingerprint collision or impossible travel. **Each stays `NULL` unless its evidence existed**: no ASN known, no datacenter or VPN verdict; no exit list installed, no Tor verdict; no `fingerprint_id` (a `server_only` visit), no proxy verdict |
 | `cf_colo` | `char(3)` NULL | Edge colo — source S8. **Only from a verified Cloudflare peer** (F13.AC6) |
 | `cf_country` | `char(2)` NULL | Same gate. An unverified `CF-IPCountry` is a visitor choosing their own country |
 
@@ -415,6 +415,10 @@ smallint CHECK 0..100`, `agreement_score numeric(4,3)`, `conflict_score numeric(
 `honeypot_tripped boolean`, `header_order_hash bytea` (**always `NULL` — see below**),
 `http_version text`, `tls_version text NULL`, `classifier_version text`,
 `request_headers jsonb NULL` (**added in M2**, see below),
+`client_probes jsonb NULL` (**added in M4**, migration 0006: the capture page's headless
+probes as reported — `webdriver`, `chromeObject`, `pluginCount`, `mimeTypeCount`,
+`fontCount`, `outerWidth`, `permissionsAnomaly`, `cdpArtefacts`; an unreported probe is
+absent, never `false`),
 **`signals jsonb`** — array of fired rules `[{rule_id, category, weight, detail}]`, and
 the reasons for absent client values (F3.AC5), which use `category: "absence"` and
 weight 0. M2 records three: `ua.link_preview_fetcher`, `edge.unverified_cf_header` and
@@ -425,6 +429,15 @@ produced no candidate, with `{source, status, latency_ms, reason}`, where `statu
 (`disabled`, `circuit_open`, `rate_budget_spent`, `request_failed:*`, `no_address_known`).
 Together with `visit_candidates` they make every source visible for every visit
 (F4.AC11), including the ones that said nothing.
+
+**M4 adds the classifier's rules** (ADR-0011 amendment): one entry per fired rule, with
+`category` `bot`, `spoof`, `spam` or `network` and the rule's configured weight, so
+`bot_score` and `spoof_score` are the capped sums of the `bot` and `spoof` weights.
+`network` entries (`net.hosting_asn`, `net.tor_exit`, `net.shared_gateway`) carry weight
+0: they decide the class or record a fact without scoring. Capture-time entries
+(`ua.link_preview_fetcher`, `capture.exploit_probe` with the matched pattern *names*) are
+weight 0 and read by the classifier. Absences: `identity.server_only`,
+`identity.pepper_missing`, `classifier.engine_error` (F5.AC14).
 
 **`request_headers` — added in M2, not in the Gate-3 model.** F3.AC1 requires the "full
 header set", and the Gate-3 model had nowhere to put it. It is also the one column that
