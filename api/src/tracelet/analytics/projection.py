@@ -11,10 +11,13 @@ cell of size one**: the same column names as the rollup tables, with ``visit_cou
 ``sum(src.c.visit_count)``, ``sum(src.c.consented_count)`` -- cannot tell which kind
 it was handed, and an integration test asserts the two give identical answers.
 
-**Strict location only** in the keys (``country_code``, ``admin1``, the location
-dimensions). An analytics count is an assertion about where visits came from, so it is
-held to CLAUDE.md invariant 5. Abstentions are counted under ``''``, which the API
-reports as "abstained", never silently dropped.
+**Best-guess location** in the keys (``country_code``, ``admin1``, the location
+dimensions): the advisory fields, which are the highest-confidence value at each level
+and always agree with strict wherever strict emitted (ADR-0018). Every visit with a
+candidate is counted where the engine thinks it was; a visit no source could place at a
+level is counted under ``''``, which the API reports as "unknown", never silently
+dropped. What the engine was willing to *state* is still measured, from the strict
+fields, by ``emitted_level`` and the ``strict_*_count`` columns.
 """
 
 from __future__ import annotations
@@ -106,8 +109,8 @@ def cell_select(zone: str, grain: Grain) -> Select[Any]:
         Visit.classification.label("classification"),
         Visit.device_class.label("device_class"),
         Visit.connection_class.label("connection_class"),
-        _empty(Visit.strict_country_code).label("country_code"),
-        _empty(Visit.strict_admin1).label("admin1"),
+        _empty(Visit.advisory_country_code).label("country_code"),
+        _empty(Visit.advisory_admin1).label("admin1"),
         literal(1, Integer).label("visit_count"),
         _flag(Visit.consent_state == ConsentState.GRANTED).label("consented_count"),
         _flag(Visit.geofence_state == GeofenceState.INSIDE).label("geofence_inside_count"),
@@ -236,11 +239,13 @@ def emitted_level() -> ColumnElement[str]:
 def _single(dimension: Dimension) -> ColumnElement[str]:
     match dimension:
         case Dimension.COUNTRY:
-            return _empty(Visit.strict_country_code)
+            return _empty(Visit.advisory_country_code)
         case Dimension.ADMIN1:
-            return _qualified(Visit.strict_country_code, Visit.strict_admin1)
+            return _qualified(Visit.advisory_country_code, Visit.advisory_admin1)
         case Dimension.CITY:
-            return _qualified(Visit.strict_country_code, Visit.strict_admin1, Visit.strict_city)
+            return _qualified(
+                Visit.advisory_country_code, Visit.advisory_admin1, Visit.advisory_city
+            )
         case Dimension.ASN:
             return _empty(cast(Visit.asn, Text()))
         case Dimension.ISP:

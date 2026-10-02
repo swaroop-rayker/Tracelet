@@ -1545,6 +1545,90 @@ is not evidence of the content you wanted from it.
 
 **Related:** ADR-0003, ADR-0017, RISKS R14, R26.
 
+### E38 — Every mobile-network visit had no city at all, not even a guess
+
+**Status:** Fixed by ADR-0018 (engine m3.4). **Milestone:** M5. **Date:** 2026-10-02.
+
+**Symptom.** The owner reported that every city on the dashboard read "Abstained". On the
+dev set (160 visits from real Indian ISP addresses): strict city 0 of 160, which Spike A
+predicted -- but advisory city only 66, and the split was exact: all 66 broadband visits
+had one, none of the 94 mobile visits did, although every one of those 94 had city
+candidates in `visit_candidates`.
+
+**Root cause.** Rule (b) (mobile and CGNAT networks, F4.AC12(b)) built its block list and
+applied it to the *shared* first consensus pass, which served as both the advisory result
+and, when no hosting rule applied, the strict one. So "no strict city on a mobile network"
+was implemented as "no city on a mobile network", contradicting ADR-0005's "advisory is
+always the argmax". A unit test even asserted it ("discarded outright, advisory
+included"), because SPEC F4.AC12(b) said "discarded outright" without saying from what.
+Separately, the dashboard showed strict wherever any strict level existed, so a visit with
+a strict country and an advisory city read "India".
+
+**Fix.** Strict and advisory are separate walks: rule (b) blocks city depth in the strict
+walk only. Advisory is re-walked with strict's levels fixed whenever they would disagree
+(the hosting-plus-GPS case), so it always extends strict. The dashboard shows the best
+guess everywhere (ADR-0018).
+
+**Prevention.** A suppression rule's scope is stated as *strict* or *advisory*, never
+"discarded"; F4.AC12(b) now says strict. A parametrised unit test asserts, per suppression
+scenario, that every level any candidate named has an advisory value and that advisory
+equals strict wherever strict emitted (DATA_MODEL 5.3 invariant 13). And coverage is
+checked per network class, because an average over all visits hid a 0 % / 100 % split.
+
+**Related:** ADR-0005, ADR-0018, SPEC section 11 row 14, RISKS R3.
+
+---
+
+### E39 — The state map opened on the whole world instead of fitting the visits
+
+**Status:** Fixed. **Milestone:** M5. **Date:** 2026-10-02.
+
+**Symptom.** With "State / province" made the Geography map's default shading, a fresh load
+showed the whole world with India a small patch under its points, although switching the
+shading away and back fitted India correctly.
+
+**Root cause.** On first load the map draws twice in quick succession (development
+StrictMode, then the query settling), each ending in an animated `fitBounds`. Logged: zoom 4
+after the first fit, 2 (the initial world zoom) after the second, and 2 a second and a half
+later. The second, animated fit never took effect -- consistent with Leaflet ignoring a view
+change while a zoom animation is in progress; the exact interleaving was not traced further.
+
+**Fix.** `fitBounds(..., { animate: false })`, so every fit lands immediately, plus
+`invalidateSize()` first so the fit measures the panel's final size.
+
+**Prevention.** A map view set from an effect that can re-run is never animated. The check
+for "the map fits the data" is a fresh page load, not a toggle, because a toggle runs the
+effect once.
+
+**Related:** ADR-0017, ADR-0018, F9.AC5.
+
+---
+
+### E40 — Clicking a country or state drew a rectangle around it
+
+**Status:** Fixed. **Milestone:** M5. **Date:** 2026-10-02.
+
+**Symptom.** The owner reported a "weird boxy outline" on the Geography map after clicking
+an area. It was a light rectangle the size of the area's bounding box.
+
+**Root cause.** Leaflet makes each shaded area an interactive SVG `<path>`. A click focuses
+it, and the browser's default focus style (`outline: auto`) on an SVG element is drawn
+around its bounding box. `document.activeElement` was the path, with `outline: auto`, not
+`:focus-visible`. The map had no hover or selection styling of its own, so the box was the
+only feedback a click gave.
+
+**Fix.** `.map path.leaflet-interactive:focus { outline: none; }` -- areas are not in the
+tab order, and keyboard users keep the map's own focus ring and the tables. In its place:
+hover brightens an area's border, a click selects it with a bold outline in the text colour
+(readable in all three themes) until the sea is clicked or Escape is pressed, and visit
+points moved to their own pane above the shapes so a selected area never covers them.
+Tooltips also stopped saying "1 visits".
+
+**Prevention.** Any clickable map shape gets explicit hover and selection styles, so the
+browser's default is never the only feedback.
+
+**Related:** ADR-0017, F9.AC5, NFR7.
+
 ---
 
 Add entries here as bugs are found and fixed. Use the next available `E<n>` identifier and

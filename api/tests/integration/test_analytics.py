@@ -130,17 +130,21 @@ async def dataset(db_client: AsyncClient) -> dict[str, Any]:
         classification=Classification.HUMAN,
         device_class=DeviceClass.MOBILE,
         connection_class=ConnectionClass.MOBILE,
+        # Strict stops at the country; the state and city are a guess (ADR-0018).
         strict_country_code="IN",
-        strict_admin1="Karnataka",
         advisory_country_code="IN",
         advisory_admin1="Maharashtra",
         advisory_city="Mumbai",
         advisory_lat=Decimal("19.076000"),
         advisory_lng=Decimal("72.877700"),
         confidence_country=Decimal("0.950"),
-        confidence_admin1=Decimal("0.800"),
+        confidence_admin1=Decimal("0.600"),
         confidence_city=Decimal("0.300"),
-        abstain_reason={"city": "below_threshold"},
+        abstain_reason={
+            "admin1": "below_threshold",
+            "admin2": "parent_abstained",
+            "city": "parent_abstained",
+        },
         inferred_at=now,
         asn=55836,
         asn_org="Reliance Jio Infocomm",
@@ -272,20 +276,31 @@ async def test_the_summary_counts_and_shares(owner: SignedIn, dataset: dict[str,
     assert kpis["enrichment_completion_rate"]["value"] == pytest.approx(2 / 3)
 
 
-async def test_location_breakdowns_count_strict_only_and_report_abstentions(
+async def test_location_breakdowns_count_the_best_guess_and_report_the_unplaced(
     owner: SignedIn, dataset: dict[str, Any]
 ) -> None:
-    """Invariant 5: v2's advisory Mumbai must not be counted as a city."""
+    """ADR-0018: v2's best-guess Mumbai is counted; v3 (no candidate) and v4 (not
+    inferred) are unknown, never dropped."""
     params = {"link_id": str(dataset["link"].id), "include_automated": "true"}
     city = (await owner.client.get(A + "/breakdown", params={**params, "dimension": "city"})).json()
-    assert [(r["key"], r["count"]) for r in city["rows"]] == [("IN|Karnataka|Bengaluru", 1)]
-    assert city["unknown"] == 3
+    assert [(r["key"], r["count"]) for r in city["rows"]] == [
+        ("IN|Karnataka|Bengaluru", 1),
+        ("IN|Maharashtra|Mumbai", 1),
+    ]
+    assert city["unknown"] == 2
     assert city["total"] == 4
 
     admin1 = (
         await owner.client.get(A + "/breakdown", params={**params, "dimension": "admin1"})
     ).json()
-    assert [(r["key"], r["count"]) for r in admin1["rows"]] == [("IN|Karnataka", 2)]
+    assert [(r["key"], r["count"]) for r in admin1["rows"]] == [
+        ("IN|Karnataka", 1),
+        ("IN|Maharashtra", 1),
+    ]
+    by_state = await owner.client.get(VISITS, params={**params, "admin1": "Maharashtra"})
+    assert [item["id"] for item in by_state.json()["items"]] == [str(dataset["ids"][1])], (
+        "a location filter selects exactly the visits the breakdown counted"
+    )
 
 
 async def test_signals_rank_detections_and_ignore_absences(
@@ -308,7 +323,7 @@ async def test_the_source_flow_ends_each_source_at_the_level_emitted(
     assert links == {
         ("geolite2", "city"): 1,
         ("rdns", "city"): 1,
-        ("geolite2", "admin1"): 1,
+        ("geolite2", "country"): 1,  # v2: strict stopped at the country
         ("none", "none"): 1,  # v3: inferred, no source had anything, full abstention
     }
     assert body["visits"] == 3, "v4 was never inferred, so it is queue, not abstention"
@@ -336,12 +351,19 @@ async def test_the_funnel_and_accuracy_say_what_they_cannot_know_yet(
     assert emitted["city"] == pytest.approx(1 / 3)
 
 
-async def test_the_map_plots_strict_points_only(owner: SignedIn, dataset: dict[str, Any]) -> None:
+async def test_the_map_plots_best_guess_cities(owner: SignedIn, dataset: dict[str, Any]) -> None:
     params = {"link_id": str(dataset["link"].id), "include_automated": "true"}
     body = (await owner.client.get(A + "/geo", params=params)).json()
     assert body["countries"] == [{"country_code": "IN", "count": 2}]
+    assert {(a["admin1"], a["count"]) for a in body["admin1"]} == {
+        ("Karnataka", 1),
+        ("Maharashtra", 1),
+    }
     assert body["abstained"] == 2
-    assert [(round(p["lat"], 2), p["count"]) for p in body["points"]] == [(12.97, 1)]
+    assert sorted((round(p["lat"], 2), p["count"]) for p in body["points"]) == [
+        (12.97, 1),
+        (19.08, 1),
+    ]
 
 
 async def test_days_are_local_to_the_reporting_timezone(

@@ -205,7 +205,7 @@ field sets. See ADR-0005; the deep explanation with worked numbers is in
                     │     AND no non-DB corroboration           │
                     │     → collapse to country       ★ FIXES B1│
                     │ (b) MOBILE / CGNAT ASN                    │
-                    │     → discard all city candidates         │
+                    │     → no strict city (advisory still has) │
                     │ (c) HOSTING / VPN / TOR ASN               │
                     │     → all strict levels abstain           │
                     └────────────────────┬──────────────────────┘
@@ -216,7 +216,9 @@ field sets. See ADR-0005; the deep explanation with worked numbers is in
     country / admin1 / admin2 / city                  same four levels
     NULL + abstain_reason below threshold             always populated if any
     → drives geofencing, Telegram, exports              candidate existed
-                                                      → greyed-out in the UI
+                                                      → what the dashboard shows
+                                                        (ADR-0018); = strict
+                                                        wherever strict emitted
               └──────────────────────────┬──────────────────────────┘
                                          ▼
                     agreement_score · conflict_score · inference_version

@@ -102,6 +102,9 @@ function Detail({
         <dt>Location</dt>
         <dd>
           {place.text}
+          {place.confidence === null
+            ? ''
+            : ` · ${place.confirmed ? 'confirmed' : 'best guess'}, ${pct(place.confidence)} confidence`}
           {visit.location.primary_source === null
             ? ''
             : ` · from ${label(visit.location.primary_source)}`}
@@ -131,11 +134,15 @@ function Detail({
       </dl>
 
       <section aria-labelledby="levels-h">
-        <h4 id="levels-h">Strict and advisory, per level</h4>
+        <h4 id="levels-h">Location, per level</h4>
+        <p className="muted small">
+          The best guess is the highest-confidence value at each level. “Confirmed” levels passed
+          the strict threshold and are the ones geofencing acts on.
+        </p>
         <TableView
           caption="Location per level"
           table={{
-            columns: ['Level', 'Strict', 'Advisory', 'Confidence', 'Why strict abstained'],
+            columns: ['Level', 'Best guess', 'Confidence', 'Confirmed', 'Why not confirmed'],
             rows: LEVELS.map((level) => {
               const key = level === 'country' ? 'country_code' : level;
               const strict = visit.location.strict[key] ?? null;
@@ -143,9 +150,9 @@ function Detail({
               const reason = visit.location.abstain_reason[level];
               return [
                 label(level),
-                strict === null ? 'Abstained' : level === 'country' ? countryName(strict) : strict,
                 advisory === null ? '—' : level === 'country' ? countryName(advisory) : advisory,
                 pct(visit.location.confidence[level] ?? null),
+                strict === null ? 'No' : 'Yes',
                 strict === null && typeof reason === 'string' ? label(reason) : '—',
               ];
             }),

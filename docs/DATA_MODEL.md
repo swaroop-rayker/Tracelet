@@ -504,10 +504,10 @@ now uses the header *set* instead (SPEC section 11 row 7).
 | `(ip_prefix)` | Rate-limit correlation, NAT detection |
 | `(fingerprint_id, occurred_at DESC)` | Fingerprint-collision proxy detection |
 | `GIST (geopoint)` | Geofence evaluation — F6.AC8 |
-| `(strict_country_code, strict_admin1)` | Geographic breakdowns |
+| `(strict_country_code, strict_admin1)` | Strict location lookups; breakdowns read the rollups (best-guess keys, ADR-0018) |
 | `GIN (signals)` | "which visits fired rule X" |
 | `(occurred_at) INCLUDE (visitor_id, classification, stage, link_id)` | **Unique visitors as an index-only scan** -- added in M5 (migration 0007, ADR-0016); the only analytics figure always counted from raw rows |
-| partial `(occurred_at)` where `gps_lat` or `strict_lat` is set | **Map points** (F9.AC5), always read raw -- added in M5; few visits have coordinates by design (ADR-0005) |
+| partial `(occurred_at)` where `gps_lat` or `advisory_city` is set | **Map points** (F9.AC5), always read raw -- added in M5 over strict coordinates, moved to the best-guess city by migration 0008 (ADR-0018) |
 | partial `(occurred_at)` where `stage='server'` | **The 90 s sweeper** — F2.AC7 |
 | partial `(ip_purge_after)` where `ip_enc IS NOT NULL` | The IP purge job — F12.AC2 |
 | partial `(occurred_at)` where `finalized_at IS NULL` | Stuck-visit detection |
@@ -546,6 +546,11 @@ now uses the header *set* instead (SPEC section 11 row 7).
     it is a guess and is displayed as one.
 12. **Rate-limited visits are never inferred** — the inference queue's partial index
     excludes `stage = 'rate_limited'` (invariant 8).
+13. **Advisory extends strict** (ADR-0018, engine m3.4). Wherever `strict_<level>` is set,
+    `advisory_<level>` equals it; and every level any candidate named has an advisory
+    value, mobile networks included. Application-enforced in `inference/consensus.py`,
+    unit-tested per suppression scenario. Visits stamped m3.3 or earlier may lack a mobile
+    visitor's advisory city.
 
 Invariants 2 and 5 are `CHECK` constraints (`ck_visits_gps_requires_consent`,
 `ck_visits_no_geopoint_is_undetermined`), not conventions. Each is exercised by a test
@@ -789,8 +794,11 @@ reported a wrong number; both were replaced before the table was created.
 
 PK `(day, link_id, stage, classification, device_class, connection_class, country_code,
 admin1)`. `day` is a **local date in the reporting timezone** (`TRACELET_REPORTING_TZ`,
-default `Asia/Kolkata`). `country_code` and `admin1` are the **strict** fields, `''` when
-the engine abstained -- a key column cannot be NULL, and an abstention is worth counting.
+default `Asia/Kolkata`). `country_code` and `admin1` are the **best-guess (advisory)**
+fields since migration 0008 (ADR-0018), `''` when no source could place the visit -- a key
+column cannot be NULL, and an unplaced visit is worth counting. Days built before 0008 used
+the strict fields; 0008 forgot every such day that still had raw visits, so it was rebuilt,
+and a day already past raw retention keeps strict keys.
 `stage` is a key so each response can state its stage mix (F9.AC20).
 
 Measures, **all additive**: `visit_count`, `consented_count`, `geofence_inside_count`,

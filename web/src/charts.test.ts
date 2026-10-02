@@ -17,7 +17,7 @@ const META: Meta = {
 };
 
 describe('chart tables', () => {
-  it('a location breakdown names abstentions instead of dropping them', () => {
+  it('a location breakdown names unplaced visits instead of dropping them', () => {
     const data: Breakdown = {
       meta: META,
       dimension: 'city',
@@ -29,7 +29,7 @@ describe('chart tables', () => {
     const { table } = breakdownChart(data);
     expect(table.rows).toEqual([
       ['Karnataka, Bengaluru (IN)', 1, '25.0%'],
-      ['Abstained', 3, '75.0%'],
+      ['Unknown', 3, '75.0%'],
     ]);
   });
 

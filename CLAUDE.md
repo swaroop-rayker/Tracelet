@@ -88,9 +88,12 @@ as justification for a code change.
    Violating this re-triggers the Safe Browsing "unsafe site" warning (B4).
 4. **Never persist a raw IP in plaintext.** `HMAC(ip)` + `/24`-or-`/48` prefix +
    ASN are durable; the full address is AES-256-GCM only, with a TTL.
-5. **Never emit a location we do not believe.** Strict fields abstain with a
-   recorded reason. Advisory fields may guess, but must carry confidence and an
-   evidence trail. See ADR-0005.
+5. **Never act on a location we do not believe.** Strict fields abstain with a
+   recorded reason, and only strict fields drive geofencing, alerts' "confirmed"
+   location and accuracy metrics. Advisory fields are the best guess -- the
+   highest-confidence value at each level, always equal to strict where strict
+   emitted -- and are what the dashboard shows, always with their confidence and an
+   evidence trail. See ADR-0005 and ADR-0018.
 6. **Never notify on a bot.** Telegram alerts fire only for `classification='human'`.
 7. **Capture-path URLs stay boring.** Never use `track`, `collect`, `analytics`,
    `pixel`, `beacon`, or `telemetry` in a public path or query key — content

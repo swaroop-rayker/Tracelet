@@ -2,14 +2,15 @@
  * Geography (F9.AC5): a choropleth by country or by state/province -- worldwide -- and
  * clustered points.
  *
- * **Strict location only.** The map shows where the engine was willing to place visits;
- * abstentions are counted beside it, never drawn somewhere convenient (CLAUDE.md
- * invariant 5).
+ * **Best-guess location** (ADR-0018): each visit is shaded and plotted where the engine
+ * thinks it most likely was -- the highest-confidence value at each level, which equals
+ * strict wherever strict emitted. Visits no source could place in a country are counted
+ * beside the map, never drawn somewhere convenient.
  *
  * Boundaries are Natural Earth (public domain), countries in the India point-of-view
  * variant, built by scripts/build-boundaries.mjs. First-order divisions ship as one file
  * per country, **named exactly as the inference engine names them** (GeoNames), and the
- * map fetches only the files for countries whose visits have a strict state. A state
+ * map fetches only the files for countries whose visits have a state. A state
  * with visits but no drawable boundary is named under the map, not dropped.
  *
  * **There are no map tiles** (ADR-0017): CARTO's basemap began requiring a key, so the map
@@ -85,13 +86,16 @@ function classes(values: readonly number[]): number[] {
   return [0.2, 0.4, 0.6, 0.8, 1].map((f) => Math.ceil(max * f));
 }
 
+const POINTS_PANE = 'visit-points';
+
 function stateKey(country: string, name: string): string {
   return `${country}|${name}`;
 }
 
 export default function GeographyPage(): React.JSX.Element {
   const { params } = useFilters();
-  const [layer, setLayer] = useState<Layer>('countries');
+  // States first: where in a country visits came from is the usual question.
+  const [layer, setLayer] = useState<Layer>('admin1');
   const [cell, setCell] = useState('0.25');
   const query = useApi(
     '/api/v1/analytics/geo',
@@ -105,7 +109,7 @@ export default function GeographyPage(): React.JSX.Element {
       <Panel
         query={query}
         title="Where visits came from"
-        description="Strict locations only. Points are consented GPS or a strict city's coordinates, clustered on a grid."
+        description="Best-guess locations. Points are consented GPS or the best-guess city's coordinates, clustered on a grid. Click a country or state to highlight it; Esc or a click on the sea clears it."
         isEmpty={(d) => d.countries.length === 0 && d.abstained === 0}
         empty="No visits in this period with these filters."
         meta={(d) => d.meta}
@@ -119,8 +123,8 @@ export default function GeographyPage(): React.JSX.Element {
                   setLayer(event.target.value === 'admin1' ? 'admin1' : 'countries');
                 }}
               >
-                <option value="countries">Country</option>
                 <option value="admin1">State / province</option>
+                <option value="countries">Country</option>
               </select>
             </label>
             <label className="control">
@@ -180,6 +184,9 @@ function MapView({
     instance.attributionControl.addAttribution(
       'Boundaries: <a href="https://www.naturalearthdata.com/">Natural Earth</a> · Names: <a href="https://www.geonames.org/">GeoNames</a>',
     );
+    // Points live in their own pane above the shapes, so an area brought to the front
+    // by a hover or a click never covers them.
+    instance.createPane(POINTS_PANE).style.zIndex = '450';
     map.current = instance;
     const onTheme = (): void => {
       setThemeTick((n) => n + 1);
@@ -201,15 +208,53 @@ function MapView({
     // narrowing cannot see -- a plain check reads as "always false" after the first one.
     const run = { cancelled: false };
     const stale = (): boolean => run.cancelled;
+
+    // Hover brightens an area's border; a click selects it with a bold outline that stays
+    // until the map background is clicked or Escape is pressed.
+    const hover: L.PathOptions = { color: p.text, weight: 1.5, opacity: 1 };
+    const chosen: L.PathOptions = { color: p.text, weight: 3, opacity: 1 };
+    let selected: { readonly shape: L.Path; readonly reset: () => void } | null = null;
+    const clear = (): void => {
+      selected?.reset();
+      selected = null;
+    };
+    const highlightable = (owner: () => L.GeoJSON, shape: L.Layer): void => {
+      if (!(shape instanceof L.Path)) return;
+      const reset = (): void => {
+        owner().resetStyle(shape);
+      };
+      shape.on('mouseover', () => {
+        if (selected?.shape !== shape) shape.setStyle(hover);
+        shape.bringToFront();
+      });
+      shape.on('mouseout', () => {
+        if (selected?.shape !== shape) reset();
+      });
+      shape.on('click', (event: L.LeafletMouseEvent) => {
+        L.DomEvent.stopPropagation(event);
+        if (selected?.shape === shape) return;
+        clear();
+        selected = { shape, reset };
+        shape.setStyle(chosen);
+        shape.bringToFront();
+      });
+    };
+    const onKey = (event: L.LeafletKeyboardEvent): void => {
+      if (event.originalEvent.key === 'Escape') clear();
+    };
+    instance.on('click', clear);
+    instance.on('keydown', onKey);
+
     const draw = async (): Promise<void> => {
       const countries = await boundaries('/geo/countries.json');
       if (stale()) return;
       if (layer === 'countries') {
-        L.geoJSON(countries, {
+        const shapes: L.GeoJSON = L.geoJSON(countries, {
           style: (feature) => shade(countryCount(feature, counts), steps, p),
           onEachFeature: (feature, shape) => {
             const n = countryCount(feature, counts);
             shape.bindTooltip(tip(featureName(feature), n), { sticky: true });
+            highlightable(() => shapes, shape);
           },
         }).addTo(group);
         setUndrawn([]);
@@ -228,17 +273,20 @@ function MapView({
         const drawn = new Set<string>();
         const shaded: L.GeoJSON[] = [];
         for (const file of files) {
-          const layerShapes = L.geoJSON(file, {
-            style: (feature) => {
-              const style = shade(divisionCount(feature, counts), steps, p);
-              // A division may be several Natural Earth polygons grouped together; a
-              // stroke in its own fill colour hides the seams between them.
-              return { ...style, color: style.fillColor ?? p.border, weight: 0.5 };
-            },
+          const layerShapes: L.GeoJSON = L.geoJSON(file, {
+            // Every division keeps a border, so neighbours in the same shading band
+            // still read as separate states rather than one merged region.
+            style: (feature) => ({
+              ...shade(divisionCount(feature, counts), steps, p),
+              color: p.muted,
+              weight: 0.5,
+              opacity: 0.8,
+            }),
             onEachFeature: (feature, shape) => {
               const n = divisionCount(feature, counts);
               if (n > 0) drawn.add(divisionKey(feature));
               shape.bindTooltip(tip(featureName(feature), n), { sticky: true });
+              highlightable(() => layerShapes, shape);
             },
           }).addTo(group);
           shaded.push(layerShapes);
@@ -258,11 +306,15 @@ function MapView({
           return acc === null ? b : acc.extend(b);
         }, null);
         if (bounds?.isValid() === true) {
-          instance.fitBounds(bounds, { maxZoom: 6, padding: [16, 16] });
+          // Not animated: the first load draws twice in quick succession, and Leaflet
+          // silently drops a view change made while a zoom animation is still running --
+          // the map stayed on the whole world.
+          instance.fitBounds(bounds, { maxZoom: 6, padding: [16, 16], animate: false });
         }
       }
       for (const point of data.points) {
         L.circleMarker([point.lat, point.lng], {
+          pane: POINTS_PANE,
           radius: 4 + Math.sqrt(point.count) * 2,
           color: p.text,
           weight: 1,
@@ -282,6 +334,8 @@ function MapView({
 
     return () => {
       run.cancelled = true;
+      instance.off('click', clear);
+      instance.off('keydown', onKey);
       group.remove();
     };
   }, [data, layer, counts, steps, themeTick]);
@@ -298,7 +352,7 @@ function MapView({
         ref={element}
         className="map"
         role="region"
-        aria-label="Map of visits by strict location. Use the arrow keys to pan and plus or minus to zoom."
+        aria-label="Map of visits by best-guess location. Use the arrow keys to pan and plus or minus to zoom."
       />
       {boundaryError !== null && (
         <p className="error-text small" role="alert">
@@ -307,8 +361,8 @@ function MapView({
       )}
       <Legend steps={steps} p={p} />
       <p className="muted small">
-        {count(data.abstained)} visits are not on the map because the engine abstained at country
-        level.{data.points_truncated ? ' Only the 2,000 largest clusters are drawn.' : ''}
+        {count(data.abstained)} visits are not on the map because no source could place their
+        country.{data.points_truncated ? ' Only the 2,000 largest clusters are drawn.' : ''}
       </p>
       {layer === 'admin1' && undrawn.length > 0 && (
         <p className="muted small">
@@ -364,7 +418,8 @@ function featureName(feature: GeoJSON.Feature | undefined): string {
 }
 
 function tip(name: string, n: number): string {
-  return `${escapeHtml(name)}: ${n === 0 ? 'no visits' : `${count(n)} visits`}`;
+  const visits = n === 0 ? 'no visits' : `${count(n)} visit${n === 1 ? '' : 's'}`;
+  return `${escapeHtml(name)}: ${visits}`;
 }
 
 function shade(n: number, steps: readonly number[], p: Palette): L.PathOptions {

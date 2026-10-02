@@ -1,21 +1,53 @@
 /** Shared reading of a visit summary. */
 
 import type { VisitSummary } from '@/api/schemas';
-import { countryName } from '@/format';
+import { countryName, pct } from '@/format';
+
+export interface Place {
+  /** City, state, country: the deepest the engine could place the visit. */
+  readonly text: string;
+  /** Confidence at the deepest level shown, 0..1, or null when nothing was placed. */
+  readonly confidence: number | null;
+  /** True when the engine *stated* the deepest level shown (strict), not only guessed it. */
+  readonly confirmed: boolean;
+}
+
+const SHOWN = [
+  ['city', 'city'],
+  ['admin1', 'admin1'],
+  ['country_code', 'country'],
+] as const;
 
 /**
- * Where a visit was, as text. Strict when the engine stated it; otherwise the advisory
- * guess, labelled as one (CLAUDE.md invariant 5: never present a guess as a fact).
+ * Where a visit was, as text: the best guess at every level -- the highest-confidence
+ * value the engine found (ADR-0018). It always agrees with strict wherever strict emitted,
+ * so a confirmed level reads the same either way; an unconfirmed one carries its confidence.
  */
-export function placeOf(visit: VisitSummary): { readonly text: string; readonly strict: boolean } {
-  const strict = visit.location.strict;
-  const advisory = visit.location.advisory;
-  const parts = (l: Record<string, string | null>): string[] =>
-    [l.city, l.admin1, l.country_code ? countryName(l.country_code) : null].filter(
-      (x): x is string => x !== null && x !== undefined,
-    );
-  const s = parts(strict);
-  if (s.length > 0) return { text: s.join(', '), strict: true };
-  const a = parts(advisory);
-  return { text: a.length > 0 ? `${a.join(', ')} (guess)` : 'Location unknown', strict: false };
+export function placeOf(visit: VisitSummary): Place {
+  const { strict, advisory, confidence } = visit.location;
+  // Advisory first; strict only as a fallback for a visit inferred before advisory was
+  // always populated.
+  const source = SHOWN.some(([key]) => advisory[key]) ? advisory : strict;
+  const parts: string[] = [];
+  let deepest: (typeof SHOWN)[number] | null = null;
+  for (const entry of SHOWN) {
+    const value = source[entry[0]];
+    if (value === null || value === undefined || value === '') continue;
+    parts.push(entry[0] === 'country_code' ? countryName(value) : value);
+    deepest ??= entry;
+  }
+  if (deepest === null) return { text: 'Location unknown', confidence: null, confirmed: false };
+  const [key, level] = deepest;
+  return {
+    text: parts.join(', '),
+    confidence: confidence[level] ?? null,
+    confirmed: Boolean(strict[key]),
+  };
+}
+
+/** "Hyderabad, Telangana, India · 55%" -- the confidence only when it is a guess. */
+export function placeLabel(place: Place): string {
+  return place.confirmed || place.confidence === null
+    ? place.text
+    : `${place.text} · ${pct(place.confidence)}`;
 }

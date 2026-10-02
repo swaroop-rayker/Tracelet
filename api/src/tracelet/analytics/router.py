@@ -917,8 +917,11 @@ async def geo(
         if region != UNKNOWN_KEY:
             admin1.append(Admin1Count(country_code=str(country), admin1=str(region), count=count))
 
-    lat = func.coalesce(Visit.gps_lat, Visit.strict_lat)
-    lng = func.coalesce(Visit.gps_lng, Visit.strict_lng)
+    # A point is consented GPS, else the best-guess city's coordinates (ADR-0018). Only a
+    # *city* guess becomes a point: the deepest advisory level may be a state, and a state
+    # drawn as a dot would look like a town.
+    lat = func.coalesce(Visit.gps_lat, Visit.advisory_lat)
+    lng = func.coalesce(Visit.gps_lng, Visit.advisory_lng)
     grid_lat = func.floor(lat / cell_degrees)
     grid_lng = func.floor(lng / cell_degrees)
     clusters = (
@@ -927,9 +930,10 @@ async def geo(
             .where(
                 window.range_clause(),
                 Visit.stage != VisitStage.RATE_LIMITED,
-                # Spelled as the partial index's predicate (migration 0007), so the
-                # planner reads the few visits with coordinates rather than the window.
-                or_(Visit.gps_lat.is_not(None), Visit.strict_lat.is_not(None)),
+                # Spelled as the partial index's predicate (migration 0008), so the
+                # planner reads only visits with a point rather than the whole window.
+                or_(Visit.gps_lat.is_not(None), Visit.advisory_city.is_not(None)),
+                lat.is_not(None),  # a city whose candidates carried no coordinates
                 *visit_clauses(f),
             )
             .group_by(grid_lat, grid_lng)

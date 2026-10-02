@@ -142,12 +142,14 @@ def visit_clauses(f: VisitFilter) -> list[ColumnElement[bool]]:
     kept = f.classifications()
     if kept is not None:
         clauses.append(Visit.classification.in_(kept))
+    # Location filters match the best-guess location, as the breakdowns count it
+    # (ADR-0018): clicking a city in a chart selects exactly the visits it counted.
     if f.country_code is not None:
-        clauses.append(Visit.strict_country_code == f.country_code.upper())
+        clauses.append(Visit.advisory_country_code == f.country_code.upper())
     if f.admin1 is not None:
-        clauses.append(Visit.strict_admin1 == f.admin1)
+        clauses.append(Visit.advisory_admin1 == f.admin1)
     if f.city is not None:
-        clauses.append(Visit.strict_city == f.city)
+        clauses.append(Visit.advisory_city == f.city)
     if f.asn is not None:
         clauses.append(Visit.asn == f.asn)
     if f.device_class:

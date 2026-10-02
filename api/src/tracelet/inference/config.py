@@ -22,12 +22,15 @@ from tracelet.inference.types import GeoLevel, InferenceSource
 
 # Bumped whenever the consensus *algorithm* changes. The settings version is stamped
 # beside it, so a visit's `inference_version` names both halves of what produced it.
-ENGINE_REVISION: Final = "m3.3"
+ENGINE_REVISION: Final = "m3.4"
 # m3.1 -- first cut; a registry-artifact city collapsed to admin1 by default.
 # m3.2 -- the collapse is to country (SPEC section 11 row 11, RISKS R22), and S10 is
 #         gone (row 12, R23). Visits stamped m3.1 keep meaning what they meant.
 # m3.3 -- S8 (the Cloudflare edge) is its own family: routing is independent evidence
 #         from the operator's naming (S6/S7), not a repeat of it.
+# m3.4 -- advisory is the argmax over every candidate: rule (b) no longer hides a mobile
+#         visitor's city guess, and advisory always extends strict (ADR-0018, ERRORS E38).
+#         Strict output is unchanged.
 
 
 def inference_version(settings_version: int) -> str:

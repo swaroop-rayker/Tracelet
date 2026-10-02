@@ -9,7 +9,7 @@
 const regions = new Intl.DisplayNames(['en'], { type: 'region' });
 
 export function countryName(code: string): string {
-  if (code === '') return 'Abstained';
+  if (code === '') return 'Unknown';
   try {
     return regions.of(code.toUpperCase()) ?? code;
   } catch {
@@ -82,10 +82,7 @@ export const DIMENSION_LABEL: Readonly<Record<string, string>> = {
 
 /** A breakdown row's label: qualified location keys become readable. */
 export function dimensionValue(dimension: string, key: string): string {
-  if (key === '')
-    return dimension === 'country' || dimension === 'admin1' || dimension === 'city'
-      ? 'Abstained'
-      : 'Unknown';
+  if (key === '') return 'Unknown';
   if (dimension === 'country') return countryName(key);
   if (dimension === 'admin1' || dimension === 'city') {
     const [country = '', ...rest] = key.split('|');

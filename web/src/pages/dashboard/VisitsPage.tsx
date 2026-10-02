@@ -15,7 +15,7 @@ import { visitPageSchema, type VisitPage, type VisitSummary } from '@/api/schema
 import { PanelView } from '@/components/Panel';
 import { withParams } from '@/filters';
 import { label, pct, when } from '@/format';
-import { placeOf } from '@/visits';
+import { placeLabel, placeOf } from '@/visits';
 import { useFilters, useSession } from '@/session';
 
 const PAGE = 100;
@@ -189,7 +189,7 @@ function VisitRow({
         <summary>
           <span className="mono">{time}</span>
           <span className={`badge ${visit.classification}`}>{label(visit.classification)}</span>
-          <span>{place.text}</span>
+          <span>{placeLabel(place)}</span>
           <span className="muted">
             {visit.device.browser ?? 'Unknown browser'} · {visit.device.os ?? 'unknown OS'} ·{' '}
             {visit.network.asn_org ?? 'unknown network'}
@@ -207,10 +207,9 @@ function VisitRow({
           <dt>Location</dt>
           <dd>
             {place.text}
-            {place.strict ? '' : ' — strict abstained'}
-            {visit.location.confidence.city !== null && visit.location.confidence.city !== undefined
-              ? ` · city confidence ${pct(visit.location.confidence.city)}`
-              : ''}
+            {place.confidence === null
+              ? ''
+              : ` · ${place.confirmed ? 'confirmed' : 'best guess'}, ${pct(place.confidence)} confidence`}
           </dd>
           <dt>Scores</dt>
           <dd>

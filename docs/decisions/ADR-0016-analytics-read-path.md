@@ -33,7 +33,8 @@ connection_class)`. Two problems surfaced when M5 started building against it.
 
 - **`rollup_visit_daily` / `rollup_visit_hourly`** — the *cell* tables. One row per
   bucket and combination of `link_id, stage, classification, device_class,
-  connection_class, country_code, admin1` (strict location). `stage` is added to the key
+  connection_class, country_code, admin1` (strict location; best-guess location since
+  ADR-0018 and migration 0008). `stage` is added to the key
   so every response can state its stage mix (F9.AC20). Measures are **additive only**:
   counts, plus a sum and a count for each confidence, so an average is computed after
   summing and never averaged twice.

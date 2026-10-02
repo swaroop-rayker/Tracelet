@@ -18,8 +18,8 @@ export default function BreakdownsPage(): React.JSX.Element {
     <div className="page">
       <h2 className="page-title">Breakdowns</h2>
       <p className="muted small">
-        Location breakdowns count the strict location only; visits where the engine abstained are
-        counted as “Abstained”, never guessed.
+        Location breakdowns count each visit at its best-guess location: the highest-confidence
+        place the engine found. A visit no source could place at a level is counted as “Unknown”.
       </p>
       <div className="grid-2">
         {breakdownDimensions.map((dimension) => (
@@ -58,8 +58,7 @@ export function BreakdownPanel({
         <>
           {LOCATION.has(dimension) && data.rows.length === 0 ? (
             <p className="muted small">
-              Every visit abstained at this level ({data.unknown.toLocaleString()}). That is the
-              engine declining to guess, not missing data.
+              No source could place any visit at this level ({data.unknown.toLocaleString()}).
             </p>
           ) : null}
           {chart && (

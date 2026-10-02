@@ -413,8 +413,9 @@ view; the flag makes their exclusion explicit rather than hidden.
 (`analytics/filters.py`) serves the list, the export and every analytics endpoint, so a
 chart and the table under it cannot disagree about what a filter means. Specifics:
 
-- **Location filters match the strict fields only** (`country_code` is case-insensitive).
-  A filter asserts where visits came from, so it is held to CLAUDE.md invariant 5.
+- **Location filters match the best-guess (advisory) fields** (`country_code` is
+  case-insensitive), as the breakdowns count them (ADR-0018), so a filter selects exactly
+  the visits a chart counted. Strict fields stay on every visit for what is acted on.
 - `visitor_id` is the 32-character hex shown on a visit (128 bits, ADR-0006); anything else is `422`.
 - `is_proxy_suspected` matches `true` or `false` only; `NULL` (not assessed) matches
   neither.
@@ -573,8 +574,10 @@ identical figures. `refreshed_at` is the oldest refresh among the days read (rol
 the request time (raw).
 
 **Conventions.** Rate-limited requests appear in `stage_mix` and the funnel's first step
-and nowhere else. Location is strict only; an abstention is counted, under `unknown`,
-`abstained` or the key `''`, never dropped. A figure the system cannot produce yet is
+and nowhere else. Location is the best guess (advisory, ADR-0018); a visit no source
+could place is counted, under `unknown`, `abstained` or the key `''`, never dropped. Map
+points are consented GPS or the best-guess city. `/accuracy` and `/source-flow` still
+measure strict: what the engine was willing to state. A figure the system cannot produce yet is
 `null` with a `reason`.
 
 | Path | Parameters | Shape |

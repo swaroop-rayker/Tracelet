@@ -697,6 +697,13 @@ table.data td.num {
   background: var(--map-sea);
 }
 
+/* A clicked area takes focus, and the browser's default ring is its bounding box -- an odd
+   rectangle over the map. Areas are not in the tab order (keyboard users have the map's own
+   ring and the tables), so the ring is replaced by the hover and selection outline. */
+.map path.leaflet-interactive:focus {
+  outline: none;
+}
+
 .legend {
   @apply flex flex-wrap gap-4 text-sm;
 }

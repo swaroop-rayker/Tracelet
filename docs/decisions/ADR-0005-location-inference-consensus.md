@@ -82,6 +82,12 @@ infrastructure, not a person; emitting a city would be fabrication.
 | **Strict** | `NULL` with a recorded `abstain_reason` below threshold | Geofencing, Telegram alerts, exports — anything **acted on** |
 | **Advisory** | Always the argmax, with 0..1 confidence | Displayed greyed-out — what you **learn from** |
 
+> **Amended 2026-10-02 (ADR-0018, SPEC section 11 row 14).** Advisory is now what the
+> dashboard shows as the primary location, with its confidence, rather than greyed out; it
+> always equals strict where strict emitted; and rule (b) no longer removes a mobile
+> visitor's city from advisory (it never should have: "always the argmax", ERRORS E38).
+> Strict, and everything it drives, is unchanged.
+
 Plus `agreement_score`, `conflict_score`, and `inference_version` on every visit.
 
 ### 5. Measurable targets replacing the unachievable one

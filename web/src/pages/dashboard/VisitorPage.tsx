@@ -13,7 +13,7 @@ import { TableView } from '@/components/EChart';
 import { Panel } from '@/components/Panel';
 import { label, when } from '@/format';
 import { useSession } from '@/session';
-import { placeOf } from '@/visits';
+import { placeLabel, placeOf } from '@/visits';
 
 export default function VisitorPage(): React.JSX.Element {
   const { visitorId = '' } = useParams();
@@ -61,7 +61,7 @@ export default function VisitorPage(): React.JSX.Element {
                   when(v.occurred_at, me.timezone),
                   v.link.slug,
                   label(v.classification),
-                  placeOf(v).text,
+                  placeLabel(placeOf(v)),
                   `${label(v.device.class)} · ${v.device.os ?? '?'} · ${v.device.browser ?? '?'}`,
                   v.network.asn_org ?? 'unknown',
                 ]),

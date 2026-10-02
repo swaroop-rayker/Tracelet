@@ -175,7 +175,7 @@ export function FilterBar({ zone }: { readonly zone: string }): React.JSX.Elemen
             }}
           />
           <fieldset className="control-group">
-            <legend>Location (strict only)</legend>
+            <legend>Location (best guess)</legend>
             <TextFilter
               label="Country code"
               value={filters.scalars.country_code ?? ''}
