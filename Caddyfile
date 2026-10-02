@@ -117,11 +117,9 @@
 		# is server-rendered by the app with inline critical CSS, and the app
 		# sets its own nonce-based CSP on that response (M2, F13.AC2).
 		#
-		# img-src also allows the CARTO basemap tiles behind the Geography map (M5,
-		# ADR-0003: raster tiles, no API key). Images only: no script, style or
-		# connection to CARTO is permitted, and nothing about a visitor is sent --
-		# a tile request carries only the map's zoom and position.
-		header Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data: https://basemaps.cartocdn.com https://*.basemaps.cartocdn.com; connect-src 'self'; font-src 'self'; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
+		# Everything is 'self', the Geography map included: it draws self-hosted
+		# outlines and no third-party tiles (ADR-0017).
+		header Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; font-src 'self'; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
 
 		root * /srv
 		try_files {path} /index.html
@@ -134,6 +132,11 @@
 		header @assets Cache-Control "public, max-age=31536000, immutable"
 		@index path /index.html /
 		header @index Cache-Control "no-cache"
+
+		# Map outlines (ADR-0017): unhashed names, so cached for a day rather than
+		# forever. They change only when the build script is re-run.
+		@geo path /geo/*
+		header @geo Cache-Control "public, max-age=86400"
 	}
 
 	# The edge access log must not hold what the database refuses to store

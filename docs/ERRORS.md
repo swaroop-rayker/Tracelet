@@ -1524,6 +1524,29 @@ and is worth doing if a third instance appears.
 
 ---
 
+### E37 — The map "loaded" fifteen tiles, all of them watermarks
+
+**Status:** Fixed by ADR-0017. **Milestone:** M5. **Date:** 2026-10-02.
+
+**Symptom.** Checking the worldwide state layer by screenshot, the Geography map showed a
+grid of "API KEY REQUIRED" behind the shading. An earlier automated check of the same page
+had passed: it counted `.leaflet-tile-loaded` and found fifteen.
+
+**Root cause.** CARTO now requires an API key for its basemaps, and answers keyless requests
+with `200 image/png` -- a perfectly loadable tile that is a watermark. The check measured
+"the request succeeded", which was true, not "the map shows a map", which was not.
+
+**Fix.** ADR-0017: no tiles. The map draws self-hosted outlines, and the CSP exception for
+CARTO is gone.
+
+**Prevention.** A visual claim is verified by looking at it: M5's map evidence is a
+screenshot, not an element count. The general rule is that a third party's success status
+is not evidence of the content you wanted from it.
+
+**Related:** ADR-0003, ADR-0017, RISKS R14, R26.
+
+---
+
 Add entries here as bugs are found and fixed. Use the next available `E<n>` identifier and
 the same structure: symptom, root cause, fix, **prevention**.
 

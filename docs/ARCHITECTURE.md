@@ -597,7 +597,9 @@ Static assets served by Caddy, no runtime cost (F14.AC4). Four rules shape it:
   contrast is tested from the stylesheet.
 
 Pages are lazy routes, so ECharts (with zrender split out) and Leaflet download only when a
-page that uses them opens. The theme is per admin (`PATCH /auth/me/preferences`).
+page that uses them opens. The theme is per admin (`PATCH /auth/me/preferences`). The
+Geography map uses no tiles: land, sea and borders are self-hosted outlines in theme
+colours, and the dashboard makes no third-party request (ADR-0017).
 
 ---
 
@@ -790,11 +792,11 @@ not a dependency (ADR-0003 amendment).
 | `react-router` | Routing with URL-shareable filter state (F9.AC13) | hash routing |
 | `tailwindcss` | Utility CSS with design tokens; three themes via CSS custom properties | plain CSS modules |
 | `echarts` | **One** dependency covering line, bar, calendar heatmap, Sankey, gauge, geo and treemap, with canvas rendering that survives 90 k points | Recharts (no calendar heatmap or Sankey, SVG struggles at volume), visx (much more assembly), Chart.js (weaker chart variety) |
-| `leaflet` + `@geoman-io/leaflet-geoman-free` | Polygon and circle drawing with vertex editing; CARTO raster basemap needs **no API key** | MapLibre GL (prettier vector, but free vector styles need a key you declined), Mapbox (paid) |
+| `leaflet` + `@geoman-io/leaflet-geoman-free` | Polygon and circle drawing with vertex editing. **M5 installs Leaflet only**, drawing self-hosted outlines with no tiles (ADR-0017: CARTO's keyless basemap ended); Geoman and a basemap for drawing are M6's (RISKS R26) | MapLibre GL (prettier vector, but free vector styles need a key you declined), Mapbox (paid) |
 | `zod` | Validates API payloads at runtime. Generated types prove the *contract*; zod proves the *payload* | trusting generated types (a schema drift becomes a runtime crash) |
 | `@tailwindcss/vite` | **M5.** Tailwind 4's build integration; generates the utilities from the theme tokens at build time | PostCSS plugin plus config file (v3's arrangement, more moving parts) |
 | dev: `@types/leaflet` | **M5.** Leaflet ships no types; strict TypeScript needs them (ES1) | hand-written declarations for the parts used |
-| *data:* Natural Earth boundaries | **M5.** Country (India point of view) and Indian state polygons for the choropleth, public domain, simplified and committed (~950 KB) | a GeoJSON CDN at runtime (a third-party request and a CSP exception), MapTiler (a key) |
+| *data:* Natural Earth boundaries | **M5.** Countries (India point of view) and every country's first-order divisions, named as GeoNames names them, public domain, simplified and committed (0.8 MB + 6.3 MB in per-country files, fetched on demand) | a GeoJSON CDN at runtime (a third-party request and a CSP exception), MapTiler (a key) |
 | dev: `openapi-typescript` | Generates the TS client from FastAPI OpenAPI; CI fails on drift | hand-maintained types |
 | dev: `@types/node` | `vite.config.ts` and `eslint.config.js` are Node code, so `tsc --noEmit` needs Node types. Dev-only, zero runtime cost | dropping the `@/*` path alias to avoid `node:url` — rejected, the alias is worth more than the type package costs |
 | dev: `eslint`, `prettier`, `vitest` | Quality toolchain | — |
@@ -884,7 +886,8 @@ tracelet/
 │       ├── features/               # visits, analytics, geofences, health, admins
 │       └── theme.ts                # semi-dark default, light, dark (tokens in
 │                                   #   index.css; contrast tested in theme.test.ts)
-│   ├── public/geo/                 # Natural Earth boundaries (scripts/build-boundaries.mjs)
+│   ├── public/geo/                 # countries.json + admin1/<CC>.json, built by
+│   │                               #   scripts/build-boundaries.mjs (ADR-0017)
 ├── data/                           # geo databases + GeoNames (gitignored)
 └── docs/
     ├── KICKOFF.md SPEC.md ARCHITECTURE.md DATA_MODEL.md API.md

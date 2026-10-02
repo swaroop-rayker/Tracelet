@@ -121,8 +121,9 @@ limiting and geolocation.
 - **The free-subdomain path is materially weaker** — no L0 DDoS on a 1 vCPU box, no colo
   signal so lower city coverage, and the unresolved B4 problem.
 - **GCP free-tier egress is 1 GB/month from North America.** Adequate for 500 small visits
-  a day plus dashboard use, and worth monitoring. Map tiles come from CARTO directly to the
-  browser, so they do not count against it.
+  a day plus dashboard use, and worth monitoring. *(M5, ADR-0017:)* there are no map tiles;
+  the map's outlines are served from the VM and do count, at about 0.3 MB gzipped per first
+  map view, cached by the browser.
 - **A single VM is a single point of failure**, with no failover. Accepted for v1; recovery
   depends on the backup path, which is manual off-VM (ADR-0014, RISKS R11).
 

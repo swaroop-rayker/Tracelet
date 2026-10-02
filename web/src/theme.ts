@@ -36,7 +36,8 @@ export interface Palette {
   readonly accent: string;
   readonly series: readonly string[];
   readonly sequential: readonly string[];
-  readonly tiles: 'dark' | 'light';
+  /** Land on the Geography map; the sea is the map's CSS background (ADR-0017). */
+  readonly mapLand: string;
 }
 
 function token(style: CSSStyleDeclaration, name: string): string {
@@ -54,6 +55,6 @@ export function palette(): Palette {
     accent: token(style, '--accent'),
     series: [1, 2, 3, 4, 5, 6, 7, 8].map((i) => token(style, `--chart-${String(i)}`)),
     sequential: [1, 2, 3, 4, 5].map((i) => token(style, `--seq-${String(i)}`)),
-    tiles: token(style, '--tiles') === 'light' ? 'light' : 'dark',
+    mapLand: token(style, '--map-land'),
   };
 }

@@ -1,18 +1,25 @@
 /**
- * Geography (F9.AC5): a choropleth by country or Indian state, and clustered points.
+ * Geography (F9.AC5): a choropleth by country or by state/province -- worldwide -- and
+ * clustered points.
  *
- * **Strict location only.** The map shows where the engine was willing to place
- * visits; abstentions are counted beside it, never drawn somewhere convenient
- * (CLAUDE.md invariant 5).
+ * **Strict location only.** The map shows where the engine was willing to place visits;
+ * abstentions are counted beside it, never drawn somewhere convenient (CLAUDE.md
+ * invariant 5).
  *
- * Boundaries are Natural Earth (public domain) in its India point-of-view variant,
- * simplified and served from /geo (scripts/build-boundaries.mjs). Indian states are
- * drawn; other countries' states are listed in the table. The basemap is CARTO raster
- * tiles, no key, sent no referrer (ADR-0003).
+ * Boundaries are Natural Earth (public domain), countries in the India point-of-view
+ * variant, built by scripts/build-boundaries.mjs. First-order divisions ship as one file
+ * per country, **named exactly as the inference engine names them** (GeoNames), and the
+ * map fetches only the files for countries whose visits have a strict state. A state
+ * with visits but no drawable boundary is named under the map, not dropped.
  *
- * Colour is never the only signal (NFR7.AC3): every shaded area has a text tooltip and
- * the legend states its range in numbers, and the tables under the map carry every
- * figure. The map itself is keyboard-pannable (Leaflet's own handling).
+ * **There are no map tiles** (ADR-0017): CARTO's basemap began requiring a key, so the map
+ * is drawn from the shipped outlines alone -- land over a sea-coloured background -- and
+ * the dashboard makes no request to a third party. Zoom stops where the outlines (about
+ * 1 km) stop being faithful.
+ *
+ * Colour is never the only signal (NFR7.AC3): every shaded area has a text tooltip, the
+ * legend states its ranges in numbers, and the tables under the map carry every figure.
+ * The map itself is keyboard-pannable (Leaflet's own handling).
  */
 
 import 'leaflet/dist/leaflet.css';
@@ -20,20 +27,18 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import L from 'leaflet';
 import { useApi } from '@/api/query';
 import { geoSchema, type Geo } from '@/api/schemas';
-import { TableView } from '@/components/EChart';
 import { escapeHtml } from '@/components/chartkit';
+import { TableView } from '@/components/EChart';
 import { Panel } from '@/components/Panel';
 import { withParams } from '@/filters';
 import { count, countryName } from '@/format';
 import { useFilters } from '@/session';
 import { palette, type Palette } from '@/theme';
 
-type Layer = 'countries' | 'in-states';
+type Layer = 'countries' | 'admin1';
 
-/** Features carry `{code, name}` (countries) or `{country, name, iso}` (states). */
+/** Features carry `{code, name}` (countries) or `{country, code, name}` (divisions). */
 type Boundaries = GeoJSON.FeatureCollection;
-
-const cache = new Map<Layer, Promise<Boundaries>>();
 
 /** Our own static file, but still proven before Leaflet is handed it. */
 function isBoundaries(value: unknown): value is Boundaries {
@@ -45,19 +50,32 @@ function isBoundaries(value: unknown): value is Boundaries {
   );
 }
 
-function boundaries(layer: Layer): Promise<Boundaries> {
-  let pending = cache.get(layer);
+const cache = new Map<string, Promise<unknown>>();
+
+function fetchJson(path: string): Promise<unknown> {
+  let pending = cache.get(path);
   if (pending === undefined) {
-    pending = fetch(`/geo/${layer}.json`).then(async (response) => {
-      if (!response.ok) throw new Error(`boundaries ${String(response.status)}`);
-      const body: unknown = await response.json();
-      if (!isBoundaries(body)) throw new Error('boundaries malformed');
-      return body;
+    pending = fetch(path).then(async (response) => {
+      if (!response.ok) throw new Error(`${path}: ${String(response.status)}`);
+      return (await response.json()) as unknown;
     });
-    pending.catch(() => cache.delete(layer));
-    cache.set(layer, pending);
+    pending.catch(() => cache.delete(path));
+    cache.set(path, pending);
   }
   return pending;
+}
+
+async function boundaries(path: string): Promise<Boundaries> {
+  const body = await fetchJson(path);
+  if (!isBoundaries(body)) throw new Error(`${path}: malformed`);
+  return body;
+}
+
+/** The countries that have a divisions file, and how many divisions each. */
+async function divisionIndex(): Promise<Readonly<Record<string, number>>> {
+  const body = await fetchJson('/geo/admin1/index.json');
+  if (typeof body !== 'object' || body === null) throw new Error('admin1 index malformed');
+  return body as Record<string, number>;
 }
 
 /** Five classes by count, so the legend can state each range as numbers. */
@@ -65,6 +83,10 @@ function classes(values: readonly number[]): number[] {
   const max = Math.max(0, ...values);
   if (max <= 5) return [1, 2, 3, 4, 5].map((n) => Math.min(n, Math.max(max, 1)));
   return [0.2, 0.4, 0.6, 0.8, 1].map((f) => Math.ceil(max * f));
+}
+
+function stateKey(country: string, name: string): string {
+  return `${country}|${name}`;
 }
 
 export default function GeographyPage(): React.JSX.Element {
@@ -94,11 +116,11 @@ export default function GeographyPage(): React.JSX.Element {
               <select
                 value={layer}
                 onChange={(event) => {
-                  setLayer(event.target.value === 'in-states' ? 'in-states' : 'countries');
+                  setLayer(event.target.value === 'admin1' ? 'admin1' : 'countries');
                 }}
               >
                 <option value="countries">Country</option>
-                <option value="in-states">Indian state</option>
+                <option value="admin1">State / province</option>
               </select>
             </label>
             <label className="control">
@@ -135,23 +157,29 @@ function MapView({
   const map = useRef<L.Map | null>(null);
   const [themeTick, setThemeTick] = useState(0);
   const [boundaryError, setBoundaryError] = useState<string | null>(null);
+  const [undrawn, setUndrawn] = useState<readonly string[]>([]);
 
   const counts = useMemo(() => {
     if (layer === 'countries') return new Map(data.countries.map((c) => [c.country_code, c.count]));
-    return new Map(
-      data.admin1.filter((a) => a.country_code === 'IN').map((a) => [a.admin1, a.count]),
-    );
+    return new Map(data.admin1.map((a) => [stateKey(a.country_code, a.admin1), a.count]));
   }, [data, layer]);
   const steps = useMemo(() => classes([...counts.values()]), [counts]);
 
   useEffect(() => {
     if (element.current === null) return undefined;
     const instance = L.map(element.current, {
-      center: layer === 'in-states' ? [22.5, 80] : [20, 30],
-      zoom: layer === 'in-states' ? 4 : 2,
+      center: [20, 30],
+      zoom: 2,
+      minZoom: 1,
+      // The outlines are simplified to roughly 1 km; past this they stop being faithful.
+      maxZoom: 7,
       worldCopyJump: true,
       keyboard: true,
     });
+    instance.attributionControl.setPrefix(false);
+    instance.attributionControl.addAttribution(
+      'Boundaries: <a href="https://www.naturalearthdata.com/">Natural Earth</a> · Names: <a href="https://www.geonames.org/">GeoNames</a>',
+    );
     map.current = instance;
     const onTheme = (): void => {
       setThemeTick((n) => n + 1);
@@ -162,65 +190,106 @@ function MapView({
       instance.remove();
       map.current = null;
     };
-    // The map is created once per layer choice; data changes only redraw layers.
-  }, [layer]);
+  }, []);
 
   useEffect(() => {
     const instance = map.current;
     if (instance === null) return undefined;
     const p = palette();
     const group = L.layerGroup().addTo(instance);
-    L.tileLayer(`https://{s}.basemaps.cartocdn.com/${p.tiles}_all/{z}/{x}/{y}{r}.png`, {
-      subdomains: 'abcd',
-      maxZoom: 12,
-      referrerPolicy: 'no-referrer',
-      attribution:
-        '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors · © <a href="https://carto.com/attributions">CARTO</a> · Boundaries: Natural Earth',
-    }).addTo(group);
-
-    let cancelled = false;
-    boundaries(layer)
-      .then((collection) => {
-        if (cancelled) return;
-        setBoundaryError(null);
-        L.geoJSON(collection, {
-          style: (feature) => shade(featureCount(feature, layer, counts), steps, p),
+    // Read through a function: the cleanup sets it from another closure, which TypeScript's
+    // narrowing cannot see -- a plain check reads as "always false" after the first one.
+    const run = { cancelled: false };
+    const stale = (): boolean => run.cancelled;
+    const draw = async (): Promise<void> => {
+      const countries = await boundaries('/geo/countries.json');
+      if (stale()) return;
+      if (layer === 'countries') {
+        L.geoJSON(countries, {
+          style: (feature) => shade(countryCount(feature, counts), steps, p),
           onEachFeature: (feature, shape) => {
-            const n = featureCount(feature, layer, counts);
-            const name = featureName(feature, layer);
-            shape.bindTooltip(
-              `${escapeHtml(name)}: ${n === 0 ? 'no visits' : `${count(n)} visits`}`,
-              {
-                sticky: true,
-              },
-            );
+            const n = countryCount(feature, counts);
+            shape.bindTooltip(tip(featureName(feature), n), { sticky: true });
           },
         }).addTo(group);
-        for (const point of data.points) {
-          L.circleMarker([point.lat, point.lng], {
-            radius: 4 + Math.sqrt(point.count) * 2,
-            color: p.text,
-            weight: 1,
-            fillColor: p.series[1] ?? p.accent,
-            fillOpacity: 0.8,
-          })
-            .bindTooltip(`${count(point.count)} visit${point.count === 1 ? '' : 's'} near here`)
-            .addTo(group);
+        setUndrawn([]);
+      } else {
+        const index = await divisionIndex();
+        const wanted = [...new Set(data.admin1.map((a) => a.country_code))].filter(
+          (c) => index[c] !== undefined,
+        );
+        const files = await Promise.all(wanted.map((c) => boundaries(`/geo/admin1/${c}.json`)));
+        if (stale()) return;
+        // Land first, so countries without divisions on the map still read as land.
+        L.geoJSON(countries, {
+          style: () => shade(0, steps, p),
+          interactive: false,
+        }).addTo(group);
+        const drawn = new Set<string>();
+        const shaded: L.GeoJSON[] = [];
+        for (const file of files) {
+          const layerShapes = L.geoJSON(file, {
+            style: (feature) => {
+              const style = shade(divisionCount(feature, counts), steps, p);
+              // A division may be several Natural Earth polygons grouped together; a
+              // stroke in its own fill colour hides the seams between them.
+              return { ...style, color: style.fillColor ?? p.border, weight: 0.5 };
+            },
+            onEachFeature: (feature, shape) => {
+              const n = divisionCount(feature, counts);
+              if (n > 0) drawn.add(divisionKey(feature));
+              shape.bindTooltip(tip(featureName(feature), n), { sticky: true });
+            },
+          }).addTo(group);
+          shaded.push(layerShapes);
         }
-      })
-      .catch(() => {
-        if (!cancelled)
-          setBoundaryError('Boundaries could not be loaded; the tables below have every figure.');
-      });
+        // Country borders over the divisions, for context everywhere else.
+        L.geoJSON(countries, {
+          style: () => ({ color: p.muted, weight: 0.8, fill: false }),
+          interactive: false,
+        }).addTo(group);
+        setUndrawn(
+          data.admin1
+            .filter((a) => !drawn.has(stateKey(a.country_code, a.admin1)))
+            .map((a) => `${a.admin1} (${a.country_code}): ${count(a.count)}`),
+        );
+        const bounds = shaded.reduce<L.LatLngBounds | null>((acc, shapes) => {
+          const b = shapes.getBounds();
+          return acc === null ? b : acc.extend(b);
+        }, null);
+        if (bounds?.isValid() === true) {
+          instance.fitBounds(bounds, { maxZoom: 6, padding: [16, 16] });
+        }
+      }
+      for (const point of data.points) {
+        L.circleMarker([point.lat, point.lng], {
+          radius: 4 + Math.sqrt(point.count) * 2,
+          color: p.text,
+          weight: 1,
+          fillColor: p.series[1] ?? p.accent,
+          fillOpacity: 0.8,
+        })
+          .bindTooltip(`${count(point.count)} visit${point.count === 1 ? '' : 's'} near here`)
+          .addTo(group);
+      }
+      setBoundaryError(null);
+    };
+    draw().catch(() => {
+      if (!stale()) {
+        setBoundaryError('Boundaries could not be loaded; the tables below have every figure.');
+      }
+    });
 
     return () => {
-      cancelled = true;
+      run.cancelled = true;
       group.remove();
     };
   }, [data, layer, counts, steps, themeTick]);
 
   const countryRows = data.countries.map((c) => [countryName(c.country_code), c.count] as const);
-  const stateRows = data.admin1.map((a) => [`${a.admin1} (${a.country_code})`, a.count] as const);
+  const stateRows = data.admin1.map(
+    (a) => [`${a.admin1} (${countryName(a.country_code)})`, a.count] as const,
+  );
   const p = palette();
 
   return (
@@ -241,44 +310,71 @@ function MapView({
         {count(data.abstained)} visits are not on the map because the engine abstained at country
         level.{data.points_truncated ? ' Only the 2,000 largest clusters are drawn.' : ''}
       </p>
+      {layer === 'admin1' && undrawn.length > 0 && (
+        <p className="muted small">
+          Counted but not drawn, because no boundary matches the division exactly:{' '}
+          {undrawn.join('; ')}.
+        </p>
+      )}
       <div className="grid-2">
         <TableView
           caption="Visits by country"
           table={{ columns: ['Country', 'Visits'], rows: countryRows }}
         />
         <TableView
-          caption="Visits by state"
-          table={{ columns: ['State', 'Visits'], rows: stateRows }}
+          caption="Visits by state or province"
+          table={{ columns: ['State or province', 'Visits'], rows: stateRows }}
         />
       </div>
     </div>
   );
 }
 
-function featureCount(
-  feature: GeoJSON.Feature | undefined,
-  layer: Layer,
-  counts: Map<string, number>,
-): number {
-  const props = (feature?.properties ?? {}) as { code?: string; name?: string };
-  const key = layer === 'countries' ? props.code : props.name;
-  return key === undefined ? 0 : (counts.get(key) ?? 0);
+interface FeatureProps {
+  readonly code?: string;
+  readonly name?: string;
+  readonly country?: string;
 }
 
-function featureName(feature: GeoJSON.Feature | undefined, layer: Layer): string {
-  const props = (feature?.properties ?? {}) as { code?: string; name?: string };
-  if (layer === 'countries' && props.code !== undefined) return countryName(props.code);
-  return props.name ?? 'Unknown';
+function props(feature: GeoJSON.Feature | undefined): FeatureProps {
+  const value: FeatureProps = feature?.properties ?? {};
+  return value;
+}
+
+function countryCount(feature: GeoJSON.Feature | undefined, counts: Map<string, number>): number {
+  const code = props(feature).code;
+  return code === undefined ? 0 : (counts.get(code) ?? 0);
+}
+
+function divisionKey(feature: GeoJSON.Feature | undefined): string {
+  const { country = '', name = '' } = props(feature);
+  return stateKey(country, name);
+}
+
+function divisionCount(feature: GeoJSON.Feature | undefined, counts: Map<string, number>): number {
+  return counts.get(divisionKey(feature)) ?? 0;
+}
+
+function featureName(feature: GeoJSON.Feature | undefined): string {
+  const { code, name, country } = props(feature);
+  if (country === undefined && code !== undefined) return countryName(code);
+  return country === undefined
+    ? (name ?? 'Unknown')
+    : `${name ?? 'Unknown'}, ${countryName(country)}`;
+}
+
+function tip(name: string, n: number): string {
+  return `${escapeHtml(name)}: ${n === 0 ? 'no visits' : `${count(n)} visits`}`;
 }
 
 function shade(n: number, steps: readonly number[], p: Palette): L.PathOptions {
-  if (n === 0) return { color: p.border, weight: 0.5, fillColor: p.surface, fillOpacity: 0.1 };
+  if (n === 0) return { color: p.border, weight: 0.5, fillColor: p.mapLand, fillOpacity: 1 };
   const index = steps.findIndex((s) => n <= s);
   return {
     color: p.border,
     weight: 0.6,
     fillColor: p.sequential[index === -1 ? p.sequential.length - 1 : index] ?? p.accent,
-    fillOpacity: 0.75,
+    fillOpacity: 0.9,
   };
 }
 

@@ -67,6 +67,16 @@ describe.each(Object.entries(THEMES))('theme %s', (_, tokens) => {
     ).toBeGreaterThanOrEqual(3);
   });
 
+  // The Geography map (ADR-0017): the fewest visits must not look like no visits, and
+  // land must read as land. Visual distinction, not text, so the bar is lower than 3:1;
+  // every shaded area also carries its count as text (NFR7.AC3).
+  it('the map keeps land, sea and the lowest shade apart', () => {
+    expect(contrast(get(tokens, '--map-land'), get(tokens, '--map-sea'))).toBeGreaterThanOrEqual(
+      1.3,
+    );
+    expect(contrast(get(tokens, '--seq-1'), get(tokens, '--map-land'))).toBeGreaterThanOrEqual(1.6);
+  });
+
   it('the sequential ramp spans a visible range', () => {
     expect(contrast(get(tokens, '--seq-1'), get(tokens, '--seq-5'))).toBeGreaterThanOrEqual(3);
     expect(contrast(get(tokens, '--seq-5'), get(tokens, '--surface'))).toBeGreaterThanOrEqual(3);

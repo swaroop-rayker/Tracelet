@@ -36,7 +36,7 @@ time and served by Caddy. **No Node.js process in production** (F14.AC4).
 | Component primitives | shadcn/ui — **source copied into the repository, not a dependency** |
 | Charts | **Apache ECharts**, wrapped in a roughly 30-line local hook |
 | Maps and drawing | **Leaflet** + `@geoman-io/leaflet-geoman-free` |
-| Basemap tiles | **CARTO** raster, dark and light variants, **no API key** |
+| Basemap tiles | ~~**CARTO** raster, dark and light variants, **no API key**~~ -- **superseded by ADR-0017** (2026-10-02): CARTO began requiring a key; the analytics map draws self-hosted outlines |
 | Runtime payload validation | `zod` |
 | API client | Generated from OpenAPI by `openapi-typescript`, CI drift check |
 
@@ -139,15 +139,22 @@ Recorded with the owner's M5 decisions; the stack above is unchanged in substanc
   chart carries its data as a table behind a keyboard-reachable disclosure. Tooltips are
   plain text, because the SPA's CSP (`style-src 'self'`) blocks the inline `style=""`
   ECharts' default tooltip markup uses.
-- **Boundaries: Natural Earth v5.1.2, India point of view** (owner decision). Countries
-  from `ne_10m_admin_0_countries_ind` (India's official depiction of its borders) and
-  India's 36 states and union territories from `ne_10m_admin_1_states_provinces`,
-  simplified by `web/scripts/build-boundaries.mjs` to 813 KB and 133 KB, committed under
-  `web/public/geo/`, and fetched only by the Geography page. Public domain. The 54 MB
-  sources are not committed. **Only Indian states are drawn**; other countries' states are
-  counted in the table under the map.
-- **CARTO tiles:** the SPA's CSP now allows images (only images) from
-  `basemaps.cartocdn.com`, and tiles are requested with no referrer.
+- **Boundaries: Natural Earth v5.1.2** (owner decisions). Countries from
+  `ne_10m_admin_0_countries_ind`, the India point of view (India's official depiction of its
+  borders), and **every country's first-order divisions** from
+  `ne_10m_admin_1_states_provinces` -- worldwide, not India only (owner decision, M5 review).
+  Built by `web/scripts/build-boundaries.mjs` into `web/public/geo/`: countries (813 KB) and
+  one file per country of divisions (217 countries, 6.3 MB in all, largest 583 KB), fetched
+  only for countries that have state-level visits. Divisions are **named and grouped as
+  GeoNames names them**, because that is what the inference engine emits: matched by
+  GeoNames code where Natural Earth carries it, otherwise by the division most GeoNames
+  places inside the polygon belong to, so France's departments become its 13 regions and
+  Italy's provinces its 20. A polygon spanning several GeoNames divisions (Kenya's old
+  provinces against its counties) is left off the map rather than painted as one, and any
+  division with visits but no boundary is named under the map. Natural Earth is public
+  domain; GeoNames is CC BY 4.0 and is credited on the map. The sources are not committed.
+- **No map tiles** -- see ADR-0017. The CARTO image exception added to the CSP during M5 was
+  removed again.
 - **Tests without a DOM:** Vitest in Node, components rendered with
   `renderToStaticMarkup`. That covers what M5 needs -- every panel state (F9.AC18) and the
   contrast of every theme token (NFR7.AC1) -- without adding jsdom or Testing Library.

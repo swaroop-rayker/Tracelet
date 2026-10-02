@@ -578,7 +578,9 @@ this development database now runs them as version 31.
       days so the time charts have shape. Every page rendered with no empty or error state.
       **Not real visitors** -- that is M9. Two charts render explicit "not measured" states
       by design: accuracy (no ground truth until M8, `label_count` 0) and the funnel's
-      notified step (M6)*
+      notified step (M6). The state choropleth is worldwide (owner, M5 review): checked by
+      screenshot with strict states in India, the US, the UK, France, Italy and Brazil, all
+      15 shaded and none left undrawn; no map tiles (ADR-0017)*
 - [x] **No panel can render blank** — empty, loading and error states all exercised by test
       — *`web/src/components/Panel.test.tsx`: every state renders readable text, including
       the trace id on error and the reason when empty; every chart and table renders through
@@ -627,6 +629,8 @@ this development database now runs them as version 31.
 **Scope**
 - `geofences` with `geography(Polygon,4326)`, GiST, `ST_IsValid` + vertex-cap constraints
 - Leaflet + Geoman drawing: polygon and circle, vertex edit, drag, delete
+- **First, choose a basemap for drawing, with an ADR** -- CARTO's keyless tiles ended in M5,
+  and the analytics map's outlines carry no streets (ADR-0017, RISKS R26)
 - Circle round-trip via retained `center` + `radius_m`
 - `ST_Covers` evaluation on finalisation; priority resolution; `matched_geofence_ids`
 - **`geofence_state='undetermined'` when `geopoint IS NULL`** (F6.AC6)
