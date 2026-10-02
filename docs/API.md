@@ -189,7 +189,7 @@ generated TypeScript client are regenerated from it and checked for drift by CI 
 | `POST` | `/api/v1/auth/mfa` | — | Step 2. `{mfa_token, code}` → `204` + `Set-Cookie` + `X-CSRF-Token` |
 | `POST` | `/api/v1/auth/recovery-code` | — | `{email, code}` → `204` + session + `X-Recovery-Remaining` |
 | `POST` | `/api/v1/auth/logout` | any | `204`, revokes the current session |
-| `GET` | `/api/v1/auth/me` | any | Current admin, role, TOTP state, `recovery_codes_remaining`, `csrf_token`, theme, timezone |
+| `GET` | `/api/v1/auth/me` | any | Current admin, role, TOTP state, `recovery_codes_remaining`, `csrf_token`, theme, timezone, and (M5) `reporting_tz`, the zone analytics buckets are cut in |
 | `PATCH` | `/api/v1/auth/me/preferences` | any | `{theme?, timezone?}` → the `/me` body. Theme `semi_dark` (default), `light` or `dark`; timezone an IANA name. **Added in M5** (F9.AC16). Display only, so not audited |
 | `POST` | `/api/v1/auth/reset/request` | — | `{email}` → **always `202`**. Telegram-delivered link |
 | `POST` | `/api/v1/auth/reset/confirm` | — | `{token, new_password}` → `204`, revokes every session |
@@ -415,7 +415,7 @@ chart and the table under it cannot disagree about what a filter means. Specific
 
 - **Location filters match the strict fields only** (`country_code` is case-insensitive).
   A filter asserts where visits came from, so it is held to CLAUDE.md invariant 5.
-- `visitor_id` is the 64-character hex shown on a visit; anything else is `422`.
+- `visitor_id` is the 32-character hex shown on a visit (128 bits, ADR-0006); anything else is `422`.
 - `is_proxy_suspected` matches `true` or `false` only; `NULL` (not assessed) matches
   neither.
 - `search` (1–100 characters) is a case-insensitive substring of the link slug or label,
@@ -790,3 +790,9 @@ differs** (F14.AC9). Consequences to respect:
 - Generated types prove the **contract**; the zod schemas validate the **payload** at
   runtime. Both exist on purpose — a schema drift should surface as a caught validation
   error, not a `TypeError` deep in a chart component.
+
+**As shipped in M5:** `openapi-typescript` generates types only. The zod schemas
+(`web/src/api/schemas.ts`) are written by hand and each is annotated with its generated
+type, so a response-model change that the schema does not follow fails `tsc`. Checked in
+M5: adding a field to `StageMix` makes `./scripts/tl openapi-check` fail until the client
+is regenerated and committed.

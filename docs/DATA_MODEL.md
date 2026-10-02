@@ -506,6 +506,8 @@ now uses the header *set* instead (SPEC section 11 row 7).
 | `GIST (geopoint)` | Geofence evaluation — F6.AC8 |
 | `(strict_country_code, strict_admin1)` | Geographic breakdowns |
 | `GIN (signals)` | "which visits fired rule X" |
+| `(occurred_at) INCLUDE (visitor_id, classification, stage, link_id)` | **Unique visitors as an index-only scan** -- added in M5 (migration 0007, ADR-0016); the only analytics figure always counted from raw rows |
+| partial `(occurred_at)` where `gps_lat` or `strict_lat` is set | **Map points** (F9.AC5), always read raw -- added in M5; few visits have coordinates by design (ADR-0005) |
 | partial `(occurred_at)` where `stage='server'` | **The 90 s sweeper** — F2.AC7 |
 | partial `(ip_purge_after)` where `ip_enc IS NOT NULL` | The IP purge job — F12.AC2 |
 | partial `(occurred_at)` where `finalized_at IS NULL` | Stuck-visit detection |

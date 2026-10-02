@@ -1,10 +1,10 @@
 /**
- * The authenticated shell.
+ * The account page: who you are, your password, your sessions, your recovery channel.
  *
- * M1's dashboard is deliberately an account page: who you are, your password, your
- * sessions, your recovery channel. The analytics arrive in M5. What matters now is
- * that everything F8 promises is actually reachable from a browser, because a
- * security control nobody can operate is not a control.
+ * Built in M1 as the whole authenticated shell, and moved under the dashboard layout in
+ * M5 (which now owns sign-out and the theme). Everything F8 promises stays reachable
+ * from a browser (F10.AC9), because a security control nobody can operate is not a
+ * control.
  *
  * Role is reflected here, never decided here (F8.AC12): the owner-only panel is
  * hidden for an analyst *and* every route behind it is refused server-side. The
@@ -17,7 +17,6 @@ import {
   confirmTelegramVerification,
   fetchAdmins,
   fetchSessions,
-  logout,
   regenerateRecoveryCodes,
   revokeSession,
   startTelegramVerification,
@@ -28,37 +27,18 @@ import {
 import { fieldMessage, type ApiError } from '@/api/client';
 import { fetchReadiness, type ApiResult, type Readiness } from '@/api/health';
 import { Callout, Empty, ErrorNotice, Field, Loading, Submit } from '@/components/ui';
+import { useSession } from '@/session';
 
 const LOW_CODES_WARNING = 3;
 
-export default function DashboardPage({
-  me,
-  onSignedOut,
-  onRefresh,
-}: {
-  readonly me: Me;
-  readonly onSignedOut: () => void;
-  readonly onRefresh: () => void;
-}): React.JSX.Element {
+export default function AccountPage(): React.JSX.Element {
+  const { me, onSignedOut, onRefresh } = useSession();
   return (
-    <main className="shell">
-      <header className="row">
-        <div>
-          <h1>Tracelet</h1>
-          <p className="muted">
-            {me.display_name} · {me.email} · {me.role}
-          </p>
-        </div>
-        <SignOutButton csrfToken={me.csrf_token} onSignedOut={onSignedOut} />
-      </header>
-
-      <Callout tone="info" title="M1 — admin authentication">
-        <p>
-          Analytics, links and geofencing arrive in later milestones. This page exists so every
-          account-security feature is operable rather than only tested.
-        </p>
-      </Callout>
-
+    <div className="page account">
+      <h2 className="page-title">Account</h2>
+      <p className="muted">
+        {me.display_name} · {me.email} · {me.role}
+      </p>
       <AccountPanel me={me} onRefresh={onRefresh} />
       <PasswordPanel csrfToken={me.csrf_token} onChanged={onRefresh} />
       <RecoveryCodesPanel me={me} onRefresh={onRefresh} />
@@ -66,36 +46,7 @@ export default function DashboardPage({
       <SessionsPanel csrfToken={me.csrf_token} onSignedOut={onSignedOut} />
       {me.role === 'owner' && <AdminsPanel />}
       <ReadinessPanel />
-    </main>
-  );
-}
-
-function SignOutButton({
-  csrfToken,
-  onSignedOut,
-}: {
-  readonly csrfToken: string;
-  readonly onSignedOut: () => void;
-}): React.JSX.Element {
-  const [busy, setBusy] = useState(false);
-
-  return (
-    <button
-      type="button"
-      disabled={busy}
-      onClick={() => {
-        void (async () => {
-          setBusy(true);
-          await logout(csrfToken);
-          setBusy(false);
-          // Signed out locally whatever the server said: the cookie is gone or the
-          // session was already invalid, and either way this browser is done.
-          onSignedOut();
-        })();
-      }}
-    >
-      {busy ? 'Signing out…' : 'Sign out'}
-    </button>
+    </div>
   );
 }
 

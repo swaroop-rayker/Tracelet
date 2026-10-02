@@ -1,10 +1,11 @@
 /**
- * A ~60-line router, because M1 needs five routes and not a dependency.
+ * The sign-in routes: enrolment, login, recovery and reset.
  *
- * `react-router` arrives in M5 with the dashboard's nested layouts, where it earns
- * its place. Installing it now for five flat routes would add a dependency to the
- * ledger for something a `switch` does (ES5), and the enrolment and reset pages have
- * to work before anything else does -- so the fewer moving parts, the better.
+ * Built in M1 as the whole router. From M5, `react-router` owns every signed-in page
+ * (nested layout, URL filter state); this module still decides only whether the URL is
+ * one of the pages that must work *without* a session, and anything else is the
+ * dashboard's to resolve. `navigate()` dispatches `popstate`, which react-router's
+ * history listens to, so the two never disagree about the current URL.
  *
  * Paths, not hashes: Caddy serves `index.html` for any unmatched path
  * (`try_files {path} /index.html`), and a reset link with a `#` in it is the kind of
@@ -44,7 +45,8 @@ export function parseRoute(url: string): Route {
     case '/reset':
       return { name: 'reset', token };
     default:
-      return { name: 'not-found', path: parsed.pathname };
+      // Every other path belongs to the dashboard, whose router has its own 404.
+      return { name: 'dashboard' };
   }
 }
 

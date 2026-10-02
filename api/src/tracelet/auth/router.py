@@ -92,6 +92,9 @@ class MeResponse(BaseModel):
     csrf_token: str
     session_id: str
     session_expires_at: dt.datetime
+    # The zone analytics buckets are cut in (ADR-0016), so the dashboard can ask for
+    # "the last 7 days" on the same day boundaries the rollups use.
+    reporting_tz: str
 
 
 class ResetRequest(BaseModel):
@@ -320,7 +323,7 @@ async def logout(
 
 
 @router.get("/me", response_model=MeResponse, summary="The signed-in admin")
-async def me(principal: CurrentPrincipal, db: DbSession) -> MeResponse:
+async def me(principal: CurrentPrincipal, db: DbSession, settings: Config) -> MeResponse:
     admin = principal.admin
     return MeResponse(
         id=str(admin.id),
@@ -336,6 +339,7 @@ async def me(principal: CurrentPrincipal, db: DbSession) -> MeResponse:
         csrf_token=principal.csrf_secret,
         session_id=str(principal.session.id),
         session_expires_at=principal.session.expires_at,
+        reporting_tz=settings.reporting_tz,
     )
 
 
@@ -371,14 +375,14 @@ class PreferencesRequest(BaseModel):
     ),
 )
 async def update_preferences(
-    payload: PreferencesRequest, principal: CurrentPrincipal, db: DbSession
+    payload: PreferencesRequest, principal: CurrentPrincipal, db: DbSession, settings: Config
 ) -> MeResponse:
     if payload.theme is not None:
         principal.admin.theme = payload.theme
     if payload.timezone is not None:
         principal.admin.timezone = payload.timezone
     await db.flush()
-    return await me(principal, db)
+    return await me(principal, db, settings)
 
 
 # ---------------------------------------------------------------------------

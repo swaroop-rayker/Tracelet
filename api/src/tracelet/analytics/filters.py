@@ -36,6 +36,7 @@ from tracelet.capture.models import (
     Visit,
     VisitStage,
 )
+from tracelet.classify.identity import DIGEST_BYTES
 from tracelet.errors import ValidationFailed
 
 # Excluded unless include_automated is set, so the default view is people.
@@ -52,8 +53,8 @@ AUTOMATED: frozenset[Classification] = frozenset(
 # The default analytics window when the caller gives none: the last 30 local days,
 # today included.
 DEFAULT_DAYS = 30
-# A visitor_id is an HMAC-SHA256, so 32 bytes (ADR-0006).
-VISITOR_ID_BYTES = 32
+# A visitor_id is an HMAC-SHA256 truncated to 128 bits (ADR-0006, identity.DIGEST_BYTES).
+VISITOR_ID_BYTES = DIGEST_BYTES
 
 
 @dataclasses.dataclass(frozen=True, slots=True)
@@ -291,7 +292,7 @@ def visit_filter(
     connection_class: Annotated[list[ConnectionClass] | None, Query()] = None,
     consent_state: Annotated[ConsentState | None, Query()] = None,
     geofence_id: Annotated[uuid.UUID | None, Query()] = None,
-    visitor_id: Annotated[str | None, Query(max_length=64)] = None,
+    visitor_id: Annotated[str | None, Query(max_length=2 * VISITOR_ID_BYTES)] = None,
     min_confidence_admin1: Annotated[float | None, Query(ge=0, le=1)] = None,
     min_confidence_city: Annotated[float | None, Query(ge=0, le=1)] = None,
     has_gps: Annotated[bool | None, Query()] = None,

@@ -116,7 +116,12 @@
 		# so 'self' is sufficient and no nonce is required here. The capture page
 		# is server-rendered by the app with inline critical CSS, and the app
 		# sets its own nonce-based CSP on that response (M2, F13.AC2).
-		header Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; font-src 'self'; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
+		#
+		# img-src also allows the CARTO basemap tiles behind the Geography map (M5,
+		# ADR-0003: raster tiles, no API key). Images only: no script, style or
+		# connection to CARTO is permitted, and nothing about a visitor is sent --
+		# a tile request carries only the map's zoom and position.
+		header Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data: https://basemaps.cartocdn.com https://*.basemaps.cartocdn.com; connect-src 'self'; font-src 'self'; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
 
 		root * /srv
 		try_files {path} /index.html

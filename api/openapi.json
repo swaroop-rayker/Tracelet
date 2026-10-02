@@ -1017,7 +1017,8 @@
         },
         "required": [
           "step",
-          "count"
+          "count",
+          "reason"
         ],
         "title": "FunnelStep",
         "type": "object"
@@ -1409,7 +1410,8 @@
           "unit",
           "value",
           "previous",
-          "change"
+          "change",
+          "reason"
         ],
         "title": "Kpi",
         "type": "object"
@@ -1924,6 +1926,10 @@
             "title": "Recovery Codes Remaining",
             "type": "integer"
           },
+          "reporting_tz": {
+            "title": "Reporting Tz",
+            "type": "string"
+          },
           "role": {
             "$ref": "#/components/schemas/AdminRole"
           },
@@ -1969,7 +1975,8 @@
           "recovery_codes_remaining",
           "csrf_token",
           "session_id",
-          "session_expires_at"
+          "session_expires_at",
+          "reporting_tz"
         ],
         "title": "MeResponse",
         "type": "object"
@@ -3818,7 +3825,7 @@
             "schema": {
               "anyOf": [
                 {
-                  "maxLength": 64,
+                  "maxLength": 32,
                   "type": "string"
                 },
                 {
@@ -4232,7 +4239,7 @@
             "schema": {
               "anyOf": [
                 {
-                  "maxLength": 64,
+                  "maxLength": 32,
                   "type": "string"
                 },
                 {
@@ -4625,7 +4632,7 @@
             "schema": {
               "anyOf": [
                 {
-                  "maxLength": 64,
+                  "maxLength": 32,
                   "type": "string"
                 },
                 {
@@ -5018,7 +5025,7 @@
             "schema": {
               "anyOf": [
                 {
-                  "maxLength": 64,
+                  "maxLength": 32,
                   "type": "string"
                 },
                 {
@@ -5412,7 +5419,7 @@
             "schema": {
               "anyOf": [
                 {
-                  "maxLength": 64,
+                  "maxLength": 32,
                   "type": "string"
                 },
                 {
@@ -5818,7 +5825,7 @@
             "schema": {
               "anyOf": [
                 {
-                  "maxLength": 64,
+                  "maxLength": 32,
                   "type": "string"
                 },
                 {
@@ -6212,7 +6219,7 @@
             "schema": {
               "anyOf": [
                 {
-                  "maxLength": 64,
+                  "maxLength": 32,
                   "type": "string"
                 },
                 {
@@ -6606,7 +6613,7 @@
             "schema": {
               "anyOf": [
                 {
-                  "maxLength": 64,
+                  "maxLength": 32,
                   "type": "string"
                 },
                 {
@@ -7000,7 +7007,7 @@
             "schema": {
               "anyOf": [
                 {
-                  "maxLength": 64,
+                  "maxLength": 32,
                   "type": "string"
                 },
                 {
@@ -7421,7 +7428,7 @@
             "schema": {
               "anyOf": [
                 {
-                  "maxLength": 64,
+                  "maxLength": 32,
                   "type": "string"
                 },
                 {
@@ -7573,8 +7580,8 @@
             "name": "visitor_id",
             "required": true,
             "schema": {
-              "maxLength": 64,
-              "minLength": 64,
+              "maxLength": 32,
+              "minLength": 32,
               "pattern": "^[0-9a-fA-F]+$",
               "title": "Visitor Id",
               "type": "string"
@@ -8928,7 +8935,7 @@
             "schema": {
               "anyOf": [
                 {
-                  "maxLength": 64,
+                  "maxLength": 32,
                   "type": "string"
                 },
                 {
@@ -9340,7 +9347,7 @@
             "schema": {
               "anyOf": [
                 {
-                  "maxLength": 64,
+                  "maxLength": 32,
                   "type": "string"
                 },
                 {

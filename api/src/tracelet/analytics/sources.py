@@ -41,6 +41,7 @@ from tracelet.analytics.projection import (
     dim_select,
 )
 from tracelet.analytics.rollup import HOURLY_KEEP_DAYS, today
+from tracelet.capture.models import Visit
 
 ComputedFrom = Literal["rollup", "raw"]
 
@@ -53,17 +54,30 @@ class Source:
 
 
 async def _built_through(db: AsyncSession, window: Window) -> dt.datetime | None:
-    """The oldest refresh among the window's days, or ``None`` if any is unbuilt."""
+    """The oldest refresh among the window's days, or ``None`` if any is unbuilt.
+
+    A day before the oldest retained visit counts as built: ``occurred_at`` is the
+    server's receive time, so no visit can ever arrive for it, and its rollup is
+    complete by definition -- empty, or written before its visits were purged. Without
+    this a year-long calendar on a new deployment always fell back to scanning raw
+    rows (measured at the design load: 7 s on one CPU).
+    """
     days = window.days()
-    row = (
+    rows = (
         await db.execute(
-            select(func.count(), func.min(RollupState.refreshed_at)).where(
+            select(RollupState.day, RollupState.refreshed_at).where(
                 RollupState.day.in_(days), RollupState.reporting_tz == window.zone_name
             )
         )
-    ).one()
-    count, oldest = int(row[0]), row[1]
-    return oldest if count == len(days) else None
+    ).all()
+    built = {row[0]: row[1] for row in rows}
+    missing = [d for d in days if d not in built]
+    if missing:
+        oldest_visit = (await db.execute(select(func.min(Visit.occurred_at)))).scalar_one_or_none()
+        first_day = oldest_visit.astimezone(window.tz).date() if oldest_visit is not None else None
+        if first_day is not None and any(d >= first_day for d in missing):
+            return None
+    return min(built.values()) if built else dt.datetime.now(dt.UTC)
 
 
 def _cell_clauses(

@@ -579,6 +579,26 @@ ADR-0016. The dashboard reads rollups, and says when it did not.
 - No new process and no new dependency. The jobs run in the ADR-0009 scheduler; the raw
   path is bounded by retention (≤ 90 k visits at the design load).
 
+### 5.10 The dashboard — added in M5
+
+Static assets served by Caddy, no runtime cost (F14.AC4). Four rules shape it:
+
+- **The URL is the filter state** (`src/filters.ts`, F9.AC13). URL keys are the API's
+  parameter names; presets resolve to whole local days in the reporting timezone (from
+  `/auth/me`), so a preset is served from rollups rather than forcing raw rows with a
+  window that starts at an arbitrary minute.
+- **Every chart and table renders inside `Panel`** (F9.AC18), which has a written state for
+  loading, error (with trace id), empty (with a caller-supplied reason) and data, plus the
+  stage mix and data source underneath (F9.AC20). Tested for every state.
+- **Every payload is parsed by zod** before a component sees it; schemas are typed against
+  the generated client (API section 14).
+- **Accessibility is structural** (NFR7): native controls only, a skip link, a visible
+  focus ring, decal patterns on every series, and every chart's data as a table. Theme
+  contrast is tested from the stylesheet.
+
+Pages are lazy routes, so ECharts (with zrender split out) and Leaflet download only when a
+page that uses them opens. The theme is per admin (`PATCH /auth/me/preferences`).
+
 ---
 
 ## 6. Memory budget
@@ -720,6 +740,14 @@ URL-shareable filter state earn it; M1 has five flat routes and uses a ~60-line
 six auth payloads by hand, the same way M0 narrowed `/readyz`. Both arrive when they pay
 for themselves.
 
+**M5 added the frontend rows ADR-0003 reserved for it, and two of its own; no Python
+row.** `react-router`, `@tanstack/react-query`, `zod`, `echarts`, `leaflet` and
+`tailwindcss` arrive as listed. New: `@tailwindcss/vite`, Tailwind 4's build plugin (the
+v4 replacement for a PostCSS config), and the dev-only `@types/leaflet`. `vitest` is now
+installed and in CI (job `9b · vitest`). Production memory cost: **zero** -- all of it is
+static assets served by Caddy (F14.AC4). The Natural Earth boundaries are a data asset,
+not a dependency (ADR-0003 amendment).
+
 ### Python
 
 | Dependency | Justification | Considered instead |
@@ -764,6 +792,9 @@ for themselves.
 | `echarts` | **One** dependency covering line, bar, calendar heatmap, Sankey, gauge, geo and treemap, with canvas rendering that survives 90 k points | Recharts (no calendar heatmap or Sankey, SVG struggles at volume), visx (much more assembly), Chart.js (weaker chart variety) |
 | `leaflet` + `@geoman-io/leaflet-geoman-free` | Polygon and circle drawing with vertex editing; CARTO raster basemap needs **no API key** | MapLibre GL (prettier vector, but free vector styles need a key you declined), Mapbox (paid) |
 | `zod` | Validates API payloads at runtime. Generated types prove the *contract*; zod proves the *payload* | trusting generated types (a schema drift becomes a runtime crash) |
+| `@tailwindcss/vite` | **M5.** Tailwind 4's build integration; generates the utilities from the theme tokens at build time | PostCSS plugin plus config file (v3's arrangement, more moving parts) |
+| dev: `@types/leaflet` | **M5.** Leaflet ships no types; strict TypeScript needs them (ES1) | hand-written declarations for the parts used |
+| *data:* Natural Earth boundaries | **M5.** Country (India point of view) and Indian state polygons for the choropleth, public domain, simplified and committed (~950 KB) | a GeoJSON CDN at runtime (a third-party request and a CSP exception), MapTiler (a key) |
 | dev: `openapi-typescript` | Generates the TS client from FastAPI OpenAPI; CI fails on drift | hand-maintained types |
 | dev: `@types/node` | `vite.config.ts` and `eslint.config.js` are Node code, so `tsc --noEmit` needs Node types. Dev-only, zero runtime cost | dropping the `@/*` path alias to avoid `node:url` — rejected, the alias is worth more than the type package costs |
 | dev: `eslint`, `prettier`, `vitest` | Quality toolchain | — |
@@ -842,12 +873,18 @@ tracelet/
 │   ├── Dockerfile.tools            # eslint/prettier/tsc/openapi-typescript
 │   ├── package.json
 │   └── src/
-│       ├── api/                    # hand-written clients + generated/ schema.d.ts
-│       ├── components/             # shadcn-derived primitives, charts, map
-│       ├── pages/                  # M1: enrol, login, recovery, reset, dashboard
-│       ├── router.ts               # M1 only; react-router arrives with M5
+│       ├── api/                    # hand-written clients, schemas.ts (zod, typed
+│       │                           #   against generated/), query.ts (React Query)
+│       ├── components/             # Panel (F9.AC18), EChart + chartkit, FilterBar,
+│       │                           #   Layout, ui primitives
+│       ├── pages/                  # sign-in pages, AccountPage; dashboard/ holds the
+│       │                           #   M5 pages (overview, visits, geography, …)
+│       ├── charts.ts filters.ts    # chart builders; URL filter state (F9.AC13)
+│       ├── router.ts               # sign-in routes only; react-router owns the rest
 │       ├── features/               # visits, analytics, geofences, health, admins
-│       └── theme/                  # semi-dark default, light, dark
+│       └── theme.ts                # semi-dark default, light, dark (tokens in
+│                                   #   index.css; contrast tested in theme.test.ts)
+│   ├── public/geo/                 # Natural Earth boundaries (scripts/build-boundaries.mjs)
 ├── data/                           # geo databases + GeoNames (gitignored)
 └── docs/
     ├── KICKOFF.md SPEC.md ARCHITECTURE.md DATA_MODEL.md API.md

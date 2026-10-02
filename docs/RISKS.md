@@ -29,6 +29,7 @@ Severity is `impact × likelihood` at the time of writing, reassessed after each
 | R22 | **Registry-artifact collapse to admin1 still emits the artifact's state** | **High** | **Closed 2026-09-29: collapse to country (SPEC §11 row 11)** |
 | R23 | S10 latency triangulation cannot be built without third-party requests | Medium | **Closed 2026-09-29: S10 dropped (SPEC §11 row 12)** |
 | R24 | Rule (a) cannot tell a regional ISP from a registry collapse | Medium | **Accepted for M3 — tune in M8 with ground truth** |
+| R25 | **The raw analytics fallback is slow at the design load** | Medium | **Open — rollup path measured at p95 ≤ 70 ms; raw fallback up to 10 s on long windows** |
 
 ---
 
@@ -553,6 +554,31 @@ independent colo (S8) corroborates the city and the rule does not fire.
 city for labelled visits, which tells a regional ISP (right) from a collapse (wrong)
 directly. `registry_artifact.min_modal_share` is versioned configuration, so the
 re-tune is a settings version, not a deployment.
+
+---
+
+## R25 — The raw analytics fallback is slow at the design load · MEDIUM
+
+**Measured in M5 (2026-10-02).** 90 k visits over 180 days, API and database each capped
+to one CPU, 20 requests per endpoint inside the compose network. **From rollups, every
+endpoint's p95 is under 70 ms** -- NFR2.AC4 (300 ms) holds with room to spare. **From raw
+rows** -- forced by any filter that is not a rollup dimension, such as ASN, city or
+`has_gps` -- most endpoints stay under 220 ms, but three do not over a 30-day window or
+longer: summary 4.3 s, source flow 0.9 s, and a 365-day calendar 10 s.
+
+**Why.** Visit rows are wide (request headers, signals and probes as JSON; about one heap
+page per row at this load) and the 197 MB table does not fit in 96 MB of shared buffers,
+so a raw scan is bound by reading pages. Unique visitors -- the one figure always raw --
+was fixed with a covering index (an index-only scan, 9 ms); the general case cannot be,
+short of indexing most of the table.
+
+**Why it is acceptable now.** The dashboard's default views are rollup-served. A raw
+answer is correct, says `computed_from: raw` on the panel, and shows its loading state
+while it runs (F9.AC18). Traffic today is a fraction of the design load.
+
+**What would close it.** ADR-0016's revisit trigger has fired for these filters: add the
+filters admins actually use to the rollups (ASN is the likely first), or narrow the raw
+path's window for the slow endpoints. Decide from real usage in M9, not by guessing now.
 
 ---
 

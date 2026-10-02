@@ -4,7 +4,8 @@
 # Exists so the CI gate needs no Node on the host. Never part of the running
 # stack — it sits behind the compose "tools" profile.
 #
-# Build context is ./web. The repository is bind-mounted at /work at run time,
+# Build context is the REPOSITORY ROOT (since M5), so the install can read the local
+# trust anchors in api/certs/. The repository is bind-mounted at /work at run time,
 # so a source change needs no rebuild.
 # ---------------------------------------------------------------------------
 
@@ -15,8 +16,18 @@ WORKDIR /toolchain
 # Dependencies are installed into the image, and the repo is mounted at /work.
 # node_modules therefore lives outside the mount, which also avoids the classic
 # Windows-bind-mount problem of a host node_modules shadowing the container's.
-COPY package.json package-lock.json* ./
-RUN if [ -f package-lock.json ]; then npm ci; else npm install; fi
+# Local TLS-inspection roots (api/certs/README.md), for npm only. Empty in CI and in
+# production, so the fallback is the image's own bundle; on a development machine
+# whose antivirus re-signs HTTPS, npm cannot reach the registry without it. Scoped to
+# the install step: nothing that runs later inherits the extra trust.
+COPY api/certs/ /tmp/local-ca/
+RUN if ls /tmp/local-ca/*.crt >/dev/null 2>&1; \
+      then cat /tmp/local-ca/*.crt > /tmp/npm-ca.pem; \
+      else cp /etc/ssl/certs/ca-certificates.crt /tmp/npm-ca.pem; fi
+
+COPY web/package.json web/package-lock.json* ./
+RUN if [ -f package-lock.json ]; then NODE_EXTRA_CA_CERTS=/tmp/npm-ca.pem npm ci; \
+    else NODE_EXTRA_CA_CERTS=/tmp/npm-ca.pem npm install; fi
 
 # Make the toolchain resolvable from any working directory, including /work/web.
 ENV NODE_PATH=/toolchain/node_modules

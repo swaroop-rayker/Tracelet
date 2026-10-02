@@ -117,6 +117,26 @@ def upgrade() -> None:
     )
     # Every breakdown reads one dimension over a range of days.
     op.create_index("ix_rollup_dim_dimension_day", "rollup_visit_dim_daily", ["dimension", "day"])
+    # Unique visitors are counted from raw rows (a distinct count does not add across
+    # rollup cells, ADR-0016). Visit rows are wide -- about one heap page each at the
+    # design load -- so this narrow covering index turns that count into an
+    # index-only scan instead of a page read per visit. Measured on one CPU at 90 k
+    # visits: 317 ms for a 30-day window through the heap.
+    op.create_index(
+        "ix_visits_occurred_identity",
+        "visits",
+        ["occurred_at"],
+        postgresql_include=["visitor_id", "classification", "stage", "link_id"],
+    )
+    # Map points (F9.AC5) are always read raw, and only a few visits have coordinates
+    # (a strict city or consented GPS, ADR-0005). A partial index over just those keeps
+    # the point query from reading every visit in the window.
+    op.create_index(
+        "ix_visits_point_occurred",
+        "visits",
+        ["occurred_at"],
+        postgresql_where=sa.text("gps_lat IS NOT NULL OR strict_lat IS NOT NULL"),
+    )
     op.create_table(
         "rollup_state",
         # One row per day the refresh job has rebuilt. A day without a row has never been
@@ -129,6 +149,8 @@ def upgrade() -> None:
 
 def downgrade() -> None:
     op.drop_table("rollup_state")
+    op.drop_index("ix_visits_point_occurred", table_name="visits")
+    op.drop_index("ix_visits_occurred_identity", table_name="visits")
     op.drop_index("ix_rollup_dim_dimension_day", table_name="rollup_visit_dim_daily")
     op.drop_table("rollup_visit_dim_daily")
     op.drop_table("rollup_visit_hourly")

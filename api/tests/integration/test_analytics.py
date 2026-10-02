@@ -45,8 +45,8 @@ pytestmark = pytest.mark.integration
 A = "/api/v1/analytics"
 ZONE = "Asia/Kolkata"
 TZ = zoneinfo.ZoneInfo(ZONE)
-VISITOR_A = bytes(range(32))
-VISITOR_B = bytes(range(1, 33))
+VISITOR_A = bytes(range(16))  # 128 bits, as identity.DIGEST_BYTES
+VISITOR_B = bytes(range(1, 17))
 
 
 def _today() -> dt.date:

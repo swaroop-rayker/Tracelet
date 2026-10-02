@@ -29,7 +29,7 @@ from typing import Annotated, Literal
 
 from fastapi import APIRouter, Depends, Path, Query
 from pydantic import BaseModel
-from sqlalchemy import ColumnElement, func, select
+from sqlalchemy import ColumnElement, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from tracelet.analytics.filters import (
@@ -51,6 +51,7 @@ from tracelet.analytics.sources import ComputedFrom, Source, cell_source, dim_so
 from tracelet.auth.dependencies import Config, CurrentPrincipal, DbSession
 from tracelet.capture.models import Classification, Link, Visit, VisitStage
 from tracelet.capture.visits_router import VisitSummary, is_returning_column, summarize
+from tracelet.classify.identity import DIGEST_BYTES
 from tracelet.config import Settings
 from tracelet.errors import ValidationFailed
 
@@ -142,7 +143,7 @@ class Kpi(BaseModel):
     previous: float | None
     # Relative change for counts; difference in percentage points for ratios.
     change: float | None
-    reason: str | None = None
+    reason: str | None
 
 
 class Summary(BaseModel):
@@ -732,7 +733,7 @@ async def source_flow(
 class FunnelStep(BaseModel):
     step: Literal["requests", "captured", "enriched", "consented", "notified"]
     count: int | None
-    reason: str | None = None
+    reason: str | None
 
 
 class Funnel(BaseModel):
@@ -766,10 +767,10 @@ async def funnel(principal: CurrentPrincipal, db: DbSession, settings: Config, f
             stage_mix=mix,
         ),
         steps=[
-            FunnelStep(step="requests", count=mix.total),
-            FunnelStep(step="captured", count=mix.total - mix.rate_limited),
-            FunnelStep(step="enriched", count=mix.enriched),
-            FunnelStep(step="consented", count=consented),
+            FunnelStep(step="requests", count=mix.total, reason=None),
+            FunnelStep(step="captured", count=mix.total - mix.rate_limited, reason=None),
+            FunnelStep(step="enriched", count=mix.enriched, reason=None),
+            FunnelStep(step="consented", count=consented, reason=None),
             FunnelStep(step="notified", count=None, reason="notifications_not_built"),
         ],
     )
@@ -926,7 +927,9 @@ async def geo(
             .where(
                 window.range_clause(),
                 Visit.stage != VisitStage.RATE_LIMITED,
-                lat.is_not(None),
+                # Spelled as the partial index's predicate (migration 0007), so the
+                # planner reads the few visits with coordinates rather than the window.
+                or_(Visit.gps_lat.is_not(None), Visit.strict_lat.is_not(None)),
                 *visit_clauses(f),
             )
             .group_by(grid_lat, grid_lng)
@@ -1046,7 +1049,10 @@ def _drift(a: Visit, b: Visit) -> Drift:
 async def visitor(
     principal: CurrentPrincipal,
     db: DbSession,
-    visitor_id: Annotated[str, Path(min_length=64, max_length=64, pattern="^[0-9a-fA-F]+$")],
+    visitor_id: Annotated[
+        str,
+        Path(min_length=2 * DIGEST_BYTES, max_length=2 * DIGEST_BYTES, pattern="^[0-9a-fA-F]+$"),
+    ],
 ) -> VisitorView:
     del principal
     vid = bytes.fromhex(visitor_id)

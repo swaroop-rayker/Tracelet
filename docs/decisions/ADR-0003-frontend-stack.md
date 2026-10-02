@@ -119,3 +119,41 @@ and plotting points.
   separation is deliberate and is also part of the fix for B5.
 - The basemap needs vector quality badly enough to justify a MapTiler key, which would
   reopen the C6 signup question.
+
+---
+
+## Amendment — M5 (2026-10-02): as built
+
+Recorded with the owner's M5 decisions; the stack above is unchanged in substance.
+
+- **Versions installed:** React 19.3, react-router 8, TanStack Query 5, zod 4, ECharts 6,
+  Leaflet 1.9, Tailwind 4 (through `@tailwindcss/vite`), Vitest 5. Geoman is not installed:
+  nothing draws until geofencing (M6).
+- **Tailwind, as planned** (owner decision): utilities are generated from the existing
+  CSS custom properties (`@theme inline`) and applied through `@apply` on semantic class
+  names, so the three themes remain a token swap and the M1 pages were not restyled.
+- **ECharts is split from its renderer:** zrender is its own chunk (178 KB), ECharts 453 KB
+  minified (154 KB gzipped). Both load only when a chart page opens; every dashboard page
+  is a lazy route.
+- **No chart relies on colour alone** (NFR7.AC3): ECharts' `aria` decals are on, and every
+  chart carries its data as a table behind a keyboard-reachable disclosure. Tooltips are
+  plain text, because the SPA's CSP (`style-src 'self'`) blocks the inline `style=""`
+  ECharts' default tooltip markup uses.
+- **Boundaries: Natural Earth v5.1.2, India point of view** (owner decision). Countries
+  from `ne_10m_admin_0_countries_ind` (India's official depiction of its borders) and
+  India's 36 states and union territories from `ne_10m_admin_1_states_provinces`,
+  simplified by `web/scripts/build-boundaries.mjs` to 813 KB and 133 KB, committed under
+  `web/public/geo/`, and fetched only by the Geography page. Public domain. The 54 MB
+  sources are not committed. **Only Indian states are drawn**; other countries' states are
+  counted in the table under the map.
+- **CARTO tiles:** the SPA's CSP now allows images (only images) from
+  `basemaps.cartocdn.com`, and tiles are requested with no referrer.
+- **Tests without a DOM:** Vitest in Node, components rendered with
+  `renderToStaticMarkup`. That covers what M5 needs -- every panel state (F9.AC18) and the
+  contrast of every theme token (NFR7.AC1) -- without adding jsdom or Testing Library.
+- **Local development:** `npm run dev:host` serves the SPA on `http://localhost:5173` and
+  proxies `/api` to the running stack's Caddy, rewriting `Origin` for the CSRF origin check.
+  For browsers that do not trust Caddy's local CA. Dev only.
+- **Zod schemas are hand-written, typed against the generated client**
+  (`z.ZodType<components['schemas']['Summary']>`), so a contract change that the payload
+  schema does not follow fails `tsc`. `openapi-typescript` generates types, not schemas.

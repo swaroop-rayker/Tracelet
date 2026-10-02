@@ -1452,6 +1452,78 @@ had checked. M2 chose nullable columns precisely to prevent this (DATA_MODEL 5.1
 
 ---
 
+### E34 — A real visitor's history was a 404: `visitor_id` is 128 bits, not 256
+
+**Status:** Fixed before commit. **Milestone:** M5. **Date:** 2026-10-02.
+
+**Symptom.** In the browser, on visits made through the real capture path, every "view
+history" link was refused, and the filter rejected a visitor ID copied from a visit. The
+integration suite was green.
+
+**Root cause.** The filter, the visitor endpoint and the page all assumed a full
+HMAC-SHA256: 32 bytes, 64 hex characters. ADR-0006 truncates `visitor_id` to 128 bits
+(`identity.DIGEST_BYTES = 16`). The tests made their visitor IDs by hand, as 32-byte
+values, so they agreed with the wrong assumption instead of with the identity code.
+
+**Fix.** The length comes from `identity.DIGEST_BYTES` everywhere it is checked; the page
+and the API document 32 hex characters.
+
+**Prevention.** The test fixtures use 16-byte IDs with a comment naming the constant.
+The general lesson is that a fixture is an assertion about another module: where one
+exists, derive it from that module's constant rather than restating it.
+
+**Related:** ADR-0006, F9.AC12, F9.AC13.
+
+---
+
+### E35 — A year-long calendar always fell back to raw rows (7 s at the design load)
+
+**Status:** Fixed before commit. **Milestone:** M5. **Date:** 2026-10-02.
+
+**Symptom.** Measuring NFR2.AC4 at 90 k visits on one CPU, the 365-day calendar heatmap
+reported `computed_from: raw` and took 6–10 s, though every day with data had been built.
+
+**Root cause.** The rollups answer a window only if every day in it has a `rollup_state`
+row, so a missing rollup is never read as "no visits" (ADR-0016). Days before the first
+visit are never built -- there is nothing to build -- so any window reaching back past
+the first visit failed the check. On a young deployment that is every year-long view.
+
+**Fix.** A day before the oldest retained visit counts as built: `occurred_at` is the
+server's receive time, so no visit can arrive for it later. Measured afterwards: p95
+24 ms from rollups.
+
+**Prevention.** The p95 measurement is recorded in ADR-0016 and is repeatable from the
+M5 evidence. The general rule: "complete" for a derived table must include the days that
+are complete because they are empty.
+
+**Related:** ADR-0016, F9.AC6, NFR2.AC4.
+
+---
+
+### E36 — Integration tests fail while the dev stack is running
+
+**Status:** Fixed in tooling. **Milestone:** M5. **Date:** 2026-10-02.
+
+**Symptom.** Three analytics integration tests failed with counts off by one and an
+emission rate of 0.5 instead of 0.67 -- but only while `docker compose up` was running.
+With the stack down they passed.
+
+**Root cause.** The suite shares the dev database (KICKOFF, handoff notes). A running `api`
+container runs the scheduler: its inference job picked up a test's visit that the test had
+deliberately left un-inferred, inferred and reclassified it, and changed what the test
+counted, mid-test.
+
+**Fix.** `./scripts/tl verify` stops a running `api` container for the integration step
+and starts it again afterwards, saying so.
+
+**Prevention.** Running the suite by hand with the stack up reproduces it; the comment in
+`scripts/tl` names this entry. A separate test database would remove the class entirely,
+and is worth doing if a third instance appears.
+
+**Related:** ADR-0009 (the scheduler), ADR-0015.
+
+---
+
 Add entries here as bugs are found and fixed. Use the next available `E<n>` identifier and
 the same structure: symptom, root cause, fix, **prevention**.
 

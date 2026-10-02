@@ -126,6 +126,25 @@ and its p95 is measured in M5 next to the rollup path's, against NFR2.AC4.
   value)`. Identical values collapse, so 500 visits a day produce a few thousand rows a
   day, mostly narrow text — the largest rollup, and still well inside the disk budget.
 
+## Measured in M5 (2026-10-02)
+
+90 k visits over 180 days (the design load), API and database each capped to one CPU,
+20 requests per endpoint from inside the compose network:
+
+| Path | Result |
+|---|---|
+| **Rollups**, every endpoint | p95 **≤ 70 ms** (summary 68, 365-day calendar 25, breakdowns 16–59, geo 20) |
+| Raw fallback, most endpoints | p95 50–220 ms over 30 days |
+| Raw fallback, slow cases | summary 4.3 s, source flow 0.9 s, 365-day calendar 10 s -- RISKS R25 |
+| Refresh, yesterday + today (~1 000 visits) | 0.63 s |
+| Refresh, last 7 days | 0.8–1.2 s |
+| Rollup storage, 180 days | 8.2 MB (5 454 daily, 3 477 hourly, 27 138 dimension rows) |
+
+Two changes came out of the measurement: days before the oldest retained visit count as
+built (ERRORS E35: the year-long calendar had fallen back to raw rows), and a covering
+index makes unique visitors an index-only scan (317 ms cold to 9 ms). Map points use a
+partial index over the visits that have coordinates.
+
 ## Revisit if
 
 - Raw-path p95 exceeds NFR2.AC4 at the design load: add the offending filter as a rollup

@@ -1249,7 +1249,7 @@ export interface components {
             /** Count */
             count: number | null;
             /** Reason */
-            reason?: string | null;
+            reason: string | null;
             /**
              * Step
              * @enum {string}
@@ -1438,7 +1438,7 @@ export interface components {
             /** Previous */
             previous: number | null;
             /** Reason */
-            reason?: string | null;
+            reason: string | null;
             /**
              * Unit
              * @enum {string}
@@ -1618,6 +1618,8 @@ export interface components {
             id: string;
             /** Recovery Codes Remaining */
             recovery_codes_remaining: number;
+            /** Reporting Tz */
+            reporting_tz: string;
             role: components["schemas"]["AdminRole"];
             /**
              * Session Expires At
