@@ -57,8 +57,10 @@ could not see it (docs/ERRORS.md E13).
    └ rate_limit_buckets  GCRA state (ephemeral)
 
    DERIVED (rebuildable from visits while visits exist)
-   ├ rollup_visit_daily
-   ├ rollup_visit_hourly
+   ├ rollup_visit_daily      cells per local day       (ADR-0016)
+   ├ rollup_visit_hourly     cells per local hour, 14 days
+   ├ rollup_visit_dim_daily  one row per dimension value per day
+   ├ rollup_state            which days are built, in which zone
    ├ geo_cache
    └ accuracy_runs
 ```
@@ -502,8 +504,10 @@ now uses the header *set* instead (SPEC section 11 row 7).
 | `(ip_prefix)` | Rate-limit correlation, NAT detection |
 | `(fingerprint_id, occurred_at DESC)` | Fingerprint-collision proxy detection |
 | `GIST (geopoint)` | Geofence evaluation — F6.AC8 |
-| `(strict_country_code, strict_admin1)` | Geographic breakdowns |
+| `(strict_country_code, strict_admin1)` | Strict location lookups; breakdowns read the rollups (best-guess keys, ADR-0018) |
 | `GIN (signals)` | "which visits fired rule X" |
+| `(occurred_at) INCLUDE (visitor_id, classification, stage, link_id)` | **Unique visitors as an index-only scan** -- added in M5 (migration 0007, ADR-0016); the only analytics figure always counted from raw rows |
+| partial `(occurred_at)` where `gps_lat` or `advisory_city` is set | **Map points** (F9.AC5), always read raw -- added in M5 over strict coordinates, moved to the best-guess city by migration 0008 (ADR-0018) |
 | partial `(occurred_at)` where `stage='server'` | **The 90 s sweeper** — F2.AC7 |
 | partial `(ip_purge_after)` where `ip_enc IS NOT NULL` | The IP purge job — F12.AC2 |
 | partial `(occurred_at)` where `finalized_at IS NULL` | Stuck-visit detection |
@@ -542,6 +546,11 @@ now uses the header *set* instead (SPEC section 11 row 7).
     it is a guess and is displayed as one.
 12. **Rate-limited visits are never inferred** — the inference queue's partial index
     excludes `stage = 'rate_limited'` (invariant 8).
+13. **Advisory extends strict** (ADR-0018, engine m3.4). Wherever `strict_<level>` is set,
+    `advisory_<level>` equals it; and every level any candidate named has an advisory
+    value, mobile networks included. Application-enforced in `inference/consensus.py`,
+    unit-tested per suppression scenario. Visits stamped m3.3 or earlier may lack a mobile
+    visitor's advisory city.
 
 Invariants 2 and 5 are `CHECK` constraints (`ck_visits_gps_requires_consent`,
 `ck_visits_no_geopoint_is_undetermined`), not conventions. Each is exercised by a test
@@ -778,18 +787,66 @@ Recorded as a deviation in docs/MILESTONES.md.
 
 ### 9.1 `rollup_visit_daily`
 
-PK `(day, link_id, country_code, admin1, classification, device_class,
-connection_class)`, with `visit_count`, `unique_visitor_count`, `human_count`,
-`bot_count`, `consented_count`, `enriched_count`, `geofence_inside_count`,
-`avg_confidence_admin1`, `avg_confidence_city`, `refreshed_at`.
+**As built in M5 (migration 0007, ADR-0016).** The Gate-3 design keyed this table on
+seven dimensions and stored `avg_confidence_*` and `unique_visitor_count`. Neither
+average nor distinct count adds across rows, so any query summing cells would have
+reported a wrong number; both were replaced before the table was created.
 
-**Refreshed nightly.** The dashboard reads these, not raw rows — F9.AC19, NFR2.AC4.
-**Survives raw-row purging**, so history older than the retention window stays
-analysable — NFR5.AC4.
+PK `(day, link_id, stage, classification, device_class, connection_class, country_code,
+admin1)`. `day` is a **local date in the reporting timezone** (`TRACELET_REPORTING_TZ`,
+default `Asia/Kolkata`). `country_code` and `admin1` are the **best-guess (advisory)**
+fields since migration 0008 (ADR-0018), `''` when no source could place the visit -- a key
+column cannot be NULL, and an unplaced visit is worth counting. Days built before 0008 used
+the strict fields; 0008 forgot every such day that still had raw visits, so it was rebuilt,
+and a day already past raw retention keeps strict keys.
+`stage` is a key so each response can state its stage mix (F9.AC20).
+
+Measures, **all additive**: `visit_count`, `consented_count`, `geofence_inside_count`,
+`geofence_outside_count`, `has_gps_count`, `has_point_count` (GPS or strict
+coordinates), `inferred_count`, `strict_admin2_count`, `strict_city_count`, and for each
+level of country, admin1, admin2 and city a `conf_<level>_sum numeric(12,3)` and
+`conf_<level>_n integer`, so an average is computed after summing.
+
+Unique visitors are **not** stored: a distinct count does not add across cells, days or
+links. They are counted from raw rows on request and are `null` for days past the visit
+retention window.
+
+**Refreshed by the `rollup` job every 5 minutes (yesterday and today) and the
+`rollup_settle` job daily (the last 7 days, plus up to 31 never-built days).** Each
+refresh deletes and re-inserts whole days in one transaction, under an advisory lock.
+The dashboard reads these, not raw rows -- F9.AC19, NFR2.AC4. **Survives raw-row
+purging**, so history older than the retention window stays analysable -- NFR5.AC4.
 
 ### 9.2 `rollup_visit_hourly`
 
-Same shape at hour granularity, retained 14 days, for the timeline view.
+Same shape, keyed on `hour timestamp` (a local wall-clock hour, no tzinfo; India is
+UTC+05:30, so UTC hours would straddle every Indian one). Retained 14 days; older hours
+are deleted by each refresh.
+
+### 9.2a `rollup_visit_dim_daily` -- added in M5
+
+PK `(day, link_id, classification, dimension, value)`, with `visit_count`. Index
+`(dimension, day)`. Long format: one row per distinct value of each dimension per day,
+so a new breakdown is a new `dimension` name, not a migration.
+
+| `dimension` | `value` |
+|---|---|
+| `country`, `asn`, `isp`, `device_class`, `browser`, `os`, `connection_class`, `classification` | the column's value; `''` when unknown |
+| `admin1`, `city` | qualified -- `IN\|Karnataka`, `IN\|Karnataka\|Bengaluru` -- because names repeat across countries |
+| `app_medium` | the webview host app, or `browser` |
+| `screen` | `1080x2400` |
+| `conf_country`, `conf_admin1`, `conf_admin2`, `conf_city` | decile `0`..`9`; `''` when unscored (F9.AC9) |
+| `signal` | `category\|rule_id`, one row per fired rule of category bot, spoof, spam or network (F9.AC11) |
+| `source_flow` | `source>level`: each source that proposed a candidate, by the deepest strict level emitted; `none>none` for a visit no source spoke for (F9.AC7). Inferred visits only |
+
+Rate-limited visits are excluded: they carry no client columns and no inference
+(invariant 8). They are counted in the cell tables' stage mix and the funnel.
+
+### 9.2b `rollup_state` -- added in M5
+
+`day date` PK, `refreshed_at timestamptz`, `reporting_tz text`. A day with no row, or a
+row for another timezone, has never been built: a request touching it is answered from
+raw rows rather than reading the missing rollup as "no visits" (ADR-0016).
 
 ### 9.3 `geo_cache`
 

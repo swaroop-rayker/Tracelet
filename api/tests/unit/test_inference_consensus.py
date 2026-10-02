@@ -176,21 +176,32 @@ def test_a_low_modal_share_is_not_an_artifact() -> None:
 
 
 @pytest.mark.parametrize("asn", [AsnInfo(asn=55836, is_mobile=True), AsnInfo(is_cgnat=True)])
-def test_a_mobile_network_never_yields_a_city(asn: AsnInfo) -> None:
+def test_a_mobile_network_never_yields_a_strict_city(asn: AsnInfo) -> None:
     rdns = Candidate(
         source=S.RDNS, level=L.CITY, country_code="IN", admin1="Karnataka", city="Bengaluru"
     )
     d = _decide([*_four_databases(), rdns], asn=asn)
 
     assert d.levels[L.CITY].strict is None
-    assert d.levels[L.CITY].advisory is None, "discarded outright, advisory included"
     assert d.levels[L.CITY].abstain_reason == "mobile_asn"
+    assert d.strict_point is None
     assert d.levels[L.ADMIN1].strict == "Karnataka", "the state still stands"
     assert all(
         v.suppressed_reason is SuppressedReason.MOBILE_ASN
         for v, c in zip(d.verdicts, [*_four_databases(), rdns], strict=True)
         if c.city is not None
     )
+
+
+@pytest.mark.parametrize("asn", [AsnInfo(asn=55836, is_mobile=True), AsnInfo(is_cgnat=True)])
+def test_a_mobile_network_still_shows_its_best_guess_city(asn: AsnInfo) -> None:
+    """ADR-0018 (ERRORS E38): rule (b) gates what may be acted on, not what is shown.
+    Every Jio and Airtel-mobile visit had no city at all, advisory included."""
+    d = _decide(_four_databases(), asn=asn)
+
+    assert d.levels[L.CITY].advisory == "Bengaluru"
+    assert d.levels[L.CITY].confidence is not None
+    assert d.advisory_point == (12.97, 77.59)
 
 
 # ---------------------------------------------------------------------------
@@ -227,6 +238,15 @@ def test_consent_outranks_a_vpn() -> None:
 
     assert _strict(d)["city"] == "Mysuru"
     assert d.strict_point == (12.30, 76.64)
+    # The VPN exit's three databases outvote one GPS fix in the unrestricted pool, but a
+    # best guess never contradicts what the engine stated (ADR-0018).
+    assert {lv.value: r.advisory for lv, r in d.levels.items()} == {
+        "country": "IN",
+        "admin1": "Karnataka",
+        "admin2": None,
+        "city": "Mysuru",
+    }
+    assert d.advisory_point == (12.30, 76.64)
 
 
 # ---------------------------------------------------------------------------
@@ -301,6 +321,35 @@ def test_every_strict_null_has_a_reason_and_every_rejection_too(scenario: str) -
         assert (result.strict is None) == (result.abstain_reason is not None), level
     for v in d.verdicts:
         assert v.accepted == (v.suppressed_reason is None)
+
+
+@pytest.mark.parametrize(
+    "scenario",
+    ["plain", "artifact", "mobile", "hosting", "conflict", "weak"],
+)
+def test_advisory_extends_strict(scenario: str) -> None:
+    """ADR-0018: wherever strict emitted, advisory is the same value, and every level
+    with any candidate has a best guess."""
+    cands = {
+        "plain": _four_databases(),
+        "artifact": _faridabad(),
+        "mobile": _four_databases(),
+        "hosting": _four_databases(),
+        "conflict": [*_four_databases(), _db(S.EXTERNAL_API, country="BD", admin1="Dhaka")],
+        "weak": [_db(S.DBIP)],
+    }[scenario]
+    asn = {
+        "artifact": AIRTEL_BROADBAND,
+        "mobile": AsnInfo(is_mobile=True),
+        "hosting": AsnInfo(is_hosting=True),
+    }.get(scenario, AsnInfo())
+    d = _decide(cands, asn=asn)
+
+    for level, result in d.levels.items():
+        if result.strict is not None:
+            assert result.advisory == result.strict, level
+        if any(c.value_at(level) is not None for c in cands):
+            assert result.advisory is not None, level
 
 
 def test_a_strict_value_always_meets_its_threshold() -> None:

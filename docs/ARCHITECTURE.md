@@ -205,7 +205,7 @@ field sets. See ADR-0005; the deep explanation with worked numbers is in
                     │     AND no non-DB corroboration           │
                     │     → collapse to country       ★ FIXES B1│
                     │ (b) MOBILE / CGNAT ASN                    │
-                    │     → discard all city candidates         │
+                    │     → no strict city (advisory still has) │
                     │ (c) HOSTING / VPN / TOR ASN               │
                     │     → all strict levels abstain           │
                     └────────────────────┬──────────────────────┘
@@ -216,7 +216,9 @@ field sets. See ADR-0005; the deep explanation with worked numbers is in
     country / admin1 / admin2 / city                  same four levels
     NULL + abstain_reason below threshold             always populated if any
     → drives geofencing, Telegram, exports              candidate existed
-                                                      → greyed-out in the UI
+                                                      → what the dashboard shows
+                                                        (ADR-0018); = strict
+                                                        wherever strict emitted
               └──────────────────────────┬──────────────────────────┘
                                          ▼
                     agreement_score · conflict_score · inference_version
@@ -490,6 +492,14 @@ is logged on every request, and the visit is still recorded and redirected.
 preferred timezone, defaulting to `Asia/Kolkata`. Rollup day boundaries are computed in
 a configured reporting timezone, stored explicitly, so a chart never silently shifts.
 
+**As built in M5:** the reporting timezone is `TRACELET_REPORTING_TZ` (default
+`Asia/Kolkata`, validated at boot). Days *and hours* are cut in it -- India is UTC+05:30,
+so a UTC hour straddles every Indian one. Each built day records the zone it was built in
+(`rollup_state.reporting_tz`), so changing the setting makes every day "unbuilt" and
+answered from raw rows until `tracelet analytics rebuild` runs, rather than serving
+buckets cut in the old zone. The admin's own `timezone` (`PATCH /auth/me/preferences`)
+only changes how timestamps are displayed.
+
 ### 5.8 The request transaction boundary
 
 Added in M1, after a bug that reported a failed transaction as `200 OK` and in doing so hid
@@ -533,6 +543,65 @@ code, a lockout — are written on their own connection and committed immediatel
 
 `/healthz` skips session creation entirely: it runs every ten seconds and would otherwise
 spend a pool slot reserved for maintenance (6.2).
+
+**A streamed response outlives its request's session.** The visit export (F9.AC15) is a
+`StreamingResponse` whose body is generated after the middleware has committed and
+closed the request's session, so the generator opens its own session and reads through a
+server-side cursor. It holds one pool connection for the length of the download.
+
+### 5.9 The analytics read path — added in M5
+
+ADR-0016. The dashboard reads rollups, and says when it did not.
+
+```
+ visits ──► projection.py ──┬──► rollup job (5 min: yesterday+today; daily: last 7 days
+   (raw)    one SQL          │     + up to 31 never-built days) ──► rollup_visit_daily
+            definition per   │                                       rollup_visit_hourly
+            measure and      │                                       rollup_visit_dim_daily
+            dimension        │                                       rollup_state
+                             └──► raw fallback (same expressions, the caller's filters)
+
+ request ──► VisitFilter ──► sources.py: every filter a rollup dimension? window on local
+             (F9.AC13)       bucket boundaries? every day built in this zone?
+                               yes ─► rollup subquery ┐  identical column names, so the
+                               no  ─► raw subquery    ┘  endpoint cannot tell them apart
+                             ──► response.meta: computed_from, refreshed_at, stage_mix
+```
+
+- **A raw visit is projected as a cell of size one** -- the rollup's own column names,
+  `visit_count = 1` and every conditional count `0` or `1` -- so each endpoint is written
+  once against "a cell source". A parametrised integration test runs every endpoint both
+  ways over the same rows and requires identical output.
+- **Rebuild, never increment.** A refresh deletes and re-inserts whole local days under
+  one blocking advisory lock (two refreshes interleaving on a day would be a primary-key
+  violation). A re-inferred, re-classified or purged visit is reflected the next time its
+  day is rebuilt.
+- **Per-visit questions are always raw**: map points, unique visitors (a distinct count
+  does not add), the visitor view, the list and the export.
+- No new process and no new dependency. The jobs run in the ADR-0009 scheduler; the raw
+  path is bounded by retention (≤ 90 k visits at the design load).
+
+### 5.10 The dashboard — added in M5
+
+Static assets served by Caddy, no runtime cost (F14.AC4). Four rules shape it:
+
+- **The URL is the filter state** (`src/filters.ts`, F9.AC13). URL keys are the API's
+  parameter names; presets resolve to whole local days in the reporting timezone (from
+  `/auth/me`), so a preset is served from rollups rather than forcing raw rows with a
+  window that starts at an arbitrary minute.
+- **Every chart and table renders inside `Panel`** (F9.AC18), which has a written state for
+  loading, error (with trace id), empty (with a caller-supplied reason) and data, plus the
+  stage mix and data source underneath (F9.AC20). Tested for every state.
+- **Every payload is parsed by zod** before a component sees it; schemas are typed against
+  the generated client (API section 14).
+- **Accessibility is structural** (NFR7): native controls only, a skip link, a visible
+  focus ring, decal patterns on every series, and every chart's data as a table. Theme
+  contrast is tested from the stylesheet.
+
+Pages are lazy routes, so ECharts (with zrender split out) and Leaflet download only when a
+page that uses them opens. The theme is per admin (`PATCH /auth/me/preferences`). The
+Geography map uses no tiles: land, sea and borders are self-hosted outlines in theme
+colours, and the dashboard makes no third-party request (ADR-0017).
 
 ---
 
@@ -675,6 +744,14 @@ URL-shareable filter state earn it; M1 has five flat routes and uses a ~60-line
 six auth payloads by hand, the same way M0 narrowed `/readyz`. Both arrive when they pay
 for themselves.
 
+**M5 added the frontend rows ADR-0003 reserved for it, and two of its own; no Python
+row.** `react-router`, `@tanstack/react-query`, `zod`, `echarts`, `leaflet` and
+`tailwindcss` arrive as listed. New: `@tailwindcss/vite`, Tailwind 4's build plugin (the
+v4 replacement for a PostCSS config), and the dev-only `@types/leaflet`. `vitest` is now
+installed and in CI (job `9b · vitest`). Production memory cost: **zero** -- all of it is
+static assets served by Caddy (F14.AC4). The Natural Earth boundaries are a data asset,
+not a dependency (ADR-0003 amendment).
+
 ### Python
 
 | Dependency | Justification | Considered instead |
@@ -717,8 +794,11 @@ for themselves.
 | `react-router` | Routing with URL-shareable filter state (F9.AC13) | hash routing |
 | `tailwindcss` | Utility CSS with design tokens; three themes via CSS custom properties | plain CSS modules |
 | `echarts` | **One** dependency covering line, bar, calendar heatmap, Sankey, gauge, geo and treemap, with canvas rendering that survives 90 k points | Recharts (no calendar heatmap or Sankey, SVG struggles at volume), visx (much more assembly), Chart.js (weaker chart variety) |
-| `leaflet` + `@geoman-io/leaflet-geoman-free` | Polygon and circle drawing with vertex editing; CARTO raster basemap needs **no API key** | MapLibre GL (prettier vector, but free vector styles need a key you declined), Mapbox (paid) |
+| `leaflet` + `@geoman-io/leaflet-geoman-free` | Polygon and circle drawing with vertex editing. **M5 installs Leaflet only**, drawing self-hosted outlines with no tiles (ADR-0017: CARTO's keyless basemap ended); Geoman and a basemap for drawing are M6's (RISKS R26) | MapLibre GL (prettier vector, but free vector styles need a key you declined), Mapbox (paid) |
 | `zod` | Validates API payloads at runtime. Generated types prove the *contract*; zod proves the *payload* | trusting generated types (a schema drift becomes a runtime crash) |
+| `@tailwindcss/vite` | **M5.** Tailwind 4's build integration; generates the utilities from the theme tokens at build time | PostCSS plugin plus config file (v3's arrangement, more moving parts) |
+| dev: `@types/leaflet` | **M5.** Leaflet ships no types; strict TypeScript needs them (ES1) | hand-written declarations for the parts used |
+| *data:* Natural Earth boundaries | **M5.** Countries (India point of view) and every country's first-order divisions, named as GeoNames names them, public domain, simplified and committed (0.8 MB + 6.3 MB in per-country files, fetched on demand) | a GeoJSON CDN at runtime (a third-party request and a CSP exception), MapTiler (a key) |
 | dev: `openapi-typescript` | Generates the TS client from FastAPI OpenAPI; CI fails on drift | hand-maintained types |
 | dev: `@types/node` | `vite.config.ts` and `eslint.config.js` are Node code, so `tsc --noEmit` needs Node types. Dev-only, zero runtime cost | dropping the `@/*` path alias to avoid `node:url` — rejected, the alias is worth more than the type package costs |
 | dev: `eslint`, `prettier`, `vitest` | Quality toolchain | — |
@@ -760,7 +840,11 @@ tracelet/
 │       ├── net.py                  # which client address to believe; Cloudflare
 │       │                           #   range verification (F13.AC6)
 │       ├── capture/                # /r/{slug}, enrichment, honeypot, /privacy,
-│       │                           #   links and visits APIs, templates/
+│       │                           #   links and visits APIs (list, detail,
+│       │                           #   export), templates/
+│       ├── analytics/              # M5, ADR-0016: filters.py (F9.AC13, shared
+│       │                           #   with visits), projection.py, rollup.py
+│       │                           #   (jobs), sources.py, router.py
 │       ├── inference/              # sources/ S1..S11, consensus, suppression,
 │       │                           #   engine.py (the ADR-0015 job), router.py
 │       │                           #   (settings versions), data/ seed files
@@ -793,12 +877,19 @@ tracelet/
 │   ├── Dockerfile.tools            # eslint/prettier/tsc/openapi-typescript
 │   ├── package.json
 │   └── src/
-│       ├── api/                    # hand-written clients + generated/ schema.d.ts
-│       ├── components/             # shadcn-derived primitives, charts, map
-│       ├── pages/                  # M1: enrol, login, recovery, reset, dashboard
-│       ├── router.ts               # M1 only; react-router arrives with M5
+│       ├── api/                    # hand-written clients, schemas.ts (zod, typed
+│       │                           #   against generated/), query.ts (React Query)
+│       ├── components/             # Panel (F9.AC18), EChart + chartkit, FilterBar,
+│       │                           #   Layout, ui primitives
+│       ├── pages/                  # sign-in pages, AccountPage; dashboard/ holds the
+│       │                           #   M5 pages (overview, visits, geography, …)
+│       ├── charts.ts filters.ts    # chart builders; URL filter state (F9.AC13)
+│       ├── router.ts               # sign-in routes only; react-router owns the rest
 │       ├── features/               # visits, analytics, geofences, health, admins
-│       └── theme/                  # semi-dark default, light, dark
+│       └── theme.ts                # semi-dark default, light, dark (tokens in
+│                                   #   index.css; contrast tested in theme.test.ts)
+│   ├── public/geo/                 # countries.json + admin1/<CC>.json, built by
+│   │                               #   scripts/build-boundaries.mjs (ADR-0017)
 ├── data/                           # geo databases + GeoNames (gitignored)
 └── docs/
     ├── KICKOFF.md SPEC.md ARCHITECTURE.md DATA_MODEL.md API.md

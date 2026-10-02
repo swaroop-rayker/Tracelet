@@ -30,9 +30,12 @@ so it is exempt from all three: a visitor on a VPN who has already granted locat
 located by GPS, not abstained on because of their VPN (F4.AC1: GPS outranks every other
 source).
 
-**Strict and advisory.** Advisory is the best guess from every candidate the rules allow
-at all. Strict is threshold-gated, excludes hosting-ASN candidates, and applies the
-registry-artifact collapse. Every strict NULL carries a reason (DATA_MODEL 5.3 inv. 4).
+**Strict and advisory.** Advisory is the argmax over every locating candidate (ADR-0005
+section 4, ADR-0018): the suppression rules decide what may be *acted on*, so they gate
+strict only, and advisory still shows the carrier's or the registry's city. Strict is
+threshold-gated, drops city depth on mobile networks, excludes hosting-ASN candidates, and
+applies the registry-artifact collapse. Every strict NULL carries a reason (DATA_MODEL 5.3
+inv. 4). Advisory extends strict: wherever strict emitted a value, advisory is that value.
 """
 
 from __future__ import annotations
@@ -172,11 +175,20 @@ def _walk(
     config: InferenceConfig,
     tz: dict[int, float],
     city_blocked: frozenset[int],
+    fixed: dict[GeoLevel, _Choice] | None = None,
 ) -> _Pass:
-    """Decide each level in turn over ``pool``. Thresholds are not applied here."""
+    """Decide each level in turn over ``pool``. Thresholds are not applied here.
+
+    ``fixed`` levels are taken as already decided, so deeper levels vote only among
+    candidates that agree with them.
+    """
     members = list(pool)
     result = _Pass()
     for level in LEVELS:
+        if fixed and level in fixed:
+            result.chosen[level] = fixed[level]
+            result.had_candidates[level] = True
+            continue
         votes: list[_Vote] = []
         for index, c in members:
             if c.value_at(level) is None or not _agrees_with_chosen(c, result.chosen):
@@ -265,7 +277,8 @@ def decide(
     reasons: dict[int, SuppressedReason] = {}
 
     # Rule (b) -- mobile and CGNAT ASNs: no network-derived candidate may place the
-    # visitor at city (or district) depth. Its country and state still count.
+    # visitor at a *strict* city (or district). Its country and state still count, and
+    # advisory still shows the city guess (ADR-0018).
     city_blocked: frozenset[int] = frozenset()
     if asn.is_mobile or asn.is_cgnat:
         city_blocked = frozenset(
@@ -276,7 +289,7 @@ def decide(
         for i in city_blocked:
             reasons[i] = SuppressedReason.MOBILE_ASN
 
-    advisory = _walk(locating, config=config, tz=tz, city_blocked=city_blocked)
+    unseeded = _walk(locating, config=config, tz=tz, city_blocked=frozenset())
 
     # Rule (c) -- hosting, VPN and Tor ASNs: the address describes infrastructure, so
     # nothing derived from it may be acted on. Advisory still shows the guess.
@@ -287,16 +300,16 @@ def decide(
             if not _is_gps(c):
                 reasons[i] = SuppressedReason.HOSTING_ASN
     strict = (
-        advisory
-        if strict_pool is locating
+        unseeded
+        if strict_pool is locating and not city_blocked
         else _walk(strict_pool, config=config, tz=tz, city_blocked=city_blocked)
     )
 
-    levels: dict[GeoLevel, LevelResult] = {}
+    strict_values: dict[GeoLevel, str | None] = {}
+    strict_reasons: dict[GeoLevel, str | None] = {}
     blocked_by: str | None = None
     artifact_levels = _registry_artifact(strict, asn, config)
     for level in LEVELS:
-        a = advisory.chosen.get(level)
         s = strict.chosen.get(level)
         strict_value: str | None = None
         reason: str | None = None
@@ -304,7 +317,7 @@ def decide(
             reason = blocked_by
         elif level in artifact_levels:
             reason = SuppressedReason.REGISTRY_ARTIFACT.value
-        elif (asn.is_hosting or asn.is_tor) and s is None and advisory.had_candidates.get(level):
+        elif (asn.is_hosting or asn.is_tor) and s is None and unseeded.had_candidates.get(level):
             reason = SuppressedReason.HOSTING_ASN.value
         elif (
             (asn.is_mobile or asn.is_cgnat)
@@ -325,6 +338,28 @@ def decide(
         # visit says `registry_artifact`, not merely that its parent abstained.
         if strict_value is None and reason not in (None, "no_candidates") and blocked_by is None:
             blocked_by = reason if reason in _RULE_REASONS else "parent_abstained"
+        strict_values[level] = strict_value
+        strict_reasons[level] = reason
+
+    # Advisory extends strict: a best guess that contradicted a value the engine stated
+    # would be shown beside it (a hosting-ASN visit with GPS, where the network's
+    # candidates outvote the GPS fix in the unrestricted pool). Re-walk only then.
+    emitted = {level: strict.chosen[level] for level in LEVELS if strict_values[level] is not None}
+    advisory = (
+        unseeded
+        if all(
+            (u := unseeded.chosen.get(level)) is not None and u.key == choice.key
+            for level, choice in emitted.items()
+        )
+        else _walk(locating, config=config, tz=tz, city_blocked=frozenset(), fixed=emitted)
+    )
+
+    levels: dict[GeoLevel, LevelResult] = {}
+    for level in LEVELS:
+        a = advisory.chosen.get(level)
+        s = strict.chosen.get(level)
+        strict_value = strict_values[level]
+        reason = strict_reasons[level]
         confidence = (
             s.confidence
             if strict_value is not None and s is not None

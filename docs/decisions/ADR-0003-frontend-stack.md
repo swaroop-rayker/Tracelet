@@ -36,7 +36,7 @@ time and served by Caddy. **No Node.js process in production** (F14.AC4).
 | Component primitives | shadcn/ui — **source copied into the repository, not a dependency** |
 | Charts | **Apache ECharts**, wrapped in a roughly 30-line local hook |
 | Maps and drawing | **Leaflet** + `@geoman-io/leaflet-geoman-free` |
-| Basemap tiles | **CARTO** raster, dark and light variants, **no API key** |
+| Basemap tiles | ~~**CARTO** raster, dark and light variants, **no API key**~~ -- **superseded by ADR-0017** (2026-10-02): CARTO began requiring a key; the analytics map draws self-hosted outlines |
 | Runtime payload validation | `zod` |
 | API client | Generated from OpenAPI by `openapi-typescript`, CI drift check |
 
@@ -119,3 +119,48 @@ and plotting points.
   separation is deliberate and is also part of the fix for B5.
 - The basemap needs vector quality badly enough to justify a MapTiler key, which would
   reopen the C6 signup question.
+
+---
+
+## Amendment — M5 (2026-10-02): as built
+
+Recorded with the owner's M5 decisions; the stack above is unchanged in substance.
+
+- **Versions installed:** React 19.3, react-router 8, TanStack Query 5, zod 4, ECharts 6,
+  Leaflet 1.9, Tailwind 4 (through `@tailwindcss/vite`), Vitest 5. Geoman is not installed:
+  nothing draws until geofencing (M6).
+- **Tailwind, as planned** (owner decision): utilities are generated from the existing
+  CSS custom properties (`@theme inline`) and applied through `@apply` on semantic class
+  names, so the three themes remain a token swap and the M1 pages were not restyled.
+- **ECharts is split from its renderer:** zrender is its own chunk (178 KB), ECharts 453 KB
+  minified (154 KB gzipped). Both load only when a chart page opens; every dashboard page
+  is a lazy route.
+- **No chart relies on colour alone** (NFR7.AC3): ECharts' `aria` decals are on, and every
+  chart carries its data as a table behind a keyboard-reachable disclosure. Tooltips are
+  plain text, because the SPA's CSP (`style-src 'self'`) blocks the inline `style=""`
+  ECharts' default tooltip markup uses.
+- **Boundaries: Natural Earth v5.1.2** (owner decisions). Countries from
+  `ne_10m_admin_0_countries_ind`, the India point of view (India's official depiction of its
+  borders), and **every country's first-order divisions** from
+  `ne_10m_admin_1_states_provinces` -- worldwide, not India only (owner decision, M5 review).
+  Built by `web/scripts/build-boundaries.mjs` into `web/public/geo/`: countries (813 KB) and
+  one file per country of divisions (217 countries, 6.3 MB in all, largest 583 KB), fetched
+  only for countries that have state-level visits. Divisions are **named and grouped as
+  GeoNames names them**, because that is what the inference engine emits: matched by
+  GeoNames code where Natural Earth carries it, otherwise by the division most GeoNames
+  places inside the polygon belong to, so France's departments become its 13 regions and
+  Italy's provinces its 20. A polygon spanning several GeoNames divisions (Kenya's old
+  provinces against its counties) is left off the map rather than painted as one, and any
+  division with visits but no boundary is named under the map. Natural Earth is public
+  domain; GeoNames is CC BY 4.0 and is credited on the map. The sources are not committed.
+- **No map tiles** -- see ADR-0017. The CARTO image exception added to the CSP during M5 was
+  removed again.
+- **Tests without a DOM:** Vitest in Node, components rendered with
+  `renderToStaticMarkup`. That covers what M5 needs -- every panel state (F9.AC18) and the
+  contrast of every theme token (NFR7.AC1) -- without adding jsdom or Testing Library.
+- **Local development:** `npm run dev:host` serves the SPA on `http://localhost:5173` and
+  proxies `/api` to the running stack's Caddy, rewriting `Origin` for the CSRF origin check.
+  For browsers that do not trust Caddy's local CA. Dev only.
+- **Zod schemas are hand-written, typed against the generated client**
+  (`z.ZodType<components['schemas']['Summary']>`), so a contract change that the payload
+  schema does not follow fails `tsc`. `openapi-typescript` generates types, not schemas.
