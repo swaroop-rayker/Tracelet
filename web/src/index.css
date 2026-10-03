@@ -15,6 +15,7 @@
 @import 'tailwindcss';
 @import './styles/primitives.css';
 @import './styles/shell.css';
+@import './styles/data.css';
 
 /* Inter Variable, self-hosted (font-src 'self', ADR-0019): Latin and Latin-Extended only.
    The browser downloads a face only when the page's text needs one of its characters. */
@@ -670,24 +671,8 @@ input[type='date'] {
 
 /* --- panels -------------------------------------------------------------- */
 
-.panel {
-  @apply m-0 grid min-w-0 content-start gap-3 rounded-lg border border-line bg-surface p-4;
-}
-
-.panel-head {
-  @apply flex flex-wrap items-start justify-between gap-3;
-}
-
-.panel-head h3 {
-  @apply m-0 text-base font-semibold;
-}
-
 .panel-actions {
   @apply flex flex-wrap items-end gap-3;
-}
-
-.panel-meta {
-  @apply m-0 border-t border-line pt-2;
 }
 
 .callout-text {
@@ -724,84 +709,6 @@ input[type='date'] {
 
 .kpi-change.down {
   color: var(--error);
-}
-
-/* --- charts and tables --------------------------------------------------- */
-
-.chart {
-  @apply grid min-w-0 gap-2;
-}
-
-.chart-table > summary {
-  @apply cursor-pointer text-xs text-muted;
-}
-
-.table-wrap {
-  @apply max-w-full overflow-x-auto;
-}
-
-table.data {
-  @apply w-full border-collapse text-sm;
-}
-
-table.data th {
-  @apply border-b border-line px-2 py-1.5 text-left text-xs font-semibold text-muted;
-}
-
-table.data td {
-  @apply border-b border-line px-2 py-1.5 align-top;
-}
-
-table.data td.num {
-  @apply text-right tabular-nums;
-}
-
-.raw {
-  @apply max-h-96 overflow-auto rounded-md bg-bg p-3 text-xs;
-}
-
-/* --- map ----------------------------------------------------------------- */
-
-.map {
-  @apply h-[30rem] w-full rounded-md border border-line;
-  /* The sea: there are no tiles, only outlines drawn over this (ADR-0017). */
-  background: var(--map-sea);
-}
-
-/* leaflet.css loads with the Geography chunk, after this sheet, and sets its own grey
-   container background; the doubled class outranks it. */
-.map.leaflet-container {
-  background: var(--map-sea);
-}
-
-/* A clicked area takes focus, and the browser's default ring is its bounding box -- an odd
-   rectangle over the map. Areas are not in the tab order (keyboard users have the map's own
-   ring and the tables), so the ring is replaced by the hover and selection outline. */
-.map path.leaflet-interactive:focus {
-  outline: none;
-}
-
-.legend {
-  @apply flex flex-wrap gap-4 text-sm;
-}
-
-.legend li {
-  @apply flex items-center gap-1.5;
-}
-
-.leaflet-tooltip {
-  background: var(--surface);
-  color: var(--text);
-  border-color: var(--border);
-}
-
-.leaflet-container a {
-  color: var(--accent);
-}
-
-.leaflet-control-attribution {
-  background: var(--surface) !important;
-  color: var(--text-muted);
 }
 
 /* --- timeline ------------------------------------------------------------ */

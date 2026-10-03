@@ -6,7 +6,7 @@
  * Panel cannot do that. It takes the query's state, and for each of the four states --
  * loading, error, empty, data -- it renders something a person can read:
  *
- * - **loading** says what it is loading;
+ * - **loading** shows a skeleton shaped like the content, and says what it is loading;
  * - **error** shows the API's message and trace id (F15.AC2);
  * - **empty** says *why* it is empty, in words the caller supplies, because "no
  *   visits in this range" and "nothing has been inferred yet" are different facts;
@@ -20,7 +20,7 @@ import type { ReactNode } from 'react';
 import type { UseQueryResult } from '@tanstack/react-query';
 import type { ApiFailure } from '@/api/query';
 import type { Meta } from '@/api/schemas';
-import { Empty, ErrorNotice, Loading } from '@/components/ui';
+import { Empty, ErrorNotice, InfoTip, Loading, cx, type SkeletonKind } from '@/components/ui';
 
 export type PanelState<T> =
   | { readonly status: 'pending' }
@@ -36,6 +36,8 @@ export interface PanelProps<T> {
   readonly empty: ReactNode | ((data: T) => ReactNode);
   readonly meta?: (data: T) => Meta | null;
   readonly actions?: ReactNode;
+  /** What the loading skeleton looks like: the shape of the content to come (DESIGN 5.6). */
+  readonly kind?: SkeletonKind;
   readonly className?: string;
   readonly children: (data: T) => ReactNode;
 }
@@ -48,13 +50,14 @@ export function PanelView<T>({
   empty,
   meta,
   actions,
+  kind = 'text',
   className,
   children,
 }: PanelProps<T> & { readonly state: PanelState<T> }): React.JSX.Element {
   let body: ReactNode;
   let footer: ReactNode = null;
   if (state.status === 'pending') {
-    body = <Loading label={`Loading ${title.toLowerCase()}…`} />;
+    body = <Loading label={`Loading ${title.toLowerCase()}…`} kind={kind} />;
   } else if (state.status === 'error') {
     body = <ErrorNotice error={state.error.error} />;
   } else {
@@ -68,16 +71,18 @@ export function PanelView<T>({
   }
   return (
     <section
-      className={`panel ${className ?? ''}`.trim()}
+      className={cx('ui-card', 'panel', className)}
       aria-labelledby={headingId(title)}
       aria-busy={state.status === 'pending'}
     >
-      <header className="panel-head">
-        <div>
-          <h3 id={headingId(title)}>{title}</h3>
-          {description !== undefined && <p className="muted small">{description}</p>}
+      <header className="ui-card__head">
+        <div className="ui-card__titles">
+          <h2 id={headingId(title)} className="t-section">
+            {title}
+          </h2>
+          {description !== undefined && <p className="t-secondary m-0">{description}</p>}
         </div>
-        {actions}
+        {actions !== undefined && <div className="ui-card__actions">{actions}</div>}
       </header>
       <div className="panel-body">{body}</div>
       {footer}
@@ -105,14 +110,21 @@ export function MetaLine({ meta }: { readonly meta: Meta }): React.JSX.Element {
           minute: '2-digit',
         })}`;
   return (
-    <p className="panel-meta muted small">
-      {mix.total.toLocaleString()} requests · {percent(mix.enriched, mix.total)} enriched ·{' '}
-      {percent(mix.server_only, mix.total)} server-only
-      {mix.server > 0 ? ` · ${mix.server.toLocaleString()} pending` : ''}
-      {mix.rate_limited > 0 ? ` · ${mix.rate_limited.toLocaleString()} rate-limited` : ''} · from{' '}
-      {source}
-      {when}
-    </p>
+    <footer className="ui-card__foot panel-meta">
+      <p className="t-meta m-0">
+        {mix.total.toLocaleString()} requests · {percent(mix.enriched, mix.total)} enriched ·{' '}
+        {percent(mix.server_only, mix.total)} server-only
+        {mix.server > 0 ? ` · ${mix.server.toLocaleString()} pending` : ''}
+        {mix.rate_limited > 0 ? ` · ${mix.rate_limited.toLocaleString()} rate-limited` : ''} · from{' '}
+        {source}
+        {when}
+      </p>
+      <InfoTip term="these figures">
+        What these figures were computed over: every request in the period, how many the browser
+        enriched, how many were captured server-side only, and whether they came from the daily
+        rollups or from raw visits.
+      </InfoTip>
+    </footer>
   );
 }
 

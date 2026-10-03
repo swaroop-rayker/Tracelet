@@ -66,6 +66,7 @@ export function BreakdownPanel({
             <EChart
               option={chart.option}
               table={chart.table}
+              decals={chart.decals}
               label={`Visits by ${title.toLowerCase()}`}
               height={Math.max(140, 28 * chart.table.rows.length + 24)}
             />

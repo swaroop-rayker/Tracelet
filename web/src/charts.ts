@@ -7,7 +7,14 @@
  */
 
 import type { EChartsCoreOption } from 'echarts/core';
-import { axisStyle, tooltipText, type DataTable, type OptionBuilder } from '@/components/chartkit';
+import {
+  categoryAxis,
+  primaryArea,
+  tooltipText,
+  valueAxis,
+  type DataTable,
+  type OptionBuilder,
+} from '@/components/chartkit';
 import type {
   Breakdown,
   Calendar,
@@ -23,6 +30,11 @@ import type { Palette } from '@/theme';
 export interface Chart {
   readonly option: OptionBuilder;
   readonly table: DataTable;
+  /**
+   * Whether colour tells series apart, so texture patterns are drawn as well (DESIGN 6.4,
+   * NFR7.AC3). False where colour carries no meaning: one series, a heatmap, a labelled sankey.
+   */
+  readonly decals: boolean;
 }
 
 interface AxisParam {
@@ -66,24 +78,41 @@ export function timeSeriesChart(data: TimeSeries, zone: string): Chart {
   const stacked = data.series.length > 1;
   return {
     option: (p: Palette): EChartsCoreOption => ({
-      grid: { left: 48, right: 16, top: stacked ? 36 : 16, bottom: 32 },
-      legend: stacked ? { top: 0, textStyle: { color: p.text } } : undefined,
+      grid: { left: 8, right: 8, top: stacked ? 40 : 12, bottom: 4, containLabel: true },
+      legend: stacked
+        ? {
+            top: 0,
+            right: 0,
+            icon: 'roundRect',
+            itemWidth: 10,
+            itemHeight: 10,
+            textStyle: { color: p.muted },
+          }
+        : undefined,
       tooltip: { trigger: 'axis', formatter: axisTooltip },
-      xAxis: { type: 'category', data: labels, ...axisStyle(p) },
-      yAxis: { type: 'value', minInterval: 1, ...axisStyle(p) },
-      series: data.series.map((s) => ({
-        name: s.label,
-        type: stacked ? 'bar' : 'line',
-        stack: stacked ? 'total' : undefined,
-        data: s.values,
-        showSymbol: labels.length <= 60,
-        areaStyle: stacked ? undefined : { opacity: 0.12 },
-      })),
+      xAxis: { type: 'category', data: labels, boundaryGap: stacked, ...categoryAxis(p) },
+      yAxis: { type: 'value', minInterval: 1, ...valueAxis(p) },
+      series: data.series.map((s) =>
+        stacked
+          ? { name: s.label, type: 'bar', stack: 'total', data: s.values, barMaxWidth: 28 }
+          : {
+              name: s.label,
+              type: 'line',
+              data: s.values,
+              smooth: 0.25,
+              showSymbol: false,
+              symbolSize: 6,
+              lineStyle: { width: 1.75 },
+              areaStyle: primaryArea(p),
+              emphasis: { focus: 'none' },
+            },
+      ),
     }),
     table: {
       columns: ['Bucket', ...data.series.map((s) => s.label)],
       rows: labels.map((l, i) => [l, ...data.series.map((s) => s.values[i] ?? 0)]),
     },
+    decals: stacked,
   };
 }
 
@@ -112,19 +141,26 @@ export function calendarChart(data: Calendar): Chart {
         bottom: 0,
         splitNumber: 5,
         inRange: { color: [...p.sequential] },
-        textStyle: { color: p.text },
+        itemWidth: 10,
+        itemHeight: 10,
+        textStyle: { color: p.subtle, fontSize: 11 },
       },
       calendar: {
         range: [first, last],
-        top: 24,
-        left: 36,
-        right: 12,
-        cellSize: ['auto', 14],
-        itemStyle: { color: p.surface, borderColor: p.border },
-        splitLine: { lineStyle: { color: p.border } },
+        top: 20,
+        left: 32,
+        right: 8,
+        cellSize: ['auto', 13],
+        itemStyle: { color: p.surface2, borderColor: p.surface, borderWidth: 2 },
+        splitLine: { show: false },
         yearLabel: { show: false },
-        dayLabel: { color: p.muted, firstDay: 1 },
-        monthLabel: { color: p.muted },
+        dayLabel: {
+          color: p.subtle,
+          firstDay: 1,
+          fontSize: 11,
+          nameMap: ['', 'Mon', '', 'Wed', '', 'Fri', ''],
+        },
+        monthLabel: { color: p.subtle, fontSize: 11 },
       },
       series: [
         {
@@ -135,6 +171,7 @@ export function calendarChart(data: Calendar): Chart {
       ],
     }),
     table: { columns: ['Day', 'Visits'], rows: data.days.map((d) => [d.day, d.count]) },
+    decals: false,
   };
 }
 
@@ -149,23 +186,34 @@ function hbar(
   color?: number,
 ): OptionBuilder {
   return (p: Palette) => ({
-    grid: { left: 8, right: 48, top: 8, bottom: 8, containLabel: true },
-    tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' }, formatter: axisTooltip },
-    xAxis: { type: 'value', minInterval: 1, ...axisStyle(p) },
+    grid: { left: 8, right: 56, top: 4, bottom: 4, containLabel: true },
+    tooltip: { trigger: 'axis', axisPointer: { type: 'none' }, formatter: axisTooltip },
+    xAxis: {
+      type: 'value',
+      minInterval: 1,
+      ...valueAxis(p),
+      splitLine: { show: false },
+      axisLabel: { show: false },
+    },
     yAxis: {
       type: 'category',
       inverse: true,
       data: [...labels],
-      ...axisStyle(p),
-      axisLabel: { color: p.text, width: 180, overflow: 'truncate' },
+      ...categoryAxis(p),
+      axisLine: { show: false },
+      axisLabel: { color: p.text, fontSize: 12, width: 180, overflow: 'truncate' },
     },
     series: [
       {
         name,
         type: 'bar',
         data: [...values],
-        itemStyle: color === undefined ? undefined : { color: p.series[color] },
-        label: { show: true, position: 'right', color: p.text },
+        barMaxWidth: 20,
+        itemStyle: {
+          borderRadius: [0, 4, 4, 0],
+          ...(color === undefined ? {} : { color: p.series[color] }),
+        },
+        label: { show: true, position: 'right', color: p.muted, fontSize: 12 },
       },
     ],
   });
@@ -193,6 +241,7 @@ export function breakdownChart(data: Breakdown): Chart {
       'Visits',
     ),
     table: { columns: ['Value', 'Visits', 'Share'], rows: all.map((r) => [...r]) },
+    decals: false,
   };
 }
 
@@ -208,6 +257,7 @@ export function signalsChart(data: Signals): Chart {
       columns: ['Rule', 'Category', 'Visits', 'Share of visits'],
       rows: data.rows.map((r) => [r.rule_id, r.category, r.count, pct(r.share, 1)]),
     },
+    decals: false,
   };
 }
 
@@ -227,7 +277,7 @@ export function funnelChart(data: Funnel): Chart {
       measured.map((s) => STEP_LABEL[s.step] ?? s.step),
       measured.map((s) => s.count ?? 0),
       'Visits',
-      1,
+      0,
     ),
     table: {
       columns: ['Stage', 'Count', 'Of requests'],
@@ -237,6 +287,7 @@ export function funnelChart(data: Funnel): Chart {
         s.count === null ? '—' : pct(first ? s.count / first : null, 1),
       ]),
     },
+    decals: false,
   };
 }
 
@@ -252,24 +303,39 @@ const BIN_LABELS = Array.from(
 export function confidenceChart(data: Confidence): Chart {
   return {
     option: (p: Palette) => ({
-      grid: { left: 48, right: 16, top: 36, bottom: 32 },
-      legend: { top: 0, textStyle: { color: p.text } },
+      grid: { left: 8, right: 8, top: 40, bottom: 28, containLabel: true },
+      legend: {
+        top: 0,
+        right: 0,
+        icon: 'roundRect',
+        itemWidth: 10,
+        itemHeight: 10,
+        textStyle: { color: p.muted },
+      },
       tooltip: { trigger: 'axis', formatter: axisTooltip },
       xAxis: {
         type: 'category',
         data: BIN_LABELS,
         name: 'Confidence',
         nameLocation: 'middle',
-        nameGap: 24,
-        ...axisStyle(p),
+        nameGap: 28,
+        nameTextStyle: { color: p.subtle, fontSize: 11 },
+        ...categoryAxis(p),
       },
-      yAxis: { type: 'value', minInterval: 1, ...axisStyle(p) },
-      series: data.levels.map((l) => ({ name: label(l.level), type: 'bar', data: l.bins })),
+      yAxis: { type: 'value', minInterval: 1, ...valueAxis(p) },
+      series: data.levels.map((l) => ({
+        name: label(l.level),
+        type: 'bar',
+        data: l.bins,
+        barMaxWidth: 14,
+        itemStyle: { borderRadius: [3, 3, 0, 0] },
+      })),
     }),
     table: {
       columns: ['Level', ...BIN_LABELS, 'Unscored'],
       rows: data.levels.map((l) => [label(l.level), ...l.bins, l.unscored]),
     },
+    decals: true,
   };
 }
 
@@ -305,13 +371,18 @@ export function sourceFlowChart(data: SourceFlow): Chart {
           right: 120,
           top: 8,
           bottom: 8,
-          nodeGap: 10,
+          nodeGap: 12,
+          nodeWidth: 10,
           emphasis: { focus: 'adjacency' },
-          label: { color: p.text },
-          lineStyle: { color: 'gradient', opacity: 0.35 },
+          label: { color: p.text, fontSize: 12 },
+          itemStyle: { borderWidth: 0 },
+          lineStyle: { color: 'source', opacity: 0.28, curveness: 0.5 },
           data: [
-            ...data.sources.map((s) => ({ name: sourceNode(s) })),
-            ...data.levels.map((l) => ({ name: levelNode(l) })),
+            ...data.sources.map((s) => ({ name: sourceNode(s), itemStyle: { color: p.accent } })),
+            ...data.levels.map((l) => ({
+              name: levelNode(l),
+              itemStyle: { color: l === 'none' ? p.subtle : (p.series[5] ?? p.muted) },
+            })),
           ],
           links: data.links.map((link) => ({
             source: sourceNode(link.source),
@@ -329,5 +400,6 @@ export function sourceFlowChart(data: SourceFlow): Chart {
         l.value,
       ]),
     },
+    decals: false,
   };
 }

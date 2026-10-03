@@ -185,7 +185,13 @@ function TimeSeriesPanel({
     >
       {() =>
         chart && (
-          <EChart option={chart.option} table={chart.table} label="Visits over time" height={300} />
+          <EChart
+            option={chart.option}
+            table={chart.table}
+            decals={chart.decals}
+            label="Visits over time"
+            height={300}
+          />
         )
       }
     </Panel>
@@ -219,6 +225,7 @@ function CalendarPanel({ zone }: { readonly zone: string }): React.JSX.Element {
           <EChart
             option={chart.option}
             table={chart.table}
+            decals={chart.decals}
             label="Daily visits, last 365 days"
             height={200}
           />
@@ -243,7 +250,13 @@ function FunnelPanel({ params }: { readonly params: URLSearchParams }): React.JS
       {(data) => (
         <>
           {chart && (
-            <EChart option={chart.option} table={chart.table} label="Stage funnel" height={220} />
+            <EChart
+              option={chart.option}
+              table={chart.table}
+              decals={chart.decals}
+              label="Stage funnel"
+              height={220}
+            />
           )}
           {data.steps
             .filter((s) => s.count === null)

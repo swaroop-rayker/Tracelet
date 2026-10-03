@@ -47,6 +47,7 @@ export default function DetectionPage(): React.JSX.Element {
               <EChart
                 option={chart.option}
                 table={chart.table}
+                decals={chart.decals}
                 label="Detection rules by frequency"
                 height={Math.max(160, 26 * chart.table.rows.length + 24)}
               />

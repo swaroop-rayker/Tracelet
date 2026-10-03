@@ -1,0 +1,176 @@
+/*
+ * Data display (docs/DESIGN.md §5.4, §6): panels, charts, the chart tooltip, the map.
+ * Tokens only (DESIGN UI-2).
+ */
+
+/* --- panels: a card whose body is one of four states (F9.AC18) ---------------- */
+
+.panel {
+  display: grid;
+  align-content: start;
+}
+
+.panel-body {
+  min-width: 0;
+}
+
+.panel-meta p {
+  display: inline;
+}
+
+/* --- charts (DESIGN §6) ------------------------------------------------------ */
+
+.chart {
+  display: grid;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.chart__canvas {
+  height: var(--chart-h, 280px);
+  min-width: 0;
+}
+
+.chart__tools {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-1);
+}
+
+.chart__tools .btn {
+  color: var(--text-muted);
+}
+
+.chart__tools .btn[aria-pressed='true'] {
+  background: var(--surface-2);
+  color: var(--text);
+}
+
+/* ECharts writes the tooltip's own colours from the theme through CSSOM; the radius, shadow
+   and type come from here, so the tooltip matches every other overlay. */
+.chart-tooltip {
+  border-radius: var(--radius-md) !important;
+  box-shadow: var(--shadow-popover) !important;
+  font-family: var(--font-ui) !important;
+  line-height: var(--lh-meta) !important;
+}
+
+.raw {
+  max-height: 24rem;
+  overflow: auto;
+  margin: 0;
+  padding: var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--bg);
+  font-size: var(--fs-meta);
+}
+
+/* --- the map (DESIGN §6.6, ADR-0017) ----------------------------------------- */
+
+.map {
+  width: 100%;
+  height: 560px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  /* The sea: there are no tiles, only outlines drawn over this (ADR-0017). */
+  background: var(--map-sea);
+}
+
+/* leaflet.css loads with the Geography chunk, after this sheet, and sets its own grey
+   container background; the doubled class outranks it. */
+.map.leaflet-container {
+  background: var(--map-sea);
+  font-family: var(--font-ui);
+}
+
+/* A clicked area takes focus, and the browser's default ring is its bounding box -- an odd
+   rectangle over the map (ERRORS E40). Areas are not in the tab order (keyboard users have
+   the map's own ring and the tables), so the ring is replaced by the hover and selection
+   outline. */
+.map path.leaflet-interactive:focus {
+  outline: none;
+}
+
+@media (max-width: 1023px) {
+  .map {
+    height: 420px;
+  }
+}
+
+@media (max-width: 767px) {
+  .map {
+    height: 320px;
+  }
+}
+
+/* Leaflet's zoom buttons as the system's icon buttons, on an overlay surface. */
+.map .leaflet-bar {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--overlay);
+  box-shadow: var(--shadow-popover);
+  overflow: hidden;
+}
+
+.map .leaflet-bar a,
+.map .leaflet-bar a:hover {
+  width: 30px;
+  height: 30px;
+  line-height: 30px;
+  border-bottom: 1px solid var(--border);
+  background: var(--overlay);
+  color: var(--text);
+  font-size: 16px;
+}
+
+.map .leaflet-bar a:last-child {
+  border-bottom: none;
+}
+
+.map .leaflet-bar a:hover {
+  background: var(--surface-2);
+}
+
+.leaflet-tooltip {
+  padding: 6px var(--space-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--overlay);
+  color: var(--text);
+  box-shadow: var(--shadow-popover);
+  font-family: var(--font-ui);
+  font-size: var(--fs-meta);
+}
+
+.leaflet-tooltip::before {
+  display: none;
+}
+
+.leaflet-container a {
+  color: var(--accent);
+}
+
+.map .leaflet-control-attribution {
+  background: color-mix(in srgb, var(--overlay) 80%, transparent) !important;
+  color: var(--text-subtle);
+  font-size: var(--fs-micro);
+}
+
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-4);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: var(--fs-meta);
+  color: var(--text-muted);
+}
+
+.legend li {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}

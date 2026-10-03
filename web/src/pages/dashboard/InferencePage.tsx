@@ -50,6 +50,7 @@ export default function InferencePage(): React.JSX.Element {
               <EChart
                 option={flowChart.option}
                 table={flowChart.table}
+                decals={flowChart.decals}
                 label="Inference sources flowing to the level emitted"
                 height={Math.max(260, 30 * data.sources.length)}
               />
@@ -76,6 +77,7 @@ export default function InferencePage(): React.JSX.Element {
               <EChart
                 option={confChart.option}
                 table={confChart.table}
+                decals={confChart.decals}
                 label="Confidence histograms"
                 height={280}
               />
