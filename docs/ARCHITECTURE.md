@@ -756,6 +756,11 @@ installed and in CI (job `9b · vitest`). Production memory cost: **zero** -- al
 static assets served by Caddy (F14.AC4). The Natural Earth boundaries are a data asset,
 not a dependency (ADR-0003 amendment).
 
+**M5.5 adds two frontend rows and no Python row** (ADR-0019): `@fontsource-variable/inter`
+(only its two Latin font files are referenced, declared in `index.css`) and `lucide-react`
+(imported only through `components/icons.ts`, enforced by ESLint). Production memory cost:
+**zero** -- static assets. Download cost: 48 KB for the Latin font face on first load, cached.
+
 ### Python
 
 | Dependency | Justification | Considered instead |
@@ -803,6 +808,8 @@ not a dependency (ADR-0003 amendment).
 | `@tailwindcss/vite` | **M5.** Tailwind 4's build integration; generates the utilities from the theme tokens at build time | PostCSS plugin plus config file (v3's arrangement, more moving parts) |
 | dev: `@types/leaflet` | **M5.** Leaflet ships no types; strict TypeScript needs them (ES1) | hand-written declarations for the parts used |
 | *data:* Natural Earth boundaries | **M5.** Countries (India point of view) and every country's first-order divisions, named as GeoNames names them, public domain, simplified and committed (0.8 MB + 6.3 MB in per-country files, fetched on demand) | a GeoJSON CDN at runtime (a third-party request and a CSP exception), MapTiler (a key) |
+| `@fontsource-variable/inter` | **M5.5.** Inter Variable, self-hosted under `font-src 'self'` (ADR-0019); Latin and Latin-Extended faces only, tabular figures for every number; SIL OFL 1.1 | system fonts only (metrics differ per OS, so density cannot be tuned once), Geist or IBM Plex (fine; Inter was the owner's brief), a font CDN (a third-party request and a CSP exception) |
+| `lucide-react` | **M5.5.** About 40 line icons in one consistent 1.5 px style, imported per icon through the registry so only named icons are bundled; ISC | a hand-drawn SVG sprite (design work with no product value), Heroicons, Phosphor or Tabler (comparable; Lucide's set is widest in one style) |
 | dev: `openapi-typescript` | Generates the TS client from FastAPI OpenAPI; CI fails on drift | hand-maintained types |
 | dev: `@types/node` | `vite.config.ts` and `eslint.config.js` are Node code, so `tsc --noEmit` needs Node types. Dev-only, zero runtime cost | dropping the `@/*` path alias to avoid `node:url` — rejected, the alias is worth more than the type package costs |
 | dev: `eslint`, `prettier`, `vitest` | Quality toolchain | — |

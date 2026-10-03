@@ -10,17 +10,65 @@ import type { Palette } from '@/theme';
 
 export type OptionBuilder = (p: Palette) => EChartsCoreOption;
 
-/** Options every chart shares: theme colours, decals, text styling, HTML-free tooltips. */
-export function baseOption(p: Palette): EChartsCoreOption {
+/** How a chart uses colour, which decides whether texture patterns are drawn (DESIGN §6.4). */
+export interface ChartThemeOptions {
+  /**
+   * True wherever colour distinguishes series (split or stacked charts). A single-series
+   * chart conveys nothing by colour, so patterns would only add noise (NFR7.AC3, ADR-0019).
+   */
+  readonly decals: boolean;
+}
+
+/**
+ * The one chart theme (DESIGN §6.2): theme colours, Inter, a quiet tooltip styled by the
+ * stylesheet (`.chart-tooltip`), first-render animation only.
+ */
+export function chartTheme(p: Palette, { decals }: ChartThemeOptions): EChartsCoreOption {
   return {
     color: [...p.series],
     backgroundColor: 'transparent',
-    textStyle: { color: p.text, fontFamily: 'inherit' },
-    aria: { enabled: true, decal: { show: true } },
+    textStyle: { color: p.muted, fontFamily: 'inherit', fontSize: 12 },
+    aria: { enabled: true, decal: { show: decals } },
     animationDuration: 250,
+    animationDurationUpdate: 0,
+    tooltip: {
+      className: 'chart-tooltip',
+      backgroundColor: p.overlay,
+      borderColor: p.border,
+      borderWidth: 1,
+      padding: [8, 10],
+      textStyle: { color: p.text, fontSize: 12, fontFamily: 'inherit' },
+      axisPointer: { type: 'line', lineStyle: { color: p.borderStrong, width: 1 } },
+    },
   };
 }
 
+/** Options every chart shares. Until each builder states its decal policy, decals stay on. */
+export function baseOption(p: Palette): EChartsCoreOption {
+  return chartTheme(p, { decals: true });
+}
+
+/** The value axis: dashed horizontal grid lines only, no axis line, subtle ticks. */
+export function valueAxis(p: Palette): Record<string, unknown> {
+  return {
+    axisLine: { show: false },
+    axisTick: { show: false },
+    axisLabel: { color: p.subtle, fontSize: 11 },
+    splitLine: { lineStyle: { color: p.border, type: [3, 3] } },
+  };
+}
+
+/** The category axis: a hairline base, no grid lines. */
+export function categoryAxis(p: Palette): Record<string, unknown> {
+  return {
+    axisLine: { lineStyle: { color: p.border } },
+    axisTick: { show: false },
+    axisLabel: { color: p.subtle, fontSize: 11 },
+    splitLine: { show: false },
+  };
+}
+
+/** The pre-M5.5 axis style. Builders move to `valueAxis`/`categoryAxis` in M5.5 Phase 3. */
 export function axisStyle(p: Palette): Record<string, unknown> {
   return {
     axisLine: { lineStyle: { color: p.border } },

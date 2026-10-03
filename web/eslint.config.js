@@ -29,7 +29,24 @@ export default tseslint.config(
       '@typescript-eslint/no-unsafe-assignment': 'error',
       '@typescript-eslint/no-unsafe-member-access': 'error',
       '@typescript-eslint/consistent-type-imports': 'error',
+      // DESIGN UI-5: icons come from the registry, so a glyph is swapped in one place and
+      // only named icons are bundled.
+      'no-restricted-imports': [
+        'error',
+        {
+          paths: [
+            {
+              name: 'lucide-react',
+              message: 'Import icons from @/components/icons (DESIGN §4.8).',
+            },
+          ],
+        },
+      ],
     },
+  },
+  {
+    files: ['src/components/icons.ts'],
+    rules: { 'no-restricted-imports': 'off' },
   },
   {
     // The generated OpenAPI client is never hand-edited (F14.AC9), so linting it

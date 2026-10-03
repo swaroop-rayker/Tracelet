@@ -111,3 +111,26 @@ Four facts shape how it can be built:
 
 The results are recorded here, under a "Spike results" heading, before any primitive that
 depends on them is built.
+
+## Spike results (2026-10-03)
+
+Run in **Chromium** (the Claude desktop browser pane) against a static page served with the
+dashboard's exact CSP header (Caddyfile line 122). A `securitypolicyviolation` listener recorded
+every report.
+
+| Check | Result |
+|---|---|
+| `popover` attribute: `showPopover()` opens, `:popover-open` matches | **Pass**, no violation |
+| `<dialog>.showModal()` opens; `body:has(dialog[open]) { overflow: hidden }` locks scroll | **Pass**, no violation |
+| CSSOM custom property, `style.setProperty('--w', '40%')` (what React does for `style={{'--w': …}}`), read by a stylesheet rule `width: var(--w)` | **Pass**: the property applied, no violation |
+| CSSOM direct property, `style.transform = …` (what Leaflet, ECharts and React do) | **Pass**, no violation |
+| Control: `setAttribute('style', …)` | **Blocked** and reported (`style-src-attr`) — the listener works |
+| Control: injected `<style>` element | **Blocked** and reported (`style-src-elem`) — the listener works |
+
+**Not run here: Firefox and WebKit.** This environment has only a Chromium engine. The CSP
+specification governs `style` *attributes* and `<style>` *elements*, not CSSOM property writes,
+so the same results are expected; the M5.5 QA phase (DESIGN §11, Phase 5) repeats the CSP check
+on the Caddy-served build in Firefox and Safari by hand before the PR is merged.
+
+**Font:** Inter Variable's Latin face is 48 KB (woff2) and Latin-Extended 85 KB. Only the faces
+the page's text needs are downloaded (`unicode-range`); dashboard copy is Latin.
