@@ -16,6 +16,8 @@ import { EChart, TableView } from '@/components/EChart';
 import { Panel } from '@/components/Panel';
 import { label, pct } from '@/format';
 import { useFilters } from '@/session';
+import { PageHeader } from '@/components/shell/PageHeader';
+import { Alert } from '@/components/ui';
 
 export default function InferencePage(): React.JSX.Element {
   const { params } = useFilters();
@@ -30,7 +32,11 @@ export default function InferencePage(): React.JSX.Element {
 
   return (
     <div className="page">
-      <h2 className="page-title">Inference</h2>
+      <PageHeader
+        title="Inference"
+        description="How the engine located visits: which sources answered, and how sure it was."
+        filters
+      />
       <Panel
         query={flow}
         title="Sources to emitted level"
@@ -45,11 +51,12 @@ export default function InferencePage(): React.JSX.Element {
               <EChart
                 option={flowChart.option}
                 table={flowChart.table}
+                decals={flowChart.decals}
                 label="Inference sources flowing to the level emitted"
                 height={Math.max(260, 30 * data.sources.length)}
               />
             )}
-            <p className="muted small">
+            <p className="t-meta m-0">
               {data.visits.toLocaleString()} inferred visits. A visit flows once for every source
               that spoke about it, so flows add up to more than the visit count.
             </p>
@@ -71,6 +78,7 @@ export default function InferencePage(): React.JSX.Element {
               <EChart
                 option={confChart.option}
                 table={confChart.table}
+                decals={confChart.decals}
                 label="Confidence histograms"
                 height={280}
               />
@@ -91,11 +99,10 @@ export default function InferencePage(): React.JSX.Element {
             return (
               <>
                 {noLabels && (
-                  <p className="callout-text">
-                    <strong>No ground truth yet.</strong> Precision and coverage need hand-labelled
-                    visits, which the labelling workflow builds in M8. Nothing here is an accuracy
-                    claim.
-                  </p>
+                  <Alert tone="info" title="No ground truth yet">
+                    Precision and coverage need hand-labelled visits, which the labelling workflow
+                    builds in M8. Nothing here is an accuracy claim.
+                  </Alert>
                 )}
                 <TableView
                   caption="Accuracy per level"
@@ -116,7 +123,7 @@ export default function InferencePage(): React.JSX.Element {
                     ]),
                   }}
                 />
-                <p className="muted small">
+                <p className="t-meta m-0">
                   “Strict answered” is the share of {data.inferred.toLocaleString()} inferred visits
                   for which the engine stated that level at all — how often it spoke, not whether it
                   was right.

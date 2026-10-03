@@ -16,6 +16,7 @@ import { login, submitMfa, type MfaChallenge } from '@/api/auth';
 import { fieldMessage, type ApiError } from '@/api/client';
 import { Callout, ErrorNotice, Field, Submit } from '@/components/ui';
 import { navigate } from '@/router';
+import { BrandMark } from '@/components/shell/BrandMark';
 
 type Step =
   { readonly name: 'password' } | { readonly name: 'code'; readonly challenge: MfaChallenge };
@@ -65,9 +66,12 @@ export default function LoginPage({
   }
 
   return (
-    <main className="shell narrow">
+    <main className="auth">
       <header>
-        <h1>Tracelet</h1>
+        <h1 className="auth__brand">
+          <BrandMark />
+          Tracelet
+        </h1>
         <p className="muted">
           {step.name === 'password' ? 'Sign in' : 'Enter your authenticator code'}
         </p>

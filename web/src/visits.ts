@@ -51,3 +51,15 @@ export function placeLabel(place: Place): string {
     ? place.text
     : `${place.text} · ${pct(place.confidence)}`;
 }
+
+/** The heading for a visit: "Visit at 09:58, 2 Oct". */
+export function visitTitle(iso: string, zone: string): string {
+  const date = new Date(iso);
+  const time = date.toLocaleTimeString('en-IN', {
+    timeZone: zone,
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+  const day = date.toLocaleDateString('en-IN', { timeZone: zone, day: 'numeric', month: 'short' });
+  return `Visit at ${time}, ${day}`;
+}

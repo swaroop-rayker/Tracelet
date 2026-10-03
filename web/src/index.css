@@ -1,119 +1,291 @@
 /*
- * Styling: three themes as CSS custom properties, consumed by hand-written CSS (M0, M1)
- * and, from M5, by Tailwind utilities mapped onto the same tokens (ADR-0003). One
- * source of colour, so a theme is a token swap rather than a restyle: semi-dark is the
- * DEFAULT (F9.AC16), with light and dark selectable via [data-theme].
+ * The design system's foundations (docs/DESIGN.md Part I, ADR-0019): every colour, size,
+ * radius, shadow and duration the UI uses is a custom property here. Components and Tailwind
+ * utilities read these tokens; they never carry raw values of their own (DESIGN UI-2).
  *
- * Every text pair and every chart colour here is checked for WCAG AA contrast by
- * src/theme.test.ts (NFR7.AC1): 4.5:1 for text, 3:1 for chart marks against the panel
- * surface. A token change that breaks a ratio fails the build.
+ * Three themes, one block each: semi-dark is the DEFAULT (F9.AC16), dark and light are
+ * selected with [data-theme]. Surfaces come forward in five layers -- canvas, sidebar,
+ * surface, surface-2, overlay -- and borders, not shadows, separate them (DESIGN §4.1).
+ *
+ * Every text pair, status tint and chart colour here is checked for WCAG AA contrast by
+ * src/theme.test.ts (NFR7.AC1, DESIGN §8): 4.5:1 for text on all five layers, 3:1 for chart
+ * marks against the panel surface. A token change that breaks a ratio fails the build.
  */
 
 @import 'tailwindcss';
+@import './styles/primitives.css';
+@import './styles/shell.css';
+@import './styles/data.css';
 
-/* Tailwind utilities read the tokens, so `bg-surface text-muted border-line` follow the
-   theme. Unlayered rules below still win over Tailwind's layers. */
+/* Inter Variable, self-hosted (font-src 'self', ADR-0019): Latin and Latin-Extended only.
+   The browser downloads a face only when the page's text needs one of its characters. */
+@font-face {
+  font-family: 'Inter Variable';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 100 900;
+  src: url('@fontsource-variable/inter/files/inter-latin-ext-wght-normal.woff2')
+    format('woff2-variations');
+  unicode-range:
+    U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329,
+    U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F,
+    U+A720-A7FF;
+}
+
+@font-face {
+  font-family: 'Inter Variable';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 100 900;
+  src: url('@fontsource-variable/inter/files/inter-latin-wght-normal.woff2')
+    format('woff2-variations');
+  unicode-range:
+    U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329,
+    U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+/* Tailwind reads the tokens, so `bg-surface text-muted border-line rounded-lg` follow the
+   theme and the scales. Unlayered rules below still win over Tailwind's layers. */
 @theme inline {
   --color-bg: var(--bg);
+  --color-sidebar: var(--sidebar);
   --color-surface: var(--surface);
   --color-surface-2: var(--surface-2);
+  --color-overlay: var(--overlay);
   --color-line: var(--border);
+  --color-line-strong: var(--border-strong);
   --color-text: var(--text);
   --color-muted: var(--text-muted);
+  --color-subtle: var(--text-subtle);
   --color-accent: var(--accent);
+  --color-accent-hover: var(--accent-hover);
+  --color-accent-bg: var(--accent-bg);
+  --color-on-accent: var(--on-accent);
   --color-ok: var(--ok);
+  --color-ok-bg: var(--ok-bg);
   --color-warn: var(--warn);
+  --color-warn-bg: var(--warn-bg);
   --color-error: var(--error);
+  --color-error-bg: var(--error-bg);
+  --font-sans: var(--font-ui);
+  --font-mono: var(--font-code);
 }
+
+@theme {
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --radius-xl: 14px;
+}
+
+/* Theme-independent scales (DESIGN §4.2–§4.7). */
+:root {
+  --font-ui: 'Inter Variable', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --font-code: ui-monospace, 'Cascadia Code', 'SF Mono', Menlo, Consolas, monospace;
+
+  /* Type: size / line height. Weights are 400, 500 and 600 only. */
+  --fs-title: 24px;
+  --lh-title: 32px;
+  --fs-metric: 28px;
+  --lh-metric: 34px;
+  --fs-section: 15px;
+  --lh-section: 22px;
+  --fs-body: 14px;
+  --lh-body: 20px;
+  --fs-secondary: 13px;
+  --lh-secondary: 18px;
+  --fs-meta: 12px;
+  --lh-meta: 16px;
+  --fs-micro: 11px;
+  --lh-micro: 14px;
+
+  /* Spacing: a 4 px base, these steps only. */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-7: 28px;
+  --space-8: 32px;
+  --space-9: 40px;
+  --space-10: 48px;
+
+  /* Radius (mirrored in @theme for Tailwind's rounded-*). Nothing is a pill but avatars and dots. */
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --radius-xl: 14px;
+  --radius-full: 9999px;
+
+  /* Motion. prefers-reduced-motion zeroes these below. */
+  --dur-fast: 120ms;
+  --dur-base: 180ms;
+  --dur-slow: 240ms;
+  --ease-out: cubic-bezier(0.2, 0, 0, 1);
+  --ease-in: cubic-bezier(0.4, 0, 1, 1);
+
+  /* Layout. */
+  --sidebar-w: 240px;
+  --sidebar-w-collapsed: 68px;
+  --header-h: 56px;
+  --content-max: 1600px;
+  --control-h: 36px;
+  --control-h-sm: 28px;
+  --row-h: 48px;
+  --row-h-compact: 40px;
+  --gutter: 32px;
+
+  /* Stacking. */
+  --z-sticky: 10;
+  --z-sidebar: 20;
+  --z-header: 30;
+  --z-popover: 40;
+  --z-drawer: 50;
+  --z-dialog: 60;
+  --z-toast: 70;
+}
+
+@media (max-width: 1023px) {
+  :root {
+    --gutter: 24px;
+  }
+}
+
+@media (max-width: 767px) {
+  :root {
+    --gutter: 16px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --dur-fast: 0ms;
+    --dur-base: 0ms;
+    --dur-slow: 0ms;
+  }
+}
+
+/* --- themes (DESIGN §4.1) -------------------------------------------------- */
 
 :root,
 :root[data-theme='semi-dark'] {
-  --bg: #1b1f27;
-  --surface: #232833;
-  --surface-2: #2b3140;
-  --border: #333a48;
-  --text: #e8ebf0;
-  --text-muted: #9aa3b2;
-  --accent: #6ea8fe;
-  --ok: #56d364;
-  --warn: #e3b341;
-  --error: #f47067;
-  /* Categorical chart colours, in series order. */
-  --chart-1: #6ea8fe;
-  --chart-2: #f0a35e;
-  --chart-3: #56d364;
-  --chart-4: #e57ab8;
-  --chart-5: #c9a2ff;
-  --chart-6: #4fd1c5;
-  --chart-7: #e3b341;
-  --chart-8: #a8b3c4;
+  --bg: #14161a;
+  --sidebar: #181b20;
+  --surface: #1c1f25;
+  --surface-2: #22262d;
+  --overlay: #272c34;
+  --border: #2b3038;
+  --border-strong: #3a404b;
+  --text: #e8eaee;
+  --text-muted: #9da4b0;
+  --text-subtle: #8f97a3;
+  --accent: #7aa2ff;
+  --accent-hover: #93b4ff;
+  --accent-bg: #202a3d;
+  --on-accent: #0b1020;
+  --ok: #4fc58c;
+  --ok-bg: #1d2b26;
+  --warn: #e2b04a;
+  --warn-bg: #2d2a1f;
+  --error: #f2766b;
+  --error-bg: #2f2124;
+  /* Data visualisation: the primary series is the accent; 6 is neutral (Other, comparisons). */
+  --chart-1: #7aa2ff;
+  --chart-2: #3fc1b0;
+  --chart-3: #e2b04a;
+  --chart-4: #b89cff;
+  --chart-5: #f07fa3;
+  --chart-6: #8e98a8;
   /* Sequential ramp for heatmaps and the choropleth, low to high. */
-  --seq-1: #3d5f9a;
-  --seq-2: #5583cf;
-  --seq-3: #7fb0ff;
-  --seq-4: #a9caff;
-  --seq-5: #d6e6ff;
+  --seq-1: #3d5ea6;
+  --seq-2: #4a6fc0;
+  --seq-3: #5f86dd;
+  --seq-4: #7aa2ff;
+  --seq-5: #b3caff;
   /* The Geography map is drawn from self-hosted outlines (ADR-0017). */
-  --map-sea: #0f1216;
-  --map-land: #272b33;
+  --map-sea: #0c0e11;
+  --map-land: #272c34;
+  --shadow-popover: 0 8px 24px -6px rgb(0 0 0 / 0.5);
+  --shadow-dialog: 0 24px 64px -12px rgb(0 0 0 / 0.6);
   color-scheme: dark;
 }
 
 :root[data-theme='dark'] {
-  --bg: #0d1117;
-  --surface: #161b22;
-  --surface-2: #1f2630;
-  --border: #30363d;
-  --text: #e6edf3;
-  --text-muted: #8b949e;
-  --accent: #58a6ff;
-  --ok: #3fb950;
-  --warn: #d29922;
-  --error: #f85149;
-  --chart-1: #58a6ff;
-  --chart-2: #f0883e;
-  --chart-3: #3fb950;
-  --chart-4: #db61a2;
-  --chart-5: #bc8cff;
-  --chart-6: #39c5bb;
-  --chart-7: #d29922;
-  --chart-8: #9da7b3;
-  --seq-1: #33568e;
-  --seq-2: #4777c4;
-  --seq-3: #6ca6f5;
-  --seq-4: #9cc6ff;
-  --seq-5: #cfe3ff;
-  --map-sea: #040608;
-  --map-land: #20272f;
+  --bg: #0b0d10;
+  --sidebar: #101318;
+  --surface: #15191f;
+  --surface-2: #1b2027;
+  --overlay: #20262e;
+  --border: #232831;
+  --border-strong: #313845;
+  --text: #e6e8eb;
+  --text-muted: #959ca7;
+  --text-subtle: #8a919c;
+  --accent: #6f9bff;
+  --accent-hover: #8cafff;
+  --accent-bg: #18223a;
+  --on-accent: #0a0f1c;
+  --ok: #45bd84;
+  --ok-bg: #14231d;
+  --warn: #d9a640;
+  --warn-bg: #25221a;
+  --error: #ef6a60;
+  --error-bg: #271a1c;
+  --chart-1: #6f9bff;
+  --chart-2: #36b5a5;
+  --chart-3: #d9a640;
+  --chart-4: #ac8ff5;
+  --chart-5: #e8739a;
+  --chart-6: #848ea0;
+  --seq-1: #34549a;
+  --seq-2: #3f63b3;
+  --seq-3: #5079d6;
+  --seq-4: #6f9bff;
+  --seq-5: #aac3ff;
+  --map-sea: #040506;
+  --map-land: #20252c;
+  --shadow-popover: 0 8px 24px -6px rgb(0 0 0 / 0.5);
+  --shadow-dialog: 0 24px 64px -12px rgb(0 0 0 / 0.6);
   color-scheme: dark;
 }
 
 :root[data-theme='light'] {
-  --bg: #f6f7f9;
+  --bg: #f7f8fa;
+  --sidebar: #f1f2f5;
   --surface: #ffffff;
-  --surface-2: #eef0f4;
-  --border: #d6dae1;
-  --text: #1b1f27;
-  --text-muted: #5c6472;
-  --accent: #0b5ed7;
-  --ok: #17702f;
-  --warn: #865900;
-  --error: #b42318;
-  --chart-1: #0b5ed7;
-  --chart-2: #b35900;
-  --chart-3: #1a7f37;
-  --chart-4: #b4246b;
-  --chart-5: #6f42c1;
-  --chart-6: #0f766e;
-  --chart-7: #8a6100;
-  --chart-8: #5c6472;
-  --seq-1: #8fb2ec;
-  --seq-2: #5f8fde;
-  --seq-3: #3a6fcc;
-  --seq-4: #1f56b3;
-  --seq-5: #0b3f91;
-  --map-sea: #c9d6e5;
-  --map-land: #f4f5f7;
+  --surface-2: #f4f5f7;
+  --overlay: #ffffff;
+  --border: #e3e6eb;
+  --border-strong: #cdd2da;
+  --text: #14171c;
+  --text-muted: #5a6270;
+  --text-subtle: #646c79;
+  --accent: #2f62e6;
+  --accent-hover: #2552c7;
+  --accent-bg: #ebf0fe;
+  --on-accent: #ffffff;
+  --ok: #16794a;
+  --ok-bg: #e8f5ee;
+  --warn: #8a5a00;
+  --warn-bg: #fbf3e2;
+  --error: #c0372b;
+  --error-bg: #fceceb;
+  --chart-1: #2f62e6;
+  --chart-2: #0f8a7c;
+  --chart-3: #a86b00;
+  --chart-4: #7a4fd6;
+  --chart-5: #c2416f;
+  --chart-6: #5f6b7d;
+  --seq-1: #aac0f6;
+  --seq-2: #7f9ff0;
+  --seq-3: #5682e8;
+  --seq-4: #2f62e6;
+  --seq-5: #1a3d9c;
+  --map-sea: #cfd9e6;
+  --map-land: #fdfdfe;
+  --shadow-popover: 0 8px 24px -8px rgb(16 24 40 / 0.16);
+  --shadow-dialog: 0 24px 48px -12px rgb(16 24 40 / 0.2);
   color-scheme: light;
 }
 
@@ -125,103 +297,41 @@ body {
   margin: 0;
   background: var(--bg);
   color: var(--text);
-  font-family:
-    ui-sans-serif,
-    system-ui,
-    -apple-system,
-    'Segoe UI',
-    Roboto,
-    sans-serif;
-  line-height: 1.5;
+  font-family: var(--font-ui);
+  font-size: var(--fs-body);
+  line-height: var(--lh-body);
+  font-feature-settings: 'cv11';
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
-.shell {
-  max-width: 48rem;
-  margin: 0 auto;
-  padding: 2.5rem 1rem;
+/* Numbers line up wherever they appear (DESIGN UI-22). */
+.tabular,
+td,
+.num {
+  font-variant-numeric: tabular-nums;
 }
 
-h1 {
-  margin: 0;
-  font-size: 1.5rem;
-  letter-spacing: -0.01em;
-}
-
-h2 {
-  font-size: 1rem;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  color: var(--text-muted);
-}
+/* ---------------------------------------------------------------------------
+ * Shared helpers and the M1 form idioms, on the design tokens (docs/DESIGN.md).
+ *
+ * The sign-in and account pages still use a few class names from M1 (`card`, `stack`,
+ * `pairs`, `codes`, `checkbox`). They are restyled here onto the tokens, so every page
+ * shares one look. Element rules are scoped to unclassed elements: a primitive's class always
+ * decides its own appearance (DESIGN UI-1).
+ * --------------------------------------------------------------------------- */
 
 .muted {
   color: var(--text-muted);
 }
 
 .mono {
-  font-family: ui-monospace, 'Cascadia Code', Menlo, Consolas, monospace;
-  font-size: 0.8125rem;
+  font-family: var(--font-code);
+  font-size: var(--fs-secondary);
 }
 
-.card {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-left-width: 3px;
-  border-radius: 0.5rem;
-  padding: 1rem 1.25rem;
-  margin: 0 0 1rem;
-}
-
-.card.ok {
-  border-left-color: var(--ok);
-}
-.card.warn {
-  border-left-color: var(--warn);
-}
-.card.error {
-  border-left-color: var(--error);
-}
-
-.checks {
-  list-style: none;
-  margin: 0.75rem 0 0;
-  padding: 0;
-  display: grid;
-  gap: 0.375rem;
-}
-
-.checks li {
-  display: grid;
-  grid-template-columns: 1.25rem 8rem 1fr;
-  align-items: baseline;
-  gap: 0.5rem;
-  font-size: 0.875rem;
-}
-
-.checks code {
-  font-family: ui-monospace, Menlo, Consolas, monospace;
-}
-
-button {
-  background: var(--surface);
-  color: var(--text);
-  border: 1px solid var(--border);
-  border-radius: 0.375rem;
-  padding: 0.4rem 0.9rem;
-  font: inherit;
-  font-size: 0.875rem;
-  cursor: pointer;
-}
-
-button:hover {
-  border-color: var(--accent);
-}
-
-/* NFR7.AC2: a visible focus ring is not optional. */
-button:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 2px;
+.small {
+  font-size: var(--fs-secondary);
 }
 
 .sr-only {
@@ -236,177 +346,23 @@ button:focus-visible {
   border: 0;
 }
 
-/* ---------------------------------------------------------------------------
- * M1 — the authentication surfaces.
- *
- * Still hand-written CSS on the same tokens: Tailwind arrives in M5, and adding
- * it for six forms would be a dependency the ledger cannot justify (ES5).
- *
- * Every state that matters has a non-colour signal as well as a colour one
- * (NFR7.AC3), and every interactive element keeps the focus ring (NFR7.AC2).
- * --------------------------------------------------------------------------- */
-
-.shell.narrow {
-  max-width: 30rem;
+.stack {
+  display: grid;
+  gap: var(--space-4);
 }
 
-.shell > header {
-  margin-bottom: 1.5rem;
+.stack-sm {
+  display: grid;
+  gap: var(--space-2);
+  justify-items: start;
 }
 
 .row {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
-  gap: 1rem;
+  gap: var(--space-4);
   flex-wrap: wrap;
-}
-
-.stack {
-  display: grid;
-  gap: 1rem;
-}
-
-.stack-sm {
-  display: grid;
-  gap: 0.5rem;
-  justify-items: start;
-}
-
-.small {
-  font-size: 0.8125rem;
-}
-
-section {
-  margin-bottom: 2rem;
-}
-
-p {
-  margin: 0.25rem 0;
-}
-
-/* --- forms --------------------------------------------------------------- */
-
-.field {
-  display: grid;
-  gap: 0.25rem;
-}
-
-.field label {
-  font-size: 0.875rem;
-  font-weight: 600;
-}
-
-input[type='text'],
-input[type='password'],
-input[type='email'],
-input[type='number'] {
-  background: var(--bg);
-  color: var(--text);
-  border: 1px solid var(--border);
-  border-radius: 0.375rem;
-  padding: 0.5rem 0.65rem;
-  font: inherit;
-  width: 100%;
-}
-
-input:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 1px;
-}
-
-/* aria-invalid rather than a class: the attribute the screen reader reads and
-   the border the eye reads cannot then disagree. */
-input[aria-invalid='true'] {
-  border-color: var(--error);
-}
-
-input:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
-}
-
-.error-text {
-  color: var(--error);
-  margin: 0;
-}
-
-button.primary {
-  background: var(--accent);
-  border-color: var(--accent);
-  color: #0b0f16;
-  font-weight: 600;
-  justify-self: start;
-  padding: 0.5rem 1.1rem;
-}
-
-button.primary:disabled {
-  opacity: 0.6;
-  cursor: progress;
-}
-
-button.link {
-  background: none;
-  border: none;
-  color: var(--accent);
-  padding: 0;
-  text-decoration: underline;
-  cursor: pointer;
-  font-size: inherit;
-}
-
-a {
-  color: var(--accent);
-}
-
-.checkbox {
-  display: flex;
-  align-items: flex-start;
-  gap: 0.5rem;
-  font-size: 0.875rem;
-  cursor: pointer;
-}
-
-.checkbox input {
-  margin-top: 0.2rem;
-}
-
-/* --- secrets and codes --------------------------------------------------- */
-
-.secret {
-  display: grid;
-  gap: 0.25rem;
-  margin-bottom: 0.75rem;
-}
-
-.secret code {
-  background: var(--bg);
-  border: 1px solid var(--border);
-  border-radius: 0.375rem;
-  padding: 0.5rem 0.65rem;
-  word-break: break-all;
-}
-
-.selectable {
-  user-select: all;
-}
-
-.codes {
-  list-style: none;
-  padding: 0;
-  margin: 0.75rem 0;
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(9rem, 1fr));
-  gap: 0.5rem;
-}
-
-.codes li {
-  background: var(--bg);
-  border: 1px solid var(--border);
-  border-radius: 0.375rem;
-  padding: 0.4rem 0.6rem;
-  text-align: center;
-  user-select: all;
 }
 
 .plain {
@@ -415,19 +371,212 @@ a {
   margin: 0;
 }
 
-.empty {
-  border: 1px dashed var(--border);
-  border-radius: 0.5rem;
-  padding: 1rem;
+p {
   margin: 0;
+}
+
+.error-text {
+  color: var(--error);
+  margin: 0;
+}
+
+a {
+  color: var(--accent);
+}
+
+/* An inner row of content inside a section: quieter than a card, never a nested card. */
+.card {
+  display: grid;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface-2);
+}
+
+.card.ok {
+  border-color: var(--ok-bg);
+  background: var(--ok-bg);
+}
+
+.card.warn {
+  border-color: var(--warn-bg);
+  background: var(--warn-bg);
+}
+
+.card.error {
+  border-color: var(--error-bg);
+  background: var(--error-bg);
+}
+
+.checks {
+  display: grid;
+  gap: var(--space-2);
+  margin: var(--space-3) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.checks li {
+  display: grid;
+  grid-template-columns: 1.25rem 8rem 1fr;
+  align-items: baseline;
+  gap: var(--space-2);
+  font-size: var(--fs-secondary);
+}
+
+.checks code {
+  font-family: var(--font-code);
+}
+
+/* Buttons the primitives do not wrap yet look like the secondary Button. */
+button:not([class]) {
+  justify-self: start;
+  height: var(--control-h);
+  padding: 0 var(--space-3);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  font-size: var(--fs-body);
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color var(--dur-fast) var(--ease-out);
+}
+
+button:not([class]):hover {
+  background: var(--surface-2);
+}
+
+button:not([class]):disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+button:not([class]):focus-visible,
+button.primary:focus-visible,
+button.link:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+button.primary {
+  height: var(--control-h);
+  padding: 0 var(--space-4);
+  border: 1px solid var(--accent);
+  border-radius: var(--radius-md);
+  background: var(--accent);
+  color: var(--on-accent);
+  font: inherit;
+  font-weight: 600;
+  justify-self: start;
+  cursor: pointer;
+}
+
+button.primary:hover {
+  background: var(--accent-hover);
+  border-color: var(--accent-hover);
+}
+
+button.primary:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+button.link {
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--accent);
+  font: inherit;
+  font-size: inherit;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+button.link:hover {
+  text-decoration: underline;
+}
+
+input:not([class])[type='text'],
+input:not([class])[type='password'],
+input:not([class])[type='email'],
+input:not([class])[type='number'] {
+  width: 100%;
+  height: var(--control-h);
+  padding: 0 var(--space-3);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-md);
+  background: var(--bg);
+  color: var(--text);
+  font: inherit;
+}
+
+input:not([class]):focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.checkbox {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  font-size: var(--fs-body);
+  cursor: pointer;
+}
+
+.checkbox input {
+  margin-top: 3px;
+  accent-color: var(--accent);
+}
+
+.selectable {
+  user-select: all;
+}
+
+.codes {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(8.5rem, 1fr));
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.codes li {
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--bg);
+  text-align: center;
+  user-select: all;
+}
+
+.recovery {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.recovery__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.recovery__copy {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
 }
 
 .pairs {
   display: grid;
   grid-template-columns: auto 1fr;
-  gap: 0.25rem 1rem;
-  margin: 0 0 1rem;
-  font-size: 0.875rem;
+  gap: var(--space-1) var(--space-4);
+  margin: 0;
+  font-size: var(--fs-body);
 }
 
 .pairs dt {
@@ -448,42 +597,76 @@ a {
   }
 }
 
-/* ---------------------------------------------------------------------------
- * M5 — the dashboard.
- *
- * Tailwind utilities over the same tokens (ADR-0003), applied through semantic class
- * names so the markup stays readable and every component shares one definition.
- * Responsive to 1280 px and usable at tablet width (F9.AC17): below 64rem the sidebar
- * becomes a top bar and two-column grids stack.
- * --------------------------------------------------------------------------- */
+/* --- sign-in pages (DESIGN §10.9) ------------------------------------------ */
 
-.app {
-  @apply grid min-h-screen;
-  grid-template-columns: 13rem minmax(0, 1fr);
+.auth {
+  display: grid;
+  gap: var(--space-4);
+  width: min(400px, calc(100vw - 32px));
+  margin: 12vh auto var(--space-10);
+  padding: var(--space-8);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xl);
+  background: var(--surface);
 }
 
-.sidebar {
-  @apply sticky top-0 flex h-screen flex-col gap-4 border-r border-line bg-surface p-4;
+@media (max-width: 479px) {
+  .auth {
+    margin-top: var(--space-6);
+    padding: var(--space-6) var(--space-5);
+  }
 }
 
-.brand {
-  @apply text-lg font-semibold tracking-tight;
+.auth > header {
+  display: grid;
+  gap: var(--space-1);
+  margin-bottom: var(--space-2);
 }
 
-.nav-link {
-  @apply block rounded-md px-3 py-1.5 text-sm text-text no-underline;
+.auth__brand {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0 0 var(--space-3);
+  font-size: 15px;
+  font-weight: 600;
 }
 
-.nav-link:hover {
-  @apply bg-surface-2;
+.auth > header > p {
+  color: var(--text);
+  font-size: var(--fs-title);
+  line-height: var(--lh-title);
+  font-weight: 600;
+  letter-spacing: -0.02em;
 }
 
-.nav-link.active {
-  @apply bg-surface-2 font-semibold;
-  box-shadow: inset 3px 0 0 var(--accent);
+.auth .stack > button.primary,
+.auth form > .btn--primary {
+  width: 100%;
+  justify-content: center;
 }
 
-.nav-link:focus-visible,
+/* --- account & security (DESIGN §10.8) ------------------------------------- */
+
+.account > section {
+  display: grid;
+  gap: var(--space-4);
+  margin: 0;
+  padding: var(--space-5);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+}
+
+.account > section > h2 {
+  margin: 0;
+  font-size: var(--fs-section);
+  line-height: var(--lh-section);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+/* The keyboard focus ring for native elements the primitives do not wrap. */
 a:focus-visible,
 select:focus-visible,
 summary:focus-visible,
@@ -492,317 +675,15 @@ summary:focus-visible,
   outline-offset: 2px;
 }
 
-.sidebar-foot {
-  @apply mt-auto grid gap-3;
-}
-
-.content {
-  @apply min-w-0 p-6;
-}
-
-.content:focus {
-  outline: none;
-}
-
-.skip-link {
-  @apply absolute left-2 top-2 z-50 -translate-y-20 rounded bg-surface px-3 py-2;
-}
-
-.skip-link:focus {
-  @apply translate-y-0;
-}
-
-.page {
-  @apply grid gap-5;
-}
-
-.page-title {
-  @apply m-0 text-2xl font-semibold normal-case tracking-tight text-text;
-}
-
 .grid-2 {
-  @apply grid gap-5;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-}
-
-/* --- controls ------------------------------------------------------------ */
-
-select,
-input[type='date'] {
-  @apply rounded-md border border-line bg-bg px-2 py-1.5 text-sm text-text;
-  font: inherit;
-  font-size: 0.875rem;
-}
-
-.control {
-  @apply grid gap-1 text-sm;
-}
-
-.control > span {
-  @apply text-xs font-semibold text-muted;
-}
-
-.control input[type='text'] {
-  @apply py-1.5 text-sm;
-}
-
-.checkbox-control {
-  @apply flex items-center gap-2 self-end pb-1.5;
-}
-
-.checkbox-control > span {
-  @apply text-sm font-normal text-text;
-}
-
-a.button {
-  @apply inline-block rounded-md border border-line bg-surface px-3 py-1.5 text-sm text-text no-underline;
-}
-
-a.button:hover {
-  border-color: var(--accent);
-}
-
-.filter-bar {
-  @apply grid gap-3 rounded-lg border border-line bg-surface p-4;
-}
-
-.filter-row {
-  @apply flex flex-wrap items-end gap-3;
-}
-
-.filter-more > summary {
-  @apply cursor-pointer text-sm font-semibold;
-}
-
-.filter-grid {
-  @apply mt-3 grid gap-4;
-  grid-template-columns: repeat(auto-fill, minmax(14rem, 1fr));
-}
-
-.control-group {
-  @apply m-0 grid content-start gap-2 rounded-md border border-line p-3;
-}
-
-.control-group legend {
-  @apply px-1 text-xs font-semibold text-muted;
-}
-
-.filter-actions {
-  @apply flex flex-wrap items-center gap-3;
-}
-
-/* --- panels -------------------------------------------------------------- */
-
-.panel {
-  @apply m-0 grid min-w-0 content-start gap-3 rounded-lg border border-line bg-surface p-4;
-}
-
-.panel-head {
-  @apply flex flex-wrap items-start justify-between gap-3;
-}
-
-.panel-head h3 {
-  @apply m-0 text-base font-semibold;
-}
-
-.panel-actions {
-  @apply flex flex-wrap items-end gap-3;
-}
-
-.panel-meta {
-  @apply m-0 border-t border-line pt-2;
-}
-
-.callout-text {
-  @apply rounded-md border border-line bg-surface-2 p-3 text-sm;
-}
-
-/* --- KPI tiles ----------------------------------------------------------- */
-
-.kpis {
-  @apply grid gap-3;
-  grid-template-columns: repeat(auto-fill, minmax(11rem, 1fr));
-}
-
-.kpi {
-  @apply grid gap-1 rounded-md bg-surface-2 p-3;
-}
-
-.kpi-label {
-  @apply text-xs font-semibold text-muted;
-}
-
-.kpi-value {
-  @apply text-2xl font-semibold tabular-nums;
-}
-
-/* Direction is stated by the arrow and the words, colour only reinforces (NFR7.AC3). */
-.kpi-change {
-  @apply text-sm tabular-nums;
-}
-
-.kpi-change.up {
-  color: var(--ok);
-}
-
-.kpi-change.down {
-  color: var(--error);
-}
-
-/* --- charts and tables --------------------------------------------------- */
-
-.chart {
-  @apply grid min-w-0 gap-2;
-}
-
-.chart-table > summary {
-  @apply cursor-pointer text-xs text-muted;
-}
-
-.table-wrap {
-  @apply max-w-full overflow-x-auto;
-}
-
-table.data {
-  @apply w-full border-collapse text-sm;
-}
-
-table.data th {
-  @apply border-b border-line px-2 py-1.5 text-left text-xs font-semibold text-muted;
-}
-
-table.data td {
-  @apply border-b border-line px-2 py-1.5 align-top;
-}
-
-table.data td.num {
-  @apply text-right tabular-nums;
-}
-
-.raw {
-  @apply max-h-96 overflow-auto rounded-md bg-bg p-3 text-xs;
-}
-
-/* --- map ----------------------------------------------------------------- */
-
-.map {
-  @apply h-[30rem] w-full rounded-md border border-line;
-  /* The sea: there are no tiles, only outlines drawn over this (ADR-0017). */
-  background: var(--map-sea);
-}
-
-/* leaflet.css loads with the Geography chunk, after this sheet, and sets its own grey
-   container background; the doubled class outranks it. */
-.map.leaflet-container {
-  background: var(--map-sea);
-}
-
-/* A clicked area takes focus, and the browser's default ring is its bounding box -- an odd
-   rectangle over the map. Areas are not in the tab order (keyboard users have the map's own
-   ring and the tables), so the ring is replaced by the hover and selection outline. */
-.map path.leaflet-interactive:focus {
-  outline: none;
-}
-
-.legend {
-  @apply flex flex-wrap gap-4 text-sm;
-}
-
-.legend li {
-  @apply flex items-center gap-1.5;
-}
-
-.leaflet-tooltip {
-  background: var(--surface);
-  color: var(--text);
-  border-color: var(--border);
-}
-
-.leaflet-container a {
-  color: var(--accent);
-}
-
-.leaflet-control-attribution {
-  background: var(--surface) !important;
-  color: var(--text-muted);
-}
-
-/* --- timeline ------------------------------------------------------------ */
-
-.timeline {
   @apply grid gap-4;
-}
-
-.timeline-head {
-  @apply sticky top-0 m-0 bg-surface py-1 text-sm font-semibold;
-}
-
-.visit-row > details > summary {
-  @apply flex cursor-pointer flex-wrap items-baseline gap-3 rounded-md px-2 py-1.5 text-sm;
-}
-
-.visit-row > details > summary:hover {
-  @apply bg-surface-2;
-}
-
-.visit-row > details[open] {
-  @apply mb-2 rounded-md bg-surface-2 pb-3;
-}
-
-.visit-row dl,
-.visit-row details > a {
-  @apply mx-3;
-}
-
-.load-more {
-  @apply pt-2;
-}
-
-/* A badge is text first: the word is the signal, the outline only reinforces it. */
-.badge {
-  @apply rounded border px-1.5 py-0.5 text-xs font-semibold;
-  border-color: var(--border);
-}
-
-.badge.human {
-  border-color: var(--ok);
-}
-
-.badge.bot,
-.badge.spoofed,
-.badge.spam {
-  border-color: var(--error);
-}
-
-.badge.crawler,
-.badge.datacenter {
-  border-color: var(--warn);
+  grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
 /* --- responsive (F9.AC17) ------------------------------------------------ */
 
-@media (max-width: 64rem) {
-  .app {
-    grid-template-columns: minmax(0, 1fr);
-  }
-
-  .sidebar {
-    @apply static h-auto flex-row flex-wrap items-center border-b border-r-0;
-  }
-
-  .sidebar nav ul {
-    @apply flex flex-wrap gap-1;
-  }
-
-  .sidebar-foot {
-    @apply mt-0 ml-auto flex flex-wrap items-end gap-3;
-  }
-
+@media (max-width: 1023px) {
   .grid-2 {
     grid-template-columns: minmax(0, 1fr);
-  }
-
-  .content {
-    @apply p-4;
   }
 }

@@ -31,9 +31,17 @@ export function applyTheme(theme: ThemeName): void {
 export interface Palette {
   readonly text: string;
   readonly muted: string;
+  readonly subtle: string;
   readonly border: string;
+  readonly borderStrong: string;
   readonly surface: string;
+  readonly surface2: string;
+  readonly overlay: string;
   readonly accent: string;
+  readonly ok: string;
+  readonly warn: string;
+  readonly error: string;
+  /** Categorical series in order; the first is the accent, the last is neutral (DESIGN §6.3). */
   readonly series: readonly string[];
   readonly sequential: readonly string[];
   /** Land on the Geography map; the sea is the map's CSS background (ADR-0017). */
@@ -44,16 +52,28 @@ function token(style: CSSStyleDeclaration, name: string): string {
   return style.getPropertyValue(name).trim();
 }
 
+/** The number of categorical chart colours (`--chart-1` … `--chart-6`). */
+export const SERIES_COUNT = 6;
+
 /** The current theme's colours, read from the applied CSS. */
 export function palette(): Palette {
   const style = getComputedStyle(document.documentElement);
   return {
     text: token(style, '--text'),
     muted: token(style, '--text-muted'),
+    subtle: token(style, '--text-subtle'),
     border: token(style, '--border'),
+    borderStrong: token(style, '--border-strong'),
     surface: token(style, '--surface'),
+    surface2: token(style, '--surface-2'),
+    overlay: token(style, '--overlay'),
     accent: token(style, '--accent'),
-    series: [1, 2, 3, 4, 5, 6, 7, 8].map((i) => token(style, `--chart-${String(i)}`)),
+    ok: token(style, '--ok'),
+    warn: token(style, '--warn'),
+    error: token(style, '--error'),
+    series: Array.from({ length: SERIES_COUNT }, (_, i) =>
+      token(style, `--chart-${String(i + 1)}`),
+    ),
     sequential: [1, 2, 3, 4, 5].map((i) => token(style, `--seq-${String(i)}`)),
     mapLand: token(style, '--map-land'),
   };

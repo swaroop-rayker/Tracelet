@@ -31,6 +31,7 @@ Severity is `impact × likelihood` at the time of writing, reassessed after each
 | R24 | Rule (a) cannot tell a regional ISP from a registry collapse | Medium | **Accepted for M3 — tune in M8 with ground truth** |
 | R25 | **The raw analytics fallback is slow at the design load** | Medium | **Open — rollup path measured at p95 ≤ 70 ms; raw fallback up to 10 s on long windows** |
 | R26 | Geofence drawing (M6) has no street-level basemap | Medium | **Open — decide in M6 before the drawing canvas (ADR-0017)** |
+| R27 | The UI redesign (M5.5) regresses accessibility, the CSP or behaviour | Medium | **Mitigated 2026-10-03 — 0 CSP violations in Chromium, Firefox and WebKit (after E44), filters unchanged, a11y sweep clean, 72-image matrix; the hand keyboard pass remains** |
 
 ---
 
@@ -594,6 +595,44 @@ neighbourhood, a campus or a building, which needs streets.
 the dashboard's hostname; light style only), a provider key (reopens C6), or drawing against
 outlines and coordinates only (honest, but hard to use). Decide before building the canvas,
 with an ADR.
+
+---
+
+## R27 — The UI redesign regresses accessibility, the CSP or behaviour · MEDIUM
+
+**Found 2026-10-02**, planning M5.5 (docs/DESIGN.md). A redesign that touches every screen can
+quietly break three things the current UI gets right:
+
+- **Accessibility (NFR7):** custom menus, popovers and a command palette replace native controls
+  that were keyboard-correct for free.
+- **The CSP (F13.AC2):** overlay libraries and style helpers commonly inject `<style>` or inline
+  `style=""`, which `style-src 'self'` blocks. The page then *looks* fine in development and
+  breaks behind Caddy.
+- **Behaviour:** the filter bar's URL round-trip and the Panel's four states are easy to lose
+  while restyling.
+
+**Mitigations (DESIGN §11):** native `dialog` and `popover` first (ADR-0019); a Phase 0 CSP spike
+in three engines before any primitive; contrast tests extended to every new token pair;
+`filters.test.ts` and `Panel.test.tsx` must stay green unchanged in intent; a mouse-free
+keyboard walkthrough; a CSP-violation listener over every page on the Caddy-served build; and a
+72-image screenshot matrix in the PR.
+
+**Measured 2026-10-03 (M5.5 phase 5).** The production build under Caddy's exact CSP header:
+zero `securitypolicyviolation` events over every page in all three themes and every overlay,
+the visit drawer, the chart tools and the map (Chromium). `filters.test.ts` unchanged and green;
+every filter editor wrote the M5 URL keys in the browser. An automated sweep found one `h1` per
+page, no skipped heading levels, and no unnamed control. Three real regressions were found and
+fixed on the way (ERRORS E41–E43).
+
+**Re-measured 2026-10-03 with Playwright, in Chromium, Firefox and WebKit, against Caddy
+itself.** The listener was registered before page scripts ran, and positive controls proved it
+worked (ADR-0019 "Spike results"). This run showed the Chromium zero above was **wrong**: zod's
+`eval` probe was reported on every page load in all three engines, and the earlier listener had
+been attached too late to see it (E44). After the fix: **0 violations in all three engines.**
+The same run found three more regressions, all fixed: a chart's data table pushing the chart
+over its neighbour (E45), ECharts overwriting every chart's accessible name (E46), and two pages
+wider than the screen (E47). The 72-image matrix was captured with an overflow check on every
+image. **Still open:** the by-hand keyboard walkthrough.
 
 ---
 

@@ -26,12 +26,23 @@
 import 'leaflet/dist/leaflet.css';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import L from 'leaflet';
+import { useLocation, useNavigate, useSearchParams } from 'react-router';
 import { useApi } from '@/api/query';
 import { geoSchema, type Geo } from '@/api/schemas';
 import { escapeHtml } from '@/components/chartkit';
-import { TableView } from '@/components/EChart';
 import { Panel } from '@/components/Panel';
-import { withParams } from '@/filters';
+import { PageHeader } from '@/components/shell/PageHeader';
+import { filterForBreakdown } from '@/components/shell/filterDefs';
+import {
+  Alert,
+  Legend,
+  RankedList,
+  SegmentedControl,
+  Select,
+  type RankedRow,
+  type Swatch,
+} from '@/components/ui';
+import { parseFilters, serializeFilters, withParams, type Filters } from '@/filters';
 import { count, countryName } from '@/format';
 import { useFilters } from '@/session';
 import { palette, type Palette } from '@/theme';
@@ -105,43 +116,45 @@ export default function GeographyPage(): React.JSX.Element {
 
   return (
     <div className="page">
-      <h2 className="page-title">Geography</h2>
+      <PageHeader
+        title="Geography"
+        description="Where visits came from, at their best-guess location."
+        filters
+      />
       <Panel
         query={query}
         title="Where visits came from"
-        description="Best-guess locations. Points are consented GPS or the best-guess city's coordinates, clustered on a grid. Click a country or state to highlight it; Esc or a click on the sea clears it."
+        description="Points are consented GPS or the best-guess city, clustered. Click an area to highlight it; Esc or the sea clears it."
         isEmpty={(d) => d.countries.length === 0 && d.abstained === 0}
         empty="No visits in this period with these filters."
         meta={(d) => d.meta}
+        kind="map"
         actions={
-          <div className="panel-actions">
-            <label className="control">
-              <span>Shade by</span>
-              <select
-                value={layer}
-                onChange={(event) => {
-                  setLayer(event.target.value === 'admin1' ? 'admin1' : 'countries');
-                }}
-              >
-                <option value="admin1">State / province</option>
-                <option value="countries">Country</option>
-              </select>
-            </label>
-            <label className="control">
-              <span>Cluster size</span>
-              <select
-                value={cell}
-                onChange={(event) => {
-                  setCell(event.target.value);
-                }}
-              >
-                <option value="0.05">~5 km</option>
-                <option value="0.25">~25 km</option>
-                <option value="1">~100 km</option>
-                <option value="5">~500 km</option>
-              </select>
-            </label>
-          </div>
+          <>
+            <SegmentedControl
+              label="Shade by"
+              value={layer}
+              onChange={(v) => {
+                setLayer(v === 'admin1' ? 'admin1' : 'countries');
+              }}
+              options={[
+                { value: 'admin1', label: 'States' },
+                { value: 'countries', label: 'Countries' },
+              ]}
+            />
+            <Select
+              label="Cluster size"
+              size="sm"
+              value={cell}
+              onChange={setCell}
+              options={[
+                { value: '0.05', label: 'Clusters ~5 km' },
+                { value: '0.25', label: 'Clusters ~25 km' },
+                { value: '1', label: 'Clusters ~100 km' },
+                { value: '5', label: 'Clusters ~500 km' },
+              ]}
+            />
+          </>
         }
       >
         {(data) => <MapView data={data} layer={layer} />}
@@ -340,11 +353,28 @@ function MapView({
     };
   }, [data, layer, counts, steps, themeTick]);
 
-  const countryRows = data.countries.map((c) => [countryName(c.country_code), c.count] as const);
-  const stateRows = data.admin1.map(
-    (a) => [`${a.admin1} (${countryName(a.country_code)})`, a.count] as const,
-  );
-  const p = palette();
+  const navigate = useNavigate();
+  const location = useLocation();
+  const [search] = useSearchParams();
+  const apply = (next: Filters | null): void => {
+    if (next !== null) {
+      void navigate({ pathname: location.pathname, search: serializeFilters(next).toString() });
+    }
+  };
+  const total = data.countries.reduce((n, c) => n + c.count, 0) + data.abstained;
+  const share = (n: number): number | null => (total > 0 ? n / total : null);
+  const countryRows: RankedRow[] = data.countries.map((c) => ({
+    key: c.country_code,
+    label: countryName(c.country_code),
+    count: c.count,
+    share: share(c.count),
+  }));
+  const stateRows: RankedRow[] = data.admin1.map((a) => ({
+    key: `${a.country_code}|${a.admin1}`,
+    label: `${a.admin1}, ${countryName(a.country_code)}`,
+    count: a.count,
+    share: share(a.count),
+  }));
 
   return (
     <div className="stack">
@@ -354,31 +384,47 @@ function MapView({
         role="region"
         aria-label="Map of visits by best-guess location. Use the arrow keys to pan and plus or minus to zoom."
       />
-      {boundaryError !== null && (
-        <p className="error-text small" role="alert">
-          {boundaryError}
-        </p>
-      )}
-      <Legend steps={steps} p={p} />
-      <p className="muted small">
-        {count(data.abstained)} visits are not on the map because no source could place their
-        country.{data.points_truncated ? ' Only the 2,000 largest clusters are drawn.' : ''}
-      </p>
+      {boundaryError !== null && <Alert tone="error" title={boundaryError} />}
+      <div className="map-foot">
+        <MapLegend steps={steps} />
+        {(data.abstained > 0 || data.points_truncated) && (
+          <span className="t-meta">
+            {data.abstained > 0
+              ? `${count(data.abstained)} visits are not on the map: no source could place their country.`
+              : ''}
+            {data.points_truncated ? ' Only the 2,000 largest clusters are drawn.' : ''}
+          </span>
+        )}
+      </div>
       {layer === 'admin1' && undrawn.length > 0 && (
-        <p className="muted small">
-          Counted but not drawn, because no boundary matches the division exactly:{' '}
-          {undrawn.join('; ')}.
-        </p>
+        <Alert tone="info" title="Counted but not drawn">
+          No outline matches these divisions exactly, so they appear in the list below but not on
+          the map: {undrawn.join('; ')}.
+        </Alert>
       )}
       <div className="grid-2">
-        <TableView
-          caption="Visits by country"
-          table={{ columns: ['Country', 'Visits'], rows: countryRows }}
-        />
-        <TableView
-          caption="Visits by state or province"
-          table={{ columns: ['State or province', 'Visits'], rows: stateRows }}
-        />
+        <div className="subsection">
+          <h3 className="t-section">Countries</h3>
+          <RankedList
+            caption="Visits by country"
+            labelHeader="Country"
+            rows={countryRows}
+            onSelect={(key) => {
+              apply(filterForBreakdown('country', key, parseFilters(search)));
+            }}
+          />
+        </div>
+        <div className="subsection">
+          <h3 className="t-section">States and provinces</h3>
+          <RankedList
+            caption="Visits by state or province"
+            labelHeader="State or province"
+            rows={stateRows}
+            onSelect={(key) => {
+              apply(filterForBreakdown('admin1', key, parseFilters(search)));
+            }}
+          />
+        </div>
       </div>
     </div>
   );
@@ -433,41 +479,12 @@ function shade(n: number, steps: readonly number[], p: Palette): L.PathOptions {
   };
 }
 
-function Legend({
-  steps,
-  p,
-}: {
-  readonly steps: readonly number[];
-  readonly p: Palette;
-}): React.JSX.Element {
-  const ranges = steps.map((upper, i) => {
+function MapLegend({ steps }: { readonly steps: readonly number[] }): React.JSX.Element {
+  const items = steps.flatMap((upper, i) => {
     const lower = i === 0 ? 1 : (steps[i - 1] ?? 0) + 1;
-    return lower > upper
-      ? null
-      : {
-          color: p.sequential[i] ?? p.accent,
-          text: lower === upper ? count(upper) : `${count(lower)}–${count(upper)}`,
-        };
+    if (lower > upper) return [];
+    const swatch = `seq-${String(i + 1)}` as Swatch;
+    return [{ label: lower === upper ? count(upper) : `${count(lower)}–${count(upper)}`, swatch }];
   });
-  return (
-    <ul className="legend plain" aria-label="Map shading, visits per area">
-      {ranges.map((r, i) =>
-        r === null ? null : (
-          <li key={i}>
-            <Swatch color={r.color} />
-            {r.text}
-          </li>
-        ),
-      )}
-    </ul>
-  );
-}
-
-/** A colour sample drawn as SVG: an attribute, so the stylesheet CSP allows it. */
-function Swatch({ color }: { readonly color: string }): React.JSX.Element {
-  return (
-    <svg width="14" height="14" aria-hidden="true" className="swatch">
-      <rect width="14" height="14" rx="2" fill={color} />
-    </svg>
-  );
+  return <Legend label="Map shading, visits per area" items={items} />;
 }

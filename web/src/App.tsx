@@ -18,13 +18,15 @@ import { Navigate, Route, Routes } from 'react-router';
 import { fetchMe, type Me } from '@/api/auth';
 import type { ApiError } from '@/api/client';
 import { Layout } from '@/components/Layout';
-import { Callout, ErrorNotice, Loading } from '@/components/ui';
+import { PageHeader } from '@/components/shell/PageHeader';
+import { Button, EmptyState, ErrorNotice, Loading } from '@/components/ui';
 import EnrollPage from '@/pages/EnrollPage';
 import LoginPage from '@/pages/LoginPage';
 import { RecoveryCodePage, ResetConfirmPage, ResetRequestPage } from '@/pages/RecoveryPages';
 import { navigate, useRoute } from '@/router';
 import { SessionContext, type Session as SessionValue } from '@/session';
 import { applyTheme, asTheme } from '@/theme';
+import { BrandMark } from '@/components/shell/BrandMark';
 
 // Each dashboard page is its own chunk, so ECharts and Leaflet download only when a
 // page that draws with them is opened -- and the sign-in pages never pay for either.
@@ -37,6 +39,9 @@ const BreakdownsPage = lazy(() => import('@/pages/dashboard/BreakdownsPage'));
 const InferencePage = lazy(() => import('@/pages/dashboard/InferencePage'));
 const DetectionPage = lazy(() => import('@/pages/dashboard/DetectionPage'));
 const AccountPage = lazy(() => import('@/pages/AccountPage'));
+// The component gallery exists only in development builds (DESIGN §11): Vite replaces
+// import.meta.env.DEV with false in production, and the import is dropped with it.
+const DesignGallery = import.meta.env.DEV ? lazy(() => import('@/pages/dev/DesignGallery')) : null;
 
 type Session =
   | { readonly phase: 'loading' }
@@ -129,9 +134,12 @@ export default function App(): React.JSX.Element {
 
   if (session.phase === 'loading') {
     return (
-      <main className="shell narrow">
+      <main className="auth">
         <header>
-          <h1>Tracelet</h1>
+          <h1 className="auth__brand">
+            <BrandMark />
+            Tracelet
+          </h1>
         </header>
         <Loading label="Checking your session…" />
       </main>
@@ -140,9 +148,12 @@ export default function App(): React.JSX.Element {
 
   if (session.phase === 'unavailable') {
     return (
-      <main className="shell narrow">
+      <main className="auth">
         <header>
-          <h1>Tracelet</h1>
+          <h1 className="auth__brand">
+            <BrandMark />
+            Tracelet
+          </h1>
           <p className="muted">Cannot reach the server</p>
         </header>
         <ErrorNotice error={session.error} />
@@ -185,6 +196,9 @@ export default function App(): React.JSX.Element {
           <Route path="inference" element={<Page component={InferencePage} />} />
           <Route path="detection" element={<Page component={DetectionPage} />} />
           <Route path="account" element={<Page component={AccountPage} />} />
+          {DesignGallery !== null && (
+            <Route path="__design" element={<Page component={DesignGallery} />} />
+          )}
           {/* M1's URL, and the sign-in page for an already signed-in admin. */}
           <Route path="dashboard" element={<Navigate to="/" replace />} />
           <Route path="login" element={<Navigate to="/" replace />} />
@@ -210,17 +224,21 @@ function Page({
 function NotFound(): React.JSX.Element {
   return (
     <div className="page">
-      <Callout tone="warn" title="Nothing here">
-        <p className="mono">{window.location.pathname}</p>
-      </Callout>
-      <button
-        type="button"
-        onClick={() => {
-          navigate({ name: 'dashboard' });
-        }}
-      >
-        Go to the overview
-      </button>
+      <PageHeader title="Page not found" description="There is nothing at this address." />
+      <EmptyState
+        title={<span className="t-mono">{window.location.pathname}</span>}
+        reason="Check the address, or go back to the overview."
+        action={
+          <Button
+            variant="primary"
+            onClick={() => {
+              navigate({ name: 'dashboard' });
+            }}
+          >
+            Go to the overview
+          </Button>
+        }
+      />
     </div>
   );
 }
