@@ -598,6 +598,10 @@ Static assets served by Caddy, no runtime cost (F14.AC4). Four rules shape it:
   focus ring, decal patterns on every series, and every chart's data as a table. Theme
   contrast is tested from the stylesheet.
 
+**Design system** (M5.5): tokens, primitives, page template and the UI rules every
+milestone follows are in `docs/DESIGN.md`; the stack choices (owned primitives, native
+`dialog`/`popover`, Inter, Lucide, the chart theme and decal policy) are ADR-0019.
+
 Pages are lazy routes, so ECharts (with zrender split out) and Leaflet download only when a
 page that uses them opens. The theme is per admin (`PATCH /auth/me/preferences`). The
 Geography map uses no tiles: land, sea and borders are self-hosted outlines in theme

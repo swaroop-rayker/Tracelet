@@ -21,6 +21,7 @@ then open the PR (CLAUDE.md section 2).
 | M3 | Location inference engine | L | **[x] done** — 738 tests (463 unit, 275 integration); real-visit check deferred to M9 (owner decision); 5 bugs recorded as E27–E31 |
 | M4 | Anti-spoofing and classification | L | **[x] done** — 10 of 10 items (the UI item ticked in M5); bugs E32–E33; R19 and R21 closed |
 | M5 | Dashboard analytics and visualisation | L | **[x] done** — 10 of 10 items; rollups p95 ≤ 70 ms at design load; raw fallback slow on long windows (R25); bugs E34–E36 |
+| M5.5 | Design system and UI polish (owner-directed 2026-10-02, approved 2026-10-03; docs/DESIGN.md) | L | [ ] in progress |
 | M6 | Geofencing and Telegram notifications | M | [ ] |
 | M7 | System health and operations | L | [ ] |
 | M8 | Accuracy hardening and ground truth | M | [ ] |
@@ -618,6 +619,45 @@ this development database now runs them as version 31.
       the diff; reverted*
 - [x] Docs: API section 8 verified — *8.1 "As shipped in M5" written with the code;
       section 7 (filters, export) and 14 (zod) amended*
+
+---
+
+## M5.5 — Design system and UI polish · size L
+
+**Goal:** the dashboard looks and behaves like one coherent, premium analytics product, with a
+design system every later milestone builds on. **No functionality or business-logic change.**
+**Added:** 2026-10-02 at the owner's direction, before M6; approved 2026-10-03 with enhancements
+E4–E10. **Plan:** docs/DESIGN.md Part II; **decision:** ADR-0019. **F/AC-IDs:** F9.AC16, F9.AC17
+(extended to 390 px, SPEC §11 row 15), F9.AC18, F9.AC20, NFR7.
+
+**Scope** (DESIGN §11, phases 0–5)
+- Tokens for three themes (five surface layers, text tiers, one accent, status, data-viz),
+  Inter Variable self-hosted, the Lucide icon registry, the chart theme
+- About 25 owned primitives in `web/src/components/ui/` and a development-only gallery at
+  `/__design`
+- New shell: collapsible sidebar with groups, compact header with breadcrumb, a ⌘K command
+  palette, help and the user menu; page template; FilterToolbar with chips (same URL state)
+- Skeleton loading, empty and error states inside the existing four-state `Panel`
+- Every page recomposed per DESIGN §10; breakdowns and signals as ranked lists
+- Mobile layout (drawer navigation, single column)
+- Approved enhancements (DESIGN §12): command palette, shortcuts, click-to-filter, E4 Overview
+  cards, E5 visit drawer, E6 previous-period overlay, E7 freshness, E8 glossary, E9 per-chart
+  CSV, E10 recovery-codes download, relative timestamps
+
+**Done checklist**
+- [ ] ADR-0019 accepted with the Phase 0 spike results (CSP: zero violations in Chromium,
+      Firefox and WebKit)
+- [ ] All three themes pass the extended contrast tests (DESIGN §8)
+- [ ] Every primitive in the gallery in every state; each has a state test
+- [ ] Filters round-trip through the URL exactly as before — `filters.test.ts` unchanged and
+      green
+- [ ] Every data surface shows loading skeleton, error with trace id, empty with reason, data
+- [ ] Screenshot matrix: 3 themes × 1440/1024/390 px × 8 pages, attached to the PR
+- [ ] Keyboard walkthrough of every page, menu, dialog and the command palette, mouse-free
+- [ ] Zero CSP violations on the Caddy-served build, every page, every theme
+- [ ] Bundle within budget: ≤ +40 KB gzipped initial, ≤ +10 KB per route
+- [ ] No API, schema or endpoint change (`openapi-check` clean, no migration)
+- [ ] Docs: DESIGN.md accepted; ARCHITECTURE §5 and §8 ledger updated; CLAUDE.md rules live
 
 ---
 
