@@ -90,7 +90,8 @@ Four facts shape how it can be built:
 - No new runtime style injection; the CSP stays as strict as it is.
 - Four dependencies at most (the font, the icons, and possibly two Radix parts if the spike
   fails), each small, licensed permissively, and in the ledger.
-- Bundle impact is budgeted: at most +40 KB gzipped initial, font included (DESIGN §11).
+- Bundle impact is budgeted: at most +40 KB gzipped initial JS and CSS (DESIGN §11).
+  Measured at the end of M5.5: +15.5 KB JS and +5.1 KB CSS; the font is a separate 48 KB file.
 
 **Negative, and accepted**
 
@@ -99,7 +100,8 @@ Four facts shape how it can be built:
   hard parts and by the Phase 0 spike.
 - **The `popover` attribute needs a current browser** (Chrome 114+, Firefox 125+, Safari 17+).
   The dashboard has two admins on evergreen browsers; this is documented, not polyfilled.
-- **Inter adds roughly 50 KB** (measured in Phase 0) to the first load, cached thereafter.
+- **Inter adds 48 KB** (the Latin face, measured in phase 0) to the first load, cached
+  thereafter; Latin-Extended (85 KB) loads only if a page shows one of its characters.
 
 ## Phase 0 spike (before any primitive is built)
 

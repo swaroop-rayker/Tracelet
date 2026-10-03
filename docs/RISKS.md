@@ -31,7 +31,7 @@ Severity is `impact × likelihood` at the time of writing, reassessed after each
 | R24 | Rule (a) cannot tell a regional ISP from a registry collapse | Medium | **Accepted for M3 — tune in M8 with ground truth** |
 | R25 | **The raw analytics fallback is slow at the design load** | Medium | **Open — rollup path measured at p95 ≤ 70 ms; raw fallback up to 10 s on long windows** |
 | R26 | Geofence drawing (M6) has no street-level basemap | Medium | **Open — decide in M6 before the drawing canvas (ADR-0017)** |
-| R27 | The UI redesign (M5.5) regresses accessibility, the CSP or behaviour | Medium | **Open — mitigations in DESIGN §11** |
+| R27 | The UI redesign (M5.5) regresses accessibility, the CSP or behaviour | Medium | **Mitigated 2026-10-03 — 0 CSP violations (Chromium), filters unchanged, a11y sweep clean; Firefox/Safari and a hand keyboard pass remain** |
 
 ---
 
@@ -616,6 +616,14 @@ in three engines before any primitive; contrast tests extended to every new toke
 `filters.test.ts` and `Panel.test.tsx` must stay green unchanged in intent; a mouse-free
 keyboard walkthrough; a CSP-violation listener over every page on the Caddy-served build; and a
 72-image screenshot matrix in the PR.
+
+**Measured 2026-10-03 (M5.5 phase 5).** The production build under Caddy's exact CSP header:
+zero `securitypolicyviolation` events over every page in all three themes and every overlay,
+the visit drawer, the chart tools and the map (Chromium). `filters.test.ts` unchanged and green;
+every filter editor wrote the M5 URL keys in the browser. An automated sweep found one `h1` per
+page, no skipped heading levels, and no unnamed control. Three real regressions were found and
+fixed on the way (ERRORS E41–E43). **Still open:** the CSP check in Firefox and Safari, a
+by-hand keyboard walkthrough, and the full screenshot matrix.
 
 ---
 

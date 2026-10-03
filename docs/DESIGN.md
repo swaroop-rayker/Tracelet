@@ -631,9 +631,10 @@ Sep 3      Sep 10      Sep 17      Sep 24      Oct 1
 144 requests · 79% enriched · rollups · 10:25 PM
 ```
 
-`•••` holds "Show data table", "Download CSV of this chart" (§12 E9) and "Copy link to this
-chart". The data table moves out of an always-present disclosure into this menu and an
-`sr-only` table, so NFR7.AC3 is still met and the card is cleaner.
+*As built:* two quiet tools under the plot, **Data** (toggles the data table, `aria-pressed`)
+and **CSV** (§12 E9, generated in the browser, formula-safe), instead of a `•••` menu in the card
+header: `EChart` cannot reach its card's header, and two labelled buttons are easier to find than
+a menu. The table is always present for screen readers, so NFR7.AC3 holds.
 
 ### 6.2 ECharts theme
 
@@ -1027,7 +1028,10 @@ schema or endpoint changes.** `./scripts/tl verify` stays green after every phas
 - **Keyboard script:** for every page, Tab through everything, open and close every menu,
   dialog and the palette, and apply and remove a filter, all without a mouse.
 - **Bundle table:** initial JS and CSS gzipped before and after, and per lazy route. Budget:
-  **at most +40 KB gzipped initial** (font included), **at most +10 KB per route**.
+  **at most +40 KB gzipped initial JS and CSS**, **at most +10 KB per route**. The web font is
+  budgeted apart: one cached Latin face of 48 KB, loaded with `font-display: swap`. *(Corrected
+  while building M5.5: the first draft counted the font inside the 40 KB, which the font alone
+  exceeds. Measured: +15.5 KB JS and +5.1 KB CSS gzipped; every page route ≤ 3.8 KB.)*
 - `./scripts/tl verify` passes all 13 checks.
 
 **Size:** L (one to two weeks at solo pace, per MILESTONES' size key).

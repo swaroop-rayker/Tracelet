@@ -21,7 +21,7 @@ then open the PR (CLAUDE.md section 2).
 | M3 | Location inference engine | L | **[x] done** — 738 tests (463 unit, 275 integration); real-visit check deferred to M9 (owner decision); 5 bugs recorded as E27–E31 |
 | M4 | Anti-spoofing and classification | L | **[x] done** — 10 of 10 items (the UI item ticked in M5); bugs E32–E33; R19 and R21 closed |
 | M5 | Dashboard analytics and visualisation | L | **[x] done** — 10 of 10 items; rollups p95 ≤ 70 ms at design load; raw fallback slow on long windows (R25); bugs E34–E36 |
-| M5.5 | Design system and UI polish (owner-directed 2026-10-02, approved 2026-10-03; docs/DESIGN.md) | L | [ ] in progress |
+| M5.5 | Design system and UI polish (owner-directed 2026-10-02, approved 2026-10-03; docs/DESIGN.md) | L | **built** — 8 of 11 items; open: Firefox/Safari CSP by hand, screenshot matrix, hand keyboard walkthrough |
 | M6 | Geofencing and Telegram notifications | M | [ ] |
 | M7 | System health and operations | L | [ ] |
 | M8 | Accuracy hardening and ground truth | M | [ ] |
@@ -646,18 +646,46 @@ E4–E10. **Plan:** docs/DESIGN.md Part II; **decision:** ADR-0019. **F/AC-IDs:*
 
 **Done checklist**
 - [ ] ADR-0019 accepted with the Phase 0 spike results (CSP: zero violations in Chromium,
-      Firefox and WebKit)
-- [ ] All three themes pass the extended contrast tests (DESIGN §8)
-- [ ] Every primitive in the gallery in every state; each has a state test
-- [ ] Filters round-trip through the URL exactly as before — `filters.test.ts` unchanged and
-      green
-- [ ] Every data surface shows loading skeleton, error with trace id, empty with reason, data
-- [ ] Screenshot matrix: 3 themes × 1440/1024/390 px × 8 pages, attached to the PR
-- [ ] Keyboard walkthrough of every page, menu, dialog and the command palette, mouse-free
-- [ ] Zero CSP violations on the Caddy-served build, every page, every theme
-- [ ] Bundle within budget: ≤ +40 KB gzipped initial, ≤ +10 KB per route
-- [ ] No API, schema or endpoint change (`openapi-check` clean, no migration)
-- [ ] Docs: DESIGN.md accepted; ARCHITECTURE §5 and §8 ledger updated; CLAUDE.md rules live
+      Firefox and WebKit) — *accepted 2026-10-03; Chromium spike clean (ADR-0019 "Spike
+      results"). **Open: Firefox and Safari by hand** — this environment has only Chromium*
+- [x] All three themes pass the extended contrast tests (DESIGN §8) — *`theme.test.ts`: every
+      text tier on all five surface layers, status text on its tint, text on the accent, six chart
+      colours, an ordered ramp; plus scans proving no hex colour outside the theme blocks, in
+      `styles/*.css`, or in any TypeScript source (the scan asserts it saw > 20 files)*
+- [x] Every primitive in the gallery in every state; each has a state test — *`/__design`
+      (development builds only; absent from `dist`, checked by grep); 20 primitive tests in
+      `components/ui/primitives.test.tsx`*
+- [x] Filters round-trip through the URL exactly as before — `filters.test.ts` unchanged and
+      green — *unchanged; and in the browser every editor kind wrote the M5 keys
+      (`device_class=mobile&device_class=desktop`, `asn=55836` from "AS55836",
+      `include_automated=true`, chip removal, Clear all, `range=7d`); click-to-filter tested in
+      `charts.test.ts`*
+- [x] Every data surface shows loading skeleton, error with trace id, empty with reason, data —
+      *`Panel` keeps its four states (`Panel.test.tsx` unchanged in intent); loading is now a
+      skeleton shaped by `kind`, with the sentence kept for screen readers*
+- [ ] Screenshot matrix: 3 themes × 1440/1024/390 px × 8 pages, attached to the PR — **open**:
+      *the browser pane captured the shell at 1440, 800 and 375 px and most pages at 1440, but
+      not the full 72-image set reliably (it crops and stalls when the window is behind
+      another). To be taken by hand before merge*
+- [ ] Keyboard walkthrough of every page, menu, dialog and the command palette, mouse-free —
+      **partly**: *menu arrow keys and typeahead, dialog focus-in/return and Escape, palette
+      combobox (arrows, Enter, id jump), shortcuts (`g`, `?`, `/`, `[`) verified by script in the
+      browser; every page has one `h1`, no skipped heading level, and no unnamed button, link or
+      field (automated sweep). A by-hand Tab-through remains*
+- [x] Zero CSP violations on the Caddy-served build, every page, every theme — *the production
+      `dist` served with Caddy's exact CSP header (Vite preview, same API proxy):
+      `securitypolicyviolation` listener over all 8 pages in all 3 themes, then every overlay,
+      filter editor, period picker, export menu, palette, help, user menu, tooltip, row expansion,
+      visit drawer, chart Data/CSV tools and tooltip, and the map's hover and selection — 0
+      violations (Chromium). Caddy itself was not opened: the pane cannot trust its local CA*
+- [x] Bundle within budget: ≤ +40 KB gzipped initial, ≤ +10 KB per route — *initial JS 150.4 KB
+      gz (+15.5) and CSS 11.7 KB gz (+5.1) against the phase 0 build; every page route ≤ 3.8 KB gz.
+      The Latin font is a separate cached 48 KB file; DESIGN §11 corrected (it had counted the
+      font inside the 40 KB, which it alone exceeds)*
+- [x] No API, schema or endpoint change (`openapi-check` clean, no migration) — *`git diff
+      6a9a9a0..HEAD` touches only `web/`, `docs/` and `CLAUDE.md`; `./scripts/tl verify` 13/13*
+- [x] Docs: DESIGN.md accepted; ARCHITECTURE §5 and §8 ledger updated; CLAUDE.md rules live —
+      *plus ERRORS E41–E43 and R27 updated*
 
 ---
 

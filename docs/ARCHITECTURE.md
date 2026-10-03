@@ -594,9 +594,12 @@ Static assets served by Caddy, no runtime cost (F14.AC4). Four rules shape it:
   stage mix and data source underneath (F9.AC20). Tested for every state.
 - **Every payload is parsed by zod** before a component sees it; schemas are typed against
   the generated client (API section 14).
-- **Accessibility is structural** (NFR7): native controls only, a skip link, a visible
-  focus ring, decal patterns on every series, and every chart's data as a table. Theme
-  contrast is tested from the stylesheet.
+- **Accessibility is structural** (NFR7): native controls and native `dialog`/`popover`
+  overlays, a skip link, a visible focus ring, decal patterns wherever colour separates series
+  (ADR-0019), and every chart's data as a table. Theme contrast is tested from the stylesheet.
+- **One design system** (M5.5, docs/DESIGN.md, ADR-0019): tokens in `index.css`, about 25
+  primitives in `components/ui/`, the shell in `components/shell/` (sidebar, header, page header,
+  filter toolbar, command palette), and styles in `styles/` -- tokens only, scanned by tests.
 
 **Design system** (M5.5): tokens, primitives, page template and the UI rules every
 milestone follows are in `docs/DESIGN.md`; the stack choices (owned primitives, native

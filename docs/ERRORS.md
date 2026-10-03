@@ -1631,6 +1631,66 @@ browser's default is never the only feedback.
 
 ---
 
+### E41 — The first modal dialog opened in the top-left corner
+
+**Status:** Fixed. **Milestone:** M5.5. **Date:** 2026-10-03.
+
+**Symptom.** In the component gallery, a confirmation dialog rendered as a 400 × 206 box at
+(0, 0) behind a blurred page instead of in the centre.
+
+**Root cause.** A modal `<dialog>` is centred by the browser's own stylesheet (`margin: auto`
+in the top layer). Tailwind's reset sets `margin: 0` on every element, which silently removed
+it. Nothing else looked wrong, because only the top layer depends on that margin.
+
+**Fix.** `.dialog:modal { margin: auto; }`, with the drawers setting their own edge position.
+
+**Prevention.** A primitive that relies on a user-agent default restates it, because the CSS
+reset removes defaults wholesale; the gallery opens every overlay as part of phase 1's checks.
+
+**Related:** ADR-0019, DESIGN §5.5.
+
+### E42 — Old element selectors out-ranked the new components
+
+**Status:** Fixed. **Milestone:** M5.5. **Date:** 2026-10-03.
+
+**Symptom.** Restyled inputs kept M1's padding and background, field labels were bold, every
+icon button grew an accent border on hover, and Account section titles were uppercase.
+
+**Root cause.** M1 styled elements directly (`input[type='text']`, `.field label`,
+`button:hover`, a global `h2`). An element-plus-attribute selector has higher specificity than a
+single class, so `input[type='text']` beat `.input` and `button:hover` reached buttons that were
+never meant to look like M1 buttons.
+
+**Fix.** The legacy rules are scoped to unclassed elements (`button:not([class])`,
+`input:not([class])[type=…]`), the global heading rules and the duplicate `.field` rules are
+gone, and the remaining M1 idioms are restyled onto the tokens.
+
+**Prevention.** DESIGN UI-1: a primitive's class decides its look. No new element-level rule may
+style a property a primitive also sets.
+
+**Related:** DESIGN §5, UI-1, UI-2.
+
+### E43 — A long link name made the whole page wider than a phone
+
+**Status:** Fixed. **Milestone:** M5.5. **Date:** 2026-10-03.
+
+**Symptom.** At 375 px the dashboard scrolled sideways and every card was cut off on the right;
+the document was 496 px wide.
+
+**Root cause.** A native `<select>` sizes itself to its longest option. The link filter's longest
+option ("demo-ig — M5 demo: real ISP addresses…") made it 480 px, and because grid items default
+to `min-width: auto`, every grid up to the page grew to fit it.
+
+**Fix.** `min-width: 0` and `max-width: 100%` on the select and its wrappers, a shrinkable grid
+track, and the page grid as `minmax(0, 1fr)`; the option text ellipses instead.
+
+**Prevention.** The phone pass measures `document.documentElement.scrollWidth` against the
+viewport and lists every element wider than it, rather than judging by eye.
+
+**Related:** DESIGN §9.4, F9.AC17 (SPEC §11 row 15).
+
+---
+
 Add entries here as bugs are found and fixed. Use the next available `E<n>` identifier and
 the same structure: symptom, root cause, fix, **prevention**.
 
