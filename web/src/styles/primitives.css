@@ -816,6 +816,9 @@
 /* --- data table (DESIGN §5.4) ---------------------------------------------- */
 
 .dt-wrap {
+  /* Positioned, so absolute descendants (the .sr-only "Actions" header) are clipped by this
+     scroller instead of widening the page: Visits was 34 px too wide at 1024 (ERRORS E47). */
+  position: relative;
   max-width: 100%;
   overflow-x: auto;
 }
@@ -897,6 +900,10 @@
 
 .ranked {
   width: 100%;
+  /* Fixed: in an auto table a nowrap label sizes its column to the whole name, so a long ISP
+     name pushed a phone page 245 px wide instead of truncating (ERRORS E47). The header row
+     sets the column widths. */
+  table-layout: fixed;
   border-collapse: collapse;
   font-size: var(--fs-secondary);
 }
@@ -910,7 +917,12 @@
 }
 
 .ranked th.num {
+  width: 4.5rem;
   text-align: right;
+}
+
+.ranked th.share {
+  width: 4rem;
 }
 
 .ranked td {

@@ -205,7 +205,7 @@ export function RankedList({
           <th scope="col" className="num">
             {valueHeader}
           </th>
-          <th scope="col" className="num">
+          <th scope="col" className="num share">
             Share
           </th>
         </tr>

@@ -4,10 +4,14 @@
  */
 
 import { describe, expect, it } from 'vitest';
+import { z } from 'zod';
 import type { Breakdown, Funnel, Meta, SourceFlow } from '@/api/schemas';
+import { chartTheme } from '@/components/chartkit';
 import { filterForBreakdown } from '@/components/shell/filterDefs';
 import { funnelChart, rankedRows, sourceFlowChart } from '@/charts';
 import { parseFilters, serializeFilters } from '@/filters';
+import type { Palette } from '@/theme';
+import '@/api/schemas';
 
 const META: Meta = {
   start: '2026-09-03T00:00:00+05:30',
@@ -99,5 +103,37 @@ describe('click to filter (DESIGN E3)', () => {
       ['Reverse DNS', 'City', 1],
       ['None', 'Abstained', 1],
     ]);
+  });
+});
+
+describe('CSP and accessibility settings that are easy to undo', () => {
+  const p: Palette = {
+    text: 'a',
+    muted: 'b',
+    subtle: 'c',
+    border: 'd',
+    borderStrong: 'e',
+    surface: 'f',
+    surface2: 'g',
+    overlay: 'h',
+    accent: 'i',
+    ok: 'j',
+    warn: 'k',
+    error: 'l',
+    series: ['m'],
+    sequential: ['n'],
+    mapLand: 'o',
+  };
+
+  it('zod never probes for eval, which the CSP reports on every page load (ERRORS E44)', () => {
+    expect(z.config().jitless).toBe(true);
+  });
+
+  it('ECharts keeps decals but never overwrites the chart name (ERRORS E46)', () => {
+    expect(chartTheme(p, { decals: true }).aria).toEqual({
+      enabled: true,
+      label: { enabled: false },
+      decal: { show: true },
+    });
   });
 });

@@ -1021,10 +1021,13 @@ schema or endpoint changes.** `./scripts/tl verify` stays green after every phas
 **Verification artefacts attached to the PR:**
 
 - **Screenshot matrix:** 3 themes × 3 widths (1440, 1024, 390) × the 8 main pages = 72 images,
-  taken in the browser pane, plus the gallery in each theme.
-- **CSP:** zero `securitypolicyviolation` events across every page in every theme. This is
-  checked with a console listener in the browser pane, and the Caddy-served build is verified,
-  not only the Vite dev server.
+  plus the gallery in each theme. *(As built: taken with Playwright, because the browser pane
+  crops and stalls. Every image also checks `scrollWidth` against the viewport (E47).)*
+- **CSP:** zero `securitypolicyviolation` events across every page in every theme, in Chromium,
+  Firefox and WebKit, on the Caddy-served build, not only the Vite dev server. The listener must
+  be registered **before page scripts run**, every page gets a full load, and positive controls
+  must be reported, or the check does not count. *(Corrected in M5.5: a listener attached
+  after load missed a violation on every page (E44).)*
 - **Keyboard script:** for every page, Tab through everything, open and close every menu,
   dialog and the palette, and apply and remove a filter, all without a mouse.
 - **Bundle table:** initial JS and CSS gzipped before and after, and per lazy route. Budget:

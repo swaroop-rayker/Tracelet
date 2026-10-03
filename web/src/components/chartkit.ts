@@ -28,7 +28,9 @@ export function chartTheme(p: Palette, { decals }: ChartThemeOptions): EChartsCo
     color: [...p.series],
     backgroundColor: 'transparent',
     textStyle: { color: p.muted, fontFamily: 'inherit', fontSize: 12 },
-    aria: { enabled: true, decal: { show: decals } },
+    // `label` off: ECharts would overwrite the canvas's own aria-label with a generated data
+    // dump ("… is NaN" on a Sankey). The name is ours; the data is the table (ERRORS E46).
+    aria: { enabled: true, label: { enabled: false }, decal: { show: decals } },
     animationDuration: 250,
     animationDurationUpdate: 0,
     tooltip: {

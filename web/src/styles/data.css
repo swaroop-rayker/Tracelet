@@ -22,6 +22,9 @@
 
 .chart {
   display: grid;
+  /* One bounded column: an implicit one grows to the data table's width and pushes the
+     canvas over the next panel (ERRORS E45). The table scrolls in .dt-wrap instead. */
+  grid-template-columns: minmax(0, 1fr);
   gap: var(--space-2);
   min-width: 0;
 }

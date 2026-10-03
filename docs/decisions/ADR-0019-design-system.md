@@ -129,10 +129,35 @@ every report.
 | Control: `setAttribute('style', …)` | **Blocked** and reported (`style-src-attr`) — the listener works |
 | Control: injected `<style>` element | **Blocked** and reported (`style-src-elem`) — the listener works |
 
-**Not run here: Firefox and WebKit.** This environment has only a Chromium engine. The CSP
-specification governs `style` *attributes* and `<style>` *elements*, not CSSOM property writes,
-so the same results are expected; the M5.5 QA phase (DESIGN §11, Phase 5) repeats the CSP check
-on the Caddy-served build in Firefox and Safari by hand before the PR is merged.
+**Firefox and WebKit, added 2026-10-03 (M5.5 QA).** The browser pane has only Chromium, so the
+owner chose Playwright in a container (`mcr.microsoft.com/playwright/python` v1.63, not a
+project dependency). It shares Caddy's network namespace, so `https://localhost` is the real edge
+with the real header, not a stand-in. The listener is registered **before any page script runs**
+(an init script), every page gets a full load, and each engine must also report three positive
+controls (an injected `<style>`, a `style` attribute, a third-party image), or its run does not
+count. Covered: the sign-in, enrolment and privacy pages, then all eleven signed-in routes in all
+three themes, every popup and filter editor, the palette, help, icon tooltips, chart hovers,
+every Data toggle, a CSV download, row expansion, the visit drawer, the map (hover, click,
+keyboard pan and zoom) and the phone navigation drawer.
+
+| Engine | Dashboard violations | Controls reported |
+|---|---|---|
+| Chromium 153 | **0** | 3 of 3 |
+| Firefox 155 | **0** | 3 of 3 |
+| WebKit 26.6 (Safari's engine; not Safari itself) | **0** | 3 of 3 |
+
+The decisions above hold in all three engines. Two corrections came out of this run:
+
+- **The first Chromium result was wrong.** Every page load reported a blocked `eval` in all
+  three engines, from zod's JIT probe. The earlier sweep missed it because its listener was
+  attached after load (ERRORS E44). Fixed with `z.config({ jitless: true })`; the zeros above
+  are after the fix.
+- Firefox also reports `/favicon.ico` blocked on `/privacy`. That page is rendered by the API
+  under its own policy (`img-src 'none'`), and the request is the browser's automatic favicon
+  fetch, not the dashboard's. It is noted for M9's capture-page hardening.
+
+In WebKit, a Playwright screenshot itself triggers `style-src-elem`: Playwright injects a
+`<style>` to hide the caret. The script detects this separately and does not count it.
 
 **Font:** Inter Variable's Latin face is 48 KB (woff2) and Latin-Extended 85 KB. Only the faces
 the page's text needs are downloaded (`unicode-range`); dashboard copy is Latin.

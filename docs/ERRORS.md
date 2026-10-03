@@ -1689,6 +1689,106 @@ viewport and lists every element wider than it, rather than judging by eye.
 
 **Related:** DESIGN §9.4, F9.AC17 (SPEC §11 row 15).
 
+### E44 — Every page load reported a CSP violation, and the Chromium sweep said zero
+
+**Status:** Fixed. **Milestone:** M5.5 (present since M5). **Date:** 2026-10-03.
+
+**Symptom.** The Firefox and WebKit sweep (Playwright against the Caddy-served build) recorded a
+`script-src` violation, blocked URI `eval`, once per page load in all three engines, Chromium
+included. The M5.5 Chromium sweep had recorded **0 violations** on the same build.
+
+**Root cause.** Two faults.
+1. zod 4 compiles a fast parser for object schemas, and first probes whether it may by calling
+   `new Function("")` (`util.allowsEval`). `script-src 'self'` blocks it, zod catches the throw
+   and falls back to its normal parser. That is why nothing visibly broke, but the browser still
+   reports the blocked eval. zod has done this since M5 introduced it (ADR-0003).
+2. The Chromium sweep attached its `securitypolicyviolation` listener with a script run *after*
+   the page loaded, then moved between pages with `history.pushState`. zod's probe runs once, on
+   the first parse after a full load, before the listener existed, so it was never seen.
+
+**Fix.** `z.config({ jitless: true })` where the schemas are defined (`web/src/api/schemas.ts`),
+which skips the probe; the parser that runs is the one that ran anyway. A unit test asserts
+the setting.
+
+**Prevention.** A CSP check registers its listener **before any page script runs** (Playwright
+`add_init_script`) and does a full load of every page, not a client-side navigation. It also
+runs a positive control: an injected `<style>`, a `style` attribute and a third-party image
+must all be reported, or the check is void. A library that probes for `eval` is configured not
+to when it is added.
+
+**Related:** F13.AC2, ADR-0019 "Spike results", RISKS R27.
+
+### E45 — Showing a chart's data table pushed the chart over the next panel
+
+**Status:** Fixed. **Milestone:** M5.5. **Date:** 2026-10-03.
+
+**Symptom.** On Inference, pressing **Data** under "Confidence distribution" (11 columns) drew
+the chart 836 px wide in a 518 px panel. The bars ran across the Accuracy panel beside it, and
+the chart's own Data and CSV buttons slid under that panel and could not be clicked. The sweep
+found it as a click intercepted in all three engines.
+
+**Root cause.** `.chart` is a grid with no declared columns. Its implicit track is `auto`, and
+the table's wrapper is a grid item with the default `min-width: auto`, so the track grew to the
+table's minimum width. The canvas then resized to the track. `.dt-wrap` scrolls only if its
+container is narrower than the table, and its container was no longer narrower.
+
+**Fix.** `.chart { grid-template-columns: minmax(0, 1fr); }`: one track bounded by the panel, so
+the table scrolls inside `.dt-wrap`.
+
+**Prevention.** The same rule as E43, applied wherever a grid holds a table: give every grid an
+explicit `minmax(0, …)` track. The QA sweep clicks every chart's Data toggle and fails on an
+intercepted click.
+
+**Related:** E43, NFR7.AC3, DESIGN §6.
+
+### E46 — Charts announced a generated data dump, "… is NaN", instead of their name
+
+**Status:** Fixed. **Milestone:** M5.5 (present since M5). **Date:** 2026-10-03.
+
+**Symptom.** Each chart's `aria-label` was not the name the code gave it but ECharts' own
+description, for example "This is a chart with type Sankey diagram. The data for DB-IP › is NaN…".
+Every Sankey value read as NaN.
+
+**Root cause.** Decal patterns need `aria: { enabled: true }`, and enabling `aria` also turns on
+ECharts' automatic label, which writes `aria-label` onto the container element. That element is
+the one React labels, so ECharts replaced the name after every render. Its describer does not
+understand Sankey links, hence NaN.
+
+**Fix.** `aria: { enabled: true, label: { enabled: false }, decal: { show: decals } }`. The chart is
+named by our label, and the data is the table under it (NFR7.AC3). A unit test pins the option.
+
+**Prevention.** A third-party component that may write attributes onto an element we own is
+checked in the rendered DOM, not only in our JSX: the a11y sweep reads names from the live page.
+
+**Related:** NFR7, ADR-0019 decision 7.
+
+### E47 — Two pages were wider than the screen: a long ISP name, and a hidden column header
+
+**Status:** Fixed. **Milestone:** M5.5. **Date:** 2026-10-03.
+
+**Symptom.** The screenshot matrix's overflow check (`scrollWidth` against the viewport) flagged
+Breakdowns at 390 px (245 px too wide) and Visits at 1024 px (34 px), in all three themes.
+
+**Root cause.**
+1. *Breakdowns.* A ranked list's label is `white-space: nowrap` with an ellipsis, but in an
+   auto-layout table a nowrap cell sizes its column to the whole text. "Atria Convergence
+   Technologies Pvt. Ltd. Broadband Internet Service Provider INDIA" widened the ISP table, and
+   the counts and shares ran into each other.
+2. *Visits.* The table scrolled correctly inside `.dt-wrap`, but its visually hidden "Actions"
+   header (`.sr-only`, absolutely positioned) is positioned against an ancestor outside the
+   scroller, because `.dt-wrap` was not positioned. So it was not clipped, and it stretched the
+   document.
+
+**Fix.** `.ranked { table-layout: fixed; }`, with the number columns' widths on the header cells,
+so names truncate. `.dt-wrap { position: relative; }`, so absolute descendants are clipped by
+the scroller.
+
+**Prevention.** Every scroll container that can hold `.sr-only` content is positioned. The
+matrix measures overflow on every page, at every width, in every theme, and lists the
+offending element.
+
+**Related:** E43, DESIGN §9.4, F9.AC17.
+
 ---
 
 Add entries here as bugs are found and fixed. Use the next available `E<n>` identifier and
