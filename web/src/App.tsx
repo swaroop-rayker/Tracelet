@@ -37,6 +37,9 @@ const BreakdownsPage = lazy(() => import('@/pages/dashboard/BreakdownsPage'));
 const InferencePage = lazy(() => import('@/pages/dashboard/InferencePage'));
 const DetectionPage = lazy(() => import('@/pages/dashboard/DetectionPage'));
 const AccountPage = lazy(() => import('@/pages/AccountPage'));
+// The component gallery exists only in development builds (DESIGN §11): Vite replaces
+// import.meta.env.DEV with false in production, and the import is dropped with it.
+const DesignGallery = import.meta.env.DEV ? lazy(() => import('@/pages/dev/DesignGallery')) : null;
 
 type Session =
   | { readonly phase: 'loading' }
@@ -185,6 +188,9 @@ export default function App(): React.JSX.Element {
           <Route path="inference" element={<Page component={InferencePage} />} />
           <Route path="detection" element={<Page component={DetectionPage} />} />
           <Route path="account" element={<Page component={AccountPage} />} />
+          {DesignGallery !== null && (
+            <Route path="__design" element={<Page component={DesignGallery} />} />
+          )}
           {/* M1's URL, and the sign-in page for an already signed-in admin. */}
           <Route path="dashboard" element={<Navigate to="/" replace />} />
           <Route path="login" element={<Navigate to="/" replace />} />
