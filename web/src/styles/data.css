@@ -158,6 +158,15 @@
   font-size: var(--fs-micro);
 }
 
+.map-foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2) var(--space-4);
+  margin-top: var(--space-3);
+}
+
 .legend {
   display: flex;
   flex-wrap: wrap;
@@ -432,4 +441,10 @@
 
 .raw-fields[open] > summary {
   margin-bottom: var(--space-3);
+}
+
+.badge-row {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
 }

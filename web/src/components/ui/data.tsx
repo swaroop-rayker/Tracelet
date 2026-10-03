@@ -188,10 +188,10 @@ export function RankedList({
   readonly rows: readonly RankedRow[];
   readonly caption: string;
   readonly labelHeader: string;
-  readonly valueHeader?: string;
-  readonly onSelect?: (key: string) => void;
+  readonly valueHeader?: string | undefined;
+  readonly onSelect?: ((key: string) => void) | undefined;
   /** The verb for the button's accessible name: "Filter to". */
-  readonly selectHint?: string;
+  readonly selectHint?: string | undefined;
 }): React.JSX.Element {
   // Scale to the top *named* row: "Other" can outnumber every row and must not lead the eye.
   const named = rows.filter((r) => r.muted !== true);

@@ -440,6 +440,25 @@
   color: var(--text);
 }
 
+/* Card grids (DESIGN §4.7): three columns from 1600 px, two from 1024 px, then one. */
+.grid-3 {
+  display: grid;
+  gap: var(--space-4);
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+@media (min-width: 1600px) {
+  .grid-3 {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 1023px) {
+  .grid-3 {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
 /* --- filter toolbar (DESIGN §5.3) ------------------------------------------- */
 
 .toolbar {

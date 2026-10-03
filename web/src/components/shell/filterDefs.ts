@@ -252,3 +252,18 @@ export function filterForBreakdown(
       return null;
   }
 }
+
+const FILTERABLE = new Set([
+  'country',
+  'admin1',
+  'city',
+  'asn',
+  'device_class',
+  'connection_class',
+  'classification',
+]);
+
+/** Whether a breakdown dimension's rows can be applied as a filter (DESIGN 12 E3). */
+export function isFilterableDimension(dimension: string): boolean {
+  return FILTERABLE.has(dimension);
+}
