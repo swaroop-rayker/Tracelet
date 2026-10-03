@@ -24,6 +24,7 @@ import type {
   SourceFlow,
   TimeSeries,
 } from '@/api/schemas';
+import type { RankedRow } from '@/components/ui';
 import { count, dimensionValue, label, pct } from '@/format';
 import type { Palette } from '@/theme';
 
@@ -73,44 +74,89 @@ function bucketLabel(iso: string, bucket: 'day' | 'hour', zone: string): string 
 // F9.AC3 -- time series
 // ---------------------------------------------------------------------------
 
-export function timeSeriesChart(data: TimeSeries, zone: string): Chart {
+/**
+ * Visits over time (F9.AC3), the primary chart. With `previous` (the same number of buckets
+ * from the period just before, DESIGN 12 E6), a single series gains a dashed neutral line for
+ * comparison, and the table a column for it.
+ */
+export function timeSeriesChart(data: TimeSeries, zone: string, previous?: TimeSeries): Chart {
   const labels = data.buckets.map((b) => bucketLabel(b, data.bucket, zone));
   const stacked = data.series.length > 1;
+  // The unsplit series' key is the API's "all"; people read it as visits.
+  const nameOf = (s: TimeSeries['series'][number]): string =>
+    !stacked && s.key === 'all' ? 'Visits' : s.label;
+  const prior =
+    !stacked && previous !== undefined && previous.series.length === 1
+      ? previous.series[0]?.values
+      : undefined;
   return {
     option: (p: Palette): EChartsCoreOption => ({
-      grid: { left: 8, right: 8, top: stacked ? 40 : 12, bottom: 4, containLabel: true },
-      legend: stacked
-        ? {
-            top: 0,
-            right: 0,
-            icon: 'roundRect',
-            itemWidth: 10,
-            itemHeight: 10,
-            textStyle: { color: p.muted },
-          }
-        : undefined,
+      grid: {
+        left: 8,
+        right: 8,
+        top: stacked || prior !== undefined ? 40 : 12,
+        bottom: 4,
+        containLabel: true,
+      },
+      legend:
+        stacked || prior !== undefined
+          ? {
+              top: 0,
+              right: 0,
+              icon: 'roundRect',
+              itemWidth: 10,
+              itemHeight: 10,
+              textStyle: { color: p.muted },
+            }
+          : undefined,
       tooltip: { trigger: 'axis', formatter: axisTooltip },
       xAxis: { type: 'category', data: labels, boundaryGap: stacked, ...categoryAxis(p) },
       yAxis: { type: 'value', minInterval: 1, ...valueAxis(p) },
-      series: data.series.map((s) =>
-        stacked
-          ? { name: s.label, type: 'bar', stack: 'total', data: s.values, barMaxWidth: 28 }
-          : {
-              name: s.label,
-              type: 'line',
-              data: s.values,
-              smooth: 0.25,
-              showSymbol: false,
-              symbolSize: 6,
-              lineStyle: { width: 1.75 },
-              areaStyle: primaryArea(p),
-              emphasis: { focus: 'none' },
-            },
-      ),
+      series: [
+        ...data.series.map((s) =>
+          stacked
+            ? { name: nameOf(s), type: 'bar', stack: 'total', data: s.values, barMaxWidth: 28 }
+            : {
+                name: nameOf(s),
+                type: 'line',
+                data: s.values,
+                smooth: 0.25,
+                showSymbol: false,
+                symbolSize: 6,
+                lineStyle: { width: 1.75 },
+                areaStyle: primaryArea(p),
+                emphasis: { focus: 'none' },
+              },
+        ),
+        ...(prior === undefined
+          ? []
+          : [
+              {
+                name: 'Previous period',
+                type: 'line',
+                data: labels.map((_, i) => prior[i] ?? null),
+                smooth: 0.25,
+                showSymbol: false,
+                symbolSize: 5,
+                z: 1,
+                lineStyle: { width: 1.25, type: [4, 4], color: p.series[5] },
+                itemStyle: { color: p.series[5] },
+                emphasis: { focus: 'none' },
+              },
+            ]),
+      ],
     }),
     table: {
-      columns: ['Bucket', ...data.series.map((s) => s.label)],
-      rows: labels.map((l, i) => [l, ...data.series.map((s) => s.values[i] ?? 0)]),
+      columns: [
+        'Bucket',
+        ...data.series.map(nameOf),
+        ...(prior === undefined ? [] : ['Previous period']),
+      ],
+      rows: labels.map((l, i) => [
+        l,
+        ...data.series.map((s) => s.values[i] ?? 0),
+        ...(prior === undefined ? [] : [prior[i] ?? 0]),
+      ]),
     },
     decals: stacked,
   };
@@ -243,6 +289,49 @@ export function breakdownChart(data: Breakdown): Chart {
     table: { columns: ['Value', 'Visits', 'Share'], rows: all.map((r) => [...r]) },
     decals: false,
   };
+}
+
+/**
+ * A breakdown as ranked-list rows (DESIGN 5.4): the named values, then Other and Unknown,
+ * neutral and last. Shares are of the whole, as the API states them.
+ */
+export function rankedRows(data: Breakdown): readonly RankedRow[] {
+  const share = (n: number): number | null => (data.total > 0 ? n / data.total : null);
+  const rows: RankedRow[] = data.rows.map((r) => ({
+    key: r.key,
+    label: dimensionValue(data.dimension, r.key),
+    count: r.count,
+    share: r.share,
+  }));
+  if (data.other > 0) {
+    rows.push({
+      key: '__other',
+      label: 'Other',
+      count: data.other,
+      share: share(data.other),
+      muted: true,
+    });
+  }
+  if (data.unknown > 0) {
+    rows.push({
+      key: '__unknown',
+      label: dimensionValue(data.dimension, ''),
+      count: data.unknown,
+      share: share(data.unknown),
+      muted: true,
+    });
+  }
+  return rows;
+}
+
+/** Signal rankings as ranked-list rows: the rule id, its category as the label suffix. */
+export function signalRows(data: Signals): readonly RankedRow[] {
+  return data.rows.map((r) => ({
+    key: r.rule_id,
+    label: `${r.rule_id} · ${label(r.category)}`,
+    count: r.count,
+    share: r.share,
+  }));
 }
 
 export function signalsChart(data: Signals): Chart {

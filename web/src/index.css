@@ -711,58 +711,6 @@ input[type='date'] {
   color: var(--error);
 }
 
-/* --- timeline ------------------------------------------------------------ */
-
-.timeline {
-  @apply grid gap-4;
-}
-
-.timeline-head {
-  @apply sticky top-0 m-0 bg-surface py-1 text-sm font-semibold;
-}
-
-.visit-row > details > summary {
-  @apply flex cursor-pointer flex-wrap items-baseline gap-3 rounded-md px-2 py-1.5 text-sm;
-}
-
-.visit-row > details > summary:hover {
-  @apply bg-surface-2;
-}
-
-.visit-row > details[open] {
-  @apply mb-2 rounded-md bg-surface-2 pb-3;
-}
-
-.visit-row dl,
-.visit-row details > a {
-  @apply mx-3;
-}
-
-.load-more {
-  @apply pt-2;
-}
-
-/* A badge is text first: the word is the signal, the outline only reinforces it. */
-.badge {
-  @apply rounded border px-1.5 py-0.5 text-xs font-semibold;
-  border-color: var(--border);
-}
-
-.badge.human {
-  border-color: var(--ok);
-}
-
-.badge.bot,
-.badge.spoofed,
-.badge.spam {
-  border-color: var(--error);
-}
-
-.badge.crawler,
-.badge.datacenter {
-  border-color: var(--warn);
-}
-
 /* --- responsive (F9.AC17) ------------------------------------------------ */
 
 @media (max-width: 1023px) {

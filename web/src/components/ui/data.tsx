@@ -33,14 +33,14 @@ export function Stat({
   /** As displayed: "128.4K", "90.0%", "—". */
   readonly value: string;
   /** The exact figure, when `value` is compact. */
-  readonly exact?: string;
-  readonly delta?: Delta;
+  readonly exact?: string | undefined;
+  readonly delta?: Delta | undefined;
   /** What the delta compares against: "vs previous 30 days". */
-  readonly comparison?: string;
+  readonly comparison?: string | undefined;
   /** In place of a delta: why there is none ("No earlier data", "Geofencing arrives in M6"). */
-  readonly note?: ReactNode;
+  readonly note?: ReactNode | undefined;
   /** The KPI's definition, behind an ⓘ (DESIGN §7.4). */
-  readonly hint?: string;
+  readonly hint?: string | undefined;
 }): React.JSX.Element {
   const Arrow = delta === undefined ? null : ARROW[delta.direction];
   return (
@@ -94,7 +94,7 @@ export function StatStrip({
     readonly key: string;
     readonly label: string;
     readonly value: string;
-    readonly hint?: string;
+    readonly hint?: string | undefined;
   }[];
 }): React.JSX.Element {
   return (

@@ -421,6 +421,25 @@
   gap: var(--space-2);
 }
 
+.fresh {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 22px;
+  padding: 0 var(--space-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text-muted);
+  font-size: var(--fs-meta);
+  white-space: nowrap;
+}
+
+.fresh--stale {
+  border-color: var(--warn-bg);
+  background: var(--warn-bg);
+  color: var(--text);
+}
+
 /* --- filter toolbar (DESIGN §5.3) ------------------------------------------- */
 
 .toolbar {

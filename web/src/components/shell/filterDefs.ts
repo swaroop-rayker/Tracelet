@@ -212,3 +212,43 @@ export function clearAll(filters: Filters): Filters {
     lists: { classification: [], device_class: [], connection_class: [] },
   };
 }
+
+const AUTOMATED = new Set(['bot', 'crawler', 'datacenter', 'spam', 'spoofed']);
+
+/**
+ * The filter a clicked breakdown row stands for (DESIGN 12 E3), or null where the dimension
+ * has no filter key (ISP, browser, OS, screen, app). Location keys are qualified
+ * ("IN|Karnataka|Bengaluru"), so a state or city sets its country as well.
+ */
+export function filterForBreakdown(
+  dimension: string,
+  key: string,
+  filters: Filters,
+): Filters | null {
+  const [country = '', admin1 = '', city = ''] = key.split('|');
+  switch (dimension) {
+    case 'country':
+      return setScalar(filters, 'country_code', key);
+    case 'admin1':
+      return setScalar(setScalar(filters, 'country_code', country), 'admin1', admin1);
+    case 'city':
+      return setScalar(
+        setScalar(setScalar(filters, 'country_code', country), 'admin1', admin1),
+        'city',
+        city,
+      );
+    case 'asn':
+      return setScalar(filters, 'asn', key);
+    case 'device_class':
+      return { ...filters, lists: { ...filters.lists, device_class: [key] } };
+    case 'connection_class':
+      return { ...filters, lists: { ...filters.lists, connection_class: [key] } };
+    case 'classification': {
+      const next = { ...filters, lists: { ...filters.lists, classification: [key] } };
+      // An automated class is hidden by default; selecting one must also include it.
+      return AUTOMATED.has(key) ? setScalar(next, 'include_automated', 'true') : next;
+    }
+    default:
+      return null;
+  }
+}
