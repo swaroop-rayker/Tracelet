@@ -23,6 +23,8 @@ import { confirmTotp, enroll, type Enrollment } from '@/api/auth';
 import { fieldMessage, type ApiError } from '@/api/client';
 import { Callout, ErrorNotice, Field, Secret, Submit } from '@/components/ui';
 import { navigate } from '@/router';
+import { BrandMark } from '@/components/shell/BrandMark';
+import { RecoveryCodes } from '@/components/RecoveryCodes';
 
 type Phase =
   | { readonly step: 'password' }
@@ -92,9 +94,12 @@ function AuthShell({
   readonly children: React.ReactNode;
 }): React.JSX.Element {
   return (
-    <main className="shell narrow">
+    <main className="auth">
       <header>
-        <h1>Tracelet</h1>
+        <h1 className="auth__brand">
+          <BrandMark />
+          Tracelet
+        </h1>
         <p className="muted">{title}</p>
       </header>
       {children}
@@ -291,11 +296,7 @@ function RecoveryCodesStep({
           </p>
         </Callout>
       ) : (
-        <ul className="codes mono">
-          {codes.map((code) => (
-            <li key={code}>{code}</li>
-          ))}
-        </ul>
+        <RecoveryCodes codes={codes} />
       )}
 
       <div className="card">

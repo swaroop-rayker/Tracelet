@@ -26,6 +26,7 @@ import { RecoveryCodePage, ResetConfirmPage, ResetRequestPage } from '@/pages/Re
 import { navigate, useRoute } from '@/router';
 import { SessionContext, type Session as SessionValue } from '@/session';
 import { applyTheme, asTheme } from '@/theme';
+import { BrandMark } from '@/components/shell/BrandMark';
 
 // Each dashboard page is its own chunk, so ECharts and Leaflet download only when a
 // page that draws with them is opened -- and the sign-in pages never pay for either.
@@ -133,9 +134,12 @@ export default function App(): React.JSX.Element {
 
   if (session.phase === 'loading') {
     return (
-      <main className="shell narrow">
+      <main className="auth">
         <header>
-          <h1>Tracelet</h1>
+          <h1 className="auth__brand">
+            <BrandMark />
+            Tracelet
+          </h1>
         </header>
         <Loading label="Checking your session…" />
       </main>
@@ -144,9 +148,12 @@ export default function App(): React.JSX.Element {
 
   if (session.phase === 'unavailable') {
     return (
-      <main className="shell narrow">
+      <main className="auth">
         <header>
-          <h1>Tracelet</h1>
+          <h1 className="auth__brand">
+            <BrandMark />
+            Tracelet
+          </h1>
           <p className="muted">Cannot reach the server</p>
         </header>
         <ErrorNotice error={session.error} />

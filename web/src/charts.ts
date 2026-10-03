@@ -265,32 +265,6 @@ function hbar(
   });
 }
 
-export function breakdownChart(data: Breakdown): Chart {
-  const rows = data.rows.map(
-    (r) => [dimensionValue(data.dimension, r.key), r.count, pct(r.share, 1)] as const,
-  );
-  const extra: (readonly [string, number, string])[] = [];
-  if (data.other > 0)
-    extra.push(['Other', data.other, pct(data.total ? data.other / data.total : null, 1)]);
-  if (data.unknown > 0) {
-    extra.push([
-      dimensionValue(data.dimension, ''),
-      data.unknown,
-      pct(data.total ? data.unknown / data.total : null, 1),
-    ]);
-  }
-  const all = [...rows, ...extra];
-  return {
-    option: hbar(
-      all.map((r) => r[0]),
-      all.map((r) => r[1]),
-      'Visits',
-    ),
-    table: { columns: ['Value', 'Visits', 'Share'], rows: all.map((r) => [...r]) },
-    decals: false,
-  };
-}
-
 /**
  * A breakdown as ranked-list rows (DESIGN 5.4): the named values, then Other and Unknown,
  * neutral and last. Shares are of the whole, as the API states them.
@@ -332,22 +306,6 @@ export function signalRows(data: Signals): readonly RankedRow[] {
     count: r.count,
     share: r.share,
   }));
-}
-
-export function signalsChart(data: Signals): Chart {
-  return {
-    option: hbar(
-      data.rows.map((r) => r.rule_id),
-      data.rows.map((r) => r.count),
-      'Visits on which the rule fired',
-      3,
-    ),
-    table: {
-      columns: ['Rule', 'Category', 'Visits', 'Share of visits'],
-      rows: data.rows.map((r) => [r.rule_id, r.category, r.count, pct(r.share, 1)]),
-    },
-    decals: false,
-  };
 }
 
 const STEP_LABEL: Readonly<Record<string, string>> = {

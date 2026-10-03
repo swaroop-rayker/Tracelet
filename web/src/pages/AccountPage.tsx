@@ -29,6 +29,7 @@ import { fetchReadiness, type ApiResult, type Readiness } from '@/api/health';
 import { Callout, Empty, ErrorNotice, Field, Loading, Submit } from '@/components/ui';
 import { useSession } from '@/session';
 import { PageHeader } from '@/components/shell/PageHeader';
+import { RecoveryCodes } from '@/components/RecoveryCodes';
 
 const LOW_CODES_WARNING = 3;
 
@@ -38,11 +39,9 @@ export default function AccountPage(): React.JSX.Element {
     <div className="page account">
       <PageHeader
         title="Account & security"
-        description="Your password, two-factor sign-in, recovery and sessions."
+        description={`${me.display_name} · ${me.email} · ${me.role}`}
       />
-      <p className="muted">
-        {me.display_name} · {me.email} · {me.role}
-      </p>
+
       <AccountPanel me={me} onRefresh={onRefresh} />
       <PasswordPanel csrfToken={me.csrf_token} onChanged={onRefresh} />
       <RecoveryCodesPanel me={me} onRefresh={onRefresh} />
@@ -217,11 +216,7 @@ function RecoveryCodesPanel({
       {fresh !== null ? (
         <Callout tone="warn" title="New codes — shown once">
           <p>The previous set no longer works. Save these before leaving this page.</p>
-          <ul className="codes mono">
-            {fresh.map((code) => (
-              <li key={code}>{code}</li>
-            ))}
-          </ul>
+          <RecoveryCodes codes={fresh} />
         </Callout>
       ) : (
         <div className="card">
