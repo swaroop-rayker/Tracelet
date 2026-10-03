@@ -19,6 +19,7 @@ import { parseFilters, resolveWindow, withParams } from '@/filters';
 import { count, pct } from '@/format';
 import { useFilters } from '@/session';
 import { useSearchParams } from 'react-router';
+import { PageHeader } from '@/components/shell/PageHeader';
 
 const KPI_LABEL: Readonly<Record<string, string>> = {
   visits: 'Visits',
@@ -49,7 +50,11 @@ export default function OverviewPage(): React.JSX.Element {
   const { params, zone } = useFilters();
   return (
     <div className="page">
-      <h2 className="page-title">Overview</h2>
+      <PageHeader
+        title="Overview"
+        description="Visits to your links: how many, who they were, and how complete the picture is."
+        filters
+      />
       <SummaryPanel params={params} />
       <TimeSeriesPanel params={params} zone={zone} />
       <div className="grid-2">

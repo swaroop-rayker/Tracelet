@@ -803,18 +803,22 @@ they ship:
 ### 9.2 Header (56 px)
 
 ```
-[≡] Analytics / Geography                      [⌕ Search or jump to…   Ctrl K]   [?]   (UC)
+[≡] Analytics / Geography                      [⌕ Search or jump to…   Ctrl K]   [?]
 ```
 
 - **Left:** a menu button (mobile only, opens the drawer), then the breadcrumb.
 - **Right:** the command palette trigger (a 280 px SearchInput look-alike that opens §5.5;
-  `Ctrl K` / `⌘K` shown by platform), help `?`, and the avatar menu.
-- **Help** opens a sheet with keyboard shortcuts (§12 E2), the glossary (§7.4), and the app
-  version and API version. There are no outbound links (no third-party requests).
+  `Ctrl K` / `⌘K` shown by platform) and help `?`.
+- **Who is signed in lives in the sidebar's user menu** (§9.1), not repeated as a header
+  avatar: one place for theme, shortcuts and sign-out. *(As built in M5.5 phase 2; the first
+  draft of this section put an avatar menu here too.)*
+- **Help** opens a sheet with keyboard shortcuts (§12 E2) and the glossary (§7.4). There are no
+  outbound links (no third-party requests), and no version line: the API exposes no version
+  endpoint, and adding one would be an API change outside M5.5.
 - **Notifications: deliberately absent** until a real feed exists. A bell with nothing behind it
   is a dead control (UI-12). Reserved for M6 (delivery failures) and M7 (health alerts).
-- The header has a `--bg` background, a 1 px bottom border, and is sticky. It never holds page
-  actions.
+- The header has a translucent `--bg` background, a 1 px bottom border, and is sticky. It never
+  holds page actions.
 
 ### 9.3 Page template
 

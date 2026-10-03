@@ -130,9 +130,9 @@ describe('no raw colours outside the tokens', () => {
     expect(rest.match(/#[0-9a-f]{3,8}\b/gi) ?? []).toEqual([]);
   });
 
-  it('the primitives stylesheet has no hex colours at all', () => {
-    const primitives = readFileSync(new URL('./styles/primitives.css', import.meta.url), 'utf8');
-    expect(primitives.match(/#[0-9a-f]{3,8}\b/gi) ?? []).toEqual([]);
+  it.each(['primitives.css', 'shell.css'])('styles/%s has no hex colours at all', (file) => {
+    const sheet = readFileSync(new URL(`./styles/${file}`, import.meta.url), 'utf8');
+    expect(sheet.match(/#[0-9a-f]{3,8}\b/gi) ?? []).toEqual([]);
   });
 
   it('no TypeScript source carries a hex colour', () => {

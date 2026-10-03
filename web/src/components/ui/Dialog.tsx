@@ -23,6 +23,7 @@ export function Dialog({
   size = 'md',
   drawer = false,
   wide = false,
+  side = 'right',
   dismissible = true,
   className,
 }: {
@@ -36,6 +37,8 @@ export function Dialog({
   readonly drawer?: boolean;
   /** A wider drawer (720 px), for detail views. */
   readonly wide?: boolean;
+  /** Which edge a drawer docks to: right for detail, left for navigation. */
+  readonly side?: 'left' | 'right';
   /** A click on the backdrop closes it. Off for forms that would lose input. */
   readonly dismissible?: boolean;
   readonly className?: string;
@@ -80,6 +83,7 @@ export function Dialog({
         size !== 'md' && !drawer && `dialog--${size}`,
         drawer && 'drawer',
         drawer && wide && 'drawer--wide',
+        drawer && side === 'left' && 'drawer--left',
         className,
       )}
       onClick={(event) => {

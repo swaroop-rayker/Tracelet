@@ -1,0 +1,681 @@
+/*
+ * The application shell (docs/DESIGN.md §9): sidebar, header, page head, filter toolbar,
+ * command palette. Tokens only (DESIGN UI-2).
+ */
+
+/* --- the frame ---------------------------------------------------------------- */
+
+.app-shell {
+  display: grid;
+  grid-template-columns: var(--sidebar-w) minmax(0, 1fr);
+  min-height: 100vh;
+  transition: grid-template-columns var(--dur-base) var(--ease-out);
+}
+
+.app-shell.is-collapsed {
+  grid-template-columns: var(--sidebar-w-collapsed) minmax(0, 1fr);
+}
+
+.app-main {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.app-content {
+  width: 100%;
+  max-width: var(--content-max);
+  margin: 0 auto;
+  padding: var(--space-6) var(--gutter) var(--space-10);
+}
+
+.app-content:focus {
+  outline: none;
+}
+
+.skip-link {
+  position: absolute;
+  top: var(--space-2);
+  left: var(--space-2);
+  z-index: var(--z-toast);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-md);
+  background: var(--overlay);
+  color: var(--text);
+  transform: translateY(-200%);
+}
+
+.skip-link:focus {
+  transform: none;
+}
+
+/* --- sidebar (DESIGN §9.1, §5.7) --------------------------------------------- */
+
+.sidebar {
+  position: sticky;
+  top: 0;
+  z-index: var(--z-sidebar);
+  height: 100vh;
+  border-right: 1px solid var(--border);
+  background: var(--sidebar);
+}
+
+.sidebar__inner {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  padding: var(--space-3) var(--space-3) var(--space-4);
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+.sidebar__brand {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  height: 44px;
+  padding: 0 var(--space-1) 0 6px;
+  margin-bottom: var(--space-3);
+}
+
+.brand-mark {
+  flex: none;
+}
+
+.brand-mark__tile {
+  fill: var(--accent);
+}
+
+.brand-mark__trace {
+  stroke: var(--on-accent);
+}
+
+.brand-mark__dot {
+  fill: var(--on-accent);
+}
+
+.brand-name {
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.sidebar__toggle {
+  margin-left: auto;
+}
+
+.is-collapsed > .sidebar .sidebar__brand {
+  flex-direction: column;
+  height: auto;
+  gap: var(--space-2);
+  padding: var(--space-1) 0;
+}
+
+.is-collapsed > .sidebar .sidebar__toggle {
+  margin-left: 0;
+}
+
+.sidebar__nav {
+  display: grid;
+  gap: var(--space-4);
+}
+
+.nav-group {
+  display: grid;
+  gap: 2px;
+}
+
+.nav-group__label {
+  margin: 0;
+  padding: 0 var(--space-3) var(--space-1);
+  color: var(--text-subtle);
+  font-size: var(--fs-meta);
+  font-weight: 500;
+}
+
+.nav-group ul {
+  display: grid;
+  gap: 2px;
+}
+
+.nav-link {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  height: 34px;
+  padding: 0 var(--space-3);
+  border-radius: var(--radius-md);
+  color: var(--text-muted);
+  font-size: var(--fs-body);
+  font-weight: 500;
+  text-decoration: none;
+  white-space: nowrap;
+  transition:
+    background-color var(--dur-fast) var(--ease-out),
+    color var(--dur-fast) var(--ease-out);
+}
+
+.nav-link:hover {
+  background: var(--surface-2);
+  color: var(--text);
+}
+
+.nav-link.is-active {
+  background: var(--accent-bg);
+  color: var(--text);
+  font-weight: 600;
+}
+
+.nav-link.is-active::before {
+  content: '';
+  position: absolute;
+  left: -12px;
+  top: 8px;
+  bottom: 8px;
+  width: 2px;
+  border-radius: var(--radius-full);
+  background: var(--accent);
+}
+
+.nav-link:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
+.is-collapsed > .sidebar .nav-link {
+  justify-content: center;
+  padding: 0;
+  width: 40px;
+  height: 40px;
+  margin: 0 auto;
+}
+
+.is-collapsed > .sidebar .nav-group {
+  padding-top: var(--space-2);
+  border-top: 1px solid var(--border);
+}
+
+.is-collapsed > .sidebar .nav-group:first-child {
+  padding-top: 0;
+  border-top: none;
+}
+
+.sidebar__foot {
+  display: grid;
+  gap: var(--space-2);
+  margin-top: auto;
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--border);
+}
+
+.user-btn {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  width: 100%;
+  padding: var(--space-2);
+  border: none;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.user-btn:hover {
+  background: var(--surface-2);
+}
+
+.user-btn:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
+.is-collapsed > .sidebar .user-btn {
+  justify-content: center;
+  padding: var(--space-1) 0;
+}
+
+.avatar {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: var(--radius-full);
+  background: var(--accent-bg);
+  color: var(--accent);
+  font-size: var(--fs-meta);
+  font-weight: 600;
+}
+
+.user-btn__who {
+  display: grid;
+  min-width: 0;
+}
+
+.user-btn__name {
+  overflow: hidden;
+  font-size: var(--fs-secondary);
+  font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.user-btn__role {
+  color: var(--text-subtle);
+  font-size: var(--fs-meta);
+  text-transform: capitalize;
+}
+
+/* The navigation drawer on phones reuses the sidebar inside a left-docked dialog. The
+   collapsed rules above are scoped to the real sidebar, so they never reach this copy. */
+.nav-drawer .dialog__body {
+  padding: 0;
+}
+
+.nav-drawer .sidebar__brand {
+  display: none;
+}
+
+.nav-drawer .sidebar__inner {
+  height: auto;
+}
+
+/* --- header (DESIGN §9.2) ---------------------------------------------------- */
+
+.topbar {
+  position: sticky;
+  top: 0;
+  z-index: var(--z-header);
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  height: var(--header-h);
+  padding: 0 var(--gutter);
+  border-bottom: 1px solid var(--border);
+  background: color-mix(in srgb, var(--bg) 88%, transparent);
+  backdrop-filter: blur(8px);
+}
+
+.topbar__menu {
+  display: none;
+}
+
+.topbar__end {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-left: auto;
+}
+
+.crumbs ol {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: var(--fs-secondary);
+  color: var(--text-muted);
+}
+
+.crumbs li + li::before {
+  content: '/';
+  margin-right: var(--space-2);
+  color: var(--text-subtle);
+}
+
+.crumbs [aria-current='page'] {
+  color: var(--text);
+  font-weight: 500;
+}
+
+.crumbs a {
+  color: inherit;
+  text-decoration: none;
+}
+
+.crumbs a:hover {
+  color: var(--text);
+}
+
+.search-trigger {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  width: 280px;
+  height: 34px;
+  padding: 0 var(--space-2) 0 var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  color: var(--text-subtle);
+  font: inherit;
+  font-size: var(--fs-secondary);
+  cursor: pointer;
+  transition: border-color var(--dur-fast) var(--ease-out);
+}
+
+.search-trigger:hover {
+  border-color: var(--border-strong);
+  color: var(--text-muted);
+}
+
+.search-trigger:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.search-trigger__text {
+  flex: 1;
+  text-align: left;
+}
+
+.search-trigger__keys {
+  display: inline-flex;
+  gap: 2px;
+}
+
+/* --- page head (DESIGN §9.3) ------------------------------------------------- */
+
+.page {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-6);
+  min-width: 0;
+}
+
+.page-head {
+  display: grid;
+  gap: var(--space-4);
+}
+
+.page-head__row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-4);
+}
+
+.page-head__titles {
+  display: grid;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.page-head__title-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.page-head__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+/* --- filter toolbar (DESIGN §5.3) ------------------------------------------- */
+
+.toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  padding-bottom: var(--space-4);
+  border-bottom: 1px solid var(--border);
+}
+
+.toolbar__link {
+  display: inline-grid;
+  gap: var(--space-1);
+  min-width: 0;
+  max-width: min(320px, 100%);
+}
+
+.toolbar__link .select {
+  max-width: 320px;
+  text-overflow: ellipsis;
+}
+
+.toolbar__end {
+  margin-left: auto;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  height: var(--control-h-sm);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+  font-size: var(--fs-meta);
+}
+
+.chip__body {
+  height: 100%;
+  padding: 0 var(--space-1) 0 var(--space-2);
+  border: none;
+  border-radius: var(--radius-sm) 0 0 var(--radius-sm);
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-size: var(--fs-meta);
+  cursor: pointer;
+  max-width: 260px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chip__name {
+  color: var(--text-muted);
+}
+
+.chip__remove {
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 100%;
+  padding: 0;
+  border: none;
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.chip__body:hover,
+.chip__remove:hover {
+  background: var(--overlay);
+  color: var(--text);
+}
+
+.chip__body:focus-visible,
+.chip__remove:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
+.filter-editor {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.filter-editor__options {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+  padding: var(--space-2);
+  border: none;
+}
+
+.filter-editor__text {
+  display: grid;
+  gap: var(--space-2);
+  padding: var(--space-1);
+}
+
+.filter-editor__text .btn {
+  justify-self: start;
+}
+
+.period {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.period__custom {
+  display: grid;
+  gap: var(--space-2);
+  padding: var(--space-2);
+  border-top: 1px solid var(--border);
+}
+
+.period__dates {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-2);
+}
+
+.period__custom .btn {
+  justify-self: start;
+}
+
+/* --- command palette (DESIGN §5.5) ------------------------------------------ */
+
+.palette {
+  margin-top: 12vh;
+  margin-bottom: auto;
+  width: min(600px, calc(100vw - 32px));
+}
+
+.palette:modal {
+  margin-top: 12vh;
+}
+
+.palette__search {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  height: 52px;
+  padding: 0 var(--space-4);
+  border-bottom: 1px solid var(--border);
+  color: var(--text-muted);
+}
+
+.palette__input {
+  flex: 1;
+  height: 100%;
+  border: none;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-size: 15px;
+}
+
+.palette__input:focus {
+  outline: none;
+}
+
+.palette__input::placeholder {
+  color: var(--text-subtle);
+}
+
+.palette__list {
+  max-height: min(420px, 60vh);
+  overflow-y: auto;
+  padding: var(--space-2);
+}
+
+.palette__item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  height: 38px;
+  padding: 0 var(--space-3);
+  border-radius: var(--radius-md);
+  color: var(--text);
+  font-size: var(--fs-body);
+  cursor: pointer;
+}
+
+.palette__item > svg {
+  color: var(--text-muted);
+}
+
+.palette__item[aria-selected='true'] {
+  background: var(--surface-2);
+}
+
+.palette__label {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.palette__empty {
+  margin: 0;
+  padding: var(--space-6);
+  color: var(--text-muted);
+  text-align: center;
+}
+
+/* --- help -------------------------------------------------------------------- */
+
+.help__heading {
+  margin-bottom: var(--space-3);
+}
+
+.help__keys td:first-child {
+  width: 12rem;
+  white-space: nowrap;
+}
+
+/* --- responsive recomposition (DESIGN §9.4) ---------------------------------- */
+
+@media (max-width: 1023px) {
+  .search-trigger {
+    width: auto;
+  }
+
+  .search-trigger__text,
+  .search-trigger__keys {
+    display: none;
+  }
+}
+
+@media (max-width: 767px) {
+  .app-shell,
+  .app-shell.is-collapsed {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .app-shell > .sidebar {
+    display: none;
+  }
+
+  .topbar__menu {
+    display: block;
+  }
+
+  .app-content {
+    padding-top: var(--space-4);
+  }
+
+  .page-head__actions {
+    width: 100%;
+  }
+
+  .toolbar__link,
+  .toolbar__link .select {
+    max-width: 100%;
+  }
+}

@@ -283,6 +283,23 @@
 
 .select--inline {
   width: auto;
+  max-width: 100%;
+}
+
+/* A long option (a link's label) must not widen the page: selects shrink to their box. */
+.select-field,
+.select-wrap {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.select-wrap {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.select {
+  min-width: 0;
+  text-overflow: ellipsis;
 }
 
 .search {
@@ -1422,6 +1439,20 @@ body:has(dialog[open]) {
 @starting-style {
   .drawer[open] {
     transform: translateX(24px);
+    opacity: 0;
+  }
+}
+
+.drawer--left,
+.drawer--left:modal {
+  inset: 0 auto 0 0;
+  width: min(300px, 88vw);
+  border-width: 0 1px 0 0;
+}
+
+@starting-style {
+  .drawer--left[open] {
+    transform: translateX(-24px);
     opacity: 0;
   }
 }

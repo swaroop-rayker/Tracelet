@@ -9,6 +9,7 @@ import { Panel } from '@/components/Panel';
 import { withParams } from '@/filters';
 import { DIMENSION_LABEL } from '@/format';
 import { useFilters } from '@/session';
+import { PageHeader } from '@/components/shell/PageHeader';
 
 const LOCATION = new Set<string>(['country', 'admin1', 'city']);
 
@@ -16,11 +17,11 @@ export default function BreakdownsPage(): React.JSX.Element {
   const { params } = useFilters();
   return (
     <div className="page">
-      <h2 className="page-title">Breakdowns</h2>
-      <p className="muted small">
-        Location breakdowns count each visit at its best-guess location: the highest-confidence
-        place the engine found. A visit no source could place at a level is counted as “Unknown”.
-      </p>
+      <PageHeader
+        title="Breakdowns"
+        description="Each visit counted at its best-guess location: the highest-confidence place the engine found. A visit no source could place at a level is Unknown."
+        filters
+      />
       <div className="grid-2">
         {breakdownDimensions.map((dimension) => (
           <BreakdownPanel key={dimension} dimension={dimension} params={params} />

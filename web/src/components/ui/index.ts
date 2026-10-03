@@ -54,4 +54,4 @@ export {
 } from './inputs';
 export { Menu, MenuItem, MenuLabel, MenuSeparator, Popover, type TriggerProps } from './Popover';
 export { InfoTip, Tooltip } from './Tooltip';
-export { cssVars, cx, relativeTime } from './util';
+export { cssVars, cx, modKey, relativeTime } from './util';

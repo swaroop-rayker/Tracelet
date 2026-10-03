@@ -2,6 +2,11 @@
 
 import type { CSSProperties } from 'react';
 
+/** The platform's modifier key for shortcuts: ⌘ on Apple devices, Ctrl elsewhere. */
+export function modKey(): string {
+  return /Mac|iPhone|iPad/.test(navigator.userAgent) ? '⌘' : 'Ctrl';
+}
+
 /** Join class names, dropping the falsy ones. */
 export function cx(...parts: readonly (string | false | null | undefined)[]): string {
   return parts.filter((p): p is string => typeof p === 'string' && p !== '').join(' ');

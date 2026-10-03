@@ -179,7 +179,7 @@ export function Select({
 }): React.JSX.Element {
   const id = useId();
   return (
-    <div className={cx(!hideLabel && 'field')}>
+    <div className={cx('select-field', !hideLabel && 'field')}>
       <label htmlFor={id} className={hideLabel ? 'sr-only' : 'field__label'}>
         {label}
       </label>

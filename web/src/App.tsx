@@ -18,7 +18,8 @@ import { Navigate, Route, Routes } from 'react-router';
 import { fetchMe, type Me } from '@/api/auth';
 import type { ApiError } from '@/api/client';
 import { Layout } from '@/components/Layout';
-import { Callout, ErrorNotice, Loading } from '@/components/ui';
+import { PageHeader } from '@/components/shell/PageHeader';
+import { Button, EmptyState, ErrorNotice, Loading } from '@/components/ui';
 import EnrollPage from '@/pages/EnrollPage';
 import LoginPage from '@/pages/LoginPage';
 import { RecoveryCodePage, ResetConfirmPage, ResetRequestPage } from '@/pages/RecoveryPages';
@@ -216,17 +217,21 @@ function Page({
 function NotFound(): React.JSX.Element {
   return (
     <div className="page">
-      <Callout tone="warn" title="Nothing here">
-        <p className="mono">{window.location.pathname}</p>
-      </Callout>
-      <button
-        type="button"
-        onClick={() => {
-          navigate({ name: 'dashboard' });
-        }}
-      >
-        Go to the overview
-      </button>
+      <PageHeader title="Page not found" description="There is nothing at this address." />
+      <EmptyState
+        title={<span className="t-mono">{window.location.pathname}</span>}
+        reason="Check the address, or go back to the overview."
+        action={
+          <Button
+            variant="primary"
+            onClick={() => {
+              navigate({ name: 'dashboard' });
+            }}
+          >
+            Go to the overview
+          </Button>
+        }
+      />
     </div>
   );
 }

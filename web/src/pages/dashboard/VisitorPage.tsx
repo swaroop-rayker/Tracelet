@@ -14,6 +14,7 @@ import { Panel } from '@/components/Panel';
 import { label, when } from '@/format';
 import { useSession } from '@/session';
 import { placeLabel, placeOf } from '@/visits';
+import { PageHeader } from '@/components/shell/PageHeader';
 
 export default function VisitorPage(): React.JSX.Element {
   const { visitorId = '' } = useParams();
@@ -26,7 +27,7 @@ export default function VisitorPage(): React.JSX.Element {
   if (!valid) {
     return (
       <div className="page">
-        <h2 className="page-title">Visitor</h2>
+        <PageHeader title="Visitor" />
         <p className="error-text">
           That is not a visitor ID. It should be 32 hexadecimal characters.
         </p>
@@ -36,7 +37,10 @@ export default function VisitorPage(): React.JSX.Element {
 
   return (
     <div className="page">
-      <h2 className="page-title">Visitor</h2>
+      <PageHeader
+        title="Visitor"
+        description="Every visit by one visitor, and what changed between them."
+      />
       <p className="mono small">{visitorId}</p>
       <Panel
         query={query}

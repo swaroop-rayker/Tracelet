@@ -28,6 +28,7 @@ import { fieldMessage, type ApiError } from '@/api/client';
 import { fetchReadiness, type ApiResult, type Readiness } from '@/api/health';
 import { Callout, Empty, ErrorNotice, Field, Loading, Submit } from '@/components/ui';
 import { useSession } from '@/session';
+import { PageHeader } from '@/components/shell/PageHeader';
 
 const LOW_CODES_WARNING = 3;
 
@@ -35,7 +36,10 @@ export default function AccountPage(): React.JSX.Element {
   const { me, onSignedOut, onRefresh } = useSession();
   return (
     <div className="page account">
-      <h2 className="page-title">Account</h2>
+      <PageHeader
+        title="Account & security"
+        description="Your password, two-factor sign-in, recovery and sessions."
+      />
       <p className="muted">
         {me.display_name} · {me.email} · {me.role}
       </p>

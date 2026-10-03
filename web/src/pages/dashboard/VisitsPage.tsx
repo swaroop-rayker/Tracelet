@@ -17,6 +17,7 @@ import { withParams } from '@/filters';
 import { label, pct, when } from '@/format';
 import { placeLabel, placeOf } from '@/visits';
 import { useFilters, useSession } from '@/session';
+import { PageHeader } from '@/components/shell/PageHeader';
 
 const PAGE = 100;
 
@@ -50,7 +51,11 @@ export default function VisitsPage(): React.JSX.Element {
 
   return (
     <div className="page">
-      <h2 className="page-title">Visits</h2>
+      <PageHeader
+        title="Visits"
+        description="Every visit, newest first. Open one for its full derivation."
+        filters
+      />
       <PanelView
         state={state}
         title="Timeline"

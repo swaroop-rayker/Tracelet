@@ -1,116 +1,125 @@
 /**
- * The signed-in shell: navigation, the filter bar, theme and sign-out.
+ * The signed-in shell (DESIGN §9): a collapsible sidebar, a compact header, and the page.
  *
- * Navigation links carry the current query string, so moving from Overview to
- * Geography keeps the period and filters -- the filters describe *which visits*, and
- * every page is a different view of the same visits.
+ * Responsive recomposition (§9.4): from 1280 px the sidebar is open unless the admin collapsed
+ * it; from 768 px it is at least a 68 px icon rail; below 768 px it is a drawer opened from the
+ * header. The collapse choice is a per-device convenience, kept in localStorage (UI-9).
+ *
+ * Each page renders its own `PageHeader` (title, period, filter toolbar), so the shell holds no
+ * page-specific state; the filters stay in the URL exactly as in M5 (F9.AC13).
  */
 
-import { useState } from 'react';
-import { NavLink, Outlet, useLocation } from 'react-router';
-import { logout, updatePreferences } from '@/api/auth';
-import { FilterBar } from '@/components/FilterBar';
-import { useSession } from '@/session';
-import { THEMES, applyTheme, asTheme } from '@/theme';
+import { useCallback, useState } from 'react';
+import { Outlet } from 'react-router';
+import { CommandPalette } from '@/components/shell/CommandPalette';
+import { Header } from '@/components/shell/Header';
+import { HelpDialog } from '@/components/shell/HelpDialog';
+import { Sidebar } from '@/components/shell/Sidebar';
+import { useMediaQuery } from '@/components/shell/useMediaQuery';
+import { useShortcuts } from '@/components/shell/useShortcuts';
+import { Dialog, cx } from '@/components/ui';
 
-const NAV: readonly { readonly to: string; readonly label: string; readonly filtered: boolean }[] =
-  [
-    { to: '/', label: 'Overview', filtered: true },
-    { to: '/visits', label: 'Visits', filtered: true },
-    { to: '/geography', label: 'Geography', filtered: true },
-    { to: '/breakdowns', label: 'Breakdowns', filtered: true },
-    { to: '/inference', label: 'Inference', filtered: true },
-    { to: '/detection', label: 'Detection', filtered: true },
-    { to: '/account', label: 'Account', filtered: false },
-  ];
+const STORAGE_KEY = 'tracelet.sidebar';
 
-/** Pages that are about one thing, not a filtered set, hide the filter bar. */
-function showsFilters(path: string): boolean {
-  return !(
-    path.startsWith('/account') ||
-    /^\/visits\/[^/]+/.test(path) ||
-    path.startsWith('/visitors/')
-  );
+function storedCollapsed(): boolean | null {
+  try {
+    const value = window.localStorage.getItem(STORAGE_KEY);
+    return value === 'collapsed' ? true : value === 'open' ? false : null;
+  } catch {
+    return null;
+  }
+}
+
+function storeCollapsed(collapsed: boolean): void {
+  try {
+    window.localStorage.setItem(STORAGE_KEY, collapsed ? 'collapsed' : 'open');
+  } catch {
+    // Storage blocked (private window): the choice simply lasts for this page view.
+  }
 }
 
 export function Layout(): React.JSX.Element {
-  const { me, onSignedOut, setMe } = useSession();
-  const location = useLocation();
-  const [themeError, setThemeError] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
+  const narrow = useMediaQuery('(max-width: 1279px)');
+  const rail = useMediaQuery('(max-width: 1023px)');
+  const [choice, setChoice] = useState<boolean | null>(storedCollapsed);
+  const collapsed = rail || (choice ?? narrow);
+  const [drawer, setDrawer] = useState(false);
+  const [palette, setPalette] = useState(false);
+  const [help, setHelp] = useState(false);
+
+  const toggleSidebar = useCallback(() => {
+    setChoice((current) => {
+      const next = !(current ?? narrow);
+      storeCollapsed(next);
+      return next;
+    });
+  }, [narrow]);
+  const openPalette = useCallback(() => {
+    setPalette(true);
+  }, []);
+  const openHelp = useCallback(() => {
+    setHelp(true);
+  }, []);
+  useShortcuts({ openPalette, openHelp, toggleSidebar });
 
   return (
-    <div className="app">
+    <div className={cx('app-shell', collapsed && 'is-collapsed')}>
       <a className="skip-link" href="#main">
         Skip to content
       </a>
-      <aside className="sidebar">
-        <p className="brand">Tracelet</p>
-        <nav aria-label="Dashboard">
-          <ul className="plain">
-            {NAV.map((item) => (
-              <li key={item.to}>
-                <NavLink
-                  to={{ pathname: item.to, search: item.filtered ? location.search : '' }}
-                  end={item.to === '/'}
-                  className={({ isActive }) => (isActive ? 'nav-link active' : 'nav-link')}
-                >
-                  {item.label}
-                </NavLink>
-              </li>
-            ))}
-          </ul>
-        </nav>
-        <div className="sidebar-foot">
-          <p className="small">
-            {me.display_name}
-            <br />
-            <span className="muted">{me.role}</span>
-          </p>
-          <label className="control">
-            <span>Theme</span>
-            <select
-              value={asTheme(me.theme)}
-              onChange={(event) => {
-                const theme = asTheme(event.target.value);
-                applyTheme(theme);
-                setThemeError(null);
-                void updatePreferences(me.csrf_token, { theme }).then((result) => {
-                  if (result.ok) setMe(result.data);
-                  else setThemeError('Not saved: it will reset when you sign in again.');
-                });
-              }}
-            >
-              {THEMES.map((t) => (
-                <option key={t.name} value={t.name}>
-                  {t.label}
-                </option>
-              ))}
-            </select>
-          </label>
-          {themeError !== null && (
-            <p className="error-text small" role="alert">
-              {themeError}
-            </p>
-          )}
-          <button
-            type="button"
-            disabled={busy}
-            onClick={() => {
-              setBusy(true);
-              void logout(me.csrf_token).then(() => {
-                onSignedOut();
-              });
-            }}
-          >
-            {busy ? 'Signing out…' : 'Sign out'}
-          </button>
-        </div>
+      <aside className="sidebar" aria-label="Sidebar">
+        <Sidebar
+          collapsed={collapsed}
+          onToggle={rail ? undefined : toggleSidebar}
+          onShowShortcuts={openHelp}
+        />
       </aside>
-      <main id="main" className="content" tabIndex={-1}>
-        {showsFilters(location.pathname) && <FilterBar zone={me.reporting_tz} />}
-        <Outlet />
-      </main>
+      <div className="app-main">
+        <Header
+          onMenu={() => {
+            setDrawer(true);
+          }}
+          onSearch={openPalette}
+          onHelp={openHelp}
+        />
+        <main id="main" className="app-content" tabIndex={-1}>
+          <Outlet />
+        </main>
+      </div>
+      <Dialog
+        open={drawer}
+        onClose={() => {
+          setDrawer(false);
+        }}
+        title="Navigation"
+        drawer
+        side="left"
+        className="nav-drawer"
+      >
+        <Sidebar
+          collapsed={false}
+          inDrawer
+          onNavigate={() => {
+            setDrawer(false);
+          }}
+          onShowShortcuts={() => {
+            setDrawer(false);
+            setHelp(true);
+          }}
+        />
+      </Dialog>
+      <CommandPalette
+        open={palette}
+        onClose={() => {
+          setPalette(false);
+        }}
+      />
+      <HelpDialog
+        open={help}
+        onClose={() => {
+          setHelp(false);
+        }}
+      />
     </div>
   );
 }

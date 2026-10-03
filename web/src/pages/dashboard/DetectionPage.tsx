@@ -14,6 +14,7 @@ import { Panel } from '@/components/Panel';
 import { withParams } from '@/filters';
 import { useFilters } from '@/session';
 import { BreakdownPanel } from '@/pages/dashboard/BreakdownsPage';
+import { PageHeader } from '@/components/shell/PageHeader';
 
 export default function DetectionPage(): React.JSX.Element {
   const { params } = useFilters();
@@ -22,7 +23,11 @@ export default function DetectionPage(): React.JSX.Element {
   const chart = useMemo(() => (query.data ? signalsChart(query.data) : null), [query.data]);
   return (
     <div className="page">
-      <h2 className="page-title">Detection</h2>
+      <PageHeader
+        title="Detection"
+        description="Which bot and spoofing rules fire most, and on what."
+        filters
+      />
       <p className="muted small">This page always includes automated traffic.</p>
       <div className="grid-2">
         <Panel

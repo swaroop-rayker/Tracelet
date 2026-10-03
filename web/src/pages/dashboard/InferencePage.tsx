@@ -16,6 +16,7 @@ import { EChart, TableView } from '@/components/EChart';
 import { Panel } from '@/components/Panel';
 import { label, pct } from '@/format';
 import { useFilters } from '@/session';
+import { PageHeader } from '@/components/shell/PageHeader';
 
 export default function InferencePage(): React.JSX.Element {
   const { params } = useFilters();
@@ -30,7 +31,11 @@ export default function InferencePage(): React.JSX.Element {
 
   return (
     <div className="page">
-      <h2 className="page-title">Inference</h2>
+      <PageHeader
+        title="Inference"
+        description="How the engine located visits: which sources answered, and how sure it was."
+        filters
+      />
       <Panel
         query={flow}
         title="Sources to emitted level"

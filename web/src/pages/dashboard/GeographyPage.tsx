@@ -35,6 +35,7 @@ import { withParams } from '@/filters';
 import { count, countryName } from '@/format';
 import { useFilters } from '@/session';
 import { palette, type Palette } from '@/theme';
+import { PageHeader } from '@/components/shell/PageHeader';
 
 type Layer = 'countries' | 'admin1';
 
@@ -105,7 +106,11 @@ export default function GeographyPage(): React.JSX.Element {
 
   return (
     <div className="page">
-      <h2 className="page-title">Geography</h2>
+      <PageHeader
+        title="Geography"
+        description="Where visits came from, at their best-guess location."
+        filters
+      />
       <Panel
         query={query}
         title="Where visits came from"
