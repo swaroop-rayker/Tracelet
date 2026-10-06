@@ -99,6 +99,12 @@ with `ST_Covers(area, geopoint)`. Since then, three facts have changed what that
      never be reported, only because the engine abstained.
    - NULL (no geofences): a normal alert with no geofence line.
 
+   > **Amended 2026-10-06 (SPEC §11 row 18).** These are the defaults. The link's
+   > `notify_policy` (F1.AC5) also takes part: `inside` is the less urgent of the link's
+   > `inside` and the top geofence's `notify_priority`; `outside` and "no geofence" use the
+   > link's `outside`; `undetermined` uses a new link key, `undetermined`, default `normal`.
+   > `automated` is fixed at `silent` (invariant 6).
+
 8. **The drawing library stays Geoman** (ADR-0003), behind a spike before anything is built on
    it. Leaflet-Geoman must raise **zero CSP violations** in Chromium, Firefox and WebKit under
    the dashboard's exact header, measured with M5.5's Playwright sweep (listener registered
