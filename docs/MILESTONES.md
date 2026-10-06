@@ -21,6 +21,7 @@ then open the PR (CLAUDE.md section 2).
 | M3 | Location inference engine | L | **[x] done** — 738 tests (463 unit, 275 integration); real-visit check deferred to M9 (owner decision); 5 bugs recorded as E27–E31 |
 | M4 | Anti-spoofing and classification | L | **[x] done** — 10 of 10 items (the UI item ticked in M5); bugs E32–E33; R19 and R21 closed |
 | M5 | Dashboard analytics and visualisation | L | **[x] done** — 10 of 10 items; rollups p95 ≤ 70 ms at design load; raw fallback slow on long windows (R25); bugs E34–E36 |
+| M5.5 | Design system and UI polish (owner-directed 2026-10-02, approved 2026-10-03; docs/DESIGN.md) | L | **built** — 10 of 11 items; CSP 0 in Chromium, Firefox and WebKit; 72-image matrix; bugs E41–E47; open: hand keyboard walkthrough |
 | M6 | Geofencing and Telegram notifications | M | [ ] |
 | M7 | System health and operations | L | [ ] |
 | M8 | Accuracy hardening and ground truth | M | [ ] |
@@ -618,6 +619,76 @@ this development database now runs them as version 31.
       the diff; reverted*
 - [x] Docs: API section 8 verified — *8.1 "As shipped in M5" written with the code;
       section 7 (filters, export) and 14 (zod) amended*
+
+---
+
+## M5.5 — Design system and UI polish · size L
+
+**Goal:** the dashboard looks and behaves like one coherent, premium analytics product, with a
+design system every later milestone builds on. **No functionality or business-logic change.**
+**Added:** 2026-10-02 at the owner's direction, before M6; approved 2026-10-03 with enhancements
+E4–E10. **Plan:** docs/DESIGN.md Part II; **decision:** ADR-0019. **F/AC-IDs:** F9.AC16, F9.AC17
+(extended to 390 px, SPEC §11 row 15), F9.AC18, F9.AC20, NFR7.
+
+**Scope** (DESIGN §11, phases 0–5)
+- Tokens for three themes (five surface layers, text tiers, one accent, status, data-viz),
+  Inter Variable self-hosted, the Lucide icon registry, the chart theme
+- About 25 owned primitives in `web/src/components/ui/` and a development-only gallery at
+  `/__design`
+- New shell: collapsible sidebar with groups, compact header with breadcrumb, a ⌘K command
+  palette, help and the user menu; page template; FilterToolbar with chips (same URL state)
+- Skeleton loading, empty and error states inside the existing four-state `Panel`
+- Every page recomposed per DESIGN §10; breakdowns and signals as ranked lists
+- Mobile layout (drawer navigation, single column)
+- Approved enhancements (DESIGN §12): command palette, shortcuts, click-to-filter, E4 Overview
+  cards, E5 visit drawer, E6 previous-period overlay, E7 freshness, E8 glossary, E9 per-chart
+  CSV, E10 recovery-codes download, relative timestamps
+
+**Done checklist**
+- [x] ADR-0019 accepted with the Phase 0 spike results (CSP: zero violations in Chromium,
+      Firefox and WebKit) — *accepted 2026-10-03. Firefox 155 and WebKit 26.6 were run with
+      Playwright in a container (owner's choice), against Caddy itself, with positive controls
+      (ADR-0019 "Spike results"). WebKit is Safari's engine; Safari itself was not run*
+- [x] All three themes pass the extended contrast tests (DESIGN §8) — *`theme.test.ts`: every
+      text tier on all five surface layers, status text on its tint, text on the accent, six chart
+      colours, an ordered ramp; plus scans proving no hex colour outside the theme blocks, in
+      `styles/*.css`, or in any TypeScript source (the scan asserts it saw > 20 files)*
+- [x] Every primitive in the gallery in every state; each has a state test — *`/__design`
+      (development builds only; absent from `dist`, checked by grep); 20 primitive tests in
+      `components/ui/primitives.test.tsx`*
+- [x] Filters round-trip through the URL exactly as before — `filters.test.ts` unchanged and
+      green — *unchanged; and in the browser every editor kind wrote the M5 keys
+      (`device_class=mobile&device_class=desktop`, `asn=55836` from "AS55836",
+      `include_automated=true`, chip removal, Clear all, `range=7d`); click-to-filter tested in
+      `charts.test.ts`*
+- [x] Every data surface shows loading skeleton, error with trace id, empty with reason, data —
+      *`Panel` keeps its four states (`Panel.test.tsx` unchanged in intent); loading is now a
+      skeleton shaped by `kind`, with the sentence kept for screen readers*
+- [x] Screenshot matrix: 3 themes × 1440/1024/390 px × 8 pages, attached to the PR — *72
+      images in Chromium, plus Firefox and WebKit at 1440 and 390 px in the default theme (32),
+      taken with Playwright. Each image also checks for horizontal overflow, which found
+      Breakdowns at 390 px and Visits at 1024 px wider than the screen (E47, fixed). After the
+      fix, no page overflows at any width, in any theme or engine*
+- [ ] Keyboard walkthrough of every page, menu, dialog and the command palette, mouse-free —
+      **partly**: *menu arrow keys and typeahead, dialog focus-in/return and Escape, palette
+      combobox (arrows, Enter, id jump), shortcuts (`g`, `?`, `/`, `[`) verified by script in the
+      browser; every page has one `h1`, no skipped heading level, and no unnamed button, link or
+      field (automated sweep). A by-hand Tab-through remains*
+- [x] Zero CSP violations on the Caddy-served build, every page, every theme — *Caddy itself,
+      in Chromium, Firefox and WebKit, with Playwright: the signed-out pages, all 11 signed-in
+      routes in all 3 themes, then every popup, filter editor, palette, help, tooltip, chart
+      hover, Data toggle, CSV download, row expansion, visit drawer, map interaction and the
+      phone drawer — **0 violations in each engine**, with positive controls reported in each.
+      The first, browser-pane Chromium sweep had recorded 0 wrongly: its listener was attached
+      after load and missed zod's `eval` probe on every page (E44, fixed)*
+- [x] Bundle within budget: ≤ +40 KB gzipped initial, ≤ +10 KB per route — *initial JS 150.4 KB
+      gz (+15.5) and CSS 11.7 KB gz (+5.1) against the phase 0 build; every page route ≤ 3.8 KB gz.
+      The Latin font is a separate cached 48 KB file; DESIGN §11 corrected (it had counted the
+      font inside the 40 KB, which it alone exceeds)*
+- [x] No API, schema or endpoint change (`openapi-check` clean, no migration) — *`git diff
+      6a9a9a0..HEAD` touches only `web/`, `docs/` and `CLAUDE.md`; `./scripts/tl verify` 13/13*
+- [x] Docs: DESIGN.md accepted; ARCHITECTURE §5 and §8 ledger updated; CLAUDE.md rules live —
+      *plus ERRORS E41–E47 and R27 updated*
 
 ---
 

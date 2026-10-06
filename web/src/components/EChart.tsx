@@ -27,7 +27,8 @@ import {
 } from 'echarts/components';
 import { init, use as registerModules, type EChartsType } from 'echarts/core';
 import { CanvasRenderer } from 'echarts/renderers';
-import { baseOption, type DataTable, type OptionBuilder } from '@/components/chartkit';
+import { chartTheme, tableToCsv, type DataTable, type OptionBuilder } from '@/components/chartkit';
+import { Button, cssVars } from '@/components/ui';
 import { palette } from '@/theme';
 
 registerModules([
@@ -48,6 +49,7 @@ export function EChart({
   option,
   label,
   table,
+  decals,
   height = 280,
 }: {
   readonly option: OptionBuilder;
@@ -55,8 +57,11 @@ export function EChart({
   readonly label: string;
   /** The same data as a table: required, because no chart may rely on colour alone. */
   readonly table: DataTable;
+  /** Texture patterns where colour separates series (DESIGN 6.4); from the builder. */
+  readonly decals: boolean;
   readonly height?: number;
 }): React.JSX.Element {
+  const [showTable, setShowTable] = useState(false);
   const container = useRef<HTMLDivElement | null>(null);
   const chart = useRef<EChartsType | null>(null);
   const [themeTick, setThemeTick] = useState(0);
@@ -84,18 +89,70 @@ export function EChart({
 
   useEffect(() => {
     const p = palette();
-    chart.current?.setOption({ ...baseOption(p), ...option(p) }, { notMerge: true });
-  }, [option, themeTick]);
+    const theme = chartTheme(p, { decals });
+    const own = option(p);
+    // The tooltip is merged one level deep, so a chart's formatter keeps the themed look.
+    const tooltip = {
+      ...(theme.tooltip as object),
+      ...((own.tooltip as object | undefined) ?? {}),
+    };
+    chart.current?.setOption({ ...theme, ...own, tooltip }, { notMerge: true });
+  }, [option, decals, themeTick]);
 
   return (
     <div className="chart">
-      <div ref={container} role="img" aria-label={label} style={{ height }} />
-      <details className="chart-table">
-        <summary>Show as table</summary>
+      <div
+        ref={container}
+        className="chart__canvas"
+        role="img"
+        aria-label={label}
+        style={cssVars({ '--chart-h': `${String(height)}px` })}
+      />
+      <div className="chart__tools">
+        <Button
+          variant="ghost"
+          size="sm"
+          icon="Table"
+          aria-pressed={showTable}
+          onClick={() => {
+            setShowTable((v) => !v);
+          }}
+        >
+          Data
+        </Button>
+        <Button
+          variant="ghost"
+          size="sm"
+          icon="Download"
+          onClick={() => {
+            downloadCsv(table, label);
+          }}
+        >
+          CSV
+        </Button>
+      </div>
+      {/* Always present for screen readers; shown on request for everyone (NFR7.AC3). */}
+      <div className={showTable ? undefined : 'sr-only'}>
         <TableView table={table} caption={label} />
-      </details>
+      </div>
     </div>
   );
+}
+
+/** The chart's own figures as a CSV file, generated in the browser (DESIGN 12 E9). */
+function downloadCsv(table: DataTable, label: string): void {
+  const blob = new Blob([`\ufeff${tableToCsv(table)}`], { type: 'text/csv;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = `${label
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-|-$/g, '')}.csv`;
+  link.click();
+  window.setTimeout(() => {
+    URL.revokeObjectURL(url);
+  }, 0);
 }
 
 export function TableView({
@@ -106,8 +163,8 @@ export function TableView({
   readonly caption?: ReactNode;
 }): React.JSX.Element {
   return (
-    <div className="table-wrap">
-      <table className="data">
+    <div className="dt-wrap">
+      <table className="dt dt--compact">
         {caption !== undefined && <caption className="sr-only">{caption}</caption>}
         <thead>
           <tr>

@@ -1,0 +1,453 @@
+/*
+ * Data display (docs/DESIGN.md §5.4, §6): panels, charts, the chart tooltip, the map.
+ * Tokens only (DESIGN UI-2).
+ */
+
+/* --- panels: a card whose body is one of four states (F9.AC18) ---------------- */
+
+.panel {
+  display: grid;
+  align-content: start;
+}
+
+.panel-body {
+  min-width: 0;
+}
+
+.panel-meta p {
+  display: inline;
+}
+
+/* --- charts (DESIGN §6) ------------------------------------------------------ */
+
+.chart {
+  display: grid;
+  /* One bounded column: an implicit one grows to the data table's width and pushes the
+     canvas over the next panel (ERRORS E45). The table scrolls in .dt-wrap instead. */
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.chart__canvas {
+  height: var(--chart-h, 280px);
+  min-width: 0;
+}
+
+.chart__tools {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-1);
+}
+
+.chart__tools .btn {
+  color: var(--text-muted);
+}
+
+.chart__tools .btn[aria-pressed='true'] {
+  background: var(--surface-2);
+  color: var(--text);
+}
+
+/* ECharts writes the tooltip's own colours from the theme through CSSOM; the radius, shadow
+   and type come from here, so the tooltip matches every other overlay. */
+.chart-tooltip {
+  border-radius: var(--radius-md) !important;
+  box-shadow: var(--shadow-popover) !important;
+  font-family: var(--font-ui) !important;
+  line-height: var(--lh-meta) !important;
+}
+
+.raw {
+  max-height: 24rem;
+  overflow: auto;
+  margin: 0;
+  padding: var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--bg);
+  font-size: var(--fs-meta);
+}
+
+/* --- the map (DESIGN §6.6, ADR-0017) ----------------------------------------- */
+
+.map {
+  width: 100%;
+  height: 560px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  /* The sea: there are no tiles, only outlines drawn over this (ADR-0017). */
+  background: var(--map-sea);
+}
+
+/* leaflet.css loads with the Geography chunk, after this sheet, and sets its own grey
+   container background; the doubled class outranks it. */
+.map.leaflet-container {
+  background: var(--map-sea);
+  font-family: var(--font-ui);
+}
+
+/* A clicked area takes focus, and the browser's default ring is its bounding box -- an odd
+   rectangle over the map (ERRORS E40). Areas are not in the tab order (keyboard users have
+   the map's own ring and the tables), so the ring is replaced by the hover and selection
+   outline. */
+.map path.leaflet-interactive:focus {
+  outline: none;
+}
+
+@media (max-width: 1023px) {
+  .map {
+    height: 420px;
+  }
+}
+
+@media (max-width: 767px) {
+  .map {
+    height: 320px;
+  }
+}
+
+/* Leaflet's zoom buttons as the system's icon buttons, on an overlay surface. */
+.map .leaflet-bar {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--overlay);
+  box-shadow: var(--shadow-popover);
+  overflow: hidden;
+}
+
+.map .leaflet-bar a,
+.map .leaflet-bar a:hover {
+  width: 30px;
+  height: 30px;
+  line-height: 30px;
+  border-bottom: 1px solid var(--border);
+  background: var(--overlay);
+  color: var(--text);
+  font-size: 16px;
+}
+
+.map .leaflet-bar a:last-child {
+  border-bottom: none;
+}
+
+.map .leaflet-bar a:hover {
+  background: var(--surface-2);
+}
+
+.leaflet-tooltip {
+  padding: 6px var(--space-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--overlay);
+  color: var(--text);
+  box-shadow: var(--shadow-popover);
+  font-family: var(--font-ui);
+  font-size: var(--fs-meta);
+}
+
+.leaflet-tooltip::before {
+  display: none;
+}
+
+.leaflet-container a {
+  color: var(--accent);
+}
+
+.map .leaflet-control-attribution {
+  background: color-mix(in srgb, var(--overlay) 80%, transparent) !important;
+  color: var(--text-subtle);
+  font-size: var(--fs-micro);
+}
+
+.map-foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2) var(--space-4);
+  margin-top: var(--space-3);
+}
+
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-4);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: var(--fs-meta);
+  color: var(--text-muted);
+}
+
+.legend li {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* --- Overview KPIs (DESIGN §10.1) ------------------------------------------- */
+
+.kpi-section {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.kpi-section__foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2) var(--space-4);
+}
+
+.kpi-section__foot .panel-meta {
+  margin: 0;
+  padding: 0;
+  border: none;
+}
+
+.stats-loading {
+  display: grid;
+  gap: var(--space-4);
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+@media (max-width: 1023px) {
+  .stats-loading {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+/* --- Visits table (DESIGN §10.2) -------------------------------------------- */
+
+.visits-table td {
+  white-space: nowrap;
+}
+
+.visits-table .visit-row__place {
+  white-space: normal;
+  min-width: 14rem;
+}
+
+.visits-table .visit-row__net {
+  max-width: 16rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.visits-table .visit-row__actions {
+  width: 1%;
+  text-align: right;
+}
+
+.visits-table .dt__group th {
+  position: sticky;
+  top: var(--header-h);
+  z-index: 1;
+  height: var(--row-h-compact);
+  padding: 0 var(--space-3);
+  background: var(--surface);
+  color: var(--text-muted);
+  font-size: var(--fs-meta);
+  font-weight: 500;
+  text-align: left;
+  border-radius: 0;
+}
+
+.row-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 4px 6px 4px 0;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  cursor: pointer;
+}
+
+.row-toggle:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.row-toggle__icon {
+  color: var(--text-subtle);
+  transition: transform var(--dur-fast) var(--ease-out);
+}
+
+.visit-row.is-open .row-toggle__icon {
+  transform: rotate(90deg);
+}
+
+.visit-row.is-open td {
+  background: var(--surface-2);
+  border-bottom-color: transparent;
+}
+
+.visit-row__detail td {
+  height: auto;
+  padding: var(--space-3) var(--space-3) var(--space-4) 30px;
+  background: var(--surface-2);
+}
+
+.dt tbody tr.visit-row__detail:hover td {
+  background: var(--surface-2);
+}
+
+.load-more {
+  display: grid;
+  justify-items: center;
+  gap: var(--space-2);
+  padding-top: var(--space-4);
+}
+
+.drawer-title {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.drawer-title .link {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-weight: 400;
+}
+
+/* Phones: a row becomes a two-line card (DESIGN §9.4). */
+@media (max-width: 767px) {
+  .visits-table thead {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+  }
+
+  .visits-table,
+  .visits-table tbody {
+    display: block;
+  }
+
+  .visits-table tr.visit-row {
+    display: grid;
+    grid-template-columns: auto auto 1fr;
+    gap: var(--space-1) var(--space-2);
+    padding: var(--space-3) 0;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .visits-table tr.visit-row td {
+    height: auto;
+    padding: 0;
+    border: none;
+    white-space: normal;
+    background: transparent;
+  }
+
+  .visits-table .visit-row__place {
+    grid-column: 1 / -1;
+    min-width: 0;
+  }
+
+  .visits-table .visit-row__actions {
+    grid-row: 1;
+    grid-column: 3;
+    width: auto;
+  }
+
+  .visits-table tr.dt__group,
+  .visits-table tr.visit-row__detail {
+    display: block;
+  }
+
+  .visits-table tr.visit-row__detail[hidden] {
+    display: none;
+  }
+
+  .visits-table .dt__group th {
+    display: block;
+    padding: var(--space-3) 0 var(--space-1);
+  }
+}
+
+/* --- Visit detail (DESIGN §10.3) -------------------------------------------- */
+
+.visit-detail {
+  display: grid;
+  gap: var(--space-4);
+}
+
+.summary-cells {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--space-4);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.summary-cells li {
+  display: grid;
+  align-content: start;
+  gap: var(--space-1);
+  padding: var(--space-4);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  min-width: 0;
+}
+
+.summary-cells strong {
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.drawer .summary-cells {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+@media (max-width: 1023px) {
+  .summary-cells {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 479px) {
+  .summary-cells,
+  .drawer .summary-cells {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.subsection {
+  display: grid;
+  gap: var(--space-2);
+  margin-top: var(--space-4);
+}
+
+.dt td.evidence {
+  max-width: 22rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.raw-fields > summary {
+  cursor: pointer;
+  list-style-position: inside;
+}
+
+.raw-fields[open] > summary {
+  margin-bottom: var(--space-3);
+}
+
+.badge-row {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+}

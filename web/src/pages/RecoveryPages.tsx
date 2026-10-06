@@ -12,6 +12,7 @@ import { confirmPasswordReset, requestPasswordReset, signInWithRecoveryCode } fr
 import { fieldMessage, type ApiError } from '@/api/client';
 import { Callout, ErrorNotice, Field, Submit } from '@/components/ui';
 import { navigate } from '@/router';
+import { BrandMark } from '@/components/shell/BrandMark';
 
 function Shell({
   subtitle,
@@ -21,9 +22,12 @@ function Shell({
   readonly children: React.ReactNode;
 }): React.JSX.Element {
   return (
-    <main className="shell narrow">
+    <main className="auth">
       <header>
-        <h1>Tracelet</h1>
+        <h1 className="auth__brand">
+          <BrandMark />
+          Tracelet
+        </h1>
         <p className="muted">{subtitle}</p>
       </header>
       {children}

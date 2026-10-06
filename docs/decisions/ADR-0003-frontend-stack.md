@@ -33,7 +33,7 @@ time and served by Caddy. **No Node.js process in production** (F14.AC4).
 | Server state, polling, deduplication | `@tanstack/react-query` |
 | Routing with URL-encoded filter state | `react-router` |
 | Styling and theming | `tailwindcss` with CSS custom properties per theme |
-| Component primitives | shadcn/ui — **source copied into the repository, not a dependency** |
+| Component primitives | ~~shadcn/ui — **source copied into the repository, not a dependency**~~ -- **superseded by ADR-0019** (2026-10-03): owned primitives on native `dialog`/`popover`, no Radix, because the CSP blocks injected styles |
 | Charts | **Apache ECharts**, wrapped in a roughly 30-line local hook |
 | Maps and drawing | **Leaflet** + `@geoman-io/leaflet-geoman-free` |
 | Basemap tiles | ~~**CARTO** raster, dark and light variants, **no API key**~~ -- **superseded by ADR-0017** (2026-10-02): CARTO began requiring a key; the analytics map draws self-hosted outlines |

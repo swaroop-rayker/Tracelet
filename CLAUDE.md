@@ -39,6 +39,7 @@ Budget: **free tier only.**
 | Milestone completed | `docs/MILESTONES.md` checklist |
 | New risk, or a spike result | `docs/RISKS.md` |
 | Bug encountered & fixed | `docs/ERRORS.md` (symptom → root cause → fix → prevention) |
+| UI token, primitive, pattern or screen layout | `docs/DESIGN.md` (and an ADR for a new UI dependency) |
 
 ### `docs/private/` is NOT source of truth
 
@@ -71,6 +72,9 @@ as justification for a code change.
   `chore:`, `perf:`, `build:`, `ci:`. Scope is the F-ID where one applies —
   e.g. `feat(F4): add rDNS city-code lexicon`.
 - **One PR per milestone.** M0..M9, see `docs/MILESTONES.md`.
+- **UI follows `docs/DESIGN.md` Part III** (rules UI-1…UI-25 and the §15 checklist):
+  primitives and tokens only, no inline styles (CSP), four states per data surface,
+  three themes × three widths. *Accepted 2026-10-03; binding from M5.5 on.*
 
 ---
 
@@ -165,4 +169,5 @@ Fresh clone to running, in 5 commands — see `docs/KICKOFF.md` §Quickstart.
 | What are the endpoints? | `docs/API.md` |
 | What am I building next? | `docs/MILESTONES.md` |
 | What could go wrong? | `docs/RISKS.md` |
+| How should it look and behave? | `docs/DESIGN.md` |
 | Has this bug happened before? | `docs/ERRORS.md` |
