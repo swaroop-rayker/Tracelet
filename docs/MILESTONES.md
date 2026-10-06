@@ -23,7 +23,7 @@ then open the PR (CLAUDE.md section 2).
 | M5 | Dashboard analytics and visualisation | L | **[x] done** — 10 of 10 items; rollups p95 ≤ 70 ms at design load; raw fallback slow on long windows (R25); bugs E34–E36 |
 | M5.5 | Design system and UI polish (owner-directed 2026-10-02, approved 2026-10-03; docs/DESIGN.md) | L | **built** — 10 of 11 items; CSP 0 in Chromium, Firefox and WebKit; 72-image matrix; bugs E41–E47; open: hand keyboard walkthrough |
 | M5.6 | Dashboard enhancements and the Settings redesign, UI only (owner-approved 2026-10-06; docs/plans/ENHANCEMENTS-PLAN.md Phase A, SETTINGS-REDESIGN-PLAN.md) | M | **[x] built** — dashboard 6/6, Settings 6/6; CSP 0 in three engines; no server change; bugs E48–E50 |
-| M6 | Geofencing and Telegram notifications | M | **built** — 9 of 11; open: the owner's two Telegram receipt checks; bugs E52–E57 |
+| M6 | Geofencing and Telegram notifications | M | **built** — 9 of 11; open: the owner's two Telegram receipt checks; bugs E52–E61 |
 | M7 | System health and operations | L | [ ] |
 | M8 | Accuracy hardening and ground truth | M | [ ] |
 | M9 | Production hardening and deploy | M | [ ] |
