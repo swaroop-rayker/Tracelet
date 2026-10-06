@@ -24,6 +24,7 @@ import { fieldMessage, type ApiError } from '@/api/client';
 import { Callout, ErrorNotice, Field, Secret, Submit } from '@/components/ui';
 import { navigate } from '@/router';
 import { BrandMark } from '@/components/shell/BrandMark';
+import { PasswordRules } from '@/components/PasswordRules';
 import { RecoveryCodes } from '@/components/RecoveryCodes';
 
 type Phase =
@@ -55,7 +56,7 @@ export default function EnrollPage({
 
   if (phase.step === 'password') {
     return (
-      <AuthShell title="Choose a password">
+      <AuthShell title="Choose a password" step={1}>
         <PasswordStep
           token={token}
           onEnrolled={(enrollment) => {
@@ -68,7 +69,7 @@ export default function EnrollPage({
 
   if (phase.step === 'authenticator') {
     return (
-      <AuthShell title="Add your authenticator">
+      <AuthShell title="Add your authenticator" step={2}>
         <AuthenticatorStep
           enrollment={phase.enrollment}
           onConfirmed={() => {
@@ -80,17 +81,22 @@ export default function EnrollPage({
   }
 
   return (
-    <AuthShell title="Save your recovery codes">
+    <AuthShell title="Save your recovery codes" step={3}>
       <RecoveryCodesStep codes={phase.enrollment.recovery_codes} onDone={onSignedIn} />
     </AuthShell>
   );
 }
 
+const STEPS = ['Password', 'Authenticator', 'Codes'] as const;
+
 function AuthShell({
   title,
+  step,
   children,
 }: {
   readonly title: string;
+  /** Which of the three steps this is (DESIGN §10.9, §12 E28). */
+  readonly step?: 1 | 2 | 3;
   readonly children: React.ReactNode;
 }): React.JSX.Element {
   return (
@@ -101,6 +107,20 @@ function AuthShell({
           Tracelet
         </h1>
         <p className="muted">{title}</p>
+        {step !== undefined && (
+          <ol className="steps" aria-label={`Step ${String(step)} of 3`}>
+            {STEPS.map((name, i) => (
+              <li
+                key={name}
+                className={i + 1 === step ? 'is-current' : i + 1 < step ? 'is-done' : undefined}
+                aria-current={i + 1 === step ? 'step' : undefined}
+              >
+                <span className="steps__n">{i + 1}</span>
+                {name}
+              </li>
+            ))}
+          </ol>
+        )}
       </header>
       {children}
     </main>
@@ -167,8 +187,10 @@ function PasswordStep({
           autoComplete="new-password"
           value={password}
           onChange={setPassword}
+          revealable
           hint="At least 12 characters. Not your account name, not the site name."
           error={fieldMessage(error, 'new_password') ?? fieldMessage(error, 'password')}
+          after={<PasswordRules password={password} repeat={repeat} />}
         />
         <Field
           label="Repeat password"
@@ -176,6 +198,7 @@ function PasswordStep({
           autoComplete="new-password"
           value={repeat}
           onChange={setRepeat}
+          revealable
           error={mismatch}
         />
         <Submit busy={busy} busyLabel="Setting your password…">
@@ -224,7 +247,11 @@ function AuthenticatorStep({
       </Callout>
 
       <div className="card">
-        <Secret label="Secret (type this into your app)" value={enrollment.secret} />
+        <Secret
+          label="Secret (type this into your app; the spaces are for reading only)"
+          value={enrollment.secret}
+          groups={4}
+        />
         <p className="muted small">{enrollment.hint}</p>
         <p className="small">
           {/* Useful only when the browser and the authenticator are on the same

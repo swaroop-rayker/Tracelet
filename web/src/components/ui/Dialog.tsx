@@ -25,6 +25,7 @@ export function Dialog({
   wide = false,
   side = 'right',
   dismissible = true,
+  locked = false,
   className,
 }: {
   readonly open: boolean;
@@ -41,6 +42,11 @@ export function Dialog({
   readonly side?: 'left' | 'right';
   /** A click on the backdrop closes it. Off for forms that would lose input. */
   readonly dismissible?: boolean;
+  /**
+   * Shown-once content (DESIGN §12 E25): no ×, no Escape, no backdrop. The footer's own button
+   * is the only way out, and the caller enables it once the content has been saved.
+   */
+  readonly locked?: boolean;
   readonly className?: string;
 }): React.JSX.Element {
   const ref = useRef<HTMLDialogElement | null>(null);
@@ -66,13 +72,26 @@ export function Dialog({
     const el = ref.current;
     if (el === null) return undefined;
     const handle = (): void => {
+      // Chromium lets a second Escape close even a dialog whose `cancel` was refused. A
+      // locked dialog the caller still wants open re-opens, rather than vanishing with the
+      // only copy of its codes.
+      if (locked && open) {
+        el.showModal();
+        return;
+      }
       onClose();
     };
+    // Escape fires `cancel` first; a locked dialog refuses it.
+    const cancel = (event: Event): void => {
+      if (locked) event.preventDefault();
+    };
     el.addEventListener('close', handle);
+    el.addEventListener('cancel', cancel);
     return () => {
       el.removeEventListener('close', handle);
+      el.removeEventListener('cancel', cancel);
     };
-  }, [onClose]);
+  }, [onClose, locked, open]);
 
   return (
     <dialog
@@ -88,7 +107,7 @@ export function Dialog({
       )}
       onClick={(event) => {
         // A click on the dialog element itself, not its content, is a click on the backdrop.
-        if (dismissible && event.target === event.currentTarget) onClose();
+        if (dismissible && !locked && event.target === event.currentTarget) onClose();
       }}
     >
       {open && (
@@ -97,7 +116,7 @@ export function Dialog({
             <h2 id={titleId} className="t-section dialog__title" tabIndex={-1}>
               {title}
             </h2>
-            <IconButton icon="Close" label="Close" onClick={onClose} />
+            {!locked && <IconButton icon="Close" label="Close" onClick={onClose} />}
           </header>
           <div className="dialog__body">{children}</div>
           {footer !== undefined && <footer className="dialog__foot">{footer}</footer>}

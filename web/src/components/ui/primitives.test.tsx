@@ -12,6 +12,8 @@ import {
   Badge,
   Button,
   Checkbox,
+  Checklist,
+  Dialog,
   EmptyState,
   ErrorNotice,
   Field,
@@ -19,11 +21,14 @@ import {
   Identifier,
   Loading,
   RankedList,
+  Secret,
   SegmentedControl,
+  SettingRow,
   Sparkline,
   Stat,
   Switch,
 } from '@/components/ui';
+import { currentToasts, dismissToast, toast } from '@/components/ui/toast';
 import { middleTruncate, relativeTime } from '@/components/ui/util';
 import type { ApiError } from '@/api/client';
 
@@ -213,6 +218,62 @@ describe('Sparkline (E16)', () => {
 
   it('sits under a Stat when the Stat is given a trend', () => {
     expect(html(<Stat label="Visits" value="12" trend={trend} />)).toContain('sparkline');
+  });
+});
+
+describe('Settings primitives (DESIGN §10.8, E25, E26, E28)', () => {
+  it('a checklist says met or not in words, not only by colour', () => {
+    const text = textOf(
+      html(
+        <Checklist
+          label="Password rules"
+          items={[
+            { key: 'a', text: 'At least 12 characters', met: true },
+            { key: 'b', text: 'Repeated exactly', met: false },
+          ]}
+        />,
+      ),
+    );
+    expect(text).toContain('At least 12 characters : met');
+    expect(text).toContain('Repeated exactly : not yet');
+  });
+
+  it('a secret is shown in groups for typing', () => {
+    expect(html(<Secret label="Secret" value="ABCDEFGHIJ" groups={4} />)).toContain('ABCD EFGH IJ');
+    expect(html(<Secret label="Secret" value="ABCDEFGHIJ" />)).toContain('ABCDEFGHIJ');
+  });
+
+  it('a setting row names itself with an h3 under its card', () => {
+    const markup = html(<SettingRow title="Password" description="At least 12." />);
+    expect(markup).toContain('<h3 class="setting-row__title">Password</h3>');
+  });
+
+  it('a locked dialog offers no close button; an ordinary one does', () => {
+    const noop = (): void => undefined;
+    const locked = html(
+      <Dialog open locked title="Your new recovery codes" onClose={noop}>
+        codes
+      </Dialog>,
+    );
+    const normal = html(
+      <Dialog open title="Change password" onClose={noop}>
+        form
+      </Dialog>,
+    );
+    expect(locked).not.toContain('aria-label="Close"');
+    expect(normal).toContain('aria-label="Close"');
+  });
+
+  it('toasts queue, keep at most three, and dismiss by id', () => {
+    for (const t of currentToasts()) dismissToast(t.id);
+    toast('one');
+    toast('two');
+    toast('three');
+    toast('four');
+    expect(currentToasts().map((t) => t.message)).toEqual(['two', 'three', 'four']);
+    const first = currentToasts()[0];
+    if (first !== undefined) dismissToast(first.id);
+    expect(currentToasts().map((t) => t.message)).toEqual(['three', 'four']);
   });
 });
 

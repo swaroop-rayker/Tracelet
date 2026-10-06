@@ -14,6 +14,7 @@ export {
   Kbd,
   Legend,
   Secret,
+  SettingRow,
   Tabs,
   Timestamp,
   type Dot,
@@ -35,12 +36,14 @@ export {
 export {
   Alert,
   Banner,
+  Checklist,
   Callout,
   Empty,
   EmptyState,
   ErrorNotice,
   Loading,
   Skeleton,
+  Toaster,
   type SkeletonKind,
   type Tone,
 } from './feedback';
@@ -58,3 +61,4 @@ export {
 export { Menu, MenuItem, MenuLabel, MenuSeparator, Popover, type TriggerProps } from './Popover';
 export { InfoTip, Tooltip } from './Tooltip';
 export { cssVars, cx, modKey, relativeTime } from './util';
+export { toast } from './toast';

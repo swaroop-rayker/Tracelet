@@ -575,6 +575,11 @@ Escape closes; it is fully usable without a mouse.
 
 ### 5.6 Feedback
 
+**Toast** *(M5.6, §12 E26)*. A short confirmation after an action ("Theme saved"), bottom-right,
+`--overlay` surface, gone after 4 s or on Escape. Rendered into one polite live region, so a
+screen reader hears it without losing its place. Never the only feedback: the row it came from
+changes too. Never for errors, which stay where the action was.
+
 **Skeleton.** Blocks in `--surface-2` with a 1.2 s shimmer (off under reduced motion), shaped
 like the final content: KPI cards, axis and plot area, table rows (6 rows at row height), list
 bars and the map frame. A full-page spinner is never used for dashboard data.
@@ -990,25 +995,50 @@ one line with "Show 3".
 - **Detection:** "Rules that fire most" as a RankedList with category badges; supporting charts
   as cards.
 
-### 10.8 Account and security
+### 10.8 Settings (was "Account and security"; rebuilt in M5.6, §12 E23–E28)
 
-A settings layout. At ≥ 1024 px, a left sub-navigation (Profile, Password, Two-factor and
-recovery codes, Telegram, Sessions, Admins — owner only, System readiness), with each section a
-Card of **setting rows**:
+Six pages under `/settings`; `/account` redirects to `/settings/profile`. At ≥ 1024 px a left
+sub-navigation inside the page; below it a select at the top. Each page is cards of **setting
+rows**: a label and one line of explanation on the left, the state (Badge) or the action
+(Button) on the right, at most one primary button per card. Forms open in an `sm` Dialog, so
+the page stays a calm summary. Plan: `docs/plans/SETTINGS-REDESIGN-PLAN.md`.
 
 ```
-┌ Password ─────────────────────────────────────────────────────────────────────┐
-│ Change password                                                [Change…]       │
-│ Last changed 3 days ago. At least 12 characters.                               │
-├───────────────────────────────────────────────────────────────────────────────┤
-│ Sign out other sessions                                        [Sign out all]  │
-└───────────────────────────────────────────────────────────────────────────────┘
+┌───────────────┬──────────────────────────────────────────────────────────────────┐
+│ Profile       │ Security                                                          │
+│ Preferences   │ Password, two-factor, recovery codes and Telegram                 │
+│▐Security▌     │ ┌──────────────────────────────────────────────────────────────┐ │
+│ Sessions      │ │ Password                                [Change password…]   │ │
+│ Team (owner)  │ │ At least 12 characters. Changing it signs out other sessions.│ │
+│ System        │ ├──────────────────────────────────────────────────────────────┤ │
+│               │ │ Two-factor authentication                        ( Enabled ) │ │
+│               │ ├──────────────────────────────────────────────────────────────┤ │
+│               │ │ Recovery codes  7 of 10 · ■■■■■■■□□□     [Regenerate…] danger │ │
+│               │ ├──────────────────────────────────────────────────────────────┤ │
+│               │ │ Telegram recovery chat ( Verified )         [Change chat…]   │ │
+│               │ └──────────────────────────────────────────────────────────────┘ │
+└───────────────┴──────────────────────────────────────────────────────────────────┘
 ```
 
-Forms open inline or in a `sm` Dialog. The existing flows, validation and callouts are
-unchanged, but restyled with Alert. Secrets and recovery codes keep the monospace, selectable
-treatment, plus a copy-all button and a "Download as .txt" button (the latter only if approved:
-§12 E10).
+| Page | Rows | Calls (all existing) |
+|---|---|---|
+| Profile | Initials, name, email; role and status as Badges; this session's expiry, relative | `GET /auth/me` |
+| Preferences | Theme as a SegmentedControl; display time zone as a Select of the browser's IANA zones; the reporting zone, read-only | `PATCH /auth/me/preferences` |
+| Security | Password (Dialog: show/hide, a live 12-character checklist); two-factor status; recovery codes (count, 10-step meter, Regenerate with confirmation); Telegram (two-step Dialog) | `/auth/password`, `/auth/totp/regenerate-codes`, `/auth/telegram/verify/*` |
+| Sessions | A DataTable: this device, IP prefix, started, last seen, expires; Revoke per row; Sign out all other sessions | `/auth/sessions`, one `DELETE` per session |
+| Team (owner) | A DataTable of admins; Invite; per row a menu: change role, disable or enable, new setup link, delete | `/admins`, `/admins/{id}/enrollment-token` |
+| System | Ready or not, one row per check, Re-check | `GET /readyz` |
+
+- **Destructive actions confirm first (UI-16):** regenerating codes, revoking a session,
+  signing out others, disabling or deleting an admin. Deleting an admin requires typing their
+  email.
+- **Shown once:** new recovery codes and a setup link open in a locked Dialog (no Escape, no
+  backdrop, no ×) with Copy and Download; Done is enabled only once "I have saved these" is
+  ticked (owner decision, 2026-10-06).
+- **The server stays the judge.** Client checks are hints; refusals (`409 LAST_OWNER`, the
+  self-delete `422`, a weak password) show where they apply. Team is hidden from analysts, a
+  pure configuration page (UI-17); every route still refuses them.
+- Success shows in the row and as a Toast; errors stay in the Dialog with their trace id.
 
 ### 10.9 Sign-in pages (login, enrol, recovery, reset)
 
@@ -1016,6 +1046,12 @@ These are centred on `--bg`: the product mark, then a 400 px Card (`--radius-xl`
 padding), then muted footer links. They use the same Input, Button and Alert. The one-time
 token and TOTP flows are unchanged, and the TOTP input gets `inputmode="numeric"`,
 `autocomplete="one-time-code"` and a monospace display.
+
+*M5.6 (§12 E28):* a step indicator ("Step 1 of 2"; enrolment "1 Password · 2 Authenticator ·
+3 Codes", short enough for one line on the 400 px card), show/hide on every password field, the live 12-character checklist on
+enrolment and reset, and the TOTP secret shown in groups of four (Copy still copies the raw
+secret). Steps, order and every message are unchanged, the enumeration-resistant ones above
+all (F8.AC10). No QR code (owner decision, 2026-10-06).
 
 ### 10.10 Not found and errors
 
@@ -1116,6 +1152,12 @@ uses only existing routes, URL keys and endpoints; nothing new on the server.
 | E20 | **Links index and link detail pages** (§10.11), read-only | UI-only (`/links`, `link_id` on every call) | **Approved 2026-10-06 (M5.6)** |
 | E21 | **Daily volume:** days with no visits are empty cells, and the scale starts at 1 | UI-only | **Approved 2026-10-06 (M5.6)** |
 | E22 | **Device and network icons** beside device, connection and app values in tables and ranked lists; generic glyphs only, never a brand logo | UI-only (Lucide registry) | **Approved 2026-10-06 (M5.6)** |
+| E23 | **Settings area**: six pages under `/settings` with a sub-navigation (§10.8); `/account` redirects | UI-only | **Approved 2026-10-06 (M5.6)** |
+| E24 | **Confirmations** before regenerating codes, revoking sessions, and disabling or deleting an admin (typed email to delete) | UI-only | **Approved 2026-10-06 (M5.6)** |
+| E25 | **Shown-once dialog** for new codes and setup links: locked until "I have saved these" is ticked | UI-only | **Approved 2026-10-06 (M5.6)** |
+| E26 | **Toast** primitive in a polite live region (§5.6) | UI-only | **Approved 2026-10-06 (M5.6)** |
+| E27 | **Team management** for the owner: invite, change role, disable or enable, new setup link, delete | UI on existing `/admins` routes | **Approved 2026-10-06 (M5.6)** |
+| E28 | **Sign-in polish**: step indicators, show/hide, password checklist, grouped secret; no QR code | UI-only | **Approved 2026-10-06 (M5.6)** |
 
 ---
 

@@ -75,6 +75,8 @@ export default function LoginPage({
         <p className="muted">
           {step.name === 'password' ? 'Sign in' : 'Enter your authenticator code'}
         </p>
+        {/* DESIGN §10.9, §12 E28: two steps because two-factor is mandatory. */}
+        <p className="step-indicator t-meta">Step {step.name === 'password' ? '1' : '2'} of 2</p>
       </header>
 
       {notice !== undefined && (
@@ -106,6 +108,7 @@ export default function LoginPage({
             autoComplete="current-password"
             value={password}
             onChange={setPassword}
+            revealable
           />
           <Submit busy={busy} busyLabel="Checking…">
             Continue
@@ -127,6 +130,7 @@ export default function LoginPage({
             autoComplete="one-time-code"
             placeholder="123456"
             maxLength={10}
+            mono
             hint="A code can only be used once, so wait for the next one if you have just used it."
             error={fieldMessage(error, 'code')}
           />

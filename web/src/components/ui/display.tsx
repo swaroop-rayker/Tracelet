@@ -96,6 +96,31 @@ export function Badge({
 }
 
 /**
+ * One setting (DESIGN §10.8): its name and a line of explanation on the left, its state or
+ * action on the right; on a phone the right side drops under the text. Rows sit inside a Card,
+ * whose title is an `h2`, so a row's name is an `h3`.
+ */
+export function SettingRow({
+  title,
+  description,
+  children,
+}: {
+  readonly title: ReactNode;
+  readonly description?: ReactNode;
+  readonly children?: ReactNode;
+}): React.JSX.Element {
+  return (
+    <div className="setting-row">
+      <div className="setting-row__text">
+        <h3 className="setting-row__title">{title}</h3>
+        {description !== undefined && <div className="setting-row__desc">{description}</div>}
+      </div>
+      {children !== undefined && <div className="setting-row__aside">{children}</div>}
+    </div>
+  );
+}
+
+/**
  * A decorative glyph before a value in a table cell (DESIGN §12 E22). Hidden from assistive
  * technology: the words beside it carry the meaning.
  */
@@ -211,15 +236,22 @@ export function Legend({
 export function Secret({
   label,
   value,
+  groups,
 }: {
   readonly label: string;
   readonly value: string;
+  /** Shown in groups of this many characters, for typing (DESIGN §12 E28); Copy is raw. */
+  readonly groups?: number;
 }): React.JSX.Element {
+  const shown =
+    groups === undefined
+      ? value
+      : (value.match(new RegExp(`.{1,${String(groups)}}`, 'g')) ?? []).join(' ');
   return (
     <div className="secret">
       <span className="t-meta">{label}</span>
       <span className="secret__value">
-        <code className="t-mono selectable">{value}</code>
+        <code className="t-mono selectable">{shown}</code>
         <CopyButton value={value} label={`Copy ${label.toLowerCase()}`} />
       </span>
     </div>

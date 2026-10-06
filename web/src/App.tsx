@@ -40,7 +40,13 @@ const LinksPage = lazy(() => import('@/pages/dashboard/LinksPage'));
 const LinkDetailPage = lazy(() => import('@/pages/dashboard/LinkDetailPage'));
 const InferencePage = lazy(() => import('@/pages/dashboard/InferencePage'));
 const DetectionPage = lazy(() => import('@/pages/dashboard/DetectionPage'));
-const AccountPage = lazy(() => import('@/pages/AccountPage'));
+const SettingsLayout = lazy(() => import('@/pages/settings/SettingsLayout'));
+const ProfilePage = lazy(() => import('@/pages/settings/ProfilePage'));
+const PreferencesPage = lazy(() => import('@/pages/settings/PreferencesPage'));
+const SecurityPage = lazy(() => import('@/pages/settings/SecurityPage'));
+const SessionsPage = lazy(() => import('@/pages/settings/SessionsPage'));
+const TeamPage = lazy(() => import('@/pages/settings/TeamPage'));
+const SystemPage = lazy(() => import('@/pages/settings/SystemPage'));
 // The component gallery exists only in development builds (DESIGN §11): Vite replaces
 // import.meta.env.DEV with false in production, and the import is dropped with it.
 const DesignGallery = import.meta.env.DEV ? lazy(() => import('@/pages/dev/DesignGallery')) : null;
@@ -199,7 +205,17 @@ export default function App(): React.JSX.Element {
           <Route path="links/:slug" element={<Page component={LinkDetailPage} />} />
           <Route path="inference" element={<Page component={InferencePage} />} />
           <Route path="detection" element={<Page component={DetectionPage} />} />
-          <Route path="account" element={<Page component={AccountPage} />} />
+          <Route path="settings" element={<Page component={SettingsLayout} />}>
+            <Route index element={<Navigate to="profile" replace />} />
+            <Route path="profile" element={<Page component={ProfilePage} />} />
+            <Route path="preferences" element={<Page component={PreferencesPage} />} />
+            <Route path="security" element={<Page component={SecurityPage} />} />
+            <Route path="sessions" element={<Page component={SessionsPage} />} />
+            <Route path="team" element={<Page component={TeamPage} />} />
+            <Route path="system" element={<Page component={SystemPage} />} />
+          </Route>
+          {/* M1-M5.5's single Account page now lives in Settings (DESIGN §10.8). */}
+          <Route path="account" element={<Navigate to="/settings/profile" replace />} />
           {DesignGallery !== null && (
             <Route path="__design" element={<Page component={DesignGallery} />} />
           )}

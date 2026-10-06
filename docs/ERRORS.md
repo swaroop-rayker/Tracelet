@@ -1836,6 +1836,29 @@ the M5.5 sweep counted this menu as opened and passed it.
 
 **Related:** ADR-0019 (native popover), DESIGN §5.5.
 
+### E50 — Once changed, the time zone could not be set back to India's
+
+**Status:** Fixed before release. **Milestone:** M5.6. **Date:** 2026-10-06.
+
+**Symptom.** The browser check of the new Preferences page changed the display time zone to
+Asia/Tokyo and then could not select the original, Asia/Kolkata: it was not in the list.
+
+**Root cause.** The list is the browser's own (`Intl.supportedValuesOf('timeZone')`), and
+Chromium still names some zones by their pre-rename IANA names: "Asia/Calcutta", not
+"Asia/Kolkata". The saved zone was only offered while it was the current value, so the
+moment an admin moved away from India's zone they could not come back to its current name --
+in a product whose audience is India-first.
+
+**Fix.** Renamed zones are listed under their current names (Asia/Calcutta becomes
+Asia/Kolkata, likewise Kathmandu, Yangon, Ho Chi Minh, Kyiv), and the saved and the reporting
+zone are always offered.
+
+**Prevention.** A list taken from the platform is normalised to the names the server and other
+admins use. Browser checks change a setting *and change it back*: the round trip is what
+caught this.
+
+**Related:** DESIGN §10.8, F9.AC16.
+
 ---
 
 Add entries here as bugs are found and fixed. Use the next available `E<n>` identifier and

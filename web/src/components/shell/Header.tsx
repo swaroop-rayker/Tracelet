@@ -6,7 +6,7 @@
 
 import { Link, useLocation } from 'react-router';
 import { Icon } from '@/components/icons';
-import { locate } from '@/components/shell/nav';
+import { locate, SETTINGS_SECTIONS } from '@/components/shell/nav';
 import { IconButton, Kbd, modKey } from '@/components/ui';
 
 export function Header({
@@ -55,7 +55,7 @@ function Breadcrumb({
       ? 'Visitor'
       : /^\/links\/[^/]+/.test(path)
         ? decodeURIComponent(path.slice('/links/'.length))
-        : null;
+        : (SETTINGS_SECTIONS.find((s) => path === `/settings/${s.path}`)?.label ?? null);
   return (
     <nav aria-label="Breadcrumb" className="crumbs">
       <ol>
