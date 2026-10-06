@@ -1060,6 +1060,62 @@
         "title": "ExportFormat",
         "type": "string"
       },
+      "FeatureCollectionIn": {
+        "properties": {
+          "features": {
+            "items": {
+              "$ref": "#/components/schemas/FeatureIn"
+            },
+            "maxItems": 200,
+            "minItems": 1,
+            "title": "Features",
+            "type": "array"
+          },
+          "type": {
+            "const": "FeatureCollection",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "type",
+          "features"
+        ],
+        "title": "FeatureCollectionIn",
+        "type": "object"
+      },
+      "FeatureIn": {
+        "properties": {
+          "geometry": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Geometry"
+          },
+          "properties": {
+            "additionalProperties": true,
+            "title": "Properties",
+            "type": "object"
+          },
+          "type": {
+            "const": "Feature",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "type",
+          "geometry"
+        ],
+        "title": "FeatureIn",
+        "type": "object"
+      },
       "FlowLink": {
         "properties": {
           "source": {
@@ -9034,6 +9090,73 @@
           }
         },
         "summary": "Create a geofence",
+        "tags": [
+          "geofences"
+        ]
+      }
+    },
+    "/api/v1/geofences/export": {
+      "get": {
+        "description": "A FeatureCollection in the import format, so an export re-imports unchanged: a polygon is a Polygon, a circle a Point with `radius_m`, a region a feature with no geometry and `region_keys`.",
+        "operationId": "export_geofences_api_v1_geofences_export_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/geo+json": {},
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Every geofence as GeoJSON",
+        "tags": [
+          "geofences"
+        ]
+      }
+    },
+    "/api/v1/geofences/import": {
+      "post": {
+        "description": "Each feature is checked exactly as a create would be; one invalid feature fails the request with its errors addressed as `features.{i}.<field>`, and nothing is saved (F6.AC9).",
+        "operationId": "import_geofences_api_v1_geofences_import_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FeatureCollectionIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/GeofenceOut"
+                  },
+                  "title": "Response Import Geofences Api V1 Geofences Import Post",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create geofences from GeoJSON, all or nothing",
         "tags": [
           "geofences"
         ]

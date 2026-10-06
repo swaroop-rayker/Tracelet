@@ -369,6 +369,126 @@ async def test_an_unplaceable_coordinate_is_undetermined_for_regions(owner: Sign
 
 
 # ---------------------------------------------------------------------------
+# Import and export (F6.AC9)
+# ---------------------------------------------------------------------------
+
+_COMPARED = (
+    "name",
+    "shape_kind",
+    "region_keys",
+    "geometry",
+    "center",
+    "radius_m",
+    "priority",
+    "is_active",
+    "notify_priority",
+    "link_ids",
+    "description",
+)
+
+
+async def _ours_exported(owner: SignedIn) -> list[dict[str, Any]]:
+    response = await owner.client.get(f"{FENCES}/export")
+    assert response.status_code == 200
+    assert response.headers["content-type"].startswith("application/geo+json")
+    assert "geofences.geojson" in response.headers["content-disposition"]
+    collection = response.json()
+    assert collection["type"] == "FeatureCollection"
+    return [f for f in collection["features"] if f["properties"]["name"].startswith("itest ")]
+
+
+async def test_an_export_re_imports_unchanged(owner: SignedIn) -> None:
+    """Every shape survives the round trip: a polygon as a Polygon, a circle as a Point
+    with its radius, a region as a feature with no geometry."""
+    link = await ch.create_link()
+    made = [
+        await _create(owner, _region(description="Home state", link_ids=[str(link.id)])),
+        await _create(owner, _circle(notify_priority="normal", priority=7)),
+        await _create(owner, _polygon(is_active=False)),
+    ]
+    features = await _ours_exported(owner)
+    assert {f["geometry"]["type"] if f["geometry"] else None for f in features} == {
+        None,
+        "Point",
+        "Polygon",
+    }
+    for fence in made:
+        await owner.client.delete(f"{FENCES}/{fence['id']}", headers=owner.headers())
+
+    response = await owner.client.post(
+        f"{FENCES}/import",
+        json={"type": "FeatureCollection", "features": features},
+        headers=owner.headers(),
+    )
+    assert response.status_code == 201, response.text
+    imported = response.json()
+    assert len(imported) == 3
+    assert {i["id"] for i in imported}.isdisjoint({m["id"] for m in made}), "an import creates"
+    by_name = {i["name"]: i for i in imported}
+    for original in made:
+        again = by_name[original["name"]]
+        for key in _COMPARED:
+            if key == "center" and original[key] is not None:
+                assert again[key] == pytest.approx(original[key]), key
+            else:
+                assert again[key] == original[key], key
+
+    details = await ch.audit_details_for_action(audit.Action.GEOFENCE_IMPORTED)
+    assert details[-1]["count"] == 3
+
+
+async def test_one_invalid_feature_imports_nothing(owner: SignedIn) -> None:
+    features = [
+        {
+            "type": "Feature",
+            "geometry": None,
+            "properties": {"name": "itest ok", "region_keys": ["IN"]},
+        },
+        {
+            "type": "Feature",
+            "geometry": {"type": "Polygon", "coordinates": BOW_TIE},
+            "properties": {"name": "itest bow tie"},
+        },
+        {
+            "type": "Feature",
+            "geometry": None,
+            "properties": {"name": "itest bad", "region_keys": ["IN|Atlantis"]},
+        },
+        {
+            "type": "Feature",
+            "geometry": {"type": "Point", "coordinates": [77.5, 12.9]},
+            "properties": {"name": "itest no radius"},
+        },
+    ]
+    response = await owner.client.post(
+        f"{FENCES}/import",
+        json={"type": "FeatureCollection", "features": features},
+        headers=owner.headers(),
+    )
+    assert response.status_code == 422, response.text
+    fields = {(e["field"], e["code"]) for e in response.json()["errors"]}
+    assert ("features.1.geometry", "GEOFENCE_INVALID_GEOMETRY") in fields
+    assert ("features.2.region_keys.0", "GEOFENCE_UNKNOWN_REGION") in fields
+    assert any(f.startswith("features.3.") for f, _ in fields)
+    assert not any(f.startswith("features.0") for f, _ in fields)
+    assert await _ours_exported(owner) == [], "all or nothing"
+
+
+async def test_an_import_is_bounded(owner: SignedIn) -> None:
+    feature = {
+        "type": "Feature",
+        "geometry": None,
+        "properties": {"name": "itest x", "region_keys": ["IN"]},
+    }
+    response = await owner.client.post(
+        f"{FENCES}/import",
+        json={"type": "FeatureCollection", "features": [feature] * 201},
+        headers=owner.headers(),
+    )
+    assert response.status_code == 422
+
+
+# ---------------------------------------------------------------------------
 # Roles (CLAUDE.md invariant 9)
 # ---------------------------------------------------------------------------
 
@@ -387,6 +507,22 @@ async def test_an_analyst_can_read_and_test_but_not_write(
     assert (await analyst.client.get(FENCES)).status_code == 200
     assert (await analyst.client.get(url)).status_code == 200
     assert (await analyst.client.get(f"{FENCES}/regions")).status_code == 200
+    assert (await analyst.client.get(f"{FENCES}/export")).status_code == 200
+    imported = await analyst.client.post(
+        f"{FENCES}/import",
+        json={
+            "type": "FeatureCollection",
+            "features": [
+                {
+                    "type": "Feature",
+                    "geometry": None,
+                    "properties": {"name": "itest x", "region_keys": ["IN"]},
+                }
+            ],
+        },
+        headers=analyst.headers(),
+    )
+    assert imported.status_code == 403
     tested = await analyst.client.post(f"{FENCES}/test", json=BENGALURU, headers=analyst.headers())
     assert tested.status_code == 200
     created = await analyst.client.post(FENCES, json=_region(), headers=analyst.headers())

@@ -712,8 +712,10 @@ A `FeatureCollection`. A polygon is a `Polygon` feature; a circle is a `Point` f
 `properties.region_keys`. Every other field is a property (`name`, `description`,
 `priority`, `is_active`, `notify_priority`, `link_ids`). Import is **all or nothing**: one
 invalid feature fails the request with field-level errors addressed as
-`features[3].geometry`, and nothing is saved. Up to 200 features, inside the 1 MiB body cap.
-Imported geofences are new; `id` properties are ignored.
+`features.3.geometry`, and nothing is saved. Up to 200 features, inside the 1 MiB body cap.
+Imported geofences are new; `id` properties are ignored. The export is served as `application/geo+json` with
+`Content-Disposition: attachment; filename="geofences.geojson"`; import writes one
+`geofence.imported` audit row with the count and names.
 
 ### Evaluation (ADR-0015, ADR-0020)
 

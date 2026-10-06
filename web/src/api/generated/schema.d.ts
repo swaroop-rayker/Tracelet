@@ -600,6 +600,46 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/geofences/export": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Every geofence as GeoJSON
+         * @description A FeatureCollection in the import format, so an export re-imports unchanged: a polygon is a Polygon, a circle a Point with `radius_m`, a region a feature with no geometry and `region_keys`.
+         */
+        get: operations["export_geofences_api_v1_geofences_export_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/geofences/import": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Create geofences from GeoJSON, all or nothing
+         * @description Each feature is checked exactly as a create would be; one invalid feature fails the request with its errors addressed as `features.{i}.<field>`, and nothing is saved (F6.AC9).
+         */
+        post: operations["import_geofences_api_v1_geofences_import_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/geofences/regions": {
         parameters: {
             query?: never;
@@ -1361,6 +1401,32 @@ export interface components {
          * @enum {string}
          */
         ExportFormat: "csv" | "ndjson";
+        /** FeatureCollectionIn */
+        FeatureCollectionIn: {
+            /** Features */
+            features: components["schemas"]["FeatureIn"][];
+            /**
+             * Type
+             * @constant
+             */
+            type: "FeatureCollection";
+        };
+        /** FeatureIn */
+        FeatureIn: {
+            /** Geometry */
+            geometry: {
+                [key: string]: unknown;
+            } | null;
+            /** Properties */
+            properties?: {
+                [key: string]: unknown;
+            };
+            /**
+             * Type
+             * @constant
+             */
+            type: "Feature";
+        };
         /** FlowLink */
         FlowLink: {
             /** Source */
@@ -3681,6 +3747,60 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["GeofenceOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    export_geofences_api_v1_geofences_export_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/geo+json": unknown;
+                    "application/json": unknown;
+                };
+            };
+        };
+    };
+    import_geofences_api_v1_geofences_import_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FeatureCollectionIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GeofenceOut"][];
                 };
             };
             /** @description Validation Error */

@@ -20,7 +20,8 @@ from typing import Annotated, Any, Literal
 
 import structlog
 from fastapi import APIRouter, Request, Response, status
-from pydantic import BaseModel, Field, StringConstraints, model_validator
+from pydantic import BaseModel, Field, StringConstraints, TypeAdapter, model_validator
+from pydantic import ValidationError as PydanticValidationError
 from sqlalchemy import delete, select, text
 from sqlalchemy.exc import DBAPIError
 
@@ -475,6 +476,107 @@ def _audit_kwargs(
 
 
 # ---------------------------------------------------------------------------
+# Import and export (F6.AC9)
+# ---------------------------------------------------------------------------
+
+MAX_IMPORT_FEATURES = 200
+_CREATE: TypeAdapter[RegionCreate | CircleCreate | PolygonCreate] = TypeAdapter(GeofenceCreate)
+# A create's checked shape SQL, its parameters and its links.
+Prepared = tuple[dict[str, str], dict[str, Any], list[uuid.UUID] | None]
+
+
+class FeatureIn(BaseModel):
+    type: Literal["Feature"]
+    geometry: dict[str, Any] | None
+    properties: dict[str, Any] = Field(default_factory=dict)
+
+
+class FeatureCollectionIn(BaseModel):
+    type: Literal["FeatureCollection"]
+    features: Annotated[list[FeatureIn], Field(min_length=1, max_length=MAX_IMPORT_FEATURES)]
+
+
+_PROPERTIES = ("name", "description", "priority", "is_active", "notify_priority", "link_ids")
+
+
+def _feature_body(feature: FeatureIn) -> dict[str, Any]:
+    """A feature as a create body: the shape from its geometry, the rest from its
+    properties. ``id`` and unknown properties are ignored -- an import creates."""
+    props = feature.properties
+    body: dict[str, Any] = {k: props[k] for k in _PROPERTIES if k in props}
+    geometry = feature.geometry
+    if geometry is None:
+        body |= {"shape_kind": "region", "region_keys": props.get("region_keys")}
+    elif geometry.get("type") == "Point":
+        coordinates = geometry.get("coordinates") or [None, None]
+        body |= {
+            "shape_kind": "circle",
+            "center": {"lat": coordinates[1], "lng": coordinates[0]},
+            "radius_m": props.get("radius_m"),
+        }
+    else:
+        body |= {"shape_kind": "polygon", "geometry": geometry}
+    return body
+
+
+def _prefixed(prefix: str, errors: list[FieldError]) -> list[FieldError]:
+    return [e.model_copy(update={"field": f"{prefix}.{e.field}"}) for e in errors]
+
+
+async def _prepare(db: DbSession, config: Config, payload: GeofenceCreate) -> Prepared:
+    """Everything a create checks, before anything is written (E14)."""
+    shape, params = await _prepared_shape(
+        db,
+        config,
+        ShapeKind(payload.shape_kind),
+        keys=payload.region_keys if isinstance(payload, RegionCreate) else None,
+        center=payload.center if isinstance(payload, CircleCreate) else None,
+        radius_m=payload.radius_m if isinstance(payload, CircleCreate) else None,
+        geometry=payload.geometry if isinstance(payload, PolygonCreate) else None,
+    )
+    return shape, params, await _link_ids(db, payload.link_ids)
+
+
+async def _insert(
+    db: DbSession,
+    payload: GeofenceCreate,
+    prepared: Prepared,
+    created_by: uuid.UUID,
+) -> uuid.UUID:
+    shape, params, links = prepared
+    fence_id = uuid.uuid4()
+    columns = {
+        "id": ":id",
+        "name": ":name",
+        "description": ":description",
+        "priority": ":priority",
+        "is_active": ":is_active",
+        "notify_priority": "CAST(:notify_priority AS notify_priority)",
+        "link_ids": "CAST(:link_ids AS uuid[])",
+        "created_by": ":created_by",
+        **shape,
+    }
+    await db.execute(
+        text(
+            f"INSERT INTO geofences ({', '.join(columns)}) "  # noqa: S608 -- fixed column names
+            f"VALUES ({', '.join(columns.values())})"
+        ),
+        {
+            **params,
+            "id": fence_id,
+            "name": payload.name,
+            "description": payload.description,
+            "priority": payload.priority,
+            "is_active": payload.is_active,
+            "notify_priority": payload.notify_priority,
+            "link_ids": links,
+            "created_by": created_by,
+        },
+    )
+    return fence_id
+
+
+# ---------------------------------------------------------------------------
 # Endpoints
 # ---------------------------------------------------------------------------
 
@@ -553,6 +655,111 @@ async def test_coordinate(
     )
 
 
+@router.get(
+    "/export",
+    summary="Every geofence as GeoJSON",
+    description=(
+        "A FeatureCollection in the import format, so an export re-imports unchanged: a "
+        "polygon is a Polygon, a circle a Point with `radius_m`, a region a feature with "
+        "no geometry and `region_keys`."
+    ),
+    responses={200: {"content": {"application/geo+json": {}}}},
+)
+async def export_geofences(principal: CurrentPrincipal, db: DbSession, config: Config) -> Response:
+    del principal
+    features = []
+    for g in await _read(db, config, None):
+        properties: dict[str, Any] = {
+            "id": g.id,
+            "name": g.name,
+            "description": g.description,
+            "priority": g.priority,
+            "is_active": g.is_active,
+            "notify_priority": g.notify_priority.value,
+            "link_ids": g.link_ids,
+        }
+        geometry: dict[str, Any] | None
+        if g.shape_kind is ShapeKind.REGION:
+            geometry = None
+            properties["region_keys"] = g.region_keys
+        elif g.shape_kind is ShapeKind.CIRCLE:
+            assert g.center is not None
+            geometry = {"type": "Point", "coordinates": [g.center.lng, g.center.lat]}
+            properties["radius_m"] = g.radius_m
+        else:
+            geometry = g.geometry
+        features.append({"type": "Feature", "geometry": geometry, "properties": properties})
+    return Response(
+        content=json.dumps({"type": "FeatureCollection", "features": features}),
+        media_type="application/geo+json",
+        headers={"Content-Disposition": 'attachment; filename="geofences.geojson"'},
+    )
+
+
+@router.post(
+    "/import",
+    response_model=list[GeofenceOut],
+    status_code=status.HTTP_201_CREATED,
+    summary="Create geofences from GeoJSON, all or nothing",
+    description=(
+        "Each feature is checked exactly as a create would be; one invalid feature fails "
+        "the request with its errors addressed as `features.{i}.<field>`, and nothing is "
+        "saved (F6.AC9)."
+    ),
+)
+async def import_geofences(
+    collection: FeatureCollectionIn,
+    request: Request,
+    principal: OwnerPrincipal,
+    db: DbSession,
+    config: Config,
+) -> list[GeofenceOut]:
+    checked: list[tuple[RegionCreate | CircleCreate | PolygonCreate, Prepared]] = []
+    errors: list[FieldError] = []
+    for i, feature in enumerate(collection.features):
+        prefix = f"features.{i}"
+        try:
+            payload = _CREATE.validate_python(_feature_body(feature))
+        except PydanticValidationError as exc:
+            errors.extend(
+                FieldError(
+                    field=".".join([prefix, *(str(p) for p in err["loc"][1:])]),
+                    code=str(err["type"]).upper(),
+                    message=str(err["msg"]),
+                )
+                for err in exc.errors()
+            )
+            continue
+        try:
+            checked.append((payload, await _prepare(db, config, payload)))
+        except (
+            ValidationFailed,
+            GeofenceInvalidGeometry,
+            GeofenceTooManyVertices,
+            GeofenceUnknownRegion,
+        ) as exc:
+            errors.extend(_prefixed(prefix, exc.errors))
+    if errors:
+        raise ValidationFailed(
+            "One or more features are invalid; nothing was imported.", errors=errors
+        )
+
+    ids = [
+        await _insert(db, payload, prepared, principal.admin.id) for payload, prepared in checked
+    ]
+    await audit.record(
+        db,
+        action=audit.Action.GEOFENCE_IMPORTED,
+        detail={"count": len(ids), "names": [p.name for p, _ in checked]},
+        actor_admin_id=principal.admin.id,
+        actor_ip_prefix=prefix_of(client_ip(request, config)),
+        target_type="geofence",
+        trace_id=getattr(request.state, "trace_id", None),
+    )
+    out = {o.id: o for o in await _read(db, config, ids)}
+    return [out[str(i)] for i in ids]
+
+
 @router.get("/{geofence_id}", response_model=GeofenceOut, summary="One geofence")
 async def get_geofence(
     geofence_id: str, principal: CurrentPrincipal, db: DbSession, config: Config
@@ -574,54 +781,15 @@ async def create_geofence(
     db: DbSession,
     config: Config,
 ) -> GeofenceOut:
-    kind = ShapeKind(payload.shape_kind)
-    shape, params = await _prepared_shape(
-        db,
-        config,
-        kind,
-        keys=payload.region_keys if isinstance(payload, RegionCreate) else None,
-        center=payload.center if isinstance(payload, CircleCreate) else None,
-        radius_m=payload.radius_m if isinstance(payload, CircleCreate) else None,
-        geometry=payload.geometry if isinstance(payload, PolygonCreate) else None,
-    )
-    links = await _link_ids(db, payload.link_ids)
-
-    fence_id = uuid.uuid4()
-    columns = {
-        "id": ":id",
-        "name": ":name",
-        "description": ":description",
-        "priority": ":priority",
-        "is_active": ":is_active",
-        "notify_priority": "CAST(:notify_priority AS notify_priority)",
-        "link_ids": "CAST(:link_ids AS uuid[])",
-        "created_by": ":created_by",
-        **shape,
-    }
-    await db.execute(
-        text(
-            f"INSERT INTO geofences ({', '.join(columns)}) "  # noqa: S608 -- fixed column names
-            f"VALUES ({', '.join(columns.values())})"
-        ),
-        {
-            **params,
-            "id": fence_id,
-            "name": payload.name,
-            "description": payload.description,
-            "priority": payload.priority,
-            "is_active": payload.is_active,
-            "notify_priority": payload.notify_priority,
-            "link_ids": links,
-            "created_by": principal.admin.id,
-        },
-    )
+    prepared = await _prepare(db, config, payload)
+    fence_id = await _insert(db, payload, prepared, principal.admin.id)
     await audit.record(
         db,
         action=audit.Action.GEOFENCE_CREATED,
         detail={
             "name": payload.name,
-            "shape_kind": kind.value,
-            "region_keys": params.get("region_keys"),
+            "shape_kind": payload.shape_kind,
+            "region_keys": prepared[1].get("region_keys"),
             "notify_priority": payload.notify_priority,
             "priority": payload.priority,
             "is_active": payload.is_active,
