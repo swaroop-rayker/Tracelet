@@ -718,6 +718,9 @@ F9.AC6, F9.AC16–F9.AC18, NFR7. No new requirement: every item reads an existin
       hour × weekday fold in IST (a UTC 15:30 bucket lands on Monday 21h); zero days left out
       of the calendar series but kept in its table; glyphs on device rows and none on states*
 - [x] No API, schema or migration change: the diff touches only `web/` and `docs/`
+      — *with one exception, found by this milestone's testing: ERRORS E51, the audit detail of
+      `PATCH /admins/{id}` recorded the new role as "from". Fixed in `admins_router.py` with an
+      integration test; no endpoint, payload, schema or migration changed*
 - [x] Zero CSP violations in Chromium, Firefox and WebKit on the Caddy-served build — *the M5.5
       Playwright sweep against Caddy, now over 11 signed-in routes (Links, a link's page and an
       unknown slug added) in 3 themes plus every overlay, with positive controls reported in each

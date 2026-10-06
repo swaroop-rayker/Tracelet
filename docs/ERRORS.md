@@ -1859,6 +1859,32 @@ caught this.
 
 **Related:** DESIGN §10.8, F9.AC16.
 
+### E51 — The audit log recorded every role change as "from" its new value
+
+**Status:** Fixed. **Milestone:** M5.6 (present since M1). **Date:** 2026-10-06.
+
+**Symptom.** Found while checking the new Team page against `audit_log`: promoting an analyst
+was recorded as `admin.role_changed {"from": "owner", "to": "owner"}`. A status change had the
+same fault (`{"from": "disabled", "to": "disabled"}`).
+
+**Root cause.** `PATCH /admins/{id}` built the audit detail from `target.role` and
+`target.status` *after* running `update(Admin)...`. An ORM-enabled `update()` in SQLAlchemy 2
+synchronises the session by default, so the loaded `target` already carried the new values.
+The M1 tests asserted only that an `admin.role_changed` row existed, never what it said.
+
+**Fix.** The handler reads the role and status before the update and records those as
+`from`. A new integration test promotes an analyst and disables them, then asserts both details
+exactly; it fails on the old code with this symptom.
+
+**Consequence.** `audit_log` is append-only, so rows written before this fix keep the wrong
+`from`. Their `to`, actor, target and time are right; read `from` on older rows as unknown.
+
+**Prevention.** An audit test asserts the row's *content*, not only that it exists. Any value
+needed "before" a write is captured before the write, never re-read from an ORM object the
+write may have synchronised.
+
+**Related:** CLAUDE.md invariant 9, API §5, ERRORS E16.
+
 ---
 
 Add entries here as bugs are found and fixed. Use the next available `E<n>` identifier and

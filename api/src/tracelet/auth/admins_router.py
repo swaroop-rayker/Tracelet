@@ -223,6 +223,12 @@ async def update_admin(
     ):
         raise LastOwner("At least one active owner must remain.")
 
+    # The audit detail's "from" must be read now. An ORM-enabled update() synchronises the
+    # session, so after it `target.role` and `target.status` already hold the new values, and
+    # every role change was recorded as {"from": "owner", "to": "owner"} (docs/ERRORS.md E51).
+    role_before = target.role
+    status_before = target.status
+
     try:
         await db.execute(update(Admin).where(Admin.id == target.id).values(**values))
         await db.flush()
@@ -244,7 +250,7 @@ async def update_admin(
             target_type="admin",
             target_id=str(target.id),
             trace_id=trace_id,
-            detail={"from": target.role.value, "to": payload.role.value if payload.role else None},
+            detail={"from": role_before.value, "to": payload.role.value if payload.role else None},
         )
     if "status" in values:
         await audit.record(
@@ -256,7 +262,7 @@ async def update_admin(
             target_id=str(target.id),
             trace_id=trace_id,
             detail={
-                "from": target.status.value,
+                "from": status_before.value,
                 "to": payload.status.value if payload.status else None,
             },
         )
