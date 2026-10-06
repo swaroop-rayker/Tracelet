@@ -15,6 +15,7 @@ import { useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router';
 import type { ApiError } from '@/api/client';
 import {
+  deleteGeofence,
   exportGeofences,
   geofencesSchema,
   importGeofences,
@@ -35,6 +36,8 @@ import {
   ErrorNotice,
   Field,
   Glyph,
+  Menu,
+  MenuItem,
   Popover,
   Submit,
   Switch,
@@ -49,6 +52,7 @@ import {
   toned,
   undeterminedReason,
 } from '@/pages/configure/geofence-format';
+import { ConfirmDialog } from '@/pages/settings/dialogs';
 import { useSession } from '@/session';
 
 const FENCES = '/api/v1/geofences';
@@ -61,6 +65,25 @@ export default function GeofencesPage(): React.JSX.Element {
   const query = useApi(FENCES, null, geofencesSchema);
   const links = useApi('/api/v1/links', null, linkChoicesSchema);
   const labels = new Map((links.data ?? []).map((l) => [l.id, l.label]));
+  const client = useQueryClient();
+  const [deleting, setDeleting] = useState<Geofence | null>(null);
+  const [deleteBusy, setDeleteBusy] = useState(false);
+  const [deleteError, setDeleteError] = useState<ApiError | null>(null);
+
+  async function remove(fence: Geofence): Promise<void> {
+    setDeleteBusy(true);
+    setDeleteError(null);
+    const result = await deleteGeofence(me.csrf_token, fence.id);
+    setDeleteBusy(false);
+    if (!result.ok) {
+      setDeleteError(result.error);
+      return;
+    }
+    setDeleting(null);
+    toast(`${fence.name} deleted.`);
+    client.removeQueries({ queryKey: [`${FENCES}/${encodeURIComponent(fence.id)}`] });
+    void client.invalidateQueries({ queryKey: [FENCES] });
+  }
 
   return (
     <div className="page">
@@ -166,10 +189,68 @@ export default function GeofencesPage(): React.JSX.Element {
                 numeric: true,
                 render: (g) => (g.is_active || g.matches_7d > 0 ? count(g.matches_7d) : '—'),
               },
+              {
+                key: 'actions',
+                header: <span className="sr-only">Actions</span>,
+                render: (g) => (
+                  <Menu label={`Actions for ${g.name}`} icon="More" iconOnly size="sm" align="end">
+                    {(close) => (
+                      <>
+                        <MenuItem
+                          icon="ToolEdit"
+                          onSelect={() => {
+                            close();
+                            void navigate(`/geofences/${g.id}`);
+                          }}
+                        >
+                          {owner ? 'Edit' : 'Open'}
+                        </MenuItem>
+                        <MenuItem
+                          icon="Delete"
+                          danger
+                          disabled={!owner}
+                          {...(owner ? {} : { hint: 'Owner only' })}
+                          onSelect={() => {
+                            close();
+                            setDeleteError(null);
+                            setDeleting(g);
+                          }}
+                        >
+                          Delete permanently…
+                        </MenuItem>
+                      </>
+                    )}
+                  </Menu>
+                ),
+              },
             ]}
           />
         )}
       </Panel>
+      <ConfirmDialog
+        open={deleting !== null}
+        title={deleting === null ? '' : `Delete ${deleting.name} permanently?`}
+        confirmLabel="Delete permanently"
+        busyLabel="Deleting…"
+        danger
+        typed={
+          deleting === null
+            ? undefined
+            : { label: `Type ${deleting.name} to confirm`, phrase: deleting.name }
+        }
+        busy={deleteBusy}
+        error={deleteError}
+        onClose={() => {
+          setDeleting(null);
+        }}
+        onConfirm={() => {
+          if (deleting !== null) void remove(deleting);
+        }}
+      >
+        It is removed from the database, not archived, and visits are no longer evaluated against
+        it. Visits it already matched keep the match, and the deletion is recorded in the audit log.
+        This cannot be undone; an export first keeps a copy.
+      </ConfirmDialog>
     </div>
   );
 }

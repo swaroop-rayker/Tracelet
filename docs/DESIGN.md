@@ -1340,7 +1340,10 @@ rail** and a right **inspector drawer**:
   its outline. Fits use quarter zoom steps, so a country fills the map; the searchable list
   covers every country and division, outlined or not; a
   shape is sent on save only if it was changed, so an imported polygon keeps its holes. Create
-  and Save return to the list (E62). Delete needs the geofence's name typed (UI-16).
+  and Save return to the list (E62). Each list row also has a `•••` menu (owner request,
+  2026-10-06): Edit (Open for an analyst) and "Delete permanently…" -- a hard delete, the row
+  removed and an audit row written -- behind the geofence's name typed (UI-16), disabled with
+  "Owner only" for analysts (UI-17). The editor's own `•••` offers the same delete.
 - **Cities and towns** of the chosen country, for orientation only (owner decision
   2026-10-06): from GeoNames through `GET /api/v1/geofences/places`, so names are the engine's.
   Population bands -- metro 4M+, tier 1 1M+, tier 2 300k+, tier 3 50k+ -- appear as the map

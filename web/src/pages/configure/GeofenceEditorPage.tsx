@@ -362,7 +362,7 @@ function Editor({
                       setDeleting(true);
                     }}
                   >
-                    Delete geofence…
+                    Delete permanently…
                   </MenuItem>
                 )}
               </Menu>
@@ -594,8 +594,8 @@ function Editor({
       {fence !== null && (
         <ConfirmDialog
           open={deleting}
-          title={`Delete ${fence.name}?`}
-          confirmLabel="Delete"
+          title={`Delete ${fence.name} permanently?`}
+          confirmLabel="Delete permanently"
           danger
           typed={{ label: `Type ${fence.name} to confirm`, phrase: fence.name }}
           busy={deleteBusy}
