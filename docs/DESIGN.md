@@ -1339,8 +1339,8 @@ rail** and a right **inspector drawer**:
   names are printed on the map, never hover tooltips (E58), and a hovered area only brightens
   its outline. Fits use quarter zoom steps, so a country fills the map; the searchable list
   covers every country and division, outlined or not; a
-  shape is sent on save only if it was changed, so an imported polygon keeps its holes. Delete
-  needs the geofence's name typed (UI-16).
+  shape is sent on save only if it was changed, so an imported polygon keeps its holes. Create
+  and Save return to the list (E62). Delete needs the geofence's name typed (UI-16).
 - **Cities and towns** of the chosen country, for orientation only (owner decision
   2026-10-06): from GeoNames through `GET /api/v1/geofences/places`, so names are the engine's.
   Population bands -- metro 4M+, tier 1 1M+, tier 2 300k+, tier 3 50k+ -- appear as the map

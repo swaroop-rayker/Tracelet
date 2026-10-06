@@ -283,8 +283,13 @@ function Editor({
       return;
     }
     toast(fence === null ? `${result.data.name} created.` : `${result.data.name} saved.`);
+    // The editor reads this geofence under its own key, not the list's: replace it with what
+    // the server now holds, so reopening it can never show the values from before the save.
+    client.setQueryData([`${FENCES}/${encodeURIComponent(result.data.id)}`, ''], result.data);
     void client.invalidateQueries({ queryKey: [FENCES] });
-    void navigate(`/geofences/${result.data.id}`, { replace: true });
+    // Back to the list, where the row shows what was saved and "New geofence" starts afresh.
+    // Staying in the editor after a create left a "Save" button and no way to a new form (E62).
+    void navigate('/geofences');
   }
 
   async function remove(): Promise<void> {
@@ -298,6 +303,7 @@ function Editor({
       return;
     }
     toast(`${fence.name} deleted.`);
+    client.removeQueries({ queryKey: [`${FENCES}/${encodeURIComponent(fence.id)}`] });
     void client.invalidateQueries({ queryKey: [FENCES] });
     void navigate('/geofences');
   }

@@ -2150,6 +2150,30 @@ between a field and its source -- a difference also arises when the source chang
 
 ---
 
+### E62 — After saving a geofence the editor neither went back nor started a new one
+
+**Status:** Fixed. **Milestone:** M6. **Date:** 2026-10-06. Reported by the owner.
+
+**Symptom.** "Create geofence" left the editor open on the geofence just made, now headed
+with its name and offering "Save": no way back to the list and no fresh form for the next
+geofence, which is what the owner was trying to do (one geofence per test link).
+
+**Root cause.** A design choice, not a crash: a create navigated to the new geofence's own
+URL so it could be edited further. Separately, the editor reads a geofence under its own query
+key, and a save refreshed only the list's key, so reopening it within the app could show the
+pre-save values from the cache for up to a minute.
+
+**Fix.** Create and Save return to the Geofences list with a confirmation; "New geofence"
+there starts blank. A save replaces the cached geofence with the server's answer, and a delete
+drops it. Checked in Chromium, Firefox and WebKit, including reopening without a reload.
+
+**Prevention.** A form that creates returns to where the next one starts. A write updates
+every query key that holds what it changed, not only the list's.
+
+**Related:** DESIGN §16.
+
+---
+
 Add entries here as bugs are found and fixed. Use the next available `E<n>` identifier and
 the same structure: symptom, root cause, fix, **prevention**.
 
