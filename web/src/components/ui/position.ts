@@ -45,7 +45,13 @@ export function place(
   floating.style.setProperty('--pop-y', `${String(Math.round(y))}px`);
 }
 
-/** Re-place `floating` while it is open, as the page scrolls or resizes. Returns a stop function. */
+/**
+ * Re-place `floating` while it is open: as the page scrolls or resizes, **and as the floating
+ * element itself changes size**. A popover's content renders only once it is open, so the first
+ * measurement is of an empty box; without re-placing on resize, a menu at the foot of the
+ * sidebar was placed below its trigger while empty and then grew out of the window (ERRORS
+ * E49). Returns a stop function.
+ */
 export function follow(
   anchor: Element,
   floating: HTMLElement,
@@ -55,9 +61,12 @@ export function follow(
     place(anchor, floating, options);
   };
   update();
+  const resized = new ResizeObserver(update);
+  resized.observe(floating);
   window.addEventListener('scroll', update, true);
   window.addEventListener('resize', update);
   return () => {
+    resized.disconnect();
     window.removeEventListener('scroll', update, true);
     window.removeEventListener('resize', update);
   };

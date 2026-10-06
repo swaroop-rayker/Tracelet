@@ -1811,6 +1811,31 @@ screenshots now include Countries mode, not only the default States view.
 
 **Related:** E40, ADR-0017, DESIGN §6.6.
 
+### E49 — The user menu opened off the bottom of the window
+
+**Status:** Fixed. **Milestone:** M5.6 (present since M5.5). **Date:** 2026-10-06.
+
+**Symptom.** Reported by the owner: the account menu at the foot of the sidebar opened downward,
+so the theme choices, Keyboard shortcuts and Sign out were cut off by the bottom of the window.
+
+**Root cause.** A Popover renders its content only once it is open (`{open && children()}`), but
+`follow()` measured it in the `toggle` event, while it was still empty. An empty box fits below
+the trigger, so it was placed there; the items then rendered and grew it out of the window.
+`follow()` re-placed on scroll and resize only, never when the popover itself changed size.
+The flip-above logic in `place()` was right; it was given a height of nearly zero.
+
+**Fix.** `follow()` also watches the floating element with a `ResizeObserver` and re-places it
+whenever its size changes. Every popover benefits: the user menu, filter editors, the period
+picker and export. Checked in Chromium, Firefox and WebKit at window heights of 900, 700 and
+560 px: the menu opens above its trigger, wholly inside the window, with all five items.
+
+**Prevention.** Anything positioned from a measurement re-measures when what it measured
+changes; a one-off measurement at open is only valid when the content is already there. A
+browser check of a popover asserts its box lies inside the viewport, not only that it opened --
+the M5.5 sweep counted this menu as opened and passed it.
+
+**Related:** ADR-0019 (native popover), DESIGN §5.5.
+
 ---
 
 Add entries here as bugs are found and fixed. Use the next available `E<n>` identifier and
