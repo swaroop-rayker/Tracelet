@@ -19,7 +19,7 @@ import uuid
 from typing import Annotated, Any, Literal
 
 import structlog
-from fastapi import APIRouter, Request, Response, status
+from fastapi import APIRouter, Query, Request, Response, status
 from pydantic import BaseModel, Field, StringConstraints, TypeAdapter, model_validator
 from pydantic import ValidationError as PydanticValidationError
 from sqlalchemy import delete, select, text
@@ -48,6 +48,7 @@ from tracelet.errors import (
 from tracelet.geofence import regions, store
 from tracelet.geofence.evaluate import StrictPlace
 from tracelet.geofence.models import Geofence, NotifyPriority, ShapeKind
+from tracelet.geofence.places import SMALLEST, Tier, tier
 from tracelet.inference.geodb.readers import geocoder
 from tracelet.inference.types import Candidate, GeoLevel, InferenceSource
 from tracelet.net import prefix_of
@@ -194,6 +195,20 @@ class DivisionOut(BaseModel):
 class RegionsOut(BaseModel):
     countries: list[CountryOut]
     divisions: list[DivisionOut]
+
+
+class PlaceOut(BaseModel):
+    name: str
+    admin1: str | None
+    lat: float
+    lng: float
+    population: int
+    tier: Tier
+
+
+class PlacesOut(BaseModel):
+    country: str
+    places: list[PlaceOut]
 
 
 class PlacedOut(BaseModel):
@@ -612,6 +627,45 @@ async def list_regions(
             for d in catalog.divisions
         ],
     )
+
+
+@router.get(
+    "/places",
+    response_model=PlacesOut,
+    summary="A country's cities and towns, by population tier, for the editor's map",
+    description=(
+        "Places of 50,000 people or more, from the GeoNames table the engine names cities "
+        "from, largest first, each with its tier (metro 4M+, tier 1 1M+, tier 2 300k+, "
+        "tier 3 50k+). 503 until GeoNames is installed."
+    ),
+)
+async def list_places(
+    principal: CurrentPrincipal,
+    config: Config,
+    response: Response,
+    country: Annotated[str, Query(pattern=r"^[A-Z]{2}$")],
+) -> PlacesOut:
+    del principal
+    gc = geocoder(config)
+    if gc is None:
+        msg = "The place list is not installed yet: the GeoNames cities table is missing."
+        raise GeoDbUnavailable(msg)
+    response.headers["Cache-Control"] = "private, max-age=3600"
+    places = []
+    for p in gc.populated(country, SMALLEST):
+        band = tier(p.population)
+        if band is not None:
+            places.append(
+                PlaceOut(
+                    name=p.name,
+                    admin1=p.admin1,
+                    lat=round(p.lat, 5),
+                    lng=round(p.lng, 5),
+                    population=p.population,
+                    tier=band,
+                )
+            )
+    return PlacesOut(country=country, places=places)
 
 
 @router.post(

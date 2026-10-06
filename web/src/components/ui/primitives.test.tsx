@@ -64,6 +64,21 @@ describe('Button', () => {
     expect(danger).toContain('btn--danger');
     expect(danger).not.toContain('style=');
   });
+
+  it('stays focusable when unavailable to this role, and says why (UI-17)', () => {
+    const markup = html(
+      <Button variant="primary" disabledReason="Only the owner can change geofences.">
+        New geofence
+      </Button>,
+    );
+    // aria-disabled, not disabled: a disabled button takes no focus, so its reason would be
+    // out of reach of the keyboard.
+    expect(markup).toContain('aria-disabled="true"');
+    expect(markup).not.toContain('disabled=""');
+    expect(markup).toContain('aria-describedby=');
+    expect(markup).toContain('role="tooltip"');
+    expect(textOf(markup)).toContain('Only the owner can change geofences.');
+  });
 });
 
 describe('IconButton', () => {

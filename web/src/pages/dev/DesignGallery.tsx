@@ -116,6 +116,13 @@ export default function DesignGallery(): React.JSX.Element {
           <Button icon="Download">Export CSV</Button>
           <Button variant="ghost">Cancel</Button>
           <Button variant="danger">Delete geofence</Button>
+          <Button
+            variant="primary"
+            icon="Add"
+            disabledReason="Only the owner can change geofences."
+          >
+            New geofence
+          </Button>
           <Button busy busyLabel="Sending…">
             Send test message
           </Button>

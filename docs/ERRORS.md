@@ -1935,6 +1935,141 @@ the delivery log covers the endpoint, so a regression fails the suite rather tha
 
 ---
 
+### E54 — zod's eval probe came back on every page once the header parsed a payload
+
+**Status:** Fixed before commit. **Milestone:** M6. **Date:** 2026-10-06.
+
+**Symptom.** The M6 Playwright walk reported `script-src` `eval` from the main chunk on every
+page, in all three engines -- the violation E44 had removed.
+
+**Root cause.** E44's fix, `z.config({ jitless: true })`, ran as a side effect of
+`api/schemas.ts`. Until M6 only lazy pages parsed payloads, and every one of them imported
+`schemas.ts` first. M6's header bell parses the outbox counts on first paint, from the main
+chunk, with a schema from `api/geofences.ts` -- before any page had loaded `schemas.ts`. zod's
+first object parse probed `new Function`, and the CSP reported it.
+
+**Fix.** `api/zod.ts` configures zod and re-exports it; it is the only module that imports
+`zod`. `schemas.ts`, `geofences.ts` and the test import `z` from it, so no schema can exist
+before the configuration does.
+
+**Prevention.** ESLint's `no-restricted-imports` forbids importing `zod` anywhere else (type
+imports allowed). A configuration that must precede every use lives in the module every use
+imports, never beside one of its users.
+
+**Related:** ERRORS E44, DESIGN UI-3.
+
+---
+
+### E55 — Leaving the geofence editor threw `_leaflet_pos`
+
+**Status:** Fixed before commit. **Milestone:** M6. **Date:** 2026-10-06.
+
+**Symptom.** The M6 walk recorded a page error, `Cannot read properties of undefined (reading
+'_leaflet_pos')`, when navigating away from the geofence editor.
+
+**Root cause.** React runs a component's effect cleanups in declaration order. The map's own
+effect, declared first, removed the map; the outline, shape and draw-tool effects then cleaned
+up against the removed map, and Leaflet read the position of a pane that no longer existed.
+
+**Fix.** Each later cleanup does nothing once `map.current` is no longer its map (removing the
+map removed its layers). `fitBounds` is no longer animated, so no animation outlives the map.
+
+**Prevention.** In a component that owns a Leaflet map, every effect cleanup other than the
+map's own checks that the map it captured is still the current one.
+
+**Related:** DESIGN §16.
+
+---
+
+### E56 — Alerts queued by the integration suite were delivered to the owner's Telegram
+
+**Status:** Fixed. **Milestone:** M6. **Date:** 2026-10-06.
+
+**Symptom.** The M6 delivery log showed 28 "Delivered" alerts for visits on "Integration
+link". They had been sent to the owner's real Telegram chat at 11:57:43–11:58:12 UTC, seconds
+after the dev API was restarted on the M6 code.
+
+**Root cause.** The integration suite shares the dev database and pauses the API while it
+runs (E36). Its inference tests now queue an alert for every human visit (F7.AC5), and nothing
+removed those rows. When the API came back with the outbox worker, the rows were due, and it
+delivered them -- through the real bot, to the real chat, because the dev server is configured
+exactly like production. A second path was open too: a test visit left uninferred would be
+inferred by the live job later and alert then.
+
+**Fix.** An autouse fixture in the integration `conftest.py` deletes, after every test, the
+outbox rows the test queued (by id high-water mark) and the visits it left uninferred on links
+it created. A check afterwards found no undelivered outbox row and no uninferred visit on any
+link. Nothing else was sent.
+
+**Consequence.** The 28 messages cannot be recalled from Telegram; they carry test data only
+(test links, test visitors, no real address).
+
+**Prevention.** Anything a test leaves in the shared database that a *running* system acts on
+-- queued messages, unprocessed visits, active geofences (E52) -- is removed by a fixture, not
+by the test's good intentions. Before a live worker is started against a database tests have
+used, its queue is inspected.
+
+**Related:** ERRORS E36, E52; F7.AC5.
+
+---
+
+### E57 — A geofence circle was half hidden, or vanished, under the land
+
+**Status:** Fixed. **Milestone:** M6. **Date:** 2026-10-06. Reported by the owner.
+
+**Symptom.** A circle drawn across the coast showed only its sea half. A circle typed as a
+centre and radius inland did not appear at all. Separately, the delivery log, filtered to a
+status with no rows, showed only "No deliveries with this status" and no way back.
+
+**Root cause.** Two for the circle. (1) Leaflet draws every vector layer in one pane, ordered
+by when it was added. The country and state outlines are filled opaque, and that effect
+redraws them -- on a region toggle, a theme change -- *after* the shape, so the land was painted
+over it. Over the sea there was no fill, so that half showed. (2) The map moved to a shape
+only when a new one appeared (keyed on "there is a circle"), so a circle whose centre was
+typed elsewhere was redrawn off-screen and looked deleted. For the log: the Panel's empty
+state replaces its whole body, and the status filter lived in the body.
+
+**Fix.** Outlines and places get their own panes below the shapes' (z 350 and 380 under
+Leaflet's 400), so the order is structural rather than temporal. The map moves to a shape
+whenever it is out of view or under 40 px across, and typed values are applied after a
+half-second pause, so the map does not chase each keystroke. The log's empty state is shown
+only when nothing was ever queued; a filter with no rows answers inside the log, filter
+still there, with "Show all deliveries". Each was checked in the browser.
+
+**Prevention.** On a Leaflet map with more than one kind of layer, every kind gets a pane
+with an explicit z-index. A filter is never inside the area its own empty state replaces.
+
+**Related:** DESIGN §16, UI-7.
+
+---
+
+### E58 — State names stuck on the editor's map after hovering
+
+**Status:** Fixed. **Milestone:** M6. **Date:** 2026-10-06. Reported by the owner.
+
+**Symptom.** In the geofence editor, state names shown on hover ("Missouri", "Kentucky")
+stayed on the map after the pointer had left them, several at once.
+
+**Root cause.** The names were Leaflet `sticky` tooltips bound to each outline. The outlines
+are rebuilt whenever the picked regions, the tool, the country or the theme change -- for
+instance on the click that picks a state, with the pointer still over it. Removing a layer
+whose tooltip is open leaves the tooltip element behind in the tooltip pane, owned by nothing,
+and nothing ever closes it.
+
+**Fix.** No hover tooltips on outlines at all. Country and state names are printed on the map
+as permanent, non-interactive labels at the centre of each area's largest part, in one
+collision pass with the city names (metros first, then areas, then other cities), and only
+where the area has room for its name. The owner asked for exactly this. Checked in
+Chromium, Firefox and WebKit: zero stray tooltips after sweeping the pointer across the
+states.
+
+**Prevention.** A tooltip on a layer that is rebuilt while it may be hovered is a leak. Names
+that identify areas are drawn as labels; hover is for transient emphasis only (an outline).
+
+**Related:** E57, DESIGN §16.
+
+---
+
 Add entries here as bugs are found and fixed. Use the next available `E<n>` identifier and
 the same structure: symptom, root cause, fix, **prevention**.
 

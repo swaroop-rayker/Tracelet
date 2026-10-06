@@ -8,13 +8,9 @@
  * drift surfaces at build time, not as a `TypeError` inside a chart (ADR-0003).
  */
 
-import { z } from 'zod';
 import type { components } from '@/api/generated/schema';
-
-// zod's fast path probes for `new Function` on the first object parse. `script-src 'self'`
-// blocks it, the throw is caught, and the browser still reports a CSP violation on every
-// page load (docs/ERRORS.md E44). Jitless skips the probe; the slower path is what ran anyway.
-z.config({ jitless: true });
+// Configured for the CSP (ERRORS E44, E54): never import zod directly.
+import { z } from '@/api/zod';
 
 type S = components['schemas'];
 

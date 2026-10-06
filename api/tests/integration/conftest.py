@@ -64,6 +64,31 @@ async def _clear_rate_limits(db_app: object) -> AsyncIterator[None]:
 
 
 @pytest.fixture(autouse=True)
+async def _leave_nothing_to_alert_on(db_app: object) -> AsyncIterator[None]:
+    """The suite shares the dev database, whose live API delivers real Telegram alerts
+    (ERRORS E56). After each test: delete the outbox rows it queued, and the visits it left
+    uninferred on links it created -- the live inference job would otherwise infer them
+    and alert on them. The API is paused during the suite, so nothing else writes meanwhile.
+    """
+    del db_app
+    async with session_scope() as db:
+        high_water = (
+            await db.execute(text("SELECT coalesce(max(id), 0) FROM outbox"))
+        ).scalar_one()
+        started = (await db.execute(text("SELECT now()"))).scalar_one()
+    yield
+    async with session_scope() as db:
+        await db.execute(text("DELETE FROM outbox WHERE id > :h"), {"h": high_water})
+        await db.execute(
+            text(
+                "DELETE FROM visits WHERE inferred_at IS NULL AND stage <> 'rate_limited' "
+                "AND link_id IN (SELECT id FROM links WHERE created_at >= :t)"
+            ),
+            {"t": started},
+        )
+
+
+@pytest.fixture(autouse=True)
 async def _purge_test_admins(db_app: object) -> AsyncIterator[None]:
     """Delete the accounts a test created, afterwards."""
     del db_app

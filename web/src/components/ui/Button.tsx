@@ -21,6 +21,12 @@ export interface ButtonProps extends Omit<ButtonHTMLAttributes<HTMLButtonElement
   readonly busyLabel?: ReactNode;
   readonly type?: 'button' | 'submit' | 'reset';
   readonly ref?: React.Ref<HTMLButtonElement>;
+  /**
+   * Visible but unavailable, and why (UI-17): "Only the owner can create geofences". The
+   * button stays focusable (`aria-disabled`, not `disabled`), so the reason is reachable by
+   * keyboard and hover, and a press does nothing.
+   */
+  readonly disabledReason?: string | null;
 }
 
 export function Button({
@@ -32,10 +38,35 @@ export function Button({
   type = 'button',
   className,
   disabled,
+  disabledReason,
   children,
+  onClick,
   ...rest
 }: ButtonProps): React.JSX.Element {
   const Glyph = icon === undefined ? null : Icon[icon];
+  if (disabledReason !== undefined && disabledReason !== null) {
+    return (
+      <Tooltip content={disabledReason}>
+        {(describedBy) => (
+          <button
+            type="button"
+            className={cx(
+              'btn',
+              variant !== 'secondary' && `btn--${variant}`,
+              size === 'sm' && 'btn--sm',
+              className,
+            )}
+            aria-disabled="true"
+            aria-describedby={describedBy}
+            {...rest}
+          >
+            {Glyph !== null && <Glyph size={16} strokeWidth={1.75} aria-hidden="true" />}
+            {children}
+          </button>
+        )}
+      </Tooltip>
+    );
+  }
   return (
     <button
       type={type}
@@ -47,6 +78,7 @@ export function Button({
       )}
       disabled={disabled === true || busy}
       aria-busy={busy || undefined}
+      onClick={onClick}
       {...rest}
     >
       {busy ? (

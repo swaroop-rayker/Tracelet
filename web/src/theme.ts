@@ -38,6 +38,8 @@ export interface Palette {
   readonly surface2: string;
   readonly overlay: string;
   readonly accent: string;
+  /** A selected area's fill on the geofence editor (DESIGN §16). */
+  readonly accentBg: string;
   readonly ok: string;
   readonly warn: string;
   readonly error: string;
@@ -68,6 +70,7 @@ export function palette(): Palette {
     surface2: token(style, '--surface-2'),
     overlay: token(style, '--overlay'),
     accent: token(style, '--accent'),
+    accentBg: token(style, '--accent-bg'),
     ok: token(style, '--ok'),
     warn: token(style, '--warn'),
     error: token(style, '--error'),

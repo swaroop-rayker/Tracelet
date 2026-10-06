@@ -1319,6 +1319,44 @@ rail** and a right **inspector drawer**:
 - The notification bell in the header **appears with M6**, showing only dead-lettered
   deliveries. A count badge appears only when there are some.
 
+**As built in M6 (2026-10-06).**
+
+- **UI-24 exception, approved by the owner on 2026-10-06.** The editor's lazy chunk carries
+  Leaflet-Geoman: 74 KB gzipped JavaScript and 6.5 KB CSS, against a budget of +10 KB per route.
+  It loads only when an owner or analyst opens a geofence; no other page and no visitor ever
+  downloads it. The alternative, own drawing tools on Leaflet (ADR-0020's fallback), was
+  declined in favour of Geoman's tested vertex editing, drag and removal.
+- **Routes and navigation.** A "Configure" sidebar group: Geofences (`/geofences`,
+  `/geofences/new`, `/geofences/:id`; `g f`) and Alerts (`/alerts`; `g n`).
+- **The editor** follows the wireframe, with these decisions: Geoman's own toolbar is hidden
+  and the tool rail drives it; what the map draws is the editor's draft, so a drawn, typed or
+  imported shape is one thing; zoom stops at 9, where the ~1 km outlines are still within a few
+  pixels. **Two views** (owner decisions 2026-10-06): the world -- every country, named, no
+  cities -- where a click opens a country; and one country alone, the rest sea, with its
+  states and union territories named and its cities. "Country shown on the map" (World or a
+  country) and "Back to the world" sit above the map, so they are there for every shape.
+  A region geofence opens on its own country; "Pick all of India" picks the country key;
+  names are printed on the map, never hover tooltips (E58), and a hovered area only brightens
+  its outline. Fits use quarter zoom steps, so a country fills the map; the searchable list
+  covers every country and division, outlined or not; a
+  shape is sent on save only if it was changed, so an imported polygon keeps its holes. Delete
+  needs the geofence's name typed (UI-16).
+- **Cities and towns** of the chosen country, for orientation only (owner decision
+  2026-10-06): from GeoNames through `GET /api/v1/geofences/places`, so names are the engine's.
+  Population bands -- metro 4M+, tier 1 1M+, tier 2 300k+, tier 3 50k+ -- appear as the map
+  zooms in (metros always; tiers 1, 2 and 3 from zoom 5, 6 and 7) and are named a zoom later.
+  Names never overlap, in one pass: metro names, then area names (largest area first,
+  centred, nudged a line up or down if needed, never over a city's dot, and only where the
+  area has room), then the other cities; a city's name goes right of its dot, else left. Dots are not interactive, so drawing and region picking pass
+  through them. Layer order is fixed by panes: outlines, then places, then shapes (E57).
+- **Alerts** shows whether Telegram is configured and verified, never the token or chat id;
+  quiet hours are a switch, two `HH:MM` fields and a time zone; the delivery log polls every
+  15 s with its freshness shown, and its status filter and page are in the URL (`?status=dead`),
+  which is where the bell links.
+- **Analysts** can open every M6 screen. Writes are visible but unavailable, with the reason:
+  a new `Button` prop, `disabledReason`, renders `aria-disabled` (still focusable) with the
+  reason as its tooltip (UI-17). It is in the gallery and has a primitive test.
+
 ### M7 — System health and operations
 
 - **The health overview** reuses the KPI pattern: CPU, RAM, swap and disk as Stat cards with a

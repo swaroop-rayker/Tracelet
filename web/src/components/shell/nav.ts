@@ -2,8 +2,9 @@
  * The navigation, defined once (DESIGN §9.1): the sidebar, the breadcrumb, the command
  * palette and the `g` shortcuts all read this list, so they cannot disagree.
  *
- * Slots for later milestones (Geofences and Alerts in M6, System health in M7) are added
- * here when they ship -- never before, because a link to nothing is a dead control (UI-12).
+ * Slots for later milestones (System health in M7) are added here when they ship -- never
+ * before, because a link to nothing is a dead control (UI-12). Geofences and Alerts shipped
+ * in M6.
  */
 
 import type { IconName } from '@/components/icons';
@@ -89,6 +90,27 @@ export const NAV_GROUPS: readonly NavGroup[] = [
         filtered: true,
         key: 'd',
         hint: 'Bot and spoofing rules',
+      },
+    ],
+  },
+  {
+    label: 'Configure',
+    items: [
+      {
+        to: '/geofences',
+        label: 'Geofences',
+        icon: 'Geofences',
+        filtered: false,
+        key: 'f',
+        hint: 'Boundaries that decide high-priority alerts',
+      },
+      {
+        to: '/alerts',
+        label: 'Alerts',
+        icon: 'Alerts',
+        filtered: false,
+        key: 'n',
+        hint: 'Telegram, quiet hours and the delivery log',
       },
     ],
   },

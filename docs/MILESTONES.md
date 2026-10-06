@@ -23,7 +23,7 @@ then open the PR (CLAUDE.md section 2).
 | M5 | Dashboard analytics and visualisation | L | **[x] done** — 10 of 10 items; rollups p95 ≤ 70 ms at design load; raw fallback slow on long windows (R25); bugs E34–E36 |
 | M5.5 | Design system and UI polish (owner-directed 2026-10-02, approved 2026-10-03; docs/DESIGN.md) | L | **built** — 10 of 11 items; CSP 0 in Chromium, Firefox and WebKit; 72-image matrix; bugs E41–E47; open: hand keyboard walkthrough |
 | M5.6 | Dashboard enhancements and the Settings redesign, UI only (owner-approved 2026-10-06; docs/plans/ENHANCEMENTS-PLAN.md Phase A, SETTINGS-REDESIGN-PLAN.md) | M | **[x] built** — dashboard 6/6, Settings 6/6; CSP 0 in three engines; no server change; bugs E48–E50 |
-| M6 | Geofencing and Telegram notifications | M | [ ] |
+| M6 | Geofencing and Telegram notifications | M | **built** — 9 of 11; open: the owner's two Telegram receipt checks; bugs E52–E57 |
 | M7 | System health and operations | L | [ ] |
 | M8 | Accuracy hardening and ground truth | M | [ ] |
 | M9 | Production hardening and deploy | M | [ ] |
@@ -787,18 +787,22 @@ F9.AC6, F9.AC16–F9.AC18, NFR7. No new requirement: every item reads an existin
 - Advisory-locked scheduler
 
 **Done checklist**
-- [ ] Draw a polygon and a circle; both round-trip through edit without distortion
-- [ ] Self-intersecting ring rejected with the specific error code
-- [ ] Physically enter a geofence and **receive the high-priority alert on Telegram**
-- [ ] Outside visit receives a normal alert
-- [ ] Bot/crawler visit receives **nothing**
-- [ ] Second visit from the same visitor on the same local day sends **nothing** — proven
-  concurrently
-- [ ] **Abstaining inference yields `undetermined`, not `outside`** — integration test
-- [ ] Telegram outage: job retries, dead-letters, is visible, and manual retry delivers
-- [ ] **Rolled-back visit emits no notification** — transactional atomicity test (NFR5.AC2)
-- [ ] Geofence evaluation under 5 ms at p95
-- [ ] Docs: DATA_MODEL sections 6, 7 and API section 9 verified
+- [x] Draw a polygon and a circle; both round-trip through edit without distortion -- API tests
+  and the browser walk (drawn, vertex-edited, saved, reloaded)
+- [x] Self-intersecting ring rejected with the specific error code -- `GEOFENCE_INVALID_GEOMETRY`,
+  with the crossing marked on the map
+- [ ] Physically enter a geofence and **receive the high-priority alert on Telegram** -- owner,
+  on a phone; the path to the send is integration-tested
+- [ ] Outside visit receives a normal alert -- queued at normal priority (integration test);
+  receipt on Telegram is the owner's check with the one above
+- [x] Bot/crawler visit receives **nothing** -- integration test
+- [x] Second visit from the same visitor on the same local day sends **nothing** — proven
+  concurrently (two racing transactions, one row)
+- [x] **Abstaining inference yields `undetermined`, not `outside`** — integration test
+- [x] Telegram outage: job retries, dead-letters, is visible, and manual retry delivers
+- [x] **Rolled-back visit emits no notification** — transactional atomicity test (NFR5.AC2)
+- [x] Geofence evaluation under 5 ms at p95 -- 40 geofences on one link
+- [x] Docs: DATA_MODEL sections 6, 7 and API section 9 verified (and §9a, §10, §12)
 
 ---
 

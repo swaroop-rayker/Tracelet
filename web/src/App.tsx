@@ -40,6 +40,9 @@ const LinksPage = lazy(() => import('@/pages/dashboard/LinksPage'));
 const LinkDetailPage = lazy(() => import('@/pages/dashboard/LinkDetailPage'));
 const InferencePage = lazy(() => import('@/pages/dashboard/InferencePage'));
 const DetectionPage = lazy(() => import('@/pages/dashboard/DetectionPage'));
+const GeofencesPage = lazy(() => import('@/pages/configure/GeofencesPage'));
+const GeofenceEditorPage = lazy(() => import('@/pages/configure/GeofenceEditorPage'));
+const AlertsPage = lazy(() => import('@/pages/configure/AlertsPage'));
 const SettingsLayout = lazy(() => import('@/pages/settings/SettingsLayout'));
 const ProfilePage = lazy(() => import('@/pages/settings/ProfilePage'));
 const PreferencesPage = lazy(() => import('@/pages/settings/PreferencesPage'));
@@ -205,6 +208,10 @@ export default function App(): React.JSX.Element {
           <Route path="links/:slug" element={<Page component={LinkDetailPage} />} />
           <Route path="inference" element={<Page component={InferencePage} />} />
           <Route path="detection" element={<Page component={DetectionPage} />} />
+          <Route path="geofences" element={<Page component={GeofencesPage} />} />
+          <Route path="geofences/new" element={<Page component={GeofenceEditorPage} />} />
+          <Route path="geofences/:geofenceId" element={<Page component={GeofenceEditorPage} />} />
+          <Route path="alerts" element={<Page component={AlertsPage} />} />
           <Route path="settings" element={<Page component={SettingsLayout} />}>
             <Route index element={<Navigate to="profile" replace />} />
             <Route path="profile" element={<Page component={ProfilePage} />} />

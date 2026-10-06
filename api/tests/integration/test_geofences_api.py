@@ -29,6 +29,7 @@ from tracelet.config import Settings
 from tracelet.db.engine import session_scope
 from tracelet.geofence import regions
 from tracelet.geofence import router as geofence_router
+from tracelet.inference.geodb.geonames import PopulatedPlace
 from tracelet.inference.types import Candidate
 
 pytestmark = pytest.mark.integration
@@ -55,6 +56,16 @@ class _Placer:
             return c
         admin1 = "Karnataka" if 12 < c.lat < 14 and 77 < c.lng < 78 else "Maharashtra"
         return dataclasses.replace(c, country_code="IN", admin1=admin1)
+
+    def populated(self, country: str, min_population: int) -> list[PopulatedPlace]:
+        towns = [
+            PopulatedPlace(1, "Mumbai", "Maharashtra", 19.07, 72.88, 12_691_836),
+            PopulatedPlace(2, "Pune", "Maharashtra", 18.52, 73.86, 3_124_458),
+            PopulatedPlace(3, "Mysore", "Karnataka", 12.30, 76.64, 868_313),
+            PopulatedPlace(4, "Udupi", "Karnataka", 13.34, 74.75, 144_960),
+            PopulatedPlace(5, "Kundapura", "Karnataka", 13.63, 74.69, 30_444),
+        ]
+        return [t for t in towns if country == "IN" and t.population >= min_population]
 
 
 @pytest.fixture(autouse=True)
@@ -321,6 +332,33 @@ async def test_the_region_list_is_the_catalogue(owner: SignedIn) -> None:
     assert {"key": "IN|Karnataka", "code": "IN.19", "country": "IN", "name": "Karnataka"} in body[
         "divisions"
     ]
+
+
+async def test_a_countrys_places_come_with_their_tiers(owner: SignedIn) -> None:
+    """DESIGN §16: metro, tier 1, 2 and 3 by population; towns under 50,000 are left out."""
+    response = await owner.client.get(f"{FENCES}/places", params={"country": "IN"})
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert body["country"] == "IN"
+    assert [(p["name"], p["tier"]) for p in body["places"]] == [
+        ("Mumbai", "metro"),
+        ("Pune", "tier1"),
+        ("Mysore", "tier2"),
+        ("Udupi", "tier3"),
+    ]
+    assert body["places"][0]["admin1"] == "Maharashtra"
+    assert response.headers["cache-control"] == "private, max-age=3600"
+
+
+async def test_places_need_a_country_code_and_geonames(
+    owner: SignedIn, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    bad = await owner.client.get(f"{FENCES}/places", params={"country": "india"})
+    assert bad.status_code == 422
+    monkeypatch.setattr(geofence_router, "geocoder", lambda _settings: None)
+    missing = await owner.client.get(f"{FENCES}/places", params={"country": "IN"})
+    assert missing.status_code == 503
+    assert missing.json()["code"] == "GEO_DB_UNAVAILABLE"
 
 
 async def test_a_coordinate_is_tested_without_creating_a_visit(owner: SignedIn) -> None:

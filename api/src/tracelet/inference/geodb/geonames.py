@@ -58,6 +58,18 @@ class Place:
     distance_km: float
 
 
+@dataclass(frozen=True, slots=True)
+class PopulatedPlace:
+    """A place and its population, for the geofence editor's map (DESIGN §16)."""
+
+    geonameid: int
+    name: str
+    admin1: str | None
+    lat: float
+    lng: float
+    population: int
+
+
 def _haversine_km(lat1: float, lng1: float, lat2: float, lng2: float) -> float:
     p1, p2 = math.radians(lat1), math.radians(lat2)
     dphi, dlmb = p2 - p1, math.radians(lng2 - lng1)
@@ -115,6 +127,28 @@ class ReverseGeocoder:
 
     def __len__(self) -> int:
         return len(self._name)
+
+    def populated(self, country: str, min_population: int) -> list[PopulatedPlace]:
+        """Every place in ``country`` of at least ``min_population``, largest first.
+
+        A scan of the index (about 50 k entries); the editor asks once per country, and the
+        HTTP response is cached. Names are the index's, so a city is spelled as a strict
+        city is.
+        """
+        found = [
+            PopulatedPlace(
+                geonameid=self._ids[i],
+                name=self._name[i],
+                admin1=self._admin1[i],
+                lat=self._lat[i],
+                lng=self._lng[i],
+                population=self._population[i],
+            )
+            for i in range(len(self._name))
+            if self._country[i] == country and self._population[i] >= min_population
+        ]
+        found.sort(key=lambda p: (-p.population, p.name))
+        return found
 
     def nearest(self, lat: float, lng: float, max_km: float) -> Place | None:
         cell = (math.floor(lat), math.floor(lng))

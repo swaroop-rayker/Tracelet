@@ -640,6 +640,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/geofences/places": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * A country's cities and towns, by population tier, for the editor's map
+         * @description Places of 50,000 people or more, from the GeoNames table the engine names cities from, largest first, each with its tier (metro 4M+, tier 1 1M+, tier 2 300k+, tier 3 50k+). 503 until GeoNames is installed.
+         */
+        get: operations["list_places_api_v1_geofences_places_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/geofences/regions": {
         parameters: {
             query?: never;
@@ -2175,12 +2195,33 @@ export interface components {
          * @enum {string}
          */
         OutboxStatus: "pending" | "in_flight" | "done" | "failed" | "dead";
+        /** PlaceOut */
+        PlaceOut: {
+            /** Admin1 */
+            admin1: string | null;
+            /** Lat */
+            lat: number;
+            /** Lng */
+            lng: number;
+            /** Name */
+            name: string;
+            /** Population */
+            population: number;
+            tier: components["schemas"]["Tier"];
+        };
         /** PlacedOut */
         PlacedOut: {
             /** Admin1 */
             admin1: string | null;
             /** Country Code */
             country_code: string | null;
+        };
+        /** PlacesOut */
+        PlacesOut: {
+            /** Country */
+            country: string;
+            /** Places */
+            places: components["schemas"]["PlaceOut"][];
         };
         /** PointCluster */
         PointCluster: {
@@ -2578,6 +2619,11 @@ export interface components {
              */
             country: number;
         };
+        /**
+         * Tier
+         * @enum {string}
+         */
+        Tier: "metro" | "tier1" | "tier2" | "tier3";
         /** TimeSeries */
         TimeSeries: {
             bucket: components["schemas"]["Grain"];
@@ -4014,6 +4060,37 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["GeofenceOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_places_api_v1_geofences_places_get: {
+        parameters: {
+            query: {
+                country: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PlacesOut"];
                 };
             };
             /** @description Validation Error */

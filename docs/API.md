@@ -615,6 +615,7 @@ measure strict: what the engine was willing to state. A figure the system cannot
 | `POST` | `/api/v1/geofences` | owner | Create |
 | `GET`/`PATCH`/`DELETE` | `/api/v1/geofences/{id}` | any / owner / owner | |
 | `GET` | `/api/v1/geofences/regions` | any | Every country and first-order division a region geofence can name (ADR-0020) |
+| `GET` | `/api/v1/geofences/places` | any | A country's cities and towns by population tier, for the editor's map |
 | `POST` | `/api/v1/geofences/test` | any | A coordinate → each geofence's result, **creates no visit** (F6.AC10) |
 | `POST` | `/api/v1/geofences/import` | owner | GeoJSON `FeatureCollection` (F6.AC9) |
 | `GET` | `/api/v1/geofences/export` | any | The same `FeatureCollection` format, so an export re-imports unchanged |
@@ -683,6 +684,16 @@ codes the table covers; their names are the browser's (`Intl.DisplayNames`), bec
 has no country-name table and matching needs none. `503 GEO_DB_UNAVAILABLE` until the
 GeoNames admin1 file is installed, and creating a region geofence fails the same way.
 `Cache-Control: private, max-age=3600`; it changes only with a geo-database update (M7).
+
+### `GET /api/v1/geofences/places?country=IN`
+
+The country's cities and towns of 50,000 people or more, largest first, for the editor's map
+(DESIGN §16): `{country, places: [{name, admin1, lat, lng, population, tier}]}`. From the
+GeoNames table the engine names cities from, so a name is spelled as a strict city is. `tier`
+is a population band, the same for every country (owner decision 2026-10-06): `metro` 4M+,
+`tier1` 1M+, `tier2` 300k+, `tier3` 50k+. Populations are GeoNames' city-proper figures.
+`country` must be an upper-case ISO code (`422` otherwise); `503 GEO_DB_UNAVAILABLE` until
+GeoNames is installed. `Cache-Control: private, max-age=3600`.
 
 ### `POST /api/v1/geofences/test`
 

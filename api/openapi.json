@@ -3005,6 +3005,50 @@
         "title": "OutboxStatus",
         "type": "string"
       },
+      "PlaceOut": {
+        "properties": {
+          "admin1": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Admin1"
+          },
+          "lat": {
+            "title": "Lat",
+            "type": "number"
+          },
+          "lng": {
+            "title": "Lng",
+            "type": "number"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "population": {
+            "title": "Population",
+            "type": "integer"
+          },
+          "tier": {
+            "$ref": "#/components/schemas/Tier"
+          }
+        },
+        "required": [
+          "name",
+          "admin1",
+          "lat",
+          "lng",
+          "population",
+          "tier"
+        ],
+        "title": "PlaceOut",
+        "type": "object"
+      },
       "PlacedOut": {
         "properties": {
           "admin1": {
@@ -3035,6 +3079,27 @@
           "admin1"
         ],
         "title": "PlacedOut",
+        "type": "object"
+      },
+      "PlacesOut": {
+        "properties": {
+          "country": {
+            "title": "Country",
+            "type": "string"
+          },
+          "places": {
+            "items": {
+              "$ref": "#/components/schemas/PlaceOut"
+            },
+            "title": "Places",
+            "type": "array"
+          }
+        },
+        "required": [
+          "country",
+          "places"
+        ],
+        "title": "PlacesOut",
         "type": "object"
       },
       "PointCluster": {
@@ -3996,6 +4061,16 @@
         },
         "title": "Thresholds",
         "type": "object"
+      },
+      "Tier": {
+        "enum": [
+          "metro",
+          "tier1",
+          "tier2",
+          "tier3"
+        ],
+        "title": "Tier",
+        "type": "string"
       },
       "TimeSeries": {
         "properties": {
@@ -9512,6 +9587,50 @@
           }
         },
         "summary": "Create geofences from GeoJSON, all or nothing",
+        "tags": [
+          "geofences"
+        ]
+      }
+    },
+    "/api/v1/geofences/places": {
+      "get": {
+        "description": "Places of 50,000 people or more, from the GeoNames table the engine names cities from, largest first, each with its tier (metro 4M+, tier 1 1M+, tier 2 300k+, tier 3 50k+). 503 until GeoNames is installed.",
+        "operationId": "list_places_api_v1_geofences_places_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "country",
+            "required": true,
+            "schema": {
+              "pattern": "^[A-Z]{2}$",
+              "title": "Country",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlacesOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "A country's cities and towns, by population tier, for the editor's map",
         "tags": [
           "geofences"
         ]
