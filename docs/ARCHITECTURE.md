@@ -139,7 +139,8 @@ GET /r/{slug}        (bare /r and /r/ resolve the default link instead — F1.AC
         ├─ classification: weighted rules → bot_score, spoof_score  [F5]
         ├─ location inference: 11 sources → consensus → strict +    [F4]
         │    advisory + agreement/conflict + candidate rows
-        ├─ geofence eval: ST_Covers over GiST                       [F6.AC5]
+        ├─ geofence eval: regions on strict codes; shapes by        [F6.AC5]
+        │    ST_Covers over GiST, only with a geopoint      [ADR-0020]
         └─ ══ SAME TRANSACTION ══ outbox INSERT with dedup_key      [F7.AC5]
                   ▼
         outbox worker → Telegram, backoff + jitter, dead-letter      [F7.AC6]
@@ -772,7 +773,7 @@ not a dependency (ADR-0003 amendment).
 | `uvicorn[standard]`, `gunicorn` | ASGI server plus worker supervision with request recycling | uvicorn alone (no supervision or recycling) |
 | `pydantic`, `pydantic-settings` | Strict typing at every boundary and typed configuration from the environment | hand-rolled validation |
 | `sqlalchemy[asyncio]` 2.0 | Typed 2.0 mappings for admin CRUD; the hot capture path uses raw SQL on the same pool | raw asyncpg only (loses migrations tooling and typed models) |
-| `geoalchemy2` | PostGIS column types in SQLAlchemy. **Not installed until M6**, which is the first code to read or write geometry; M2 adds `visits.geopoint` with plain DDL and leaves it unmapped | raw SQL for all geometry |
+| `geoalchemy2` | PostGIS column types in SQLAlchemy. **Still not installed in M6.** Geofence evaluation reads geometry only inside one `ST_Covers` query, so `geofences.area` and `center` stay unmapped like `visits.geopoint`, and every statement that touches them names its PostGIS function in SQL. Install it only if the geofence editor's reads and writes become unwieldy without it | raw SQL for all geometry (chosen so far) |
 | `alembic` | Forward-only reviewed migrations. Worth the dependency on its own | hand-written SQL migrations |
 | `asyncpg` | Fastest async PostgreSQL driver | psycopg3 async (comparable; asyncpg chosen for pool ergonomics) |
 | `psycopg[binary]` | **Sync** driver, used by Alembic only. Migrations have no reason to be async, and a sync driver makes a failed migration far easier to read | running Alembic on asyncpg (works, but every failure arrives wrapped in async machinery) |

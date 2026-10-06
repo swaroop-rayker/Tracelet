@@ -9,6 +9,7 @@ same way: the application validates first, and these are the floor beneath it.
 from __future__ import annotations
 
 import uuid
+from collections.abc import AsyncIterator
 
 import pytest
 from httpx import AsyncClient
@@ -85,10 +86,20 @@ async def test_an_abstaining_visit_can_be_undetermined(db_client: AsyncClient) -
 # ---------------------------------------------------------------------------
 
 
+@pytest.fixture(autouse=True)
+async def _remove_test_geofences(db_app: object) -> AsyncIterator[None]:
+    """The suite shares the dev database: leave no geofence behind."""
+    del db_app
+    yield
+    async with session_scope() as db:
+        await db.execute(text("DELETE FROM geofences WHERE name LIKE 'itest %'"))
+
+
 async def _insert_geofence(columns: dict[str, str]) -> None:
     """Insert one geofence from SQL expressions, so a test can write what the
-    application never would."""
-    row = {"id": "gen_random_uuid()", "name": "'Test fence'", **columns}
+    application never would. Inactive, so no visit inferred meanwhile is evaluated
+    against it."""
+    row = {"id": "gen_random_uuid()", "name": "'itest fence'", "is_active": "false", **columns}
     names = ", ".join(row)
     values = ", ".join(row.values())
     async with session_scope() as db:
