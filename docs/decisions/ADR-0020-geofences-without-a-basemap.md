@@ -113,6 +113,26 @@ with `ST_Covers(area, geopoint)`. Since then, three facts have changed what that
    circle with centre and radius handles. Geoman's free edition would be added to the ledger
    with its measured gzipped size.
 
+## Spike results (2026-10-06)
+
+Decision 8's spike: Leaflet 1.9.4 and Geoman 2.20.2 (free, MIT) on a page with no tiles and
+every tool enabled, built into the production SPA and served by Caddy with its exact CSP
+header. Playwright drove each tool in Chromium, Firefox and WebKit: a polygon closed on its
+first vertex, a rectangle, a circle, edit mode (ten vertex markers; one dragged), drag mode
+(the polygon moved), removal mode (the circle deleted). A `securitypolicyviolation`
+listener was registered by an init script before any page script (ERRORS E44).
+
+| Engine | Geoman violations | Positive controls caught | Page errors |
+|---|---|---|---|
+| Chromium | 0 | `style-src-elem`, `style-src-attr`, `img-src` | 0 |
+| Firefox | 0 | `style-src-elem`, `style-src-attr`, `img-src` | 0 |
+| WebKit | 0 | `style-src-elem`, `style-src-attr`, `img-src` | 0 |
+
+Statically, too: Geoman writes no `style` attribute, no `<style>` element and no `cssText`;
+its one `innerHTML` sets its own toolbar labels. It positions with CSSOM properties, which a
+CSP does not govern. **Geoman is kept.** Cost: 74 KB gzipped JavaScript (with lodash, turf and
+polyclip-ts) and 6.5 KB of CSS, in the editor's lazy chunk only. The spike page was removed.
+
 ## Alternatives considered
 
 | Option | Why not |
