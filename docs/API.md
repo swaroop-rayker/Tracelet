@@ -611,32 +611,108 @@ measure strict: what the engine was willing to state. A figure the system cannot
 
 | Method | Path | Role | Purpose |
 |---|---|---|---|
-| `GET` | `/api/v1/geofences` | any | List, GeoJSON geometry included |
+| `GET` | `/api/v1/geofences` | any | List, geometry as GeoJSON, with `matches_7d` |
 | `POST` | `/api/v1/geofences` | owner | Create |
 | `GET`/`PATCH`/`DELETE` | `/api/v1/geofences/{id}` | any / owner / owner | |
-| `POST` | `/api/v1/geofences/test` | any | `{lat, lng}` → matching zones, **creates no visit** (F6.AC10) |
+| `GET` | `/api/v1/geofences/regions` | any | Every country and first-order division a region geofence can name (ADR-0020) |
+| `POST` | `/api/v1/geofences/test` | any | A coordinate → each geofence's result, **creates no visit** (F6.AC10) |
 | `POST` | `/api/v1/geofences/import` | owner | GeoJSON `FeatureCollection` (F6.AC9) |
-| `GET` | `/api/v1/geofences/export` | any | GeoJSON |
+| `GET` | `/api/v1/geofences/export` | any | The same `FeatureCollection` format, so an export re-imports unchanged |
 
-**Create body**
+Every write is owner-only and writes an `audit_log` row (CLAUDE.md invariant 9):
+`geofence.created`, `geofence.updated` (with the fields that changed, old and new),
+`geofence.deleted`, `geofence.imported` (with the count).
+
+**Three shapes** (ADR-0020). The body names one with `shape_kind` and carries only that
+shape's fields:
+
+```json
+{ "name": "Karnataka", "shape_kind": "region", "region_keys": ["IN|Karnataka"],
+  "priority": 10, "is_active": true, "notify_priority": "high", "link_ids": null }
+
+{ "name": "Home 2km", "shape_kind": "circle",
+  "center": { "lat": 12.9716, "lng": 77.5946 }, "radius_m": 2000,
+  "priority": 100, "is_active": true, "notify_priority": "high", "link_ids": null }
+
+{ "name": "Office campus", "shape_kind": "polygon",
+  "geometry": { "type": "Polygon", "coordinates": [[[77.60, 12.97], [77.61, 12.97], [77.61, 12.98], [77.60, 12.97]]] },
+  "priority": 20, "is_active": true, "notify_priority": "normal", "link_ids": ["…"] }
+```
+
+- `name` 1 to 100 characters, `description` optional. `priority` an integer, higher wins on
+  overlap (F6.AC7); default 0. `notify_priority` `high`, `normal` or `silent`, default
+  `high`; it is combined with the link's `notify_policy.inside`, the less urgent winning
+  (SPEC §11 row 18). `link_ids` `null` for every link, or a non-empty list of existing links.
+- **region:** 1 to 1000 keys. A key is a country, `IN`, or a division qualified by its
+  country, `IN|Karnataka`, spelled exactly as `/geofences/regions` lists it. Matched on the
+  strict country and strict state only, never on advisory fields.
+- **circle:** `radius_m` from 50 to 1 000 000. Stored buffered as a 64-sided polygon; the
+  centre and radius are kept, so the circle edits as a circle.
+- **polygon:** a GeoJSON `Polygon` in longitude, latitude order (RFC 7946), holes allowed,
+  each ring closed, at most 2000 points in all.
+- `PATCH` takes any subset. Changing `shape_kind` requires that shape's fields too.
+
+**Response** — the body above plus `id`, `geometry` for a circle as well (the buffered
+polygon, for drawing), `unknown_region_keys` (keys no longer in the catalogue, for example
+after a GeoNames rename; flagged, never silently dropped), `matches_7d` (visits inside it in
+the last 7 days), `created_by`, `created_at`, `updated_at`.
+
+**Errors** (`422`, field-level): `GEOFENCE_INVALID_GEOMETRY` for a self-intersecting or
+otherwise invalid ring, carrying PostGIS's reason and the offending location as
+`{lat, lng}` so the editor can mark it on the map; `GEOFENCE_TOO_MANY_VERTICES` above 2000
+(F6.AC4); `GEOFENCE_UNKNOWN_REGION` for a key the catalogue does not list. A key that
+becomes unknown *later* is kept and reported in `unknown_region_keys`.
+
+### `GET /api/v1/geofences/regions`
 
 ```json
 {
-  "name": "Home 2km",
-  "shape_kind": "circle",
-  "center": { "lat": 12.9716, "lng": 77.5946 },
-  "radius_m": 2000,
-  "priority": 100,
-  "is_active": true,
-  "notify_on_enter": true,
-  "notify_priority": "high",
-  "link_ids": null
+  "countries": [{ "key": "IN", "name": "India" }],
+  "divisions": [{ "key": "IN|Karnataka", "country": "IN", "name": "Karnataka", "has_outline": true }]
 }
 ```
 
-Polygons are supplied as GeoJSON `Polygon`. Validation errors are specific:
-`422 GEOFENCE_INVALID_GEOMETRY` for a self-intersecting ring, `422
-GEOFENCE_TOO_MANY_VERTICES` above 2000 (F6.AC4).
+Built from the GeoNames admin1 table the engine names states from, so every key is
+spelled as a strict state is. `has_outline` is false for the divisions the map cannot draw
+(about 13 %), which can still be picked from the list. Cacheable; it changes only with a
+geo-database update (M7).
+
+### `POST /api/v1/geofences/test`
+
+`{lat, lng}` → the coordinate is treated as a consented GPS fix: it is the geopoint, and
+its country and state are named from GeoNames, as S1's are (F4.AC5).
+
+```json
+{
+  "placed": { "country_code": "IN", "admin1": "Karnataka" },
+  "state": "inside",
+  "results": [
+    { "geofence_id": "…", "name": "Karnataka", "result": "inside", "reason": null },
+    { "geofence_id": "…", "name": "Office campus", "result": "outside", "reason": null }
+  ]
+}
+```
+
+Only active geofences are tested, for every link. `state` combines them as a visit's
+would (ADR-0020 decision 5), `null` with no active geofence. `reason` explains an
+`undetermined` result, for example `no_strict_admin1` for a coordinate GeoNames cannot
+place in a state.
+
+### Import and export
+
+A `FeatureCollection`. A polygon is a `Polygon` feature; a circle is a `Point` feature with
+`properties.radius_m`; a region is a feature with `geometry: null` and
+`properties.region_keys`. Every other field is a property (`name`, `description`,
+`priority`, `is_active`, `notify_priority`, `link_ids`). Import is **all or nothing**: one
+invalid feature fails the request with field-level errors addressed as
+`features[3].geometry`, and nothing is saved. Up to 200 features, inside the 1 MiB body cap.
+Imported geofences are new; `id` properties are ignored.
+
+### Evaluation (ADR-0015, ADR-0020)
+
+Geofences are evaluated inside the inference job's transaction, never on the capture path:
+a visit's `geofence_state` and `matched_geofence_ids` change only when it is inferred.
+Editing a geofence does not re-evaluate past visits; `matches_7d` counts what was recorded.
 
 ---
 
@@ -748,8 +824,9 @@ no SQL, no internal hostname (F15.AC3). The detail is written to the log under t
 | `DEFAULT_LINK_REQUIRED` | 409 | Would leave no default link |
 | `NONCE_INVALID` | 410 | Enrichment nonce expired, consumed, or mismatched |
 | `IP_PURGED` | 410 | Encrypted IP past its TTL. **Expected, not a fault** |
-| `GEOFENCE_INVALID_GEOMETRY` | 422 | Failed `ST_IsValid` |
+| `GEOFENCE_INVALID_GEOMETRY` | 422 | Failed `ST_IsValid`; carries the reason and the location |
 | `GEOFENCE_TOO_MANY_VERTICES` | 422 | Above 2000 |
+| `GEOFENCE_UNKNOWN_REGION` | 422 | A region key `/geofences/regions` does not list (ADR-0020) |
 | `PAYLOAD_TOO_LARGE` | 413 | Body above cap |
 | `RATE_LIMITED` | 429 | `Retry-After` set (F11.AC10) |
 | `GEO_DB_UNAVAILABLE` | 503 | A source is missing or corrupt; inference degraded, not failed |
