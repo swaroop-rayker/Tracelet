@@ -1349,6 +1349,9 @@ rail** and a right **inspector drawer**:
   centred, nudged a line up or down if needed, never over a city's dot, and only where the
   area has room), then the other cities; a city's name goes right of its dot, else left. Dots are not interactive, so drawing and region picking pass
   through them. Layer order is fixed by panes: outlines, then places, then shapes (E57).
+  Dots and every name are drawn on one canvas, only for the visible map, so zooming and
+  panning stay smooth with a country's thousand-odd places (E59); the canvas lets clicks
+  through to the map.
 - **Alerts** shows whether Telegram is configured and verified, never the token or chat id;
   quiet hours are a switch, two `HH:MM` fields and a time zone; the delivery log polls every
   15 s with its freshness shown, and its status filter and page are in the URL (`?status=dead`),

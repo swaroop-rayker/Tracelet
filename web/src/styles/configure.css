@@ -184,56 +184,18 @@
   gap: var(--space-3);
 }
 
-/* Country and state names, printed on the map: quiet spaced capitals, no box, no dot. */
-.leaflet-tooltip.area-label {
-  padding: 0;
-  border: 0;
-  background: transparent;
-  box-shadow: none;
-  color: var(--text-subtle);
+/* The editor map's names and city dots, one canvas (E59). Never in the way of a click, and
+   hidden mid-zoom rather than shown stretched. Its font is the UI font, read by the canvas. */
+.name-canvas {
+  position: absolute;
+  top: 0;
+  left: 0;
+  pointer-events: none;
   font-family: var(--font-ui);
-  font-size: var(--fs-meta);
-  font-weight: 500;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  white-space: nowrap;
-  text-shadow:
-    0 0 2px var(--map-land),
-    0 0 2px var(--map-land);
 }
 
-.leaflet-tooltip.area-label::before {
-  display: none;
-}
-
-.leaflet-tooltip.area-label--country {
-  color: var(--text-muted);
-  letter-spacing: 0.03em;
-  text-transform: none;
-}
-
-/* City and town names on the editor's map: quiet text over the outlines, not Leaflet's white
-   tooltip box. The halo keeps a name legible where it crosses a boundary line. */
-.leaflet-tooltip.place-label {
-  padding: 0;
-  border: 0;
-  background: transparent;
-  box-shadow: none;
-  color: var(--text-muted);
-  font-family: var(--font-ui);
-  font-size: var(--fs-meta);
-  text-shadow:
-    0 0 2px var(--map-sea),
-    0 0 2px var(--map-sea);
-}
-
-.leaflet-tooltip.place-label::before {
-  display: none;
-}
-
-.leaflet-tooltip.place-label--metro {
-  color: var(--text);
-  font-weight: 600;
+.name-canvas--hidden {
+  visibility: hidden;
 }
 
 /* --- alerts ------------------------------------------------------------------------- */

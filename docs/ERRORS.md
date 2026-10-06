@@ -2070,6 +2070,35 @@ that identify areas are drawn as labels; hover is for transient emphasis only (a
 
 ---
 
+### E59 — Zooming the country map stuttered, worse with every zoom
+
+**Status:** Fixed. **Milestone:** M6. **Date:** 2026-10-06. Reported by the owner.
+
+**Symptom.** Zooming into a country in the geofence editor lagged while the city dots and
+names appeared. Measured in Chromium, zooming India from its fitted view to the maximum: main
+-thread long tasks of 99 ms and 84 ms, and after five steps **1,605 city-name elements in the
+page for 1,110 cities**.
+
+**Root cause.** Each city name was a permanent Leaflet tooltip on an SVG dot, and every zoom
+cleared and rebuilt all of them -- every city in the country, on screen or not. The rebuild
+did not remove every tooltip element (the count grew past the number of cities), and Leaflet
+repositions every tooltip on every frame of a zoom animation, so the work grew with each zoom.
+The collision test also compared each name against every name placed so far.
+
+**Fix.** Dots, city names and area names are drawn on one canvas in the places pane: no DOM
+element per name, so nothing to leak or reposition. Only what is on screen (plus a margin) is
+drawn, at most once per animation frame while panning, and the canvas is hidden mid-zoom and
+redrawn once at the end. Collisions use a uniform grid. After: no long task while zooming or
+panning, no name elements in the page, and the same names drawn (31 countries, 18 Indian
+states, all 8 metros at the fitted view) in Chromium, Firefox and WebKit.
+
+**Prevention.** Anything drawn in the hundreds on a map is drawn on a canvas, never one DOM
+element each. A layer that redraws on zoom draws only the viewport.
+
+**Related:** E58, DESIGN §16.
+
+---
+
 Add entries here as bugs are found and fixed. Use the next available `E<n>` identifier and
 the same structure: symptom, root cause, fix, **prevention**.
 

@@ -191,6 +191,246 @@ const LABEL_CHAR_W = 7;
 /** Area names are smaller spaced capitals: about 7.5 px a letter. */
 const AREA_CHAR_W = 7.5;
 
+/**
+ * Cities and area names, drawn on one canvas in the places pane (E59).
+ *
+ * Layout per redraw, all in screen pixels and only for what is on screen (plus a margin):
+ * every visible city's dot reserves its own box; then metro names; then area names, largest
+ * area first, centred or nudged a line up or down, never over a dot, and only where the area
+ * has room; then the other cities' names, right of the dot or else left. A uniform grid keeps
+ * the collision test near-constant per label instead of a scan of every label placed.
+ */
+class NameLayer extends L.Layer {
+  private canvas: HTMLCanvasElement | null = null;
+  private frame = 0;
+
+  constructor(
+    private readonly places: readonly MapPlace[],
+    private readonly anchors: readonly Anchor[],
+  ) {
+    super({ pane: PLACE_PANE });
+  }
+
+  override onAdd(map: L.Map): this {
+    const canvas = L.DomUtil.create('canvas', 'name-canvas', map.getPane(PLACE_PANE));
+    this.canvas = canvas;
+    map.on('move zoomend resize viewreset', this.schedule);
+    // Mid-zoom the pane is scaled by CSS; hide rather than show stretched text.
+    map.on('zoomstart', this.hide);
+    this.redraw();
+    return this;
+  }
+
+  override onRemove(map: L.Map): this {
+    map.off('move zoomend resize viewreset', this.schedule);
+    map.off('zoomstart', this.hide);
+    if (this.frame !== 0) L.Util.cancelAnimFrame(this.frame);
+    this.canvas?.remove();
+    this.canvas = null;
+    return this;
+  }
+
+  private readonly hide = (): void => {
+    this.canvas?.classList.add('name-canvas--hidden');
+  };
+
+  private readonly schedule = (): void => {
+    if (this.frame !== 0) return;
+    this.frame = L.Util.requestAnimFrame(() => {
+      this.frame = 0;
+      this.redraw();
+    });
+  };
+
+  private redraw(): void {
+    const map = this._map as L.Map | undefined;
+    const canvas = this.canvas;
+    if (map === undefined || canvas === null) return;
+    canvas.classList.remove('name-canvas--hidden');
+    const size = map.getSize();
+    const ratio = window.devicePixelRatio || 1;
+    if (canvas.width !== size.x * ratio || canvas.height !== size.y * ratio) {
+      canvas.width = size.x * ratio;
+      canvas.height = size.y * ratio;
+      // CSSOM, not a style attribute: allowed by the CSP.
+      canvas.style.width = `${String(size.x)}px`;
+      canvas.style.height = `${String(size.y)}px`;
+    }
+    // The canvas covers the visible map, wherever the pane has been panned to.
+    L.DomUtil.setPosition(canvas, map.containerPointToLayerPoint([0, 0]));
+    const ctx = canvas.getContext('2d');
+    if (ctx === null) return;
+    ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
+    ctx.clearRect(0, 0, size.x, size.y);
+
+    const p = palette();
+    const root = getComputedStyle(document.documentElement);
+    const sea = root.getPropertyValue('--map-sea').trim() || p.surface;
+    const land = root.getPropertyValue('--map-land').trim() || p.surface2;
+    const font = getComputedStyle(canvas).fontFamily || 'sans-serif';
+    const zoom = map.getZoom();
+    const view = map.getBounds().pad(0.1);
+    const taken = new Grid(64);
+    let named = 0;
+    let areas = 0;
+    const metros: string[] = [];
+
+    const visible = this.places
+      .filter((pl) => zoom >= SHOWN_AT[pl.tier] && view.contains([pl.lat, pl.lng]))
+      .map((pl) => ({ place: pl, at: map.latLngToContainerPoint([pl.lat, pl.lng]) }));
+    for (const { place, at } of visible) {
+      const r = DOT[place.tier] + 1;
+      taken.add(L.bounds([at.x - r, at.y - r], [at.x + r, at.y + r]));
+    }
+
+    const text = (
+      value: string,
+      x: number,
+      y: number,
+      align: CanvasTextAlign,
+      colour: string,
+      halo: string,
+      weight: number,
+      px: number,
+    ): void => {
+      ctx.font = `${String(weight)} ${String(px)}px ${font}`;
+      ctx.textAlign = align;
+      ctx.textBaseline = 'middle';
+      ctx.lineJoin = 'round';
+      ctx.lineWidth = 3;
+      ctx.strokeStyle = halo;
+      ctx.strokeText(value, x, y);
+      ctx.fillStyle = colour;
+      ctx.fillText(value, x, y);
+    };
+
+    const nameCity = (place: MapPlace, at: L.Point): void => {
+      if (zoom < NAMED_AT[place.tier]) return;
+      const width = 6 + place.name.length * LABEL_CHAR_W;
+      const top = at.y - LABEL_H / 2 - 2;
+      const bottom = at.y + LABEL_H / 2 + 2;
+      const right = L.bounds([at.x + 2, top], [at.x + 2 + width, bottom]);
+      const left = L.bounds([at.x - 2 - width, top], [at.x - 2, bottom]);
+      const dot = L.bounds(
+        [at.x - DOT[place.tier] - 1, at.y - DOT[place.tier] - 1],
+        [at.x + DOT[place.tier] + 1, at.y + DOT[place.tier] + 1],
+      );
+      const metro = place.tier === 'metro';
+      for (const [box, x, align] of [
+        [right, at.x + DOT[place.tier] + 4, 'left'],
+        [left, at.x - DOT[place.tier] - 4, 'right'],
+      ] as const) {
+        if (taken.free(box, dot)) {
+          taken.add(box);
+          text(place.name, x, at.y, align, metro ? p.text : p.muted, sea, metro ? 600 : 400, 12);
+          named += 1;
+          if (metro) metros.push(place.name);
+          return;
+        }
+      }
+    };
+
+    for (const { place, at } of visible) if (place.tier === 'metro') nameCity(place, at);
+
+    const extent = (x: Anchor): number => (x.north - x.south) * (x.east - x.west);
+    for (const anchor of [...this.anchors].sort((x, y) => extent(y) - extent(x))) {
+      if (!view.contains([anchor.lat, anchor.lng])) continue;
+      const at = map.latLngToContainerPoint([anchor.lat, anchor.lng]);
+      const ne = map.latLngToContainerPoint([anchor.north, anchor.east]);
+      const sw = map.latLngToContainerPoint([anchor.south, anchor.west]);
+      const country = anchor.kind === 'country';
+      const value = country ? anchor.name : anchor.name.toUpperCase();
+      const width = value.length * AREA_CHAR_W;
+      if (Math.abs(ne.x - sw.x) < width * 0.8 || Math.abs(ne.y - sw.y) < LABEL_H) continue;
+      for (const dy of [0, -LABEL_H, LABEL_H]) {
+        const box = L.bounds(
+          [at.x - width / 2, at.y + dy - LABEL_H / 2],
+          [at.x + width / 2, at.y + dy + LABEL_H / 2],
+        );
+        if (!taken.free(box)) continue;
+        taken.add(box);
+        text(
+          value,
+          at.x,
+          at.y + dy,
+          'center',
+          country ? p.muted : p.subtle,
+          land,
+          500,
+          country ? 12 : 11,
+        );
+        areas += 1;
+        break;
+      }
+    }
+
+    for (const { place, at } of visible) if (place.tier !== 'metro') nameCity(place, at);
+
+    // Dots last, over every name's halo.
+    for (const { place, at } of visible) {
+      const metro = place.tier === 'metro';
+      ctx.beginPath();
+      ctx.arc(at.x, at.y, DOT[place.tier], 0, Math.PI * 2);
+      ctx.fillStyle = metro ? p.text : p.muted;
+      ctx.globalAlpha = 0.9;
+      ctx.fill();
+      ctx.globalAlpha = 1;
+    }
+    // For tests and for anyone inspecting the map: what is on it, without a DOM per name.
+    canvas.dataset['dots'] = String(visible.length);
+    canvas.dataset['named'] = String(named);
+    canvas.dataset['areas'] = String(areas);
+    canvas.dataset['metros'] = metros.join('|');
+  }
+}
+
+/** Boxes bucketed into square cells, so a collision test looks only at its neighbours. */
+class Grid {
+  private readonly cells = new Map<string, L.Bounds[]>();
+
+  constructor(private readonly size: number) {}
+
+  private keys(box: L.Bounds): string[] {
+    const min = box.min ?? L.point(0, 0);
+    const max = box.max ?? L.point(0, 0);
+    const out: string[] = [];
+    for (let x = Math.floor(min.x / this.size); x <= Math.floor(max.x / this.size); x += 1) {
+      for (let y = Math.floor(min.y / this.size); y <= Math.floor(max.y / this.size); y += 1) {
+        out.push(`${String(x)}:${String(y)}`);
+      }
+    }
+    return out;
+  }
+
+  add(box: L.Bounds): void {
+    for (const key of this.keys(box)) {
+      const cell = this.cells.get(key);
+      if (cell === undefined) this.cells.set(key, [box]);
+      else cell.push(box);
+    }
+  }
+
+  /** Whether `box` overlaps nothing, ignoring `except` (a label's own dot). */
+  free(box: L.Bounds, except?: L.Bounds): boolean {
+    for (const key of this.keys(box)) {
+      for (const other of this.cells.get(key) ?? []) {
+        if (other !== except && !sameBox(other, except) && other.intersects(box)) return false;
+      }
+    }
+    return true;
+  }
+}
+
+function sameBox(a: L.Bounds, b: L.Bounds | undefined): boolean {
+  return (
+    b !== undefined &&
+    a.min?.x === b.min?.x &&
+    a.min?.y === b.min?.y &&
+    a.max?.x === b.max?.x &&
+    a.max?.y === b.max?.y
+  );
+}
+
 export default function GeofenceMap(props: GeofenceMapProps): React.JSX.Element {
   const element = useRef<HTMLDivElement | null>(null);
   const map = useRef<L.Map | null>(null);
@@ -378,111 +618,18 @@ export default function GeofenceMap(props: GeofenceMapProps): React.JSX.Element 
   }, [tool, regionKeys, focusCountry, keyByCode, themeTick]);
 
   // --- names on the map: areas, then cities and towns, thinned by zoom -----------
+  // One canvas for every dot and name (E59). A DOM element per label leaked on each zoom --
+  // 1,605 labels for 1,110 cities after five steps -- and Leaflet moved every one of them on
+  // every frame of a zoom, which was the stutter. Only what is on screen is drawn, once per
+  // animation frame at most, and there is nothing to leak.
   const { places } = props;
   useEffect(() => {
     const instance = map.current;
     if (instance === null) return undefined;
-    const p = palette();
-    const group = L.layerGroup().addTo(instance);
-    const draw = (): void => {
-      group.clearLayers();
-      const zoom = instance.getZoom();
-      const point = (lat: number, lng: number): L.Point =>
-        instance.latLngToContainerPoint([lat, lng]);
-      const visible = places.filter((place) => zoom >= SHOWN_AT[place.tier]);
-      // Labels never overlap, and no area name covers a city's dot. Order of precedence:
-      // metro names, then area names (largest first), then the other cities (largest first).
-      const taken: L.Bounds[] = visible.map((place) => {
-        const at = point(place.lat, place.lng);
-        const r = DOT[place.tier] + 1;
-        return L.bounds([at.x - r, at.y - r], [at.x + r, at.y + r]);
-      });
-      const free = (box: L.Bounds, ignoreDot?: number): boolean =>
-        taken.every((t, i) => i === ignoreDot || !t.intersects(box));
-
-      const label = (place: MapPlace, index: number): void => {
-        if (zoom < NAMED_AT[place.tier]) return;
-        const at = point(place.lat, place.lng);
-        const width = 6 + place.name.length * LABEL_CHAR_W;
-        const top = at.y - LABEL_H / 2 - 2;
-        const bottom = at.y + LABEL_H / 2 + 2;
-        for (const [where, box] of [
-          ['right', L.bounds([at.x + 2, top], [at.x + 2 + width, bottom])],
-          ['left', L.bounds([at.x - 2 - width, top], [at.x - 2, bottom])],
-        ] as const) {
-          if (free(box, index)) {
-            taken.push(box);
-            dotsLayer[index]?.bindTooltip(place.name, {
-              permanent: true,
-              direction: where,
-              offset: [where === 'right' ? 4 : -4, 0],
-              className: `place-label place-label--${place.tier}`,
-              interactive: false,
-            });
-            return;
-          }
-        }
-      };
-
-      const dotsLayer = visible.map((place) =>
-        L.circleMarker([place.lat, place.lng], {
-          pane: PLACE_PANE,
-          radius: DOT[place.tier],
-          color: place.tier === 'metro' ? p.text : p.muted,
-          weight: 1,
-          fillColor: place.tier === 'metro' ? p.text : p.muted,
-          fillOpacity: 0.9,
-          // Never in the way of a click: drawing and region picking pass straight through.
-          interactive: false,
-        }),
-      );
-
-      visible.forEach((place, i) => {
-        if (place.tier === 'metro') label(place, i);
-      });
-
-      const size = (x: Anchor): number => (x.north - x.south) * (x.east - x.west);
-      for (const anchor of [...anchors].sort((x, y) => size(y) - size(x))) {
-        const at = point(anchor.lat, anchor.lng);
-        const ne = point(anchor.north, anchor.east);
-        const sw = point(anchor.south, anchor.west);
-        const width = anchor.name.length * AREA_CHAR_W;
-        // Only where the area has room for its name; small ones are named on zooming in.
-        if (Math.abs(ne.x - sw.x) < width * 0.8 || Math.abs(ne.y - sw.y) < LABEL_H) continue;
-        // Centred if it fits there, else nudged a line up or down, else not named here.
-        for (const dy of [0, -LABEL_H, LABEL_H]) {
-          const box = L.bounds(
-            [at.x - width / 2, at.y + dy - LABEL_H / 2],
-            [at.x + width / 2, at.y + dy + LABEL_H / 2],
-          );
-          if (!free(box)) continue;
-          taken.push(box);
-          group.addLayer(
-            L.tooltip({
-              permanent: true,
-              direction: 'center',
-              interactive: false,
-              offset: [0, dy],
-              className: `area-label area-label--${anchor.kind}`,
-            })
-              .setLatLng([anchor.lat, anchor.lng])
-              .setContent(anchor.name),
-          );
-          break;
-        }
-      }
-
-      visible.forEach((place, i) => {
-        if (place.tier !== 'metro') label(place, i);
-      });
-      for (const dot of dotsLayer) dot.addTo(group);
-    };
-    draw();
-    instance.on('zoomend', draw);
+    const layer = new NameLayer(places, anchors);
+    layer.addTo(instance);
     return () => {
-      if (map.current !== instance) return;
-      instance.off('zoomend', draw);
-      group.remove();
+      if (map.current === instance) layer.remove();
     };
   }, [places, anchors, themeTick]);
 
