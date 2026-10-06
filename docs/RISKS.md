@@ -24,7 +24,7 @@ Severity is `impact × likelihood` at the time of writing, reassessed after each
 | R17 | Fingerprint instability inflates unique-visitor counts | Medium | Accepted, disclosed |
 | R18 | Telegram becomes a security dependency, not just a notifier | Medium | Accepted, mitigated |
 | R19 | **Header order and HTTP/2 detail are unobservable behind Caddy** | **High** | **Closed: header set + re-weighting built in M4 (SPEC §11 row 7)** |
-| R20 | A first-visit location prompt cannot be answered inside the interstitial | Medium | **Closed 2026-09-29: never prompt, read an existing grant (SPEC §11 row 8)** |
+| R20 | A first-visit location prompt cannot be answered inside the interstitial | Medium | **Revisited 2026-10-06 — per-link opt-in, 15 s ceiling (ADR-0021)** |
 | R21 | **A JavaScript-executing Meta scanner passes the crawler gate** | **High** | **Closed in M4: classified `datacenter`, never `human` (test fixture)** |
 | R22 | **Registry-artifact collapse to admin1 still emits the artifact's state** | **High** | **Closed 2026-09-29: collapse to country (SPEC §11 row 11)** |
 | R23 | S10 latency triangulation cannot be built without third-party requests | Medium | **Closed 2026-09-29: S10 dropped (SPEC §11 row 12)** |
@@ -437,6 +437,12 @@ records an undecided permission as `consent_state='not_asked'`. It never prompts
 **Accepted consequence:** consented (S1) location will be rare, since nothing on this
 origin ever asks.
 
+
+**Revisited 2026-10-06 (owner, ADR-0021, SPEC §11 row 19).** Option 3, holding the redirect,
+is now adopted **per link and bounded**: a link with `ask_location` shows consent text and the
+prompt, and waits for the answer for at most 15 s, with Continue always available. Links that
+do not opt in keep option 2. What stays open: how long in-app browsers hold an asking visitor
+before reporting a refusal. Measure it on the first real asking links.
 ---
 
 ## R21 — A JavaScript-executing Meta scanner passes the crawler gate · **HIGH**
