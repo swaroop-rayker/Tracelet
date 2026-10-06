@@ -34,6 +34,8 @@ export interface Me {
   readonly csrf_token: string;
   readonly session_id: string;
   readonly session_expires_at: string;
+  /** The zone analytics buckets are cut in (ADR-0016). */
+  readonly reporting_tz: string;
 }
 
 export interface MfaChallenge {
@@ -99,6 +101,7 @@ function parseMe(value: unknown): Me | null {
     csrf_token,
     session_id,
     session_expires_at,
+    reporting_tz,
   } = value;
   if (!str(id) || !str(email) || !str(display_name) || !str(timezone) || !str(theme)) return null;
   if (role !== 'owner' && role !== 'analyst') return null;
@@ -106,6 +109,7 @@ function parseMe(value: unknown): Me | null {
   if (typeof totp_enrolled !== 'boolean' || typeof telegram_verified !== 'boolean') return null;
   if (typeof recovery_codes_remaining !== 'number') return null;
   if (!str(csrf_token) || !str(session_id) || !str(session_expires_at)) return null;
+  if (!str(reporting_tz)) return null;
   return {
     id,
     email,
@@ -120,6 +124,7 @@ function parseMe(value: unknown): Me | null {
     csrf_token,
     session_id,
     session_expires_at,
+    reporting_tz,
   };
 }
 
@@ -347,5 +352,18 @@ export function confirmTelegramVerification(
     csrfToken,
     body: { code },
     parse: noContent,
+  });
+}
+
+/** Persist a display preference (F9.AC16). Returns the refreshed `/me`. */
+export function updatePreferences(
+  csrfToken: string,
+  preferences: { readonly theme?: string; readonly timezone?: string },
+): Promise<ApiResult<Me>> {
+  return request(`${AUTH}/me/preferences`, {
+    method: 'PATCH',
+    body: preferences,
+    csrfToken,
+    parse: parseMe,
   });
 }

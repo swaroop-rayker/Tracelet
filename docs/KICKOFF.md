@@ -28,7 +28,7 @@ on free-tier infrastructure: one GCP e2-micro, 1 vCPU, 1 GB RAM, 2 GB swap, 30 G
 | Backend | FastAPI + Pydantic v2 + SQLAlchemy 2.0 (async) + Alembic | ADR-0001 |
 | Database | PostgreSQL 16 + PostGIS | ADR-0002 |
 | Frontend | React 19 + TypeScript strict + Vite, static-built, Caddy-served | ADR-0003 |
-| Charts / maps | Apache ECharts, Leaflet + Geoman, CARTO raster basemap (no API key) | ADR-0003 |
+| Charts / maps | Apache ECharts, Leaflet + Geoman; self-hosted Natural Earth outlines, no tiles | ADR-0003, ADR-0017 |
 | Capture model | Server-authoritative write; client enrichment additive; 90 s sweeper | ADR-0004 |
 | Location | Multi-candidate consensus, dual strict/advisory output, 3 suppression rules | ADR-0005 |
 | Identity | HMAC pseudonymous `visitor_id` (stable pepper) + rotating `session_fp` | ADR-0006 |

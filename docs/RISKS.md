@@ -18,7 +18,7 @@ Severity is `impact × likelihood` at the time of writing, reassessed after each
 | R11 | **VM loss loses everything since the last manual backup download** | **High** | **Accepted, owner-chosen** |
 | R12 | Solo developer: no review, no bus factor | Medium | Accepted, mitigated by CI and docs |
 | R13 | GeoLite2 licence terms and account continuity | Low | Open, monitor |
-| R14 | CARTO basemap tile availability and usage policy | Low | Accepted |
+| R14 | CARTO basemap tile availability and usage policy | Low | **Materialised 2026-10-02 (CARTO now requires a key); closed by ADR-0017: no tiles** |
 | R15 | Nominatim usage policy compliance | Low | Mitigated by design |
 | R16 | GCP free-tier egress ceiling (1 GB/month) | Low | Open, monitor |
 | R17 | Fingerprint instability inflates unique-visitor counts | Medium | Accepted, disclosed |
@@ -29,6 +29,8 @@ Severity is `impact × likelihood` at the time of writing, reassessed after each
 | R22 | **Registry-artifact collapse to admin1 still emits the artifact's state** | **High** | **Closed 2026-09-29: collapse to country (SPEC §11 row 11)** |
 | R23 | S10 latency triangulation cannot be built without third-party requests | Medium | **Closed 2026-09-29: S10 dropped (SPEC §11 row 12)** |
 | R24 | Rule (a) cannot tell a regional ISP from a registry collapse | Medium | **Accepted for M3 — tune in M8 with ground truth** |
+| R25 | **The raw analytics fallback is slow at the design load** | Medium | **Open — rollup path measured at p95 ≤ 70 ms; raw fallback up to 10 s on long windows** |
+| R26 | Geofence drawing (M6) has no street-level basemap | Medium | **Open — decide in M6 before the drawing canvas (ADR-0017)** |
 
 ---
 
@@ -556,19 +558,62 @@ re-tune is a settings version, not a deployment.
 
 ---
 
+## R25 — The raw analytics fallback is slow at the design load · MEDIUM
+
+**Measured in M5 (2026-10-02).** 90 k visits over 180 days, API and database each capped
+to one CPU, 20 requests per endpoint inside the compose network. **From rollups, every
+endpoint's p95 is under 70 ms** -- NFR2.AC4 (300 ms) holds with room to spare. **From raw
+rows** -- forced by any filter that is not a rollup dimension, such as ASN, city or
+`has_gps` -- most endpoints stay under 220 ms, but three do not over a 30-day window or
+longer: summary 4.3 s, source flow 0.9 s, and a 365-day calendar 10 s.
+
+**Why.** Visit rows are wide (request headers, signals and probes as JSON; about one heap
+page per row at this load) and the 197 MB table does not fit in 96 MB of shared buffers,
+so a raw scan is bound by reading pages. Unique visitors -- the one figure always raw --
+was fixed with a covering index (an index-only scan, 9 ms); the general case cannot be,
+short of indexing most of the table.
+
+**Why it is acceptable now.** The dashboard's default views are rollup-served. A raw
+answer is correct, says `computed_from: raw` on the panel, and shows its loading state
+while it runs (F9.AC18). Traffic today is a fraction of the design load.
+
+**What would close it.** ADR-0016's revisit trigger has fired for these filters: add the
+filters admins actually use to the rollups (ASN is the likely first), or narrow the raw
+path's window for the slow endpoints. Decide from real usage in M9, not by guessing now.
+
+---
+
+## R26 — Geofence drawing has no street-level basemap · MEDIUM
+
+**Found in M5 (2026-10-02).** ADR-0003 planned to draw geofences (F6.AC1) over CARTO tiles.
+CARTO now requires a key (R14), and ADR-0017 replaced tiles with self-hosted country and
+state outlines -- enough for a choropleth, not for drawing a boundary around a
+neighbourhood, a campus or a building, which needs streets.
+
+**Options for M6:** OpenStreetMap's tile server (no key; requires a Referer, so OSM learns
+the dashboard's hostname; light style only), a provider key (reopens C6), or drawing against
+outlines and coordinates only (honest, but hard to use). Decide before building the canvas,
+with an ADR.
+
+---
+
 ## R14 · R15 · R16 · R17 · R18 — lower severity, monitored
 
 **R14 — CARTO basemap.** Free raster tiles with no API key, subject to a usage policy. Two
 admins is trivially within limits. If they change terms, the fallback is OSM raster tiles or
 a MapTiler key, the latter reopening the C6 signup question.
+**Materialised 2026-10-02:** every tile now reads "API KEY REQUIRED". Closed by ADR-0017 --
+the analytics map draws self-hosted outlines and uses no tiles at all. What it leaves open
+for M6 is R26.
 
 **R15 — Nominatim usage policy.** Requires ≤1 request per second and a descriptive
 User-Agent. Enforced by outbound rate limiting (F11.AC7), caching, and consented-visits-only
 usage. Breaching it risks a block and is simply poor citizenship.
 
 **R16 — GCP egress.** Free tier includes 1 GB/month from North America. 500 small visits a
-day plus dashboard use fits comfortably; map tiles come from CARTO directly to the browser
-and do not count. Monitored on the System Health page.
+day plus dashboard use fits comfortably. Since ADR-0017 the map's outlines come from the VM
+(about 0.3 MB gzipped per first map view, browser-cached), which is negligible at two
+admins. Monitored on the System Health page.
 
 **R17 — Fingerprint instability.** A browser update or new monitor can mint a new
 `visitor_id` for the same person, inflating unique-visitor counts and occasionally producing

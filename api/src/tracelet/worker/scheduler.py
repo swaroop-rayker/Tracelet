@@ -27,6 +27,7 @@ from dataclasses import dataclass
 import structlog
 from sqlalchemy import text
 
+from tracelet.analytics import rollup
 from tracelet.capture import service
 from tracelet.db.engine import session_scope
 from tracelet.inference import engine as inference
@@ -95,6 +96,10 @@ JOBS: tuple[Job, ...] = (
     # Offline geo databases (F10.AC3). Checked every six hours, fetched only when due
     # -- DB-IP monthly, the keyed vendors weekly -- then asn_profiles recomputed.
     Job(name="geodb_update", every_seconds=6 * 3600, run=geodb.run_job_once),
+    # Analytics rollups (ADR-0016): yesterday and today every five minutes, so a visit
+    # reaches the charts the same day; the last week and any never-built history daily.
+    Job(name="rollup", every_seconds=300, run=rollup.run_live_once),
+    Job(name="rollup_settle", every_seconds=24 * 3600, run=rollup.run_settle_once),
 )
 
 

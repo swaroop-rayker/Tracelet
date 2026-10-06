@@ -1,5 +1,5 @@
 # ---------------------------------------------------------------------------
-# Tracelet CI — the 12 checks that must pass (F14.AC7).
+# Tracelet CI — the 12 checks F14.AC7 requires, plus the frontend tests (9b, M5).
 #
 # `./scripts/tl verify` runs the same 12 locally, in the same order, so a red
 # build is reproducible on the developer's machine without guessing.
@@ -168,6 +168,11 @@ jobs:
             cmd: "npx prettier --check \"src/**/*.{ts,tsx,css}\""
           - label: "9 · tsc --noEmit"
             cmd: "npx tsc --noEmit"
+          # Added in M5: the dashboard's own tests -- every panel state (F9.AC18), WCAG
+          # contrast of every theme token (NFR7.AC1), URL filter state (F9.AC13). Named
+          # 9b so the existing check names, which branch protection may require, stay.
+          - label: "9b · vitest"
+            cmd: "npx vitest run"
     defaults:
       run:
         working-directory: web

@@ -17,10 +17,11 @@ once at boot (F14.AC5). Two rules shape this module:
 from __future__ import annotations
 
 import functools
+import zoneinfo
 from pathlib import Path
 from typing import Any, Literal
 
-from pydantic import AliasChoices, Field, SecretStr, model_validator
+from pydantic import AliasChoices, Field, SecretStr, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 Environment = Literal["development", "production"]
@@ -118,6 +119,12 @@ class Settings(BaseSettings):
     backup_weekly_keep: int = Field(default=4, ge=1)
     backup_download_reminder_days: int = Field(default=7, ge=1)
 
+    # --- analytics (ADR-0016) ----------------------------------------------
+    # Days and hours are bucketed in this zone. India is UTC+05:30, so UTC buckets
+    # would straddle every Indian hour and split an Indian evening across two days.
+    # Changing it requires `tracelet analytics rebuild`.
+    reporting_tz: str = "Asia/Kolkata"
+
     # --- derived -----------------------------------------------------------
     @property
     def is_production(self) -> bool:
@@ -159,6 +166,17 @@ class Settings(BaseSettings):
                 if not (isinstance(value, str) and not value.strip())
             }
         return data
+
+    @field_validator("reporting_tz")
+    @classmethod
+    def _known_zone(cls, value: str) -> str:
+        """Refuse to boot on a zone neither Python nor tzdata knows (ADR-0016)."""
+        try:
+            zoneinfo.ZoneInfo(value)
+        except (zoneinfo.ZoneInfoNotFoundError, ValueError) as exc:
+            msg = f"TRACELET_REPORTING_TZ={value!r} is not an IANA timezone name."
+            raise ValueError(msg) from exc
+        return value
 
     @model_validator(mode="after")
     def _check_cross_field_invariants(self) -> Settings:

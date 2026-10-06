@@ -22,6 +22,7 @@ import sys
 
 from tracelet import __version__
 from tracelet.cli import admin as admin_cli
+from tracelet.cli import analytics as analytics_cli
 from tracelet.cli import geodb as geodb_cli
 from tracelet.cli import inference as inference_cli
 
@@ -39,6 +40,7 @@ PLANNED: dict[str, tuple[str, str]] = {
         "M3",
         "SHIPPED — save the built-in defaults as a new settings version",
     ),
+    "analytics rebuild": ("M5", "SHIPPED — rebuild the analytics rollups for a range of days"),
     "label add": ("M8", "record ground truth for one visit"),
     "accuracy report": ("M8", "precision and coverage per level, with sample size"),
     "retention preview": ("M7", "dry run: exactly what a purge would delete"),
@@ -62,6 +64,7 @@ def _build_parser() -> argparse.ArgumentParser:
     admin_cli.register(sub)
     geodb_cli.register(sub)
     inference_cli.register(sub)
+    analytics_cli.register(sub)
     return parser
 
 
@@ -125,6 +128,8 @@ def main(argv: list[str] | None = None) -> int:
         return geodb_cli.dispatch(args)
     if args.command == "inference":
         return inference_cli.dispatch(args)
+    if args.command == "analytics":
+        return analytics_cli.dispatch(args)
 
     parser.print_help()
     return 0

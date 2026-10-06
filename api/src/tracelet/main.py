@@ -13,6 +13,7 @@ from contextlib import asynccontextmanager
 import structlog
 from fastapi import FastAPI
 
+from tracelet.analytics.router import router as analytics_router
 from tracelet.auth.admins_router import router as admins_router
 from tracelet.auth.router import router as auth_router
 from tracelet.capture.links_router import router as links_router
@@ -129,6 +130,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(links_router)
     app.include_router(visits_router)
     app.include_router(inference_router)
+    app.include_router(analytics_router)
 
     return app
 

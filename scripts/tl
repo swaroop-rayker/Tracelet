@@ -116,42 +116,56 @@ task_verify() {
     require_env
     failed=""
 
-    step "1/12  ruff check"
+    step "1/13  ruff check"
     $API_RUN ruff check src tests spikes || failed="$failed ruff-check"
 
-    step "2/12  ruff format --check"
+    step "2/13  ruff format --check"
     $API_RUN ruff format --check src tests spikes || failed="$failed ruff-format"
 
-    step "3/12  mypy --strict"
+    step "3/13  mypy --strict"
     $API_RUN mypy src tests spikes || failed="$failed mypy"
 
-    step "4/12  pytest unit"
+    step "4/13  pytest unit"
     $API_RUN pytest tests/unit -q || failed="$failed pytest-unit"
 
-    step "5/12  pytest integration (real PostgreSQL + PostGIS, never mocked)"
+    step "5/13  pytest integration (real PostgreSQL + PostGIS, never mocked)"
     $DC up -d db >/dev/null 2>&1 || true
     task_waitdb >/dev/null
+    # The suite shares the dev database. A running api's scheduler would infer,
+    # classify and roll up the suite's visits mid-test (docs/ERRORS.md E36), so it is
+    # paused for the run and restarted afterwards.
+    api_was_running="$($DC ps --status running -q api 2>/dev/null || true)"
+    if [ -n "$api_was_running" ]; then
+        echo "  pausing the running api container for the integration suite"
+        $DC stop api >/dev/null 2>&1 || true
+    fi
     $API_RUN_DB pytest tests/integration -q || failed="$failed pytest-integration"
+    if [ -n "$api_was_running" ]; then
+        $DC start api >/dev/null 2>&1 || true
+    fi
 
-    step "6/12  eslint"
+    step "6/13  eslint"
     $WEB_RUN npx eslint src || failed="$failed eslint"
 
-    step "7/12  prettier --check"
+    step "7/13  prettier --check"
     $WEB_RUN npx prettier --check "src/**/*.{ts,tsx,css}" || failed="$failed prettier"
 
-    step "8/12  tsc --noEmit"
+    step "8/13  tsc --noEmit"
     $WEB_RUN npx tsc --noEmit || failed="$failed tsc"
 
-    step "9/12  OpenAPI -> TypeScript drift"
+    step "9/13  vitest (dashboard: panel states, contrast, filters)"
+    $WEB_RUN npx vitest run || failed="$failed vitest"
+
+    step "10/13 OpenAPI -> TypeScript drift"
     task_openapi_check || failed="$failed openapi-drift"
 
-    step "10/12 route-name guard (B6: content blockers match URL substrings)"
+    step "11/13 route-name guard (B6: content blockers match URL substrings)"
     $API_RUN pytest tests/unit/test_route_names.py -q || failed="$failed route-names"
 
-    step "11/12 guard-private-docs"
+    step "12/13 guard-private-docs"
     sh scripts/guard_private_docs.sh || failed="$failed guard-private-docs"
 
-    step "12/12 docker build"
+    step "13/13 docker build"
     $DCT build >/dev/null || failed="$failed docker-build"
 
     echo
@@ -159,7 +173,7 @@ task_verify() {
         red "FAILED:$failed"
         exit 1
     fi
-    grn "All 12 checks passed."
+    grn "All 13 checks passed."
 }
 
 # Regenerate api/openapi.json and web/src/api/generated/schema.d.ts.
@@ -204,7 +218,7 @@ tl — Tracelet task runner
   bootstrap   build images, migrate, create the first owner admin
   up          start everything (docker compose up -d)
   down        stop everything
-  verify      the full CI gate, locally: 12 checks
+  verify      the full CI gate, locally: 13 checks
   migrate     alembic upgrade head
   revision M  create a migration:  tl revision "add visits table"
   fmt         ruff format + ruff --fix + prettier --write

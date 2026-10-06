@@ -14,16 +14,23 @@ from __future__ import annotations
 
 import base64
 import binascii
+import csv
 import datetime as dt
+import enum
+import io
 import uuid
+from collections.abc import AsyncIterator
 from decimal import Decimal
 from typing import Annotated, Any
 
 import structlog
-from fastapi import APIRouter, Query, Request
+from fastapi import APIRouter, Depends, Query, Request
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, ConfigDict, Field
-from sqlalchemy import and_, or_, select
+from sqlalchemy import ColumnElement, Select, and_, case, null, or_, select
+from sqlalchemy.orm import aliased
 
+from tracelet.analytics.filters import VisitFilter, visit_clauses, visit_filter
 from tracelet.audit import log as audit
 from tracelet.auth.dependencies import (
     Config,
@@ -35,6 +42,7 @@ from tracelet.auth.dependencies import (
 from tracelet.capture.models import Classification, Link, Visit, VisitStage
 from tracelet.capture.service import DECRYPT_PER_ADMIN
 from tracelet.crypto.envelope import DecryptionError, Envelope, open_str
+from tracelet.db.engine import session_scope
 from tracelet.errors import InternalError, IpPurged, NotFound, RateLimited, ValidationFailed
 from tracelet.inference.models import VisitCandidate
 from tracelet.net import prefix_of
@@ -43,17 +51,6 @@ from tracelet.ratelimit import gcra
 log = structlog.get_logger(__name__)
 
 router = APIRouter(prefix="/api/v1/visits", tags=["visits"])
-
-# Excluded unless include_automated is set, so the default view is people.
-AUTOMATED: frozenset[Classification] = frozenset(
-    {
-        Classification.CRAWLER,
-        Classification.BOT,
-        Classification.SPAM,
-        Classification.SPOOFED,
-        Classification.DATACENTER,
-    }
-)
 
 MAX_PAGE = 200
 
@@ -188,7 +185,7 @@ def _join(*parts: str | None) -> str | None:
     return " ".join(present) if present else None
 
 
-def _summary(visit: Visit, link: Link) -> VisitSummary:
+def summarize(visit: Visit, link: Link, *, is_returning: bool | None) -> VisitSummary:
     return VisitSummary(
         id=str(visit.id),
         occurred_at=visit.occurred_at,
@@ -251,9 +248,24 @@ def _summary(visit: Visit, link: Link) -> VisitSummary:
             matched=[str(g) for g in visit.matched_geofence_ids],
         ),
         visitor_id=visit.visitor_id.hex() if visit.visitor_id else None,
-        # Unknown until M4 computes visitor identity -- null, not false.
-        is_returning=None,
+        # Null without a visitor_id (a server_only visit, F3.AC5) -- unknown, not "new".
+        is_returning=is_returning if visit.visitor_id else None,
     )
+
+
+def is_returning_column() -> ColumnElement[bool | None]:
+    """Whether the same visitor has an earlier visit, on any link.
+
+    A correlated EXISTS on the ``(visitor_id, occurred_at)`` index, so it costs one
+    index probe per row of a page rather than a scan.
+    """
+    earlier = aliased(Visit)
+    seen_before = (
+        select(earlier.id)
+        .where(earlier.visitor_id == Visit.visitor_id, earlier.occurred_at < Visit.occurred_at)
+        .exists()
+    )
+    return case((Visit.visitor_id.is_(None), null()), else_=seen_before).label("is_returning")
 
 
 def _hex(value: bytes | None) -> str | None:
@@ -280,8 +292,10 @@ def _candidate(c: VisitCandidate) -> CandidateOut:
     )
 
 
-def _detail(visit: Visit, link: Link, candidates: list[VisitCandidate]) -> VisitDetail:
-    base = _summary(visit, link).model_dump()
+def _detail(
+    visit: Visit, link: Link, candidates: list[VisitCandidate], *, is_returning: bool | None
+) -> VisitDetail:
+    base = summarize(visit, link, is_returning=is_returning).model_dump()
     return VisitDetail(
         **base,
         finalized_at=visit.finalized_at,
@@ -336,8 +350,13 @@ def _detail(visit: Visit, link: Link, candidates: list[VisitCandidate]) -> Visit
 
 
 # ---------------------------------------------------------------------------
-# Cursor: keyset over (occurred_at, id), newest first
+# Cursor: keyset over (occurred_at, id)
 # ---------------------------------------------------------------------------
+
+
+class Sort(enum.StrEnum):
+    NEWEST = "newest"
+    OLDEST = "oldest"
 
 
 def _encode_cursor(visit: Visit) -> str:
@@ -355,84 +374,262 @@ def _decode_cursor(cursor: str) -> tuple[dt.datetime, uuid.UUID]:
         raise ValidationFailed(msg) from exc
 
 
+def _filtered(f: VisitFilter, sort: Sort) -> Select[tuple[Visit, Link, bool | None]]:
+    """Visits matching ``f``, in ``sort`` order, with their link and returning flag."""
+    stmt = (
+        select(Visit, Link, is_returning_column())
+        .join(Link, Link.id == Visit.link_id)
+        .where(*visit_clauses(f))
+    )
+    if f.from_ is not None:
+        stmt = stmt.where(Visit.occurred_at >= f.from_)
+    if f.to is not None:
+        stmt = stmt.where(Visit.occurred_at < f.to)
+    if sort is Sort.NEWEST:
+        return stmt.order_by(Visit.occurred_at.desc(), Visit.id.desc())
+    return stmt.order_by(Visit.occurred_at, Visit.id)
+
+
 # ---------------------------------------------------------------------------
 # Routes
 # ---------------------------------------------------------------------------
+
+Filter = Annotated[VisitFilter, Depends(visit_filter)]
 
 
 @router.get(
     "",
     response_model=VisitPage,
-    summary="List visits, newest first",
+    summary="List visits",
     description=(
-        "Automated traffic -- crawlers, bots and the rest -- is excluded unless "
-        "include_automated is set, so the default view is people. The exclusion is a "
-        "flag rather than hidden so that what is being left out stays visible."
+        "Every F9.AC13 filter, composable. Automated traffic -- crawlers, bots and the "
+        "rest -- is excluded unless include_automated is set, so the default view is "
+        "people; the exclusion is a flag rather than hidden so that what is being left out "
+        "stays visible. Location filters match the strict fields only. `search` matches "
+        "link slug and label, ISP, city, browser, OS and webview host."
     ),
 )
 async def list_visits(
     principal: CurrentPrincipal,
     db: DbSession,
-    from_: Annotated[dt.datetime | None, Query(alias="from")] = None,
-    to: Annotated[dt.datetime | None, Query()] = None,
-    link_id: Annotated[uuid.UUID | None, Query()] = None,
-    stage: Annotated[list[VisitStage] | None, Query()] = None,
-    classification: Annotated[list[Classification] | None, Query()] = None,
-    webview_host: Annotated[str | None, Query(max_length=32)] = None,
-    include_automated: Annotated[bool, Query()] = False,
+    f: Filter,
+    sort: Annotated[Sort, Query()] = Sort.NEWEST,
     limit: Annotated[int, Query(ge=1, le=MAX_PAGE)] = 50,
     cursor: Annotated[str | None, Query(max_length=200)] = None,
 ) -> VisitPage:
     del principal
-    stmt = select(Visit, Link).join(Link, Link.id == Visit.link_id)
-    if from_ is not None:
-        stmt = stmt.where(Visit.occurred_at >= from_)
-    if to is not None:
-        stmt = stmt.where(Visit.occurred_at < to)
-    if link_id is not None:
-        stmt = stmt.where(Visit.link_id == link_id)
-    if stage:
-        stmt = stmt.where(Visit.stage.in_(stage))
-    if classification:
-        stmt = stmt.where(Visit.classification.in_(classification))
-    elif not include_automated:
-        stmt = stmt.where(Visit.classification.not_in(AUTOMATED))
-    if webview_host is not None:
-        stmt = stmt.where(Visit.webview_host == webview_host)
+    stmt = _filtered(f, sort)
     if cursor is not None:
         at, ident = _decode_cursor(cursor)
-        stmt = stmt.where(
-            or_(Visit.occurred_at < at, and_(Visit.occurred_at == at, Visit.id < ident))
-        )
-    stmt = stmt.order_by(Visit.occurred_at.desc(), Visit.id.desc()).limit(limit + 1)
+        if sort is Sort.NEWEST:
+            after = or_(Visit.occurred_at < at, and_(Visit.occurred_at == at, Visit.id < ident))
+        else:
+            after = or_(Visit.occurred_at > at, and_(Visit.occurred_at == at, Visit.id > ident))
+        stmt = stmt.where(after)
 
-    rows = (await db.execute(stmt)).tuples().all()
+    rows = (await db.execute(stmt.limit(limit + 1))).tuples().all()
     page = rows[:limit]
     return VisitPage(
-        items=[_summary(visit, link) for visit, link in page],
+        items=[summarize(visit, link, is_returning=returning) for visit, link, returning in page],
         next_cursor=_encode_cursor(page[-1][0]) if len(rows) > limit and page else None,
     )
 
 
-async def _load(db: DbSession, visit_id: str) -> tuple[Visit, Link]:
+# ---------------------------------------------------------------------------
+# Export (F9.AC15)
+# ---------------------------------------------------------------------------
+
+
+class ExportFormat(enum.StrEnum):
+    CSV = "csv"
+    NDJSON = "ndjson"
+
+
+EXPORT_COLUMNS: tuple[str, ...] = (
+    "id",
+    "occurred_at",
+    "link_slug",
+    "stage",
+    "classification",
+    "bot_score",
+    "spoof_score",
+    "strict_country_code",
+    "strict_admin1",
+    "strict_admin2",
+    "strict_city",
+    "advisory_country_code",
+    "advisory_admin1",
+    "advisory_admin2",
+    "advisory_city",
+    "confidence_country",
+    "confidence_admin1",
+    "confidence_admin2",
+    "confidence_city",
+    "primary_source",
+    "has_gps",
+    "asn",
+    "asn_org",
+    "asn_type",
+    "connection_class",
+    "ip_prefix",
+    "is_datacenter",
+    "is_vpn_suspected",
+    "is_proxy_suspected",
+    "device_class",
+    "os",
+    "browser",
+    "is_inapp_webview",
+    "webview_host",
+    "screen",
+    "visitor_id",
+    "is_returning",
+    "geofence_state",
+)
+
+# A cell beginning with one of these is a formula to a spreadsheet. User agents and
+# ISP names are attacker-controlled text, so a crafted UA would otherwise execute when
+# the owner opens the export (CSV injection).
+_FORMULA_PREFIXES = ("=", "+", "-", "@", "\t", "\r")
+
+
+def _csv_cell(value: object) -> str:
+    if value is None:
+        return ""
+    text_value = str(value).lower() if isinstance(value, bool) else str(value)
+    if text_value.startswith(_FORMULA_PREFIXES):
+        return "'" + text_value
+    return text_value
+
+
+def _flat(item: VisitSummary) -> list[object]:
+    loc = item.location
+    net = item.network
+    dev = item.device
+    return [
+        item.id,
+        item.occurred_at.isoformat(),
+        item.link.slug,
+        item.stage.value,
+        item.classification.value,
+        item.bot_score,
+        item.spoof_score,
+        loc.strict["country_code"],
+        loc.strict["admin1"],
+        loc.strict["admin2"],
+        loc.strict["city"],
+        loc.advisory["country_code"],
+        loc.advisory["admin1"],
+        loc.advisory["admin2"],
+        loc.advisory["city"],
+        loc.confidence["country"],
+        loc.confidence["admin1"],
+        loc.confidence["admin2"],
+        loc.confidence["city"],
+        loc.primary_source,
+        loc.has_gps,
+        net.asn,
+        net.asn_org,
+        net.asn_type,
+        net.connection_class,
+        net.ip_prefix,
+        net.is_datacenter,
+        net.is_vpn_suspected,
+        net.is_proxy_suspected,
+        dev.class_,
+        dev.os,
+        dev.browser,
+        dev.is_inapp_webview,
+        dev.webview_host,
+        dev.screen,
+        item.visitor_id,
+        item.is_returning,
+        item.geofence.state,
+    ]
+
+
+def _csv_line(cells: list[object]) -> str:
+    buffer = io.StringIO()
+    csv.writer(buffer, lineterminator="\n").writerow([_csv_cell(c) for c in cells])
+    return buffer.getvalue()
+
+
+async def _export_lines(f: VisitFilter, sort: Sort, fmt: ExportFormat) -> AsyncIterator[str]:
+    """Rows as they are read, never the whole result in memory (1 GB box, F9.AC15).
+
+    Runs after the response has started, so it opens its own session: the request's
+    session was committed and closed when the handler returned (ARCHITECTURE 5.8). A
+    failure part-way cannot change a status already sent; it ends the stream short
+    and is logged.
+    """
+    if fmt is ExportFormat.CSV:
+        yield _csv_line(list(EXPORT_COLUMNS))
+    try:
+        async with session_scope() as db:
+            result = await db.stream(_filtered(f, sort).execution_options(yield_per=500))
+            async for visit, link, returning in result.tuples():
+                item = summarize(visit, link, is_returning=returning)
+                if fmt is ExportFormat.CSV:
+                    yield _csv_line(_flat(item))
+                else:
+                    yield item.model_dump_json(by_alias=True) + "\n"
+    except Exception as exc:
+        log.error("export_failed", error_type=type(exc).__name__, exc_info=exc)
+        raise
+
+
+@router.get(
+    "/export",
+    summary="Export visits as CSV or NDJSON, streamed (F9.AC15)",
+    description=(
+        "Honours every filter the list takes. Streamed row by row rather than buffered. "
+        "**No plaintext IP**: the network prefix is the only address-derived column, as in "
+        "the list. CSV cells that a spreadsheet would read as a formula are prefixed with "
+        "an apostrophe."
+    ),
+    response_class=StreamingResponse,
+    responses={200: {"content": {"text/csv": {}, "application/x-ndjson": {}}}},
+)
+async def export_visits(
+    principal: CurrentPrincipal,
+    f: Filter,
+    format_: Annotated[ExportFormat, Query(alias="format")] = ExportFormat.CSV,
+    sort: Annotated[Sort, Query()] = Sort.NEWEST,
+) -> StreamingResponse:
+    del principal
+    stamp = dt.datetime.now(dt.UTC).strftime("%Y%m%dT%H%M%SZ")
+    media = "text/csv; charset=utf-8" if format_ is ExportFormat.CSV else "application/x-ndjson"
+    filename = f"tracelet-visits-{stamp}.{format_.value}"
+    return StreamingResponse(
+        _export_lines(f, sort, format_),
+        media_type=media,
+        headers={
+            "Content-Disposition": f'attachment; filename="{filename}"',
+            "Cache-Control": "no-store",
+        },
+    )
+
+
+async def _load(db: DbSession, visit_id: str) -> tuple[Visit, Link, bool | None]:
     try:
         parsed = uuid.UUID(visit_id)
     except ValueError as exc:
         raise NotFound("No such visit.") from exc
     row = (
         await db.execute(
-            select(Visit, Link).join(Link, Link.id == Visit.link_id).where(Visit.id == parsed)
+            select(Visit, Link, is_returning_column())
+            .join(Link, Link.id == Visit.link_id)
+            .where(Visit.id == parsed)
         )
     ).first()
     if row is None:
         raise NotFound("No such visit.")
-    return row[0], row[1]
+    return row[0], row[1], row[2]
 
 
 @router.get("/{visit_id}", response_model=VisitDetail, summary="One visit, in full")
 async def get_visit(visit_id: str, principal: CurrentPrincipal, db: DbSession) -> VisitDetail:
     del principal
-    visit, link = await _load(db, visit_id)
+    visit, link, returning = await _load(db, visit_id)
     candidates = (
         await db.execute(
             select(VisitCandidate)
@@ -440,7 +637,7 @@ async def get_visit(visit_id: str, principal: CurrentPrincipal, db: DbSession) -
             .order_by(VisitCandidate.id)
         )
     ).scalars()
-    return _detail(visit, link, list(candidates))
+    return _detail(visit, link, list(candidates), is_returning=returning)
 
 
 @router.get(
@@ -461,7 +658,7 @@ async def decrypt_ip(
     db: DbSession,
     settings: Config,
 ) -> DecryptedIp:
-    visit, _ = await _load(db, visit_id)
+    visit, _, _ = await _load(db, visit_id)
 
     decision = await gcra.check(db, key=str(principal.admin.id), limit=DECRYPT_PER_ADMIN)
     if not decision.allowed:

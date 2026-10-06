@@ -152,8 +152,8 @@ services:
   # Frontend toolchain: eslint, prettier, tsc, openapi-typescript.
   web-tools:
     build:
-      context: ./web
-      dockerfile: Dockerfile.tools
+      context: .
+      dockerfile: web/Dockerfile.tools
     profiles: ["tools"]
     working_dir: /work/web
     volumes:
