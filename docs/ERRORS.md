@@ -1789,6 +1789,28 @@ offending element.
 
 **Related:** E43, DESIGN §9.4, F9.AC17.
 
+### E48 — In Countries mode the unvisited world was one grey mass
+
+**Status:** Fixed. **Milestone:** M5.6 (present since M5). **Date:** 2026-10-06.
+
+**Symptom.** Reported by the owner: on Geography with "Countries" chosen, no borders showed
+between countries without visits; only the hovered country got an outline. States mode drew
+them.
+
+**Root cause.** Countries mode styled every country with `shade()`, whose outline is the
+`--border` token at 0.5 px. On the dark themes `--border` sits a step away from `--map-land`, so
+the outline vanished into the fill. States mode never showed it because it draws a separate
+country-border layer on top in `--text-muted`.
+
+**Fix.** The country layer takes the same outline as the state layer: `--text-muted`, 0.6 px,
+0.8 opacity. Checked by screenshot in all three themes.
+
+**Prevention.** A map layer's outline comes from a text-contrast token, never `--border`, which
+is tuned to separate a card from its background, not one fill from an identical one. The QA
+screenshots now include Countries mode, not only the default States view.
+
+**Related:** E40, ADR-0017, DESIGN §6.6.
+
 ---
 
 Add entries here as bugs are found and fixed. Use the next available `E<n>` identifier and

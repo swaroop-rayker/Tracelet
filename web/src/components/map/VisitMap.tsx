@@ -208,7 +208,15 @@ export default function VisitMap({
       if (stale()) return;
       if (layer === 'countries') {
         const shapes: L.GeoJSON = L.geoJSON(countries, {
-          style: (feature) => shade(countryCount(feature, counts), steps, p),
+          // The same border the state layer draws over its divisions: `shade`'s own border
+          // colour is the land's neighbour on the dark themes, so unvisited countries ran
+          // together into one grey mass.
+          style: (feature) => ({
+            ...shade(countryCount(feature, counts), steps, p),
+            color: p.muted,
+            weight: 0.6,
+            opacity: 0.8,
+          }),
           onEachFeature: (feature, shape) => {
             const n = countryCount(feature, counts);
             shape.bindTooltip(tip(featureName(feature), n), { sticky: true });
