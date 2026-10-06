@@ -767,12 +767,17 @@ F9.AC6, F9.AC16–F9.AC18, NFR7. No new requirement: every item reads an existin
 
 **Scope**
 - `geofences` with `geography(Polygon,4326)`, GiST, `ST_IsValid` + vertex-cap constraints
-- Leaflet + Geoman drawing: polygon and circle, vertex edit, drag, delete
-- **First, choose a basemap for drawing, with an ADR** -- CARTO's keyless tiles ended in M5,
-  and the analytics map's outlines carry no streets (ADR-0017, RISKS R26)
+- Leaflet + Geoman drawing: polygon and circle, vertex edit, drag, delete -- **Geoman only if
+  its three-engine CSP spike is clean**, else small own tools on Leaflet (ADR-0020 decision 8)
+- ~~First, choose a basemap for drawing, with an ADR~~ -- **decided: no basemap** (ADR-0020,
+  accepted 2026-10-06). The editor draws over the M5 outlines, with typed coordinates
+- **Region geofences** (`shape_kind='region'`, `region_keys`), matched on strict country and
+  strict state only (ADR-0020 decisions 2, 4)
 - Circle round-trip via retained `center` + `radius_m`
 - `ST_Covers` evaluation on finalisation; priority resolution; `matched_geofence_ids`
-- **`geofence_state='undetermined'` when `geopoint IS NULL`** (F6.AC6)
+- **Visit state: inside if any, else undetermined if any, else outside; NULL with no applicable
+  geofence** (F6.AC5, F6.AC6 as amended; ADR-0020 decision 5)
+- `undetermined` sends a normal alert worded "Location not confirmed" (ADR-0020 decision 7)
 - GeoJSON import/export; coordinate test endpoint
 - `outbox` + worker: `SKIP LOCKED`, backoff + jitter, dead-letter, manual retry
 - **`dedup_key` unique constraint implementing 24h dedup** (F7.AC2)

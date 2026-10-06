@@ -30,7 +30,7 @@ Severity is `impact × likelihood` at the time of writing, reassessed after each
 | R23 | S10 latency triangulation cannot be built without third-party requests | Medium | **Closed 2026-09-29: S10 dropped (SPEC §11 row 12)** |
 | R24 | Rule (a) cannot tell a regional ISP from a registry collapse | Medium | **Accepted for M3 — tune in M8 with ground truth** |
 | R25 | **The raw analytics fallback is slow at the design load** | Medium | **Open — rollup path measured at p95 ≤ 70 ms; raw fallback up to 10 s on long windows** |
-| R26 | Geofence drawing (M6) has no street-level basemap | Medium | **Open — decide in M6 before the drawing canvas (ADR-0017)** |
+| R26 | Geofence drawing (M6) has no street-level basemap | Medium | **Closed 2026-10-06 — accepted: no basemap, region geofences (ADR-0020)** |
 | R27 | The UI redesign (M5.5) regresses accessibility, the CSP or behaviour | Medium | **Mitigated 2026-10-03 — 0 CSP violations in Chromium, Firefox and WebKit (after E44), filters unchanged, a11y sweep clean, 72-image matrix; the hand keyboard pass remains** |
 
 ---
@@ -595,6 +595,11 @@ neighbourhood, a campus or a building, which needs streets.
 the dashboard's hostname; light style only), a provider key (reopens C6), or drawing against
 outlines and coordinates only (honest, but hard to use). Decide before building the canvas,
 with an ADR.
+
+**Closed 2026-10-06, accepted (ADR-0020).** No basemap. The editor draws over the outlines,
+with typed coordinates and GeoJSON import for precise shapes, and adds **region geofences**
+(countries and states) matched on the strict country and state. Street-level drawing is not
+offered. Reopen if a keyless, Referer-free basemap appears.
 
 ---
 
