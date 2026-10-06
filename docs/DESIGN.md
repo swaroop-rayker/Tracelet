@@ -519,6 +519,14 @@ timezone in a tooltip and `<time dateTime>`. In tables of many rows it renders a
 **Identifier.** Monospace, middle-truncated, with a copy button on hover or focus. Used for
 visit ids, `visitor_id`, trace ids and ASNs.
 
+**Sparkline** *(M5.6, §12 E16)*. A KPI's recent shape: plain SVG, a 1.5 px `--accent` line
+with no axes, 28 px tall under a Stat, 56 × 14 px in the StatStrip. A missing value breaks the
+line. Decorative (`aria-hidden`); a sentence beside it says the period, the low and the high.
+
+**Glyph** *(M5.6, §12 E22)*. A 14 px `--text-subtle` icon before a device, connection or app
+value in a table cell or ranked row. Decorative: the words beside it carry the meaning, and an
+unmapped value gets the neutral "unknown" glyph, never a guess.
+
 ### 5.5 Overlays
 
 **Tooltip.** For short, non-essential help only. It shows on hover after 500 ms and on focus
@@ -875,12 +883,20 @@ Visits to your links: how many, who, and how complete the picture is.
 ┌ Visits ────────┐ ┌ Unique visitors ┐ ┌ Human share ──┐ ┌ Enrichment completed ┐
 │ 144            │ │ 144              │ │ 90.0%          │ │ 79.2%                │
 │ —  no prior    │ │ —                │ │ —              │ │ —                    │
+│ ╱╲_╱‾╲__╱  E16 │ │                  │ │ ‾‾╲_‾‾‾   E16 │ │                      │
 └────────────────┘ └──────────────────┘ └────────────────┘ └──────────────────────┘
-Automated share 10.0% · Location consent 0.0% · Geofence hit rate — (M6)      ← StatStrip
+Automated share 10.0% · Location consent 0.0% ▁▁▁ · Geofence hit rate — (M6)  ← StatStrip
 
 ┌ Visits over time ─────────────────────────────── [Day | Hour] [Split: None ▾] [•••] ┐
 │ primary chart, 320 px                                                              │
 └ provenance ────────────────────────────────────────────────────────────────────────┘
+┌ Top states ────────────────────────────┐ ┌ ● Live · updated 4 s ago ──── E18 ─────┐
+│ RankedList, 5 rows (E4)                 │ │ 3 visitors in the last 30 min          │
+└────────────────────────────────────────┘ │ newest six, new rows fade in            │
+                                            └────────────────────────────────────────┘
+┌ Where visits came from ─────── E17 ────┐ ┌ When links are opened ──────── E19 ────┐
+│ state map, 280 px, no points            │ │ 7 × 24 heatmap, reporting time zone    │
+└────────────────────────────────────────┘ └────────────────────────────────────────┘
 ┌ Daily volume · last 365 days ──────────┐ ┌ Stage funnel ──────────────────────────┐
 └────────────────────────────────────────┘ └────────────────────────────────────────┘
 ```
@@ -893,6 +909,10 @@ Automated share 10.0% · Location consent 0.0% · Geofence hit rate — (M6)    
 - One provenance line for the KPI row sits under the StatStrip, not inside every card.
 - Optional additions using existing endpoints (approval, §12 E4): "Top states" (RankedList, 5
   rows) and "Recent visits" (DataTable, 6 rows).
+- **M5.6 (approved 2026-10-06, §12 E16–E22):** sparklines on Visits, Human share and Location
+  consent (E16); "Recent visits" becomes the **live feed** (E18); a row with the **state map
+  card** (E17) and the **hour × weekday heatmap** (E19). The map card is loaded lazily, so
+  Leaflet stays out of the Overview chunk (UI-24).
 
 ### 10.2 Visits (timeline, F9.AC1)
 
@@ -1002,6 +1022,32 @@ token and TOTP flows are unchanged, and the TOTP input gets `inputmode="numeric"
 A compact page inside the shell: "Page not found" plus a link back to Overview. A top-level
 error boundary renders an Alert with the trace id when one exists. No illustrations.
 
+### 10.11 Links and link detail (M5.6, §12 E20)
+
+`/links` lists every tracking link; `/links/:slug` is one link's dashboard. Creating and
+editing links stays in M7 (F10.AC6): these pages only read.
+
+```
+Links                                                              [ ] Show archived
+Every tracking link and where it sends visitors. Counts are all-time.
+┌───────────────────────────────────────────────────────────────────────────────────┐
+│ Link                     Destination              Status            Visits  Created│
+│ M5 demo  demo-ig         instagram.com/…          ● Active  Default    160  3 d ago│
+└───────────────────────────────────────────────────────────────────────────────────┘
+
+Links › demo-ig                                          [◷ Last 30 days ▾]
+M5 demo · https://…/r/demo-ig → https://instagram.com/…     ● Active  Default
+[＋ Filter]                         ← the toolbar without the link selector: the page is the link
+┌ KPI cards and strip, as Overview ┐
+┌ Visits over time ┐
+┌ App or browser ─────────┐ ┌ Top states ─────────────┐
+┌ Live feed ──────────────┐ ┌ Stage funnel ───────────┐
+```
+
+- The index has no filter toolbar: its counts are the API's all-time `visit_count`.
+- The detail page pins `link_id` and keeps every other filter and the period. A slug that
+  matches no link is the not-found state, not an empty dashboard.
+
 ---
 
 ## 11. Implementation phases (M5.5, one PR)
@@ -1063,6 +1109,13 @@ uses only existing routes, URL keys and endpoints; nothing new on the server.
 | E13 | **Density toggle** (comfortable or compact rows) | UI-only, `localStorage` | Defer until someone asks |
 | E14 | **Print stylesheet** for visit detail (evidence for a report) | UI-only | Cheap; do in Phase 5 if time allows |
 | E15 | **Visual regression tests** (Playwright screenshots in CI) | a dev dependency plus browsers in `web-tools` (hundreds of MB) | Defer to M9; screenshots are manual in M5.5 |
+| E16 | **Sparklines** on Visits, Human share and Location consent: inline SVG, no chart library; the low and high are spoken | UI-only (`/timeseries`) | **Approved 2026-10-06 (M5.6)** |
+| E17 | **State map card** on Overview: the Geography map at card size, a click filters to the state; lazily loaded | UI-only (`/geo`) | **Approved 2026-10-06 (M5.6)** |
+| E18 | **Live feed**: "Recent visits" polls every 15 s while the tab is visible, says how live it is (UI-18), counts visitors in the last 30 minutes, and fades new rows in (none under reduced motion) | UI-only (`/visits`) | **Approved 2026-10-06 (M5.6)** |
+| E19 | **Hour × weekday heatmap**: the hourly series folded into 7 × 24 in the reporting time zone; windows over 31 days explain why it is empty | UI-only (`/timeseries?bucket=hour`) | **Approved 2026-10-06 (M5.6)** |
+| E20 | **Links index and link detail pages** (§10.11), read-only | UI-only (`/links`, `link_id` on every call) | **Approved 2026-10-06 (M5.6)** |
+| E21 | **Daily volume:** days with no visits are empty cells, and the scale starts at 1 | UI-only | **Approved 2026-10-06 (M5.6)** |
+| E22 | **Device and network icons** beside device, connection and app values in tables and ranked lists; generic glyphs only, never a brand logo | UI-only (Lucide registry) | **Approved 2026-10-06 (M5.6)** |
 
 ---
 

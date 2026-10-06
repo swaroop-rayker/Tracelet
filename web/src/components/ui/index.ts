@@ -8,6 +8,7 @@ export { Dialog } from './Dialog';
 export {
   Badge,
   Card,
+  Glyph,
   Identifier,
   KeyValue,
   Kbd,
@@ -22,12 +23,14 @@ export {
 export {
   DataTable,
   RankedList,
+  Sparkline,
   Stat,
   StatStrip,
   Stats,
   type Column,
   type Delta,
   type RankedRow,
+  type Trend,
 } from './data';
 export {
   Alert,

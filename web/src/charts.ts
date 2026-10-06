@@ -26,6 +26,7 @@ import type {
 } from '@/api/schemas';
 import type { RankedRow } from '@/components/ui';
 import { count, dimensionValue, label, pct } from '@/format';
+import { dimensionGlyph } from '@/glyphs';
 import type { Palette } from '@/theme';
 
 export interface Chart {
@@ -166,8 +167,13 @@ export function timeSeriesChart(data: TimeSeries, zone: string, previous?: TimeS
 // F9.AC6 -- calendar heatmap
 // ---------------------------------------------------------------------------
 
+/**
+ * Daily volume (F9.AC6). Days with no visits are left out of the series, so they show as the
+ * calendar's own empty cells and the scale starts at 1: a zero drawn in the lowest band made
+ * a quiet year look busy (DESIGN 12 E21). The table still lists every day.
+ */
 export function calendarChart(data: Calendar): Chart {
-  const max = Math.max(1, ...data.days.map((d) => d.count));
+  const max = Math.max(2, ...data.days.map((d) => d.count));
   const first = data.days[0]?.day ?? '';
   const last = data.days.at(-1)?.day ?? '';
   return {
@@ -179,9 +185,11 @@ export function calendarChart(data: Calendar): Chart {
         },
       },
       visualMap: {
-        min: 0,
+        min: 1,
         max,
         type: 'piecewise',
+        // Visits are whole: bands read "1–2", never "1.0–1.6".
+        precision: 0,
         orient: 'horizontal',
         left: 'center',
         bottom: 0,
@@ -212,11 +220,102 @@ export function calendarChart(data: Calendar): Chart {
         {
           type: 'heatmap',
           coordinateSystem: 'calendar',
-          data: data.days.map((d) => [d.day, d.count]),
+          data: data.days.filter((d) => d.count > 0).map((d) => [d.day, d.count]),
         },
       ],
     }),
     table: { columns: ['Day', 'Visits'], rows: data.days.map((d) => [d.day, d.count]) },
+    decals: false,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// When links are opened: hour × weekday (DESIGN 12 E19)
+// ---------------------------------------------------------------------------
+
+export const WEEKDAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'] as const;
+const HOURS = Array.from({ length: 24 }, (_, h) => String(h).padStart(2, '0'));
+
+/**
+ * An hourly series folded into weekday × hour totals (rows Monday first), read in `zone` --
+ * the reporting time zone the buckets were cut in, so a bucket lands in the hour people saw.
+ */
+export function foldHourWeekday(data: TimeSeries, zone: string): number[][] {
+  const cells = WEEKDAYS.map(() => HOURS.map(() => 0));
+  const parts = new Intl.DateTimeFormat('en-GB', {
+    timeZone: zone,
+    weekday: 'short',
+    hour: '2-digit',
+    hourCycle: 'h23',
+  });
+  data.buckets.forEach((iso, i) => {
+    const total = data.series.reduce((n, s) => n + (s.values[i] ?? 0), 0);
+    if (total === 0) return;
+    const p = parts.formatToParts(new Date(iso));
+    const day = WEEKDAYS.indexOf(
+      (p.find((x) => x.type === 'weekday')?.value ?? '') as (typeof WEEKDAYS)[number],
+    );
+    const hour = Number(p.find((x) => x.type === 'hour')?.value ?? NaN);
+    const row = cells.at(day);
+    if (day < 0 || row === undefined || !(hour >= 0 && hour < 24)) return;
+    row[hour] = (row[hour] ?? 0) + total;
+  });
+  return cells;
+}
+
+export function hourWeekdayChart(data: TimeSeries, zone: string): Chart {
+  const cells = foldHourWeekday(data, zone);
+  const max = Math.max(2, ...cells.flat());
+  return {
+    option: (p: Palette): EChartsCoreOption => ({
+      grid: { left: 8, right: 8, top: 8, bottom: 36, containLabel: true },
+      tooltip: {
+        formatter: (params: unknown) => {
+          const value = (params as { value?: [number, number, number] }).value;
+          const [h, d, n] = value ?? [0, 0, 0];
+          return tooltipText(
+            `${WEEKDAYS[d] ?? ''} ${HOURS[h] ?? ''}:00–${HOURS[(h + 1) % 24] ?? ''}:00`,
+            [`${count(n)} visits`],
+          );
+        },
+      },
+      xAxis: { type: 'category', data: HOURS, ...categoryAxis(p), splitArea: { show: false } },
+      yAxis: {
+        type: 'category',
+        data: [...WEEKDAYS],
+        inverse: true,
+        ...categoryAxis(p),
+        axisLine: { show: false },
+      },
+      visualMap: {
+        min: 1,
+        max,
+        type: 'piecewise',
+        // Visits are whole: bands read "1–2", never "1.0–1.6".
+        precision: 0,
+        orient: 'horizontal',
+        left: 'center',
+        bottom: 0,
+        splitNumber: 5,
+        inRange: { color: [...p.sequential] },
+        itemWidth: 10,
+        itemHeight: 10,
+        textStyle: { color: p.subtle, fontSize: 11 },
+      },
+      series: [
+        {
+          type: 'heatmap',
+          // Zero hours are left out, so they read as empty, not as the lowest band (E21).
+          data: cells.flatMap((row, d) => row.flatMap((n, h) => (n > 0 ? [[h, d, n]] : []))),
+          itemStyle: { borderColor: p.surface, borderWidth: 2, borderRadius: 3 },
+          emphasis: { itemStyle: { borderColor: p.text, borderWidth: 1 } },
+        },
+      ],
+    }),
+    table: {
+      columns: ['Day', ...HOURS],
+      rows: cells.map((row, d) => [WEEKDAYS[d] ?? '', ...row]),
+    },
     decals: false,
   };
 }
@@ -276,6 +375,7 @@ export function rankedRows(data: Breakdown): readonly RankedRow[] {
     label: dimensionValue(data.dimension, r.key),
     count: r.count,
     share: r.share,
+    icon: dimensionGlyph(data.dimension, r.key),
   }));
   if (data.other > 0) {
     rows.push({
@@ -293,6 +393,7 @@ export function rankedRows(data: Breakdown): readonly RankedRow[] {
       count: data.unknown,
       share: share(data.unknown),
       muted: true,
+      icon: dimensionGlyph(data.dimension, ''),
     });
   }
   return rows;

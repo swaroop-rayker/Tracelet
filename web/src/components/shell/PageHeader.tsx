@@ -12,6 +12,7 @@ export function PageHeader({
   description,
   actions,
   filters = false,
+  linkLocked = false,
   status,
 }: {
   readonly title: ReactNode;
@@ -20,6 +21,8 @@ export function PageHeader({
   readonly actions?: ReactNode;
   /** Show the period picker and the filter toolbar (analytics pages). */
   readonly filters?: boolean;
+  /** The page is one link's (DESIGN §10.11): the toolbar leaves out the link selector. */
+  readonly linkLocked?: boolean;
   /** A freshness indicator or a count, beside the title (DESIGN §12 E7). */
   readonly status?: ReactNode;
 }): React.JSX.Element {
@@ -41,7 +44,7 @@ export function PageHeader({
           </div>
         )}
       </div>
-      {filters && <FilterToolbar />}
+      {filters && <FilterToolbar linkSelect={!linkLocked} />}
     </header>
   );
 }

@@ -53,7 +53,9 @@ function Breadcrumb({
     ? 'Visit'
     : path.startsWith('/visitors/')
       ? 'Visitor'
-      : null;
+      : /^\/links\/[^/]+/.test(path)
+        ? decodeURIComponent(path.slice('/links/'.length))
+        : null;
   return (
     <nav aria-label="Breadcrumb" className="crumbs">
       <ol>

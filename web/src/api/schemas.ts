@@ -282,6 +282,35 @@ export const linkChoicesSchema: z.ZodType<LinkChoice[]> = z.array(
   }),
 );
 
+/** The Links pages (DESIGN §10.11) read these fields of `LinkOut`; zod strips the rest. */
+export type LinkSummary = Pick<
+  S['LinkOut'],
+  | 'id'
+  | 'slug'
+  | 'label'
+  | 'archived_at'
+  | 'capture_url'
+  | 'destination_url'
+  | 'is_active'
+  | 'is_default'
+  | 'visit_count'
+  | 'created_at'
+>;
+export const linksSchema: z.ZodType<LinkSummary[]> = z.array(
+  z.object({
+    id: z.string(),
+    slug: z.string(),
+    label: z.string(),
+    archived_at: z.string().nullable(),
+    capture_url: z.string(),
+    destination_url: z.string(),
+    is_active: z.boolean(),
+    is_default: z.boolean(),
+    visit_count: z.number(),
+    created_at: z.string(),
+  }),
+);
+
 export type Meta = S['Meta'];
 export type Summary = S['Summary'];
 export type Kpi = S['Kpi'];

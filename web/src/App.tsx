@@ -36,6 +36,8 @@ const VisitDetailPage = lazy(() => import('@/pages/dashboard/VisitDetailPage'));
 const VisitorPage = lazy(() => import('@/pages/dashboard/VisitorPage'));
 const GeographyPage = lazy(() => import('@/pages/dashboard/GeographyPage'));
 const BreakdownsPage = lazy(() => import('@/pages/dashboard/BreakdownsPage'));
+const LinksPage = lazy(() => import('@/pages/dashboard/LinksPage'));
+const LinkDetailPage = lazy(() => import('@/pages/dashboard/LinkDetailPage'));
 const InferencePage = lazy(() => import('@/pages/dashboard/InferencePage'));
 const DetectionPage = lazy(() => import('@/pages/dashboard/DetectionPage'));
 const AccountPage = lazy(() => import('@/pages/AccountPage'));
@@ -193,6 +195,8 @@ export default function App(): React.JSX.Element {
           <Route path="visitors/:visitorId" element={<Page component={VisitorPage} />} />
           <Route path="geography" element={<Page component={GeographyPage} />} />
           <Route path="breakdowns" element={<Page component={BreakdownsPage} />} />
+          <Route path="links" element={<Page component={LinksPage} />} />
+          <Route path="links/:slug" element={<Page component={LinkDetailPage} />} />
           <Route path="inference" element={<Page component={InferencePage} />} />
           <Route path="detection" element={<Page component={DetectionPage} />} />
           <Route path="account" element={<Page component={AccountPage} />} />

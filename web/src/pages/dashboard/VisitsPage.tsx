@@ -19,6 +19,7 @@ import { PageHeader } from '@/components/shell/PageHeader';
 import { setScalar } from '@/components/shell/filterDefs';
 import {
   Badge,
+  Glyph,
   Button,
   Dialog,
   KeyValue,
@@ -30,6 +31,7 @@ import {
 import { VisitDetailBody } from '@/components/visit/VisitDetail';
 import { parseFilters, serializeFilters, withParams } from '@/filters';
 import { label, pct, when } from '@/format';
+import { connectionGlyph, deviceGlyph } from '@/glyphs';
 import { useFilters, useSession } from '@/session';
 import { placeLabel, placeOf } from '@/visits';
 
@@ -307,9 +309,13 @@ function VisitRow({
         </td>
         <td className="visit-row__place">{placeLabel(place)}</td>
         <td className="muted">
+          <Glyph name={visit.device.is_inapp_webview ? 'InApp' : deviceGlyph(visit.device.class)} />
           {visit.device.browser ?? 'Unknown browser'} · {visit.device.os ?? 'unknown OS'}
         </td>
-        <td className="muted visit-row__net">{visit.network.asn_org ?? 'Unknown network'}</td>
+        <td className="muted visit-row__net">
+          <Glyph name={connectionGlyph(visit.network.connection_class)} />
+          {visit.network.asn_org ?? 'Unknown network'}
+        </td>
         <td className="visit-row__actions">
           <Button
             variant="ghost"

@@ -61,6 +61,14 @@ export const NAV_GROUPS: readonly NavGroup[] = [
         key: 'b',
         hint: 'Location, network, device',
       },
+      {
+        to: '/links',
+        label: 'Links',
+        icon: 'Link',
+        filtered: true,
+        key: 'l',
+        hint: 'Every tracking link, and each one’s own dashboard',
+      },
     ],
   },
   {
@@ -120,6 +128,10 @@ export function locate(path: string): {
 export function isFilteredPath(path: string): boolean {
   const { item } = locate(path);
   return (
-    item?.filtered === true && !/^\/visits\/[^/]+/.test(path) && !path.startsWith('/visitors/')
+    item?.filtered === true &&
+    !/^\/visits\/[^/]+/.test(path) &&
+    !path.startsWith('/visitors/') &&
+    // The Links index counts all-time visits; a link's own page is filtered (DESIGN §10.11).
+    path !== '/links'
   );
 }

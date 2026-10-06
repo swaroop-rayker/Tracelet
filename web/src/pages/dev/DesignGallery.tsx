@@ -32,6 +32,7 @@ import {
   SearchInput,
   SegmentedControl,
   Select,
+  Glyph,
   Stat,
   StatStrip,
   Stats,
@@ -66,6 +67,11 @@ const SAMPLE_ROWS: readonly SampleRow[] = [
   { id: '2', time: '09:41', cls: 'Bot', dot: 'bot', where: 'Ashburn, Virginia · 92%', n: 12 },
   { id: '3', time: '08:12', cls: 'Human', dot: 'human', where: 'Bengaluru, Karnataka ✓', n: 1 },
 ];
+
+const TREND = {
+  values: [3, 5, 4, 8, 6, null, 7, 9, 6, 8],
+  spoken: 'Over 10 days: low 3, high 9.',
+};
 
 export default function DesignGallery(): React.JSX.Element {
   const [theme, setTheme] = useState<ThemeName>('semi_dark');
@@ -189,6 +195,18 @@ export default function DesignGallery(): React.JSX.Element {
           <Identifier value="01J9X4TQ7B2M5ZK8R1C3V6N0PW" label="Copy visit id" />
           <Timestamp iso={now} zone="Asia/Kolkata" />
           <span>
+            <Glyph name="DeviceMobile" />
+            Mobile
+          </span>
+          <span>
+            <Glyph name="NetBroadband" />
+            Broadband
+          </span>
+          <span>
+            <Glyph name="InApp" />
+            instagram
+          </span>
+          <span>
             Stage mix
             <InfoTip term="stage mix">
               What share of requests were enriched by the browser, captured server-side only, or
@@ -213,6 +231,7 @@ export default function DesignGallery(): React.JSX.Element {
           delta={{ direction: 'up', text: '12%', judgement: 'neutral' }}
           comparison="vs previous 30 days"
           hint="Every request to a tracking link in the period, automated traffic excluded."
+          trend={TREND}
         />
         <Stat
           label="Human share"
@@ -232,7 +251,7 @@ export default function DesignGallery(): React.JSX.Element {
         label="Secondary figures"
         items={[
           { key: 'a', label: 'Automated share', value: '9.8%' },
-          { key: 'b', label: 'Location consent', value: '0.0%' },
+          { key: 'b', label: 'Location consent', value: '0.0%', trend: TREND },
           { key: 'c', label: 'Geofence hit rate', value: '—', hint: 'M6' },
         ]}
       />

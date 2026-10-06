@@ -22,6 +22,7 @@ then open the PR (CLAUDE.md section 2).
 | M4 | Anti-spoofing and classification | L | **[x] done** — 10 of 10 items (the UI item ticked in M5); bugs E32–E33; R19 and R21 closed |
 | M5 | Dashboard analytics and visualisation | L | **[x] done** — 10 of 10 items; rollups p95 ≤ 70 ms at design load; raw fallback slow on long windows (R25); bugs E34–E36 |
 | M5.5 | Design system and UI polish (owner-directed 2026-10-02, approved 2026-10-03; docs/DESIGN.md) | L | **built** — 10 of 11 items; CSP 0 in Chromium, Firefox and WebKit; 72-image matrix; bugs E41–E47; open: hand keyboard walkthrough |
+| M5.6 | Dashboard enhancements, UI only (owner-approved 2026-10-06; docs/plans/ENHANCEMENTS-PLAN.md Phase A) | S | **[x] built** — 6 of 6 items; CSP 0 in three engines; no server change |
 | M6 | Geofencing and Telegram notifications | M | [ ] |
 | M7 | System health and operations | L | [ ] |
 | M8 | Accuracy hardening and ground truth | M | [ ] |
@@ -689,6 +690,45 @@ E4–E10. **Plan:** docs/DESIGN.md Part II; **decision:** ADR-0019. **F/AC-IDs:*
       6a9a9a0..HEAD` touches only `web/`, `docs/` and `CLAUDE.md`; `./scripts/tl verify` 13/13*
 - [x] Docs: DESIGN.md accepted; ARCHITECTURE §5 and §8 ledger updated; CLAUDE.md rules live —
       *plus ERRORS E41–E47 and R27 updated*
+
+---
+
+## M5.6 — Dashboard enhancements, UI only · size S
+
+**Goal:** a dashboard that reads at a glance and feels alive, with no server change.
+**Approved:** 2026-10-06 by the owner, as Phase A of `docs/plans/ENHANCEMENTS-PLAN.md`.
+**Design:** DESIGN §10.1, §10.11 and §12 E16–E22. **F/AC-IDs:** F9.AC2, F9.AC3, F9.AC5,
+F9.AC6, F9.AC16–F9.AC18, NFR7. No new requirement: every item reads an existing endpoint.
+
+**Scope**
+- E16 sparklines on Visits, Human share and Location consent
+- E17 the state map card on Overview, lazily loaded
+- E18 the live feed in place of "Recent visits"
+- E19 the hour × weekday heatmap
+- E20 the Links index and link detail pages
+- E21 the Daily volume fix (zero-visit days are empty)
+- E22 device and network icons in tables and ranked lists
+
+**Done checklist**
+- [x] Every item in DESIGN §12 E16–E22 built, with a state or unit test where it has logic —
+      *8 new vitest cases: the sparkline's gap, silence under two points and spoken text; the
+      hour × weekday fold in IST (a UTC 15:30 bucket lands on Monday 21h); zero days left out
+      of the calendar series but kept in its table; glyphs on device rows and none on states*
+- [x] No API, schema or migration change: the diff touches only `web/` and `docs/`
+- [x] Zero CSP violations in Chromium, Firefox and WebKit on the Caddy-served build — *the M5.5
+      Playwright sweep against Caddy, now over 11 signed-in routes (Links, a link's page and an
+      unknown slug added) in 3 themes plus every overlay, with positive controls reported in each
+      engine. The only reports are the known ones: Firefox's own favicon fetch on the API's
+      `/privacy` page, and WebKit reacting to Playwright's screenshot stylesheet*
+- [x] Screenshots: Overview, Links and a link's detail in 3 themes at 1440, 1024 and 390 px,
+      with no horizontal overflow — *54 in Chromium over six changed pages (Visits, Geography
+      and Breakdowns too), plus 24 in Firefox and WebKit; none overflows. Two fixes came out of
+      the review: heatmap legends now band in whole visits, and the live feed drops its Device
+      column and keeps times on one line on phones*
+- [x] Overview's own chunk within +10 KB gzipped (UI-24); Leaflet stays in the map chunk —
+      *Overview 0.9 KB + shared panels 5.3 KB gz; the map is its own lazy 46 KB chunk shared
+      with Geography; initial JS +1.8 KB (icons), CSS +0.3 KB*
+- [x] `./scripts/tl verify` 13/13 — *512 unit, 318 integration, 120 vitest*
 
 ---
 

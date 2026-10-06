@@ -1,9 +1,10 @@
 /**
- * Display primitives (DESIGN §5.4, §5.7): Card, Badge, Kbd, KeyValue, Identifier,
+ * Display primitives (DESIGN §5.4, §5.7): Card, Badge, Glyph, Kbd, KeyValue, Identifier,
  * Timestamp, Legend, Secret, Tabs.
  */
 
 import { useId, type ReactNode } from 'react';
+import { Icon, type IconName } from '@/components/icons';
 import { CopyButton } from '@/components/ui/Button';
 import { cx, middleTruncate, relativeTime } from '@/components/ui/util';
 
@@ -92,6 +93,15 @@ export function Badge({
       {children}
     </span>
   );
+}
+
+/**
+ * A decorative glyph before a value in a table cell (DESIGN §12 E22). Hidden from assistive
+ * technology: the words beside it carry the meaning.
+ */
+export function Glyph({ name }: { readonly name: IconName }): React.JSX.Element {
+  const Shape = Icon[name];
+  return <Shape className="glyph" size={14} strokeWidth={1.75} aria-hidden="true" />;
 }
 
 export function Kbd({ children }: { readonly children: ReactNode }): React.JSX.Element {

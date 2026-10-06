@@ -20,6 +20,7 @@ import {
   Loading,
   RankedList,
   SegmentedControl,
+  Sparkline,
   Stat,
   Switch,
 } from '@/components/ui';
@@ -188,6 +189,30 @@ describe('RankedList', () => {
     );
     expect(markup.match(/<button/g)).toHaveLength(2);
     expect(markup).toContain('aria-label="Filter to Maharashtra"');
+  });
+});
+
+describe('Sparkline (E16)', () => {
+  const trend = { values: [2, 5, null, 3], spoken: 'Over 4 days: low 2, high 5.' };
+
+  it('is decorative SVG with no inline style, and says the same in words', () => {
+    const markup = html(<Sparkline trend={trend} />);
+    expect(markup).toContain('aria-hidden="true"');
+    expect(markup).not.toContain('style=');
+    expect(textOf(markup)).toBe('Over 4 days: low 2, high 5.');
+  });
+
+  it('breaks the line where a value is missing, rather than inventing one', () => {
+    const d = /<path d="([^"]+)"/.exec(html(<Sparkline trend={trend} />))?.[1] ?? '';
+    expect(d.match(/M/g)?.length).toBe(2);
+  });
+
+  it('draws nothing from fewer than two known values', () => {
+    expect(html(<Sparkline trend={{ values: [4, null], spoken: 'x' }} />)).toBe('');
+  });
+
+  it('sits under a Stat when the Stat is given a trend', () => {
+    expect(html(<Stat label="Visits" value="12" trend={trend} />)).toContain('sparkline');
   });
 });
 
