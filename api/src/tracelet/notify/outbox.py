@@ -6,6 +6,10 @@ loses nothing (F7.AC5). ``INSERT ... ON CONFLICT (dedup_key) DO NOTHING`` is the
 once-per-local-day rule (F7.AC2): two concurrent visits from one visitor race to one row,
 and the database decides which, so no application check can be raced.
 
+The rule has one upgrade (SPEC section 11 row 20): a high-priority alert whose day is
+already held by a *normal* alert is queued under the day key plus ``UPGRADE``, unique
+too, so concurrent upgrades also race to one row.
+
 The worker side -- claim, complete, fail, recover, retry -- is here too, so every state
 change of a row is in one file. ``notify/worker.py`` drives it.
 """
@@ -35,6 +39,8 @@ from tracelet.notify import alerts
 # An in-flight row older than this was abandoned by a crashed worker (invariant 7).
 STALE_LOCK: Final = dt.timedelta(minutes=5)
 CLAIM_BATCH: Final = 10
+# The day's one upgrade from a normal alert to a high one (SPEC section 11 row 20).
+UPGRADE: Final = ":upgrade"
 
 
 class OutboxKind(enum.StrEnum):
@@ -178,6 +184,22 @@ async def enqueue_visit_alert(
         reporting_tz=reporting_tz,
     )
     payload = visit_payload(visit, link, evaluation, reporting_tz=reporting_tz, base_url=base_url)
+    if await _insert(db, key, priority, payload):
+        return Enqueued(queued=True, reason="queued", priority=priority)
+    # SPEC section 11 row 20: the day's alert was only normal, and this one is high.
+    if (
+        priority is NotifyPriority.HIGH
+        and await _holder(db, key) is NotifyPriority.NORMAL
+        and await _insert(db, key + UPGRADE, priority, payload)
+    ):
+        return Enqueued(queued=True, reason="upgrade", priority=priority)
+    return Enqueued(queued=False, reason="duplicate", priority=priority)
+
+
+async def _insert(
+    db: AsyncSession, key: str, priority: NotifyPriority, payload: dict[str, Any]
+) -> bool:
+    """Queue under ``key`` unless a row already holds it; the database decides a race."""
     inserted = (
         await db.execute(
             pg.insert(Outbox)
@@ -191,9 +213,16 @@ async def enqueue_visit_alert(
             .returning(Outbox.id)
         )
     ).first()
-    if inserted is None:
-        return Enqueued(queued=False, reason="duplicate", priority=priority)
-    return Enqueued(queued=True, reason="queued", priority=priority)
+    return inserted is not None
+
+
+async def _holder(db: AsyncSession, key: str) -> NotifyPriority | None:
+    """The priority of the alert holding ``key``. A conflicting insert waits for the
+    holder's transaction to commit, so the row is visible here; None only if a retention
+    purge removed it in between."""
+    return (
+        await db.execute(select(Outbox.priority).where(Outbox.dedup_key == key))
+    ).scalar_one_or_none()
 
 
 # ---------------------------------------------------------------------------

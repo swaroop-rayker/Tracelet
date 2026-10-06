@@ -776,7 +776,9 @@ link's `notify_policy` and the deciding geofence:
 | `null` (no geofence applies) | the link's `outside` | "New visitor" |
 
 `silent` queues nothing. At most one alert per link and visitor per local day in the
-reporting timezone (F7.AC2); later visits that day queue nothing, whatever their state.
+reporting timezone (F7.AC2), with one upgrade: if that alert was `normal`, a later visit that
+resolves to `high` (a confirmed inside) still queues one, once (SPEC §11 row 20). Otherwise
+later visits that day queue nothing, whatever their state.
 The message lists the time, the link, the strict location with its confidence (or the best
 guess, marked so, where strict abstained), device and browser, connection class, ASN and
 ISP, the classification with its bot score, and a link to the visit (F7.AC4).

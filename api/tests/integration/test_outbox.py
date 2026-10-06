@@ -364,6 +364,114 @@ async def test_one_visitor_alerts_once_a_day_even_when_visits_race(
     assert rows == 1
 
 
+async def _same_visitor_visits(client: AsyncClient, n: int) -> tuple[uuid.UUID, list[uuid.UUID]]:
+    """``n`` human visits today from one visitor, on a link whose ``outside`` alert is high
+    and ``undetermined`` alert normal -- so the evaluation alone picks each priority."""
+    link = await ch.create_link()
+    visits = []
+    for _ in range(n):
+        await ch.visit(client, link.slug)
+        visits.append((await ch.latest_visit(link.id)).id)
+    async with session_scope() as db:
+        await db.execute(
+            text(
+                'UPDATE links SET notify_policy = \'{"inside": "high", '
+                '"outside": "high", "undetermined": "normal", '
+                '"automated": "silent"}\'::jsonb WHERE id = :id'
+            ),
+            {"id": link.id},
+        )
+        await db.execute(
+            text(
+                "UPDATE visits SET visitor_id = '\\x0a0b'::bytea, classification = 'human', "
+                "occurred_at = now() WHERE id = ANY(:ids)"
+            ),
+            {"ids": visits},
+        )
+    return link.id, visits
+
+
+HIGH = Evaluation((), None)  # no geofence applies: the link's `outside`, high here
+NORMAL = Evaluation((), GeofenceState.UNDETERMINED)  # the link's `undetermined`, normal
+
+
+async def _enqueue(visit_id: uuid.UUID, evaluation: Evaluation, settings: Settings) -> str:
+    async with session_scope() as db:
+        result = await outbox.enqueue_visit_alert(
+            db, visit_id, evaluation, reporting_tz=settings.reporting_tz, base_url="https://x"
+        )
+    return result.reason
+
+
+async def _day_rows(link_id: uuid.UUID) -> list[tuple[str, NotifyPriority]]:
+    async with session_scope() as db:
+        rows = await db.execute(
+            select(Outbox.dedup_key, Outbox.priority)
+            .where(Outbox.dedup_key.like(f"visit_alert:{link_id}:%"))
+            .order_by(Outbox.id)
+        )
+        return [(key or "", priority) for key, priority in rows]
+
+
+async def test_a_high_alert_upgrades_a_normal_one_once_a_day(
+    db_client: AsyncClient, integration_settings: Settings
+) -> None:
+    """SPEC section 11 row 20: location refused, then allowed and confirmed inside, both
+    alert -- and that is the day's last alert, whatever comes after."""
+    link_id, (v1, v2, v3, v4) = await _same_visitor_visits(db_client, 4)
+
+    assert await _enqueue(v1, NORMAL, integration_settings) == "queued"
+    assert await _enqueue(v2, HIGH, integration_settings) == "upgrade"
+    assert await _enqueue(v3, HIGH, integration_settings) == "duplicate"
+    assert await _enqueue(v4, NORMAL, integration_settings) == "duplicate"
+
+    (base, base_priority), (upgrade, upgrade_priority) = await _day_rows(link_id)
+    assert upgrade == base + outbox.UPGRADE
+    assert (base_priority, upgrade_priority) == (NotifyPriority.NORMAL, NotifyPriority.HIGH)
+
+
+async def test_a_high_first_alert_leaves_nothing_to_upgrade(
+    db_client: AsyncClient, integration_settings: Settings
+) -> None:
+    link_id, (v1, v2, v3) = await _same_visitor_visits(db_client, 3)
+
+    assert await _enqueue(v1, HIGH, integration_settings) == "queued"
+    assert await _enqueue(v2, NORMAL, integration_settings) == "duplicate"
+    assert await _enqueue(v3, HIGH, integration_settings) == "duplicate"
+
+    ((_, priority),) = await _day_rows(link_id)
+    assert priority is NotifyPriority.HIGH
+
+
+async def test_concurrent_upgrades_race_to_one(
+    db_client: AsyncClient, integration_settings: Settings
+) -> None:
+    """The upgrade is a unique key too, so it holds under concurrent visits like the day
+    key does (SPEC section 11 row 20)."""
+    link_id, (first, *racing) = await _same_visitor_visits(db_client, 3)
+    assert await _enqueue(first, NORMAL, integration_settings) == "queued"
+
+    gate = asyncio.Event()
+
+    async def queue(visit_id: uuid.UUID) -> str:
+        async with session_scope() as db:
+            await gate.wait()
+            result = await outbox.enqueue_visit_alert(
+                db,
+                visit_id,
+                HIGH,
+                reporting_tz=integration_settings.reporting_tz,
+                base_url="https://x",
+            )
+            await asyncio.sleep(0.2)  # hold the transaction open across the other insert
+            return result.reason
+
+    tasks = [asyncio.create_task(queue(v)) for v in racing]
+    gate.set()
+    assert sorted(await asyncio.gather(*tasks)) == ["duplicate", "upgrade"]
+    assert [p for _, p in await _day_rows(link_id)] == [NotifyPriority.NORMAL, NotifyPriority.HIGH]
+
+
 # ---------------------------------------------------------------------------
 # The worker: deliver, retry, dead-letter, quiet hours
 # ---------------------------------------------------------------------------
