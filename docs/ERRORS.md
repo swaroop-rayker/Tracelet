@@ -2099,6 +2099,31 @@ element each. A layer that redraws on zoom draws only the viewport.
 
 ---
 
+### E60 — Every name on the editor map blinked out on each zoom step
+
+**Status:** Fixed. **Milestone:** M6. **Date:** 2026-10-06. Reported by the owner.
+
+**Symptom.** Zooming the geofence editor's map, all city and area names vanished for the
+length of each zoom animation and reappeared at its end: a flicker on every step.
+
+**Root cause.** E59's canvas was hidden on `zoomstart` and redrawn on `zoomend`, on the
+reasoning that stretched text mid-zoom would look worse than none. A blink on every step was
+worse.
+
+**Fix.** The canvas now does what Leaflet's own canvas renderer does: on `zoomanim` (and
+`zoom`) it is transformed from the view it was drawn for to the view being zoomed to, with
+`leaflet-zoom-animated` so the transition runs with the map's; the redraw at the end resets
+the transform and draws crisp. Sampled every animation frame in Chromium, Firefox and WebKit:
+never hidden, scaled 1 to 2 zooming in and 1 to 0.5 zooming out, back to 1 with the names
+redrawn; still no long task while zooming or panning.
+
+**Prevention.** A layer that redraws after a zoom scales with the zoom in the meantime; it
+never disappears.
+
+**Related:** E59, DESIGN §16.
+
+---
+
 Add entries here as bugs are found and fixed. Use the next available `E<n>` identifier and
 the same structure: symptom, root cause, fix, **prevention**.
 

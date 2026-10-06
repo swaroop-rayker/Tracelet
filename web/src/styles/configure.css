@@ -184,18 +184,14 @@
   gap: var(--space-3);
 }
 
-/* The editor map's names and city dots, one canvas (E59). Never in the way of a click, and
-   hidden mid-zoom rather than shown stretched. Its font is the UI font, read by the canvas. */
+/* The editor map's names and city dots, one canvas (E59). Never in the way of a click; it
+   scales with a zoom and is redrawn crisp at the end (E60). Its font is the UI font. */
 .name-canvas {
   position: absolute;
   top: 0;
   left: 0;
   pointer-events: none;
   font-family: var(--font-ui);
-}
-
-.name-canvas--hidden {
-  visibility: hidden;
 }
 
 /* --- alerts ------------------------------------------------------------------------- */

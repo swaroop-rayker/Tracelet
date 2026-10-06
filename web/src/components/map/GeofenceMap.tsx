@@ -203,6 +203,9 @@ const AREA_CHAR_W = 7.5;
 class NameLayer extends L.Layer {
   private canvas: HTMLCanvasElement | null = null;
   private frame = 0;
+  /** The view the canvas was last drawn for, so a zoom can scale it from there. */
+  private drawnCenter: L.LatLng | null = null;
+  private drawnZoom = 0;
 
   constructor(
     private readonly places: readonly MapPlace[],
@@ -212,27 +215,60 @@ class NameLayer extends L.Layer {
   }
 
   override onAdd(map: L.Map): this {
-    const canvas = L.DomUtil.create('canvas', 'name-canvas', map.getPane(PLACE_PANE));
+    // leaflet-zoom-animated: the transform set on 'zoomanim' is transitioned by Leaflet's own
+    // zoom animation, as its canvas renderer's is.
+    const canvas = L.DomUtil.create(
+      'canvas',
+      'name-canvas leaflet-zoom-animated',
+      map.getPane(PLACE_PANE),
+    );
     this.canvas = canvas;
     map.on('move zoomend resize viewreset', this.schedule);
-    // Mid-zoom the pane is scaled by CSS; hide rather than show stretched text.
-    map.on('zoomstart', this.hide);
+    // While zooming the names grow or shrink with the map and are redrawn crisp at the end.
+    // Hiding them instead made every zoom step blink (owner report, E60).
+    map.on('zoomanim', this.onZoomAnim);
+    map.on('zoom', this.onZoom);
     this.redraw();
     return this;
   }
 
   override onRemove(map: L.Map): this {
     map.off('move zoomend resize viewreset', this.schedule);
-    map.off('zoomstart', this.hide);
+    map.off('zoomanim', this.onZoomAnim);
+    map.off('zoom', this.onZoom);
     if (this.frame !== 0) L.Util.cancelAnimFrame(this.frame);
     this.canvas?.remove();
     this.canvas = null;
     return this;
   }
 
-  private readonly hide = (): void => {
-    this.canvas?.classList.add('name-canvas--hidden');
+  private readonly onZoomAnim = (event: L.ZoomAnimEvent): void => {
+    this.scaleTo(event.center, event.zoom);
   };
+
+  private readonly onZoom = (): void => {
+    const map = this._map as L.Map | undefined;
+    if (map !== undefined) this.scaleTo(map.getCenter(), map.getZoom());
+  };
+
+  /**
+   * Scale the canvas as drawn to where the map is zooming: Leaflet's Renderer
+   * `_updateTransform`, without its private API. Undone by the next redraw.
+   */
+  private scaleTo(center: L.LatLng, zoom: number): void {
+    const map = this._map as L.Map | undefined;
+    const canvas = this.canvas;
+    if (map === undefined || canvas === null || this.drawnCenter === null) return;
+    const scale = map.getZoomScale(zoom, this.drawnZoom);
+    const half = map.getSize().divideBy(2);
+    const panePos = L.DomUtil.getPosition(map.getPane('mapPane') ?? canvas);
+    const origin = map.project(center, zoom).subtract(half).add(panePos).round();
+    const offset = half
+      .multiplyBy(-scale)
+      .add(map.project(this.drawnCenter, zoom))
+      .subtract(origin);
+    L.DomUtil.setTransform(canvas, offset, scale);
+  }
 
   private readonly schedule = (): void => {
     if (this.frame !== 0) return;
@@ -246,7 +282,8 @@ class NameLayer extends L.Layer {
     const map = this._map as L.Map | undefined;
     const canvas = this.canvas;
     if (map === undefined || canvas === null) return;
-    canvas.classList.remove('name-canvas--hidden');
+    this.drawnCenter = map.getCenter();
+    this.drawnZoom = map.getZoom();
     const size = map.getSize();
     const ratio = window.devicePixelRatio || 1;
     if (canvas.width !== size.x * ratio || canvas.height !== size.y * ratio) {

@@ -1351,7 +1351,7 @@ rail** and a right **inspector drawer**:
   through them. Layer order is fixed by panes: outlines, then places, then shapes (E57).
   Dots and every name are drawn on one canvas, only for the visible map, so zooming and
   panning stay smooth with a country's thousand-odd places (E59); the canvas lets clicks
-  through to the map.
+  through to the map, and scales with a zoom animation rather than disappearing (E60).
 - **Alerts** shows whether Telegram is configured and verified, never the token or chat id;
   quiet hours are a switch, two `HH:MM` fields and a time zone; the delivery log polls every
   15 s with its freshness shown, and its status filter and page are in the URL (`?status=dead`),
