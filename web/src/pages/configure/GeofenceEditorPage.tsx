@@ -393,7 +393,8 @@ function Editor({
             disabled={!owner || !hasShape}
             onClick={() => {
               setShape({ ring: null, circle: null });
-              setTool(draft.kind === 'circle' ? 'circle' : 'polygon');
+              // Back to Select, not straight into drawing: deleting means gone (E61).
+              setTool('select');
             }}
           />
         </div>
@@ -873,11 +874,15 @@ function CircleFields({
   const [lat, setLat] = useState(circle === null ? '' : String(round6(circle.lat)));
   const [lng, setLng] = useState(circle === null ? '' : String(round6(circle.lng)));
   const [radius, setRadius] = useState(circle === null ? '' : String(circle.radius_m));
+  // Whether the fields hold something the person typed and the circle does not have yet.
+  // Only that is ever applied: fields that merely still show a deleted circle must not put it
+  // back (E61).
+  const typed = useRef(false);
   useEffect(() => {
-    if (circle === null) return;
-    setLat(String(round6(circle.lat)));
-    setLng(String(round6(circle.lng)));
-    setRadius(String(circle.radius_m));
+    typed.current = false;
+    setLat(circle === null ? '' : String(round6(circle.lat)));
+    setLng(circle === null ? '' : String(round6(circle.lng)));
+    setRadius(circle === null ? '' : String(circle.radius_m));
   }, [circle]);
 
   // Typed values are applied half a second after the last keystroke, and only if they
@@ -886,6 +891,7 @@ function CircleFields({
   const onChangeRef = useRef(onChange);
   onChangeRef.current = onChange;
   useEffect(() => {
+    if (!typed.current) return undefined;
     const timer = window.setTimeout(() => {
       const [la, ln, ra] = [parseNumber(lat), parseNumber(lng), parseNumber(radius)];
       if (la === null || ln === null || ra === null || Math.abs(la) > 90 || Math.abs(ln) > 180) {
@@ -913,6 +919,7 @@ function CircleFields({
           mono
           value={lat}
           onChange={(v) => {
+            typed.current = true;
             setLat(v);
           }}
         />
@@ -922,6 +929,7 @@ function CircleFields({
           mono
           value={lng}
           onChange={(v) => {
+            typed.current = true;
             setLng(v);
           }}
         />
@@ -932,6 +940,7 @@ function CircleFields({
           hint="50 m to 1,000 km"
           value={radius}
           onChange={(v) => {
+            typed.current = true;
             setRadius(v);
           }}
         />

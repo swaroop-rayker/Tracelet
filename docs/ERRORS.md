@@ -2124,6 +2124,32 @@ never disappears.
 
 ---
 
+### E61 — A deleted circle came back half a second later
+
+**Status:** Fixed. **Milestone:** M6. **Date:** 2026-10-06. Reported by the owner.
+
+**Symptom.** The tool rail's "Delete shape" removed the shape, and it reappeared. Reproduced
+for drawn and typed circles: after delete, the radius field still read the old value, and the
+circle was back 1.5 s later.
+
+**Root cause.** E57 made typed circle values apply 500 ms after the last change, whenever the
+fields differed from the current circle. Deleting set the circle to none but left the fields
+showing it -- and "fields hold a circle, there is none" counted as a difference, so the old
+circle was applied again. Delete also switched straight into draw mode, whose hint lines made
+the map look as if something was still there.
+
+**Fix.** Only what the person typed is applied: a flag set by keystrokes, cleared whenever the
+fields are refreshed from the shape. The fields also empty when the shape is deleted, and
+delete returns the rail to Select. Checked in Chromium, Firefox and WebKit for a drawn circle,
+a typed circle and a drawn polygon: gone at once and still gone 1.5 s later.
+
+**Prevention.** A debounced "apply what is typed" acts on typing, never on a difference
+between a field and its source -- a difference also arises when the source changes.
+
+**Related:** E57.
+
+---
+
 Add entries here as bugs are found and fixed. Use the next available `E<n>` identifier and
 the same structure: symptom, root cause, fix, **prevention**.
 
