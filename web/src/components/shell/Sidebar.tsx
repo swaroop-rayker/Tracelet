@@ -7,7 +7,7 @@
  */
 
 import { useState } from 'react';
-import { NavLink, useLocation } from 'react-router';
+import { NavLink, useLocation, useNavigate } from 'react-router';
 import { logout } from '@/api/auth';
 import { Icon } from '@/components/icons';
 import { BrandMark } from '@/components/shell/BrandMark';
@@ -124,6 +124,7 @@ function UserMenu({
   readonly onShowShortcuts: () => void;
 }): React.JSX.Element {
   const { me, onSignedOut } = useSession();
+  const navigate = useNavigate();
   const { switchTo, error: themeError } = useThemeSwitch();
   const [busy, setBusy] = useState(false);
   const current = asTheme(me.theme);
@@ -169,6 +170,15 @@ function UserMenu({
               </MenuItem>
             ))}
             <MenuSeparator />
+            <MenuItem
+              icon="Account"
+              onSelect={() => {
+                close();
+                void navigate('/settings/profile');
+              }}
+            >
+              Settings
+            </MenuItem>
             <MenuItem
               icon="Shortcuts"
               hint="?"

@@ -162,31 +162,62 @@ function parseSessions(value: unknown): readonly SessionSummary[] | null {
   return rows;
 }
 
+function parseAdmin(entry: unknown): AdminSummary | null {
+  if (!isRecord(entry)) return null;
+  const { id, email, display_name, role, status } = entry;
+  if (!str(id) || !str(email) || !str(display_name)) return null;
+  if (role !== 'owner' && role !== 'analyst') return null;
+  if (status !== 'pending_enrollment' && status !== 'active' && status !== 'disabled') {
+    return null;
+  }
+  return {
+    id,
+    email,
+    display_name,
+    role,
+    status,
+    totp_enrolled: entry.totp_enrolled === true,
+    telegram_verified: entry.telegram_verified === true,
+    last_login_at: str(entry.last_login_at) ? entry.last_login_at : null,
+    locked_until: str(entry.locked_until) ? entry.locked_until : null,
+    created_at: str(entry.created_at) ? entry.created_at : '',
+  };
+}
+
 function parseAdmins(value: unknown): readonly AdminSummary[] | null {
   if (!Array.isArray(value)) return null;
   const rows: AdminSummary[] = [];
   for (const entry of value) {
-    if (!isRecord(entry)) return null;
-    const { id, email, display_name, role, status } = entry;
-    if (!str(id) || !str(email) || !str(display_name)) return null;
-    if (role !== 'owner' && role !== 'analyst') return null;
-    if (status !== 'pending_enrollment' && status !== 'active' && status !== 'disabled') {
-      return null;
-    }
-    rows.push({
-      id,
-      email,
-      display_name,
-      role,
-      status,
-      totp_enrolled: entry.totp_enrolled === true,
-      telegram_verified: entry.telegram_verified === true,
-      last_login_at: str(entry.last_login_at) ? entry.last_login_at : null,
-      locked_until: str(entry.locked_until) ? entry.locked_until : null,
-      created_at: str(entry.created_at) ? entry.created_at : '',
-    });
+    const admin = parseAdmin(entry);
+    if (admin === null) return null;
+    rows.push(admin);
   }
   return rows;
+}
+
+/** A one-time setup link: shown once, never stored by the client (API §5). */
+export interface SetupLink {
+  readonly url: string;
+  readonly expires_at: string;
+}
+
+export interface Invited {
+  readonly admin: AdminSummary;
+  readonly link: SetupLink;
+}
+
+function parseInvited(value: unknown): Invited | null {
+  if (!isRecord(value)) return null;
+  const admin = parseAdmin(value.admin);
+  const { enrollment_url, enrollment_expires_at } = value;
+  if (admin === null || !str(enrollment_url) || !str(enrollment_expires_at)) return null;
+  return { admin, link: { url: enrollment_url, expires_at: enrollment_expires_at } };
+}
+
+function parseSetupLink(value: unknown): SetupLink | null {
+  if (!isRecord(value)) return null;
+  const { url, expires_at } = value;
+  return str(url) && str(expires_at) ? { url, expires_at } : null;
 }
 
 function parseCodes(value: unknown): readonly string[] | null {
@@ -325,6 +356,49 @@ export function revokeSession(csrfToken: string, sessionId: string): Promise<Api
 
 export function fetchAdmins(): Promise<ApiResult<readonly AdminSummary[]>> {
   return request(ADMINS, { parse: parseAdmins });
+}
+
+// Owner only, every call audited server-side (API §5, CLAUDE.md invariant 9). The client adds
+// no rule of its own: the last-owner and self-delete refusals come back as errors to show.
+
+export function createAdmin(
+  csrfToken: string,
+  invite: { readonly email: string; readonly display_name: string; readonly role: AdminRole },
+): Promise<ApiResult<Invited>> {
+  return request(ADMINS, { method: 'POST', csrfToken, body: invite, parse: parseInvited });
+}
+
+export function updateAdmin(
+  csrfToken: string,
+  adminId: string,
+  change: {
+    readonly display_name?: string;
+    readonly role?: AdminRole;
+    readonly status?: AdminStatus;
+  },
+): Promise<ApiResult<AdminSummary>> {
+  return request(`${ADMINS}/${encodeURIComponent(adminId)}`, {
+    method: 'PATCH',
+    csrfToken,
+    body: change,
+    parse: parseAdmin,
+  });
+}
+
+export function deleteAdmin(csrfToken: string, adminId: string): Promise<ApiResult<null>> {
+  return request(`${ADMINS}/${encodeURIComponent(adminId)}`, {
+    method: 'DELETE',
+    csrfToken,
+    parse: noContent,
+  });
+}
+
+export function issueSetupLink(csrfToken: string, adminId: string): Promise<ApiResult<SetupLink>> {
+  return request(`${ADMINS}/${encodeURIComponent(adminId)}/enrollment-token`, {
+    method: 'POST',
+    csrfToken,
+    parse: parseSetupLink,
+  });
 }
 
 // ---------------------------------------------------------------------------

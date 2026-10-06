@@ -5,10 +5,17 @@
 
 import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
-import type { Breakdown, Funnel, Meta, SourceFlow } from '@/api/schemas';
+import type { Breakdown, Calendar, Funnel, Meta, SourceFlow, TimeSeries } from '@/api/schemas';
 import { chartTheme } from '@/components/chartkit';
 import { filterForBreakdown } from '@/components/shell/filterDefs';
-import { funnelChart, rankedRows, sourceFlowChart } from '@/charts';
+import {
+  calendarChart,
+  foldHourWeekday,
+  funnelChart,
+  hourWeekdayChart,
+  rankedRows,
+  sourceFlowChart,
+} from '@/charts';
 import { parseFilters, serializeFilters } from '@/filters';
 import type { Palette } from '@/theme';
 import '@/api/schemas';
@@ -135,5 +142,74 @@ describe('CSP and accessibility settings that are easy to undo', () => {
       label: { enabled: false },
       decal: { show: true },
     });
+  });
+});
+
+describe('M5.6 charts (DESIGN 12 E19, E21, E22)', () => {
+  it('folds hourly buckets into weekday × hour in the reporting time zone', () => {
+    const data: TimeSeries = {
+      meta: META,
+      bucket: 'hour',
+      // 21:00 IST on Monday 5 October is 15:30 UTC; it must land on Monday, 21h, not 15h.
+      buckets: ['2026-10-05T15:30:00Z', '2026-10-06T03:30:00Z', '2026-10-06T04:30:00Z'],
+      series: [{ key: 'all', label: 'Visits', values: [3, 0, 2] }],
+    };
+    const cells = foldHourWeekday(data, 'Asia/Kolkata');
+    expect(cells[0]?.[21]).toBe(3);
+    expect(cells[1]?.[10]).toBe(2);
+    expect(cells.flat().reduce((a, b) => a + b, 0)).toBe(5);
+    const chart = hourWeekdayChart(data, 'Asia/Kolkata');
+    expect(chart.table.columns).toHaveLength(25);
+    expect(chart.table.rows[0]?.[0]).toBe('Mon');
+  });
+
+  it('leaves zero-visit days out of the calendar series but keeps them in the table', () => {
+    const data: Calendar = {
+      meta: META,
+      days: [
+        { day: '2026-10-01', count: 0 },
+        { day: '2026-10-02', count: 4 },
+      ],
+    };
+    const chart = calendarChart(data);
+    const option = chart.option({
+      text: 'a',
+      muted: 'b',
+      subtle: 'c',
+      border: 'd',
+      borderStrong: 'e',
+      surface: 'f',
+      surface2: 'g',
+      overlay: 'h',
+      accent: 'i',
+      ok: 'j',
+      warn: 'k',
+      error: 'l',
+      series: ['m'],
+      sequential: ['n'],
+      mapLand: 'o',
+    }) as { series: { data: unknown[] }[]; visualMap: { min: number } };
+    expect(option.series[0]?.data).toEqual([['2026-10-02', 4]]);
+    expect(option.visualMap.min).toBe(1);
+    expect(chart.table.rows).toHaveLength(2);
+  });
+
+  it('puts a glyph on device, connection and app rows, and none on states', () => {
+    const device: Breakdown = {
+      meta: META,
+      dimension: 'device_class',
+      total: 3,
+      rows: [{ key: 'mobile', count: 3, share: 1 }],
+      unknown: 0,
+      other: 0,
+    };
+    expect(rankedRows(device)[0]?.icon).toBe('DeviceMobile');
+    expect(
+      rankedRows({
+        ...device,
+        dimension: 'admin1',
+        rows: [{ key: 'IN|Goa', count: 3, share: 1 }],
+      })[0]?.icon,
+    ).toBeUndefined();
   });
 });

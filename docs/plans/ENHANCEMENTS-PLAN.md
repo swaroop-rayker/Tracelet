@@ -1,7 +1,8 @@
 # Tracelet — Analytics and UI enhancement plan
 
-**Status:** Proposed (2026-10-03). **Not approved, and not a requirement.** Nothing here
-binds the code until the owner approves an item and it is written into SPEC, DESIGN or
+**Status:** Proposed (2026-10-03). **Phase A approved 2026-10-06** and moved into DESIGN §12
+E16–E22 and MILESTONES M5.6, which now govern it. Phases B, C and D are still proposals: they
+bind nothing until the owner approves them and they are written into SPEC, DESIGN or
 MILESTONES (see "Decisions needed").
 **Author:** repository owner, with Claude
 **Shared copy:** https://claude.ai/code/artifact/ce6a722c-e3b0-4386-9d3a-28e63a19e972
@@ -134,12 +135,13 @@ Every item above has to keep these, and its review checks them.
 
 The owner ticks what goes ahead; anything unticked stays a proposal.
 
-- [ ] **Phase A:** approve A1 to A7, or strike the ones not wanted
+- [x] **Phase A:** approve A1 to A7, or strike the ones not wanted — *all seven, 2026-10-06*
 - [ ] **Phase B:** pick the alert types, and confirm the defaults (digest at 09:00 IST,
       returning after 7 days)
 - [ ] **Phase C:** confirm the order (C1 Sources first, then C2 Insights)
 - [ ] **Phase D:** pick the features, and say whether a QR-code library is acceptable
-- [ ] **Shipping Phase A:** as its own small PR (M5.6) before M6, or folded into PR #6
+- [x] **Shipping Phase A:** as its own small PR (M5.6) before M6, or folded into PR #6 —
+      *its own branch, `feat/m5.6-ui-enhancements`, stacked on M5.5*
 
 What each approval writes into the repository, in the same change as the code:
 

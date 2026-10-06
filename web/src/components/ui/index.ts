@@ -8,11 +8,13 @@ export { Dialog } from './Dialog';
 export {
   Badge,
   Card,
+  Glyph,
   Identifier,
   KeyValue,
   Kbd,
   Legend,
   Secret,
+  SettingRow,
   Tabs,
   Timestamp,
   type Dot,
@@ -22,22 +24,26 @@ export {
 export {
   DataTable,
   RankedList,
+  Sparkline,
   Stat,
   StatStrip,
   Stats,
   type Column,
   type Delta,
   type RankedRow,
+  type Trend,
 } from './data';
 export {
   Alert,
   Banner,
+  Checklist,
   Callout,
   Empty,
   EmptyState,
   ErrorNotice,
   Loading,
   Skeleton,
+  Toaster,
   type SkeletonKind,
   type Tone,
 } from './feedback';
@@ -55,3 +61,4 @@ export {
 export { Menu, MenuItem, MenuLabel, MenuSeparator, Popover, type TriggerProps } from './Popover';
 export { InfoTip, Tooltip } from './Tooltip';
 export { cssVars, cx, modKey, relativeTime } from './util';
+export { toast } from './toast';

@@ -7,9 +7,9 @@
  * also `role="alert"`, so the reason a field was rejected is announced.
  */
 
-import { useId, useRef, type InputHTMLAttributes, type ReactNode } from 'react';
+import { useId, useRef, useState, type InputHTMLAttributes, type ReactNode } from 'react';
 import { Icon } from '@/components/icons';
-import { Button } from '@/components/ui/Button';
+import { Button, IconButton } from '@/components/ui/Button';
 import { Kbd } from '@/components/ui/display';
 import { cx } from '@/components/ui/util';
 
@@ -31,6 +31,9 @@ export function Field({
   placeholder,
   maxLength,
   mono = false,
+  revealable = false,
+  autoFocus = false,
+  after,
 }: {
   readonly label: string;
   readonly value: string;
@@ -47,8 +50,15 @@ export function Field({
   readonly maxLength?: number;
   /** Monospaced, for codes. */
   readonly mono?: boolean;
+  /** A password field with a show/hide toggle (DESIGN §12 E28). */
+  readonly revealable?: boolean;
+  /** The field a Dialog focuses when it opens (`data-autofocus`). */
+  readonly autoFocus?: boolean;
+  /** Under the hint: a live checklist, for example (DESIGN §10.8). */
+  readonly after?: ReactNode;
 }): React.JSX.Element {
   const id = useId();
+  const [shown, setShown] = useState(false);
   const hintId = `${id}-hint`;
   const errorId = `${id}-error`;
   const described = [hint === undefined ? null : hintId, error == null ? null : errorId]
@@ -60,28 +70,44 @@ export function Field({
       <label className="field__label" htmlFor={id}>
         {label}
       </label>
-      <input
-        id={id}
-        className={cx('input', mono && 't-mono')}
-        type={type}
-        value={value}
-        required={required}
-        disabled={disabled}
-        autoComplete={autoComplete}
-        inputMode={inputMode}
-        maxLength={maxLength}
-        placeholder={placeholder}
-        aria-invalid={error == null ? undefined : true}
-        aria-describedby={described.length > 0 ? described : undefined}
-        onChange={(event) => {
-          onChange(event.target.value);
-        }}
-      />
+      <span className={cx(revealable && 'field__control')}>
+        <input
+          id={id}
+          className={cx('input', mono && 't-mono')}
+          type={revealable && shown ? 'text' : type}
+          data-autofocus={autoFocus ? '' : undefined}
+          value={value}
+          required={required}
+          disabled={disabled}
+          autoComplete={autoComplete}
+          inputMode={inputMode}
+          maxLength={maxLength}
+          placeholder={placeholder}
+          aria-invalid={error == null ? undefined : true}
+          aria-describedby={described.length > 0 ? described : undefined}
+          onChange={(event) => {
+            onChange(event.target.value);
+          }}
+        />
+        {revealable && (
+          <IconButton
+            icon={shown ? 'Hide' : 'Show'}
+            // One name; the pressed state says whether it is showing.
+            label={`Show ${label.toLowerCase()}`}
+            size="sm"
+            pressed={shown}
+            onClick={() => {
+              setShown((v) => !v);
+            }}
+          />
+        )}
+      </span>
       {hint !== undefined && (
         <p className="field__hint" id={hintId}>
           {hint}
         </p>
       )}
+      {after}
       {error != null && (
         <p className="field__error" id={errorId} role="alert">
           {error}

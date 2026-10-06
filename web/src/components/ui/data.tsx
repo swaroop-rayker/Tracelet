@@ -3,7 +3,7 @@
  */
 
 import type { ReactNode } from 'react';
-import { Icon } from '@/components/icons';
+import { Icon, type IconName } from '@/components/icons';
 import { InfoTip } from '@/components/ui/Tooltip';
 import { cssVars, cx } from '@/components/ui/util';
 
@@ -19,6 +19,54 @@ export interface Delta {
 const ARROW = { up: Icon.Up, down: Icon.Down, flat: Icon.Flat } as const;
 const SPOKEN = { up: 'up', down: 'down', flat: 'unchanged' } as const;
 
+/** A trend for a sparkline: one value per bucket (`null` where there is nothing to divide). */
+export interface Trend {
+  readonly values: readonly (number | null)[];
+  /** What a screen reader hears instead: "Daily, 30 days: low 0, high 12". */
+  readonly spoken: string;
+}
+
+/**
+ * A small line of a KPI's recent shape (DESIGN §12 E16). Plain SVG with no chart library, and
+ * attributes only, so the strict style CSP has nothing to object to. A gap where a value is
+ * `null`. Decorative to assistive technology: `spoken` says the same in words.
+ */
+export function Sparkline({
+  trend,
+  size = 'md',
+}: {
+  readonly trend: Trend;
+  readonly size?: 'sm' | 'md';
+}): React.JSX.Element | null {
+  const known = trend.values.filter((v): v is number => v !== null);
+  if (known.length < 2) return null;
+  const low = Math.min(...known);
+  const high = Math.max(...known);
+  const span = high - low || 1;
+  const last = Math.max(1, trend.values.length - 1);
+  // 100 × 24 user units, stretched to the box; strokes keep their width (non-scaling-stroke).
+  const point = (v: number, i: number): string =>
+    `${((i / last) * 100).toFixed(2)} ${(22 - ((v - low) / span) * 20).toFixed(2)}`;
+  let path = '';
+  let open = false;
+  trend.values.forEach((v, i) => {
+    if (v === null) {
+      open = false;
+      return;
+    }
+    path += `${open ? 'L' : 'M'}${point(v, i)} `;
+    open = true;
+  });
+  return (
+    <span className={cx('sparkline', `sparkline--${size}`)}>
+      <svg viewBox="0 0 100 24" preserveAspectRatio="none" aria-hidden="true" focusable="false">
+        <path d={path.trim()} vectorEffect="non-scaling-stroke" />
+      </svg>
+      <span className="sr-only">{trend.spoken}</span>
+    </span>
+  );
+}
+
 /** A KPI card: label, the number, and how it changed (DESIGN §5.4). */
 export function Stat({
   label,
@@ -28,6 +76,7 @@ export function Stat({
   comparison,
   note,
   hint,
+  trend,
 }: {
   readonly label: string;
   /** As displayed: "128.4K", "90.0%", "—". */
@@ -41,6 +90,8 @@ export function Stat({
   readonly note?: ReactNode | undefined;
   /** The KPI's definition, behind an ⓘ (DESIGN §7.4). */
   readonly hint?: string | undefined;
+  /** Its shape over the period (DESIGN §12 E16). */
+  readonly trend?: Trend | undefined;
 }): React.JSX.Element {
   const Arrow = delta === undefined ? null : ARROW[delta.direction];
   return (
@@ -65,6 +116,7 @@ export function Stat({
       ) : (
         <span className="stat__delta">{note ?? '—'}</span>
       )}
+      {trend !== undefined && <Sparkline trend={trend} />}
     </li>
   );
 }
@@ -95,6 +147,7 @@ export function StatStrip({
     readonly label: string;
     readonly value: string;
     readonly hint?: string | undefined;
+    readonly trend?: Trend | undefined;
   }[];
 }): React.JSX.Element {
   return (
@@ -103,6 +156,7 @@ export function StatStrip({
         <li key={item.key}>
           <span>{item.label}</span>
           <strong>{item.value}</strong>
+          {item.trend !== undefined && <Sparkline trend={item.trend} size="sm" />}
           {item.hint !== undefined && <span className="t-meta">{item.hint}</span>}
         </li>
       ))}
@@ -170,6 +224,15 @@ export interface RankedRow {
   readonly share: number | null;
   /** "Other" and "Unknown": neutral, always last. */
   readonly muted?: boolean;
+  /** A glyph before the label: device, connection or app (DESIGN §12 E22). Decorative. */
+  readonly icon?: IconName | undefined;
+}
+
+/** A row's decorative glyph (DESIGN §12 E22); the label beside it carries the meaning. */
+function glyph(name: IconName | undefined): React.JSX.Element | null {
+  if (name === undefined) return null;
+  const Glyph = Icon[name];
+  return <Glyph className="ranked__icon" size={14} strokeWidth={1.75} aria-hidden="true" />;
 }
 
 /**
@@ -231,10 +294,12 @@ export function RankedList({
                       onSelect(r.key);
                     }}
                   >
+                    {glyph(r.icon)}
                     {r.label}
                   </button>
                 ) : (
                   <span className="ranked__name" title={r.label}>
+                    {glyph(r.icon)}
                     {r.label}
                   </span>
                 )}

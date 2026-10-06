@@ -1789,6 +1789,102 @@ offending element.
 
 **Related:** E43, DESIGN §9.4, F9.AC17.
 
+### E48 — In Countries mode the unvisited world was one grey mass
+
+**Status:** Fixed. **Milestone:** M5.6 (present since M5). **Date:** 2026-10-06.
+
+**Symptom.** Reported by the owner: on Geography with "Countries" chosen, no borders showed
+between countries without visits; only the hovered country got an outline. States mode drew
+them.
+
+**Root cause.** Countries mode styled every country with `shade()`, whose outline is the
+`--border` token at 0.5 px. On the dark themes `--border` sits a step away from `--map-land`, so
+the outline vanished into the fill. States mode never showed it because it draws a separate
+country-border layer on top in `--text-muted`.
+
+**Fix.** The country layer takes the same outline as the state layer: `--text-muted`, 0.6 px,
+0.8 opacity. Checked by screenshot in all three themes.
+
+**Prevention.** A map layer's outline comes from a text-contrast token, never `--border`, which
+is tuned to separate a card from its background, not one fill from an identical one. The QA
+screenshots now include Countries mode, not only the default States view.
+
+**Related:** E40, ADR-0017, DESIGN §6.6.
+
+### E49 — The user menu opened off the bottom of the window
+
+**Status:** Fixed. **Milestone:** M5.6 (present since M5.5). **Date:** 2026-10-06.
+
+**Symptom.** Reported by the owner: the account menu at the foot of the sidebar opened downward,
+so the theme choices, Keyboard shortcuts and Sign out were cut off by the bottom of the window.
+
+**Root cause.** A Popover renders its content only once it is open (`{open && children()}`), but
+`follow()` measured it in the `toggle` event, while it was still empty. An empty box fits below
+the trigger, so it was placed there; the items then rendered and grew it out of the window.
+`follow()` re-placed on scroll and resize only, never when the popover itself changed size.
+The flip-above logic in `place()` was right; it was given a height of nearly zero.
+
+**Fix.** `follow()` also watches the floating element with a `ResizeObserver` and re-places it
+whenever its size changes. Every popover benefits: the user menu, filter editors, the period
+picker and export. Checked in Chromium, Firefox and WebKit at window heights of 900, 700 and
+560 px: the menu opens above its trigger, wholly inside the window, with all five items.
+
+**Prevention.** Anything positioned from a measurement re-measures when what it measured
+changes; a one-off measurement at open is only valid when the content is already there. A
+browser check of a popover asserts its box lies inside the viewport, not only that it opened --
+the M5.5 sweep counted this menu as opened and passed it.
+
+**Related:** ADR-0019 (native popover), DESIGN §5.5.
+
+### E50 — Once changed, the time zone could not be set back to India's
+
+**Status:** Fixed before release. **Milestone:** M5.6. **Date:** 2026-10-06.
+
+**Symptom.** The browser check of the new Preferences page changed the display time zone to
+Asia/Tokyo and then could not select the original, Asia/Kolkata: it was not in the list.
+
+**Root cause.** The list is the browser's own (`Intl.supportedValuesOf('timeZone')`), and
+Chromium still names some zones by their pre-rename IANA names: "Asia/Calcutta", not
+"Asia/Kolkata". The saved zone was only offered while it was the current value, so the
+moment an admin moved away from India's zone they could not come back to its current name --
+in a product whose audience is India-first.
+
+**Fix.** Renamed zones are listed under their current names (Asia/Calcutta becomes
+Asia/Kolkata, likewise Kathmandu, Yangon, Ho Chi Minh, Kyiv), and the saved and the reporting
+zone are always offered.
+
+**Prevention.** A list taken from the platform is normalised to the names the server and other
+admins use. Browser checks change a setting *and change it back*: the round trip is what
+caught this.
+
+**Related:** DESIGN §10.8, F9.AC16.
+
+### E51 — The audit log recorded every role change as "from" its new value
+
+**Status:** Fixed. **Milestone:** M5.6 (present since M1). **Date:** 2026-10-06.
+
+**Symptom.** Found while checking the new Team page against `audit_log`: promoting an analyst
+was recorded as `admin.role_changed {"from": "owner", "to": "owner"}`. A status change had the
+same fault (`{"from": "disabled", "to": "disabled"}`).
+
+**Root cause.** `PATCH /admins/{id}` built the audit detail from `target.role` and
+`target.status` *after* running `update(Admin)...`. An ORM-enabled `update()` in SQLAlchemy 2
+synchronises the session by default, so the loaded `target` already carried the new values.
+The M1 tests asserted only that an `admin.role_changed` row existed, never what it said.
+
+**Fix.** The handler reads the role and status before the update and records those as
+`from`. A new integration test promotes an analyst and disables them, then asserts both details
+exactly; it fails on the old code with this symptom.
+
+**Consequence.** `audit_log` is append-only, so rows written before this fix keep the wrong
+`from`. Their `to`, actor, target and time are right; read `from` on older rows as unknown.
+
+**Prevention.** An audit test asserts the row's *content*, not only that it exists. Any value
+needed "before" a write is captured before the write, never re-read from an ORM object the
+write may have synchronised.
+
+**Related:** CLAUDE.md invariant 9, API §5, ERRORS E16.
+
 ---
 
 Add entries here as bugs are found and fixed. Use the next available `E<n>` identifier and

@@ -10,6 +10,7 @@
 import { useState } from 'react';
 import { confirmPasswordReset, requestPasswordReset, signInWithRecoveryCode } from '@/api/auth';
 import { fieldMessage, type ApiError } from '@/api/client';
+import { PasswordRules } from '@/components/PasswordRules';
 import { Callout, ErrorNotice, Field, Submit } from '@/components/ui';
 import { navigate } from '@/router';
 import { BrandMark } from '@/components/shell/BrandMark';
@@ -113,6 +114,7 @@ export function RecoveryCodePage({
           autoComplete="one-time-code"
           placeholder="ABCDE-FGHJK"
           maxLength={32}
+          mono
           error={fieldMessage(error, 'code')}
         />
         <Submit busy={busy} busyLabel="Checking…">
@@ -299,8 +301,10 @@ export function ResetConfirmPage({
           autoComplete="new-password"
           value={password}
           onChange={setPassword}
+          revealable
           hint="At least 12 characters. Not your account name, not the site name."
           error={fieldMessage(error, 'new_password')}
+          after={<PasswordRules password={password} repeat={repeat} />}
         />
         <Field
           label="Repeat password"
@@ -308,6 +312,7 @@ export function ResetConfirmPage({
           autoComplete="new-password"
           value={repeat}
           onChange={setRepeat}
+          revealable
           error={mismatch}
         />
         <Submit busy={busy} busyLabel="Setting your password…">

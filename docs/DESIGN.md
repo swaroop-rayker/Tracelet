@@ -519,6 +519,14 @@ timezone in a tooltip and `<time dateTime>`. In tables of many rows it renders a
 **Identifier.** Monospace, middle-truncated, with a copy button on hover or focus. Used for
 visit ids, `visitor_id`, trace ids and ASNs.
 
+**Sparkline** *(M5.6, §12 E16)*. A KPI's recent shape: plain SVG, a 1.5 px `--accent` line
+with no axes, 28 px tall under a Stat, 56 × 14 px in the StatStrip. A missing value breaks the
+line. Decorative (`aria-hidden`); a sentence beside it says the period, the low and the high.
+
+**Glyph** *(M5.6, §12 E22)*. A 14 px `--text-subtle` icon before a device, connection or app
+value in a table cell or ranked row. Decorative: the words beside it carry the meaning, and an
+unmapped value gets the neutral "unknown" glyph, never a guess.
+
 ### 5.5 Overlays
 
 **Tooltip.** For short, non-essential help only. It shows on hover after 500 ms and on focus
@@ -566,6 +574,11 @@ It uses only existing routes, URL keys and endpoints (§12 E1). Arrow keys move,
 Escape closes; it is fully usable without a mouse.
 
 ### 5.6 Feedback
+
+**Toast** *(M5.6, §12 E26)*. A short confirmation after an action ("Theme saved"), bottom-right,
+`--overlay` surface, gone after 4 s or on Escape. Rendered into one polite live region, so a
+screen reader hears it without losing its place. Never the only feedback: the row it came from
+changes too. Never for errors, which stay where the action was.
 
 **Skeleton.** Blocks in `--surface-2` with a 1.2 s shimmer (off under reduced motion), shaped
 like the final content: KPI cards, axis and plot area, table rows (6 rows at row height), list
@@ -875,12 +888,20 @@ Visits to your links: how many, who, and how complete the picture is.
 ┌ Visits ────────┐ ┌ Unique visitors ┐ ┌ Human share ──┐ ┌ Enrichment completed ┐
 │ 144            │ │ 144              │ │ 90.0%          │ │ 79.2%                │
 │ —  no prior    │ │ —                │ │ —              │ │ —                    │
+│ ╱╲_╱‾╲__╱  E16 │ │                  │ │ ‾‾╲_‾‾‾   E16 │ │                      │
 └────────────────┘ └──────────────────┘ └────────────────┘ └──────────────────────┘
-Automated share 10.0% · Location consent 0.0% · Geofence hit rate — (M6)      ← StatStrip
+Automated share 10.0% · Location consent 0.0% ▁▁▁ · Geofence hit rate — (M6)  ← StatStrip
 
 ┌ Visits over time ─────────────────────────────── [Day | Hour] [Split: None ▾] [•••] ┐
 │ primary chart, 320 px                                                              │
 └ provenance ────────────────────────────────────────────────────────────────────────┘
+┌ Top states ────────────────────────────┐ ┌ ● Live · updated 4 s ago ──── E18 ─────┐
+│ RankedList, 5 rows (E4)                 │ │ 3 visitors in the last 30 min          │
+└────────────────────────────────────────┘ │ newest six, new rows fade in            │
+                                            └────────────────────────────────────────┘
+┌ Where visits came from ─────── E17 ────┐ ┌ When links are opened ──────── E19 ────┐
+│ state map, 280 px, no points            │ │ 7 × 24 heatmap, reporting time zone    │
+└────────────────────────────────────────┘ └────────────────────────────────────────┘
 ┌ Daily volume · last 365 days ──────────┐ ┌ Stage funnel ──────────────────────────┐
 └────────────────────────────────────────┘ └────────────────────────────────────────┘
 ```
@@ -893,6 +914,10 @@ Automated share 10.0% · Location consent 0.0% · Geofence hit rate — (M6)    
 - One provenance line for the KPI row sits under the StatStrip, not inside every card.
 - Optional additions using existing endpoints (approval, §12 E4): "Top states" (RankedList, 5
   rows) and "Recent visits" (DataTable, 6 rows).
+- **M5.6 (approved 2026-10-06, §12 E16–E22):** sparklines on Visits, Human share and Location
+  consent (E16); "Recent visits" becomes the **live feed** (E18); a row with the **state map
+  card** (E17) and the **hour × weekday heatmap** (E19). The map card is loaded lazily, so
+  Leaflet stays out of the Overview chunk (UI-24).
 
 ### 10.2 Visits (timeline, F9.AC1)
 
@@ -970,25 +995,50 @@ one line with "Show 3".
 - **Detection:** "Rules that fire most" as a RankedList with category badges; supporting charts
   as cards.
 
-### 10.8 Account and security
+### 10.8 Settings (was "Account and security"; rebuilt in M5.6, §12 E23–E28)
 
-A settings layout. At ≥ 1024 px, a left sub-navigation (Profile, Password, Two-factor and
-recovery codes, Telegram, Sessions, Admins — owner only, System readiness), with each section a
-Card of **setting rows**:
+Six pages under `/settings`; `/account` redirects to `/settings/profile`. At ≥ 1024 px a left
+sub-navigation inside the page; below it a select at the top. Each page is cards of **setting
+rows**: a label and one line of explanation on the left, the state (Badge) or the action
+(Button) on the right, at most one primary button per card. Forms open in an `sm` Dialog, so
+the page stays a calm summary. Plan: `docs/plans/SETTINGS-REDESIGN-PLAN.md`.
 
 ```
-┌ Password ─────────────────────────────────────────────────────────────────────┐
-│ Change password                                                [Change…]       │
-│ Last changed 3 days ago. At least 12 characters.                               │
-├───────────────────────────────────────────────────────────────────────────────┤
-│ Sign out other sessions                                        [Sign out all]  │
-└───────────────────────────────────────────────────────────────────────────────┘
+┌───────────────┬──────────────────────────────────────────────────────────────────┐
+│ Profile       │ Security                                                          │
+│ Preferences   │ Password, two-factor, recovery codes and Telegram                 │
+│▐Security▌     │ ┌──────────────────────────────────────────────────────────────┐ │
+│ Sessions      │ │ Password                                [Change password…]   │ │
+│ Team (owner)  │ │ At least 12 characters. Changing it signs out other sessions.│ │
+│ System        │ ├──────────────────────────────────────────────────────────────┤ │
+│               │ │ Two-factor authentication                        ( Enabled ) │ │
+│               │ ├──────────────────────────────────────────────────────────────┤ │
+│               │ │ Recovery codes  7 of 10 · ■■■■■■■□□□     [Regenerate…] danger │ │
+│               │ ├──────────────────────────────────────────────────────────────┤ │
+│               │ │ Telegram recovery chat ( Verified )         [Change chat…]   │ │
+│               │ └──────────────────────────────────────────────────────────────┘ │
+└───────────────┴──────────────────────────────────────────────────────────────────┘
 ```
 
-Forms open inline or in a `sm` Dialog. The existing flows, validation and callouts are
-unchanged, but restyled with Alert. Secrets and recovery codes keep the monospace, selectable
-treatment, plus a copy-all button and a "Download as .txt" button (the latter only if approved:
-§12 E10).
+| Page | Rows | Calls (all existing) |
+|---|---|---|
+| Profile | Initials, name, email; role and status as Badges; this session's expiry, relative | `GET /auth/me` |
+| Preferences | Theme as a SegmentedControl; display time zone as a Select of the browser's IANA zones; the reporting zone, read-only | `PATCH /auth/me/preferences` |
+| Security | Password (Dialog: show/hide, a live 12-character checklist); two-factor status; recovery codes (count, 10-step meter, Regenerate with confirmation); Telegram (two-step Dialog) | `/auth/password`, `/auth/totp/regenerate-codes`, `/auth/telegram/verify/*` |
+| Sessions | A DataTable: this device, IP prefix, started, last seen, expires; Revoke per row; Sign out all other sessions | `/auth/sessions`, one `DELETE` per session |
+| Team (owner) | A DataTable of admins; Invite; per row a menu: change role, disable or enable, new setup link, delete | `/admins`, `/admins/{id}/enrollment-token` |
+| System | Ready or not, one row per check, Re-check | `GET /readyz` |
+
+- **Destructive actions confirm first (UI-16):** regenerating codes, revoking a session,
+  signing out others, disabling or deleting an admin. Deleting an admin requires typing their
+  email.
+- **Shown once:** new recovery codes and a setup link open in a locked Dialog (no Escape, no
+  backdrop, no ×) with Copy and Download; Done is enabled only once "I have saved these" is
+  ticked (owner decision, 2026-10-06).
+- **The server stays the judge.** Client checks are hints; refusals (`409 LAST_OWNER`, the
+  self-delete `422`, a weak password) show where they apply. Team is hidden from analysts, a
+  pure configuration page (UI-17); every route still refuses them.
+- Success shows in the row and as a Toast; errors stay in the Dialog with their trace id.
 
 ### 10.9 Sign-in pages (login, enrol, recovery, reset)
 
@@ -997,10 +1047,42 @@ padding), then muted footer links. They use the same Input, Button and Alert. Th
 token and TOTP flows are unchanged, and the TOTP input gets `inputmode="numeric"`,
 `autocomplete="one-time-code"` and a monospace display.
 
+*M5.6 (§12 E28):* a step indicator ("Step 1 of 2"; enrolment "1 Password · 2 Authenticator ·
+3 Codes", short enough for one line on the 400 px card), show/hide on every password field, the live 12-character checklist on
+enrolment and reset, and the TOTP secret shown in groups of four (Copy still copies the raw
+secret). Steps, order and every message are unchanged, the enumeration-resistant ones above
+all (F8.AC10). No QR code (owner decision, 2026-10-06).
+
 ### 10.10 Not found and errors
 
 A compact page inside the shell: "Page not found" plus a link back to Overview. A top-level
 error boundary renders an Alert with the trace id when one exists. No illustrations.
+
+### 10.11 Links and link detail (M5.6, §12 E20)
+
+`/links` lists every tracking link; `/links/:slug` is one link's dashboard. Creating and
+editing links stays in M7 (F10.AC6): these pages only read.
+
+```
+Links                                                              [ ] Show archived
+Every tracking link and where it sends visitors. Counts are all-time.
+┌───────────────────────────────────────────────────────────────────────────────────┐
+│ Link                     Destination              Status            Visits  Created│
+│ M5 demo  demo-ig         instagram.com/…          ● Active  Default    160  3 d ago│
+└───────────────────────────────────────────────────────────────────────────────────┘
+
+Links › demo-ig                                          [◷ Last 30 days ▾]
+M5 demo · https://…/r/demo-ig → https://instagram.com/…     ● Active  Default
+[＋ Filter]                         ← the toolbar without the link selector: the page is the link
+┌ KPI cards and strip, as Overview ┐
+┌ Visits over time ┐
+┌ App or browser ─────────┐ ┌ Top states ─────────────┐
+┌ Live feed ──────────────┐ ┌ Stage funnel ───────────┐
+```
+
+- The index has no filter toolbar: its counts are the API's all-time `visit_count`.
+- The detail page pins `link_id` and keeps every other filter and the period. A slug that
+  matches no link is the not-found state, not an empty dashboard.
 
 ---
 
@@ -1063,6 +1145,19 @@ uses only existing routes, URL keys and endpoints; nothing new on the server.
 | E13 | **Density toggle** (comfortable or compact rows) | UI-only, `localStorage` | Defer until someone asks |
 | E14 | **Print stylesheet** for visit detail (evidence for a report) | UI-only | Cheap; do in Phase 5 if time allows |
 | E15 | **Visual regression tests** (Playwright screenshots in CI) | a dev dependency plus browsers in `web-tools` (hundreds of MB) | Defer to M9; screenshots are manual in M5.5 |
+| E16 | **Sparklines** on Visits, Human share and Location consent: inline SVG, no chart library; the low and high are spoken | UI-only (`/timeseries`) | **Approved 2026-10-06 (M5.6)** |
+| E17 | **State map card** on Overview: the Geography map at card size, a click filters to the state; lazily loaded | UI-only (`/geo`) | **Approved 2026-10-06 (M5.6)** |
+| E18 | **Live feed**: "Recent visits" polls every 15 s while the tab is visible, says how live it is (UI-18), counts visitors in the last 30 minutes, and fades new rows in (none under reduced motion) | UI-only (`/visits`) | **Approved 2026-10-06 (M5.6)** |
+| E19 | **Hour × weekday heatmap**: the hourly series folded into 7 × 24 in the reporting time zone; windows over 31 days explain why it is empty | UI-only (`/timeseries?bucket=hour`) | **Approved 2026-10-06 (M5.6)** |
+| E20 | **Links index and link detail pages** (§10.11), read-only | UI-only (`/links`, `link_id` on every call) | **Approved 2026-10-06 (M5.6)** |
+| E21 | **Daily volume:** days with no visits are empty cells, and the scale starts at 1 | UI-only | **Approved 2026-10-06 (M5.6)** |
+| E22 | **Device and network icons** beside device, connection and app values in tables and ranked lists; generic glyphs only, never a brand logo | UI-only (Lucide registry) | **Approved 2026-10-06 (M5.6)** |
+| E23 | **Settings area**: six pages under `/settings` with a sub-navigation (§10.8); `/account` redirects | UI-only | **Approved 2026-10-06 (M5.6)** |
+| E24 | **Confirmations** before regenerating codes, revoking sessions, and disabling or deleting an admin (typed email to delete) | UI-only | **Approved 2026-10-06 (M5.6)** |
+| E25 | **Shown-once dialog** for new codes and setup links: locked until "I have saved these" is ticked | UI-only | **Approved 2026-10-06 (M5.6)** |
+| E26 | **Toast** primitive in a polite live region (§5.6) | UI-only | **Approved 2026-10-06 (M5.6)** |
+| E27 | **Team management** for the owner: invite, change role, disable or enable, new setup link, delete | UI on existing `/admins` routes | **Approved 2026-10-06 (M5.6)** |
+| E28 | **Sign-in polish**: step indicators, show/hide, password checklist, grouped secret; no QR code | UI-only | **Approved 2026-10-06 (M5.6)** |
 
 ---
 

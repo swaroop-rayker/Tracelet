@@ -12,7 +12,7 @@ import { useLocation, useNavigate, useSearchParams } from 'react-router';
 import { logout } from '@/api/auth';
 import { Icon, type IconName } from '@/components/icons';
 import { clearAll, setScalar } from '@/components/shell/filterDefs';
-import { ALL_ITEMS } from '@/components/shell/nav';
+import { ALL_ITEMS, SETTINGS_SECTIONS } from '@/components/shell/nav';
 import { useThemeSwitch } from '@/components/shell/useThemeSwitch';
 import { Kbd } from '@/components/ui';
 import { copyText } from '@/components/ui/util';
@@ -203,6 +203,20 @@ function useCommands(query: string, close: () => void): readonly Command[] {
         },
       });
     }
+    for (const section of SETTINGS_SECTIONS) {
+      if (section.ownerOnly && me.role !== 'owner') continue;
+      if (q !== '' && matches(`settings ${section.label} ${section.description}`, q)) {
+        list.push({
+          id: `settings-${section.path}`,
+          group: 'Go to',
+          label: `Settings: ${section.label}`,
+          icon: section.icon,
+          run: () => {
+            go(`/settings/${section.path}`, false);
+          },
+        });
+      }
+    }
     for (const item of ALL_ITEMS) {
       if (matches(`${item.label} ${item.hint}`, q)) {
         list.push({
@@ -307,6 +321,7 @@ function useCommands(query: string, close: () => void): readonly Command[] {
     close,
     switchTo,
     me.csrf_token,
+    me.role,
     onSignedOut,
   ]);
 }

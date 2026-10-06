@@ -22,6 +22,7 @@ then open the PR (CLAUDE.md section 2).
 | M4 | Anti-spoofing and classification | L | **[x] done** — 10 of 10 items (the UI item ticked in M5); bugs E32–E33; R19 and R21 closed |
 | M5 | Dashboard analytics and visualisation | L | **[x] done** — 10 of 10 items; rollups p95 ≤ 70 ms at design load; raw fallback slow on long windows (R25); bugs E34–E36 |
 | M5.5 | Design system and UI polish (owner-directed 2026-10-02, approved 2026-10-03; docs/DESIGN.md) | L | **built** — 10 of 11 items; CSP 0 in Chromium, Firefox and WebKit; 72-image matrix; bugs E41–E47; open: hand keyboard walkthrough |
+| M5.6 | Dashboard enhancements and the Settings redesign, UI only (owner-approved 2026-10-06; docs/plans/ENHANCEMENTS-PLAN.md Phase A, SETTINGS-REDESIGN-PLAN.md) | M | **[x] built** — dashboard 6/6, Settings 6/6; CSP 0 in three engines; no server change; bugs E48–E50 |
 | M6 | Geofencing and Telegram notifications | M | [ ] |
 | M7 | System health and operations | L | [ ] |
 | M8 | Accuracy hardening and ground truth | M | [ ] |
@@ -689,6 +690,73 @@ E4–E10. **Plan:** docs/DESIGN.md Part II; **decision:** ADR-0019. **F/AC-IDs:*
       6a9a9a0..HEAD` touches only `web/`, `docs/` and `CLAUDE.md`; `./scripts/tl verify` 13/13*
 - [x] Docs: DESIGN.md accepted; ARCHITECTURE §5 and §8 ledger updated; CLAUDE.md rules live —
       *plus ERRORS E41–E47 and R27 updated*
+
+---
+
+## M5.6 — Dashboard enhancements and the Settings redesign, UI only · size M
+
+**Goal:** a dashboard that reads at a glance and feels alive, with no server change.
+**Approved:** 2026-10-06 by the owner, as Phase A of `docs/plans/ENHANCEMENTS-PLAN.md`.
+**Design:** DESIGN §10.1, §10.11 and §12 E16–E22. **F/AC-IDs:** F9.AC2, F9.AC3, F9.AC5,
+F9.AC6, F9.AC16–F9.AC18, NFR7. No new requirement: every item reads an existing endpoint.
+
+**Scope**
+- E16 sparklines on Visits, Human share and Location consent
+- E17 the state map card on Overview, lazily loaded
+- E18 the live feed in place of "Recent visits"
+- E19 the hour × weekday heatmap
+- E20 the Links index and link detail pages
+- E21 the Daily volume fix (zero-visit days are empty)
+- E22 device and network icons in tables and ranked lists
+- **Settings redesign** (added 2026-10-06, `docs/plans/SETTINGS-REDESIGN-PLAN.md`, DESIGN §10.8,
+  §10.9, E23–E28): six Settings pages, confirmations, the shown-once dialog, the Toast, Team
+  management on the existing `/admins` routes, and sign-in polish. No QR code
+
+**Done checklist**
+- [x] Every item in DESIGN §12 E16–E22 built, with a state or unit test where it has logic —
+      *8 new vitest cases: the sparkline's gap, silence under two points and spoken text; the
+      hour × weekday fold in IST (a UTC 15:30 bucket lands on Monday 21h); zero days left out
+      of the calendar series but kept in its table; glyphs on device rows and none on states*
+- [x] No API, schema or migration change: the diff touches only `web/` and `docs/`
+      — *with one exception, found by this milestone's testing: ERRORS E51, the audit detail of
+      `PATCH /admins/{id}` recorded the new role as "from". Fixed in `admins_router.py` with an
+      integration test; no endpoint, payload, schema or migration changed*
+- [x] Zero CSP violations in Chromium, Firefox and WebKit on the Caddy-served build — *the M5.5
+      Playwright sweep against Caddy, now over 11 signed-in routes (Links, a link's page and an
+      unknown slug added) in 3 themes plus every overlay, with positive controls reported in each
+      engine. The only reports are the known ones: Firefox's own favicon fetch on the API's
+      `/privacy` page, and WebKit reacting to Playwright's screenshot stylesheet*
+- [x] Screenshots: Overview, Links and a link's detail in 3 themes at 1440, 1024 and 390 px,
+      with no horizontal overflow — *54 in Chromium over six changed pages (Visits, Geography
+      and Breakdowns too), plus 24 in Firefox and WebKit; none overflows. Two fixes came out of
+      the review: heatmap legends now band in whole visits, and the live feed drops its Device
+      column and keeps times on one line on phones*
+- [x] Overview's own chunk within +10 KB gzipped (UI-24); Leaflet stays in the map chunk —
+      *Overview 0.9 KB + shared panels 5.3 KB gz; the map is its own lazy 46 KB chunk shared
+      with Geography; initial JS +1.8 KB (icons), CSS +0.3 KB*
+- [x] `./scripts/tl verify` 13/13 — *512 unit, 318 integration, 120 vitest*
+
+*Settings redesign (E23–E28):*
+- [x] Six Settings pages; `/account` redirects; sidebar, user menu and palette point at them
+- [x] Every request is one the old page sent, or an existing `/admins` route; no server change —
+      *`git diff` touches `web/` and `docs/` only; four client functions added for the shipped
+      `/admins` routes (create, update, delete, new setup link)*
+- [x] Destructive actions confirm (UI-16); shown-once dialogs lock until "I have saved these" —
+      *in the browser: regenerating asks first; the codes dialog survives two Escapes and a
+      backdrop click, has no ×, and Done stays disabled until ticked*
+- [x] Sign-in, enrolment and recovery keep their steps and their messages word for word — *only
+      a step indicator, show/hide, the checklist, a grouped secret and monospace codes were
+      added; enrolment walked end to end with a real TOTP code*
+- [x] Team: invite, role, status, new link and delete work against the real API, `409
+      LAST_OWNER` shows inline, and each action is in `audit_log` — *27 browser checks against
+      the real API with a throwaway invitee, and each action found in `audit_log`.
+      `LAST_OWNER` was not provoked (it needs the only owner's account); the dialog shows any
+      refusal with its trace id*
+- [x] Zero CSP violations in three engines; screenshots of every Settings page and the auth
+      pages in 3 themes × 3 widths; `./scripts/tl verify` 13/13 — *0 in Chromium, Firefox and
+      WebKit over 17 signed-in routes; 54 + 24 Settings screenshots with no overflow, plus
+      sign-in, recovery, reset request and all three enrolment steps; `tl verify` 13/13 (512 unit,
+      318 integration, 125 vitest)*
 
 ---
 

@@ -1,15 +1,17 @@
 /**
- * Feedback (DESIGN §5.6): Alert, ErrorNotice, Skeleton, Loading, EmptyState, Banner.
+ * Feedback (DESIGN §5.6): Alert, ErrorNotice, Skeleton, Loading, EmptyState, Banner, Toaster,
+ * Checklist.
  *
  * Every state that matters has words as well as colour (NFR7.AC3). An error is
  * `role="alert"`; everything else is `role="status"`. A panel is never blank (B5): loading is
  * a skeleton shaped like what is coming, with a screen-reader label saying what it is.
  */
 
-import type { ReactNode } from 'react';
+import { useSyncExternalStore, type ReactNode } from 'react';
 import type { ApiError } from '@/api/client';
 import { Icon, type IconName } from '@/components/icons';
 import { Identifier } from '@/components/ui/display';
+import { currentToasts, dismissToast, subscribeToasts } from '@/components/ui/toast';
 import { cx } from '@/components/ui/util';
 
 export type Tone = 'ok' | 'warn' | 'error' | 'info';
@@ -194,5 +196,62 @@ export function Banner({
       <span>{children}</span>
       {action}
     </div>
+  );
+}
+
+/**
+ * Where toasts appear (DESIGN §5.6, §12 E26): one polite live region, mounted once by the
+ * layout, so a screen reader hears "Theme saved" without losing its place.
+ */
+export function Toaster(): React.JSX.Element {
+  const items = useSyncExternalStore(subscribeToasts, currentToasts, currentToasts);
+  return (
+    <div className="toaster" role="status" aria-live="polite">
+      {items.map((t) => (
+        <div key={t.id} className="toast">
+          <Icon.Check size={16} strokeWidth={2} aria-hidden="true" />
+          <span>{t.message}</span>
+          <button
+            type="button"
+            className="toast__close"
+            aria-label="Dismiss"
+            onClick={() => {
+              dismissToast(t.id);
+            }}
+          >
+            <Icon.Close size={14} strokeWidth={2} aria-hidden="true" />
+          </button>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/**
+ * A live checklist of rules a value meets (DESIGN §10.8): a hint, never the judge. Each rule
+ * says met or not in words as well as the glyph (NFR7.AC3).
+ */
+export function Checklist({
+  label,
+  items,
+}: {
+  readonly label: string;
+  readonly items: readonly { readonly key: string; readonly text: string; readonly met: boolean }[];
+}): React.JSX.Element {
+  return (
+    <ul className="checklist" aria-label={label}>
+      {items.map((item) => {
+        const Glyph = item.met ? Icon.Check : Icon.Flat;
+        return (
+          <li key={item.key} className={cx('checklist__item', item.met && 'is-met')}>
+            <Glyph size={14} strokeWidth={2} aria-hidden="true" />
+            <span>
+              {item.text}
+              <span className="sr-only">{item.met ? ': met' : ': not yet'}</span>
+            </span>
+          </li>
+        );
+      })}
+    </ul>
   );
 }

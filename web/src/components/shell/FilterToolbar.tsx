@@ -46,19 +46,26 @@ function useFilterState(): { readonly filters: Filters; readonly write: (next: F
 // The toolbar
 // ---------------------------------------------------------------------------
 
-export function FilterToolbar(): React.JSX.Element {
+export function FilterToolbar({
+  linkSelect = true,
+}: {
+  /** False on a link's own page, which fixes the link itself (DESIGN §10.11). */
+  readonly linkSelect?: boolean;
+}): React.JSX.Element {
   const { filters, write } = useFilterState();
   const active = FILTER_DEFS.filter((d) => isActive(d, filters));
-  const anyActive = active.length > 0 || filters.scalars.link_id !== undefined;
+  const anyActive = active.length > 0 || (linkSelect && filters.scalars.link_id !== undefined);
 
   return (
     <div className="toolbar" role="group" aria-label="Filters">
-      <LinkSelect
-        value={filters.scalars.link_id ?? ''}
-        onChange={(v) => {
-          write(setScalar(filters, 'link_id', v));
-        }}
-      />
+      {linkSelect && (
+        <LinkSelect
+          value={filters.scalars.link_id ?? ''}
+          onChange={(v) => {
+            write(setScalar(filters, 'link_id', v));
+          }}
+        />
+      )}
       <AddFilter filters={filters} write={write} />
       {active.map((def) => (
         <Chip key={def.id} def={def} filters={filters} write={write} />

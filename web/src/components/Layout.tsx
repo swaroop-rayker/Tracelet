@@ -17,7 +17,7 @@ import { HelpDialog } from '@/components/shell/HelpDialog';
 import { Sidebar } from '@/components/shell/Sidebar';
 import { useMediaQuery } from '@/components/shell/useMediaQuery';
 import { useShortcuts } from '@/components/shell/useShortcuts';
-import { Dialog, cx } from '@/components/ui';
+import { Dialog, Toaster, cx } from '@/components/ui';
 
 const STORAGE_KEY = 'tracelet.sidebar';
 
@@ -86,6 +86,7 @@ export function Layout(): React.JSX.Element {
           <Outlet />
         </main>
       </div>
+      <Toaster />
       <Dialog
         open={drawer}
         onClose={() => {

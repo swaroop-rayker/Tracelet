@@ -1,8 +1,8 @@
 # Tracelet — Account and settings redesign plan
 
-**Status:** Proposed (2026-10-03). **Not approved.** Presentation only: no business-logic,
-endpoint, rule, role or schema change. Nothing here binds the code until the owner approves
-it and DESIGN §10.8 / §10.9 are updated (see "Decisions needed").
+**Status:** **Approved 2026-10-06** and moved into DESIGN §10.8, §10.9 and §12 E23–E28 and
+MILESTONES M5.6, which now govern it. Presentation only: no business-logic, endpoint, rule,
+role or schema change.
 **Author:** repository owner, with Claude
 **Shared copy:** https://claude.ai/code/artifact/0fb360e8-486f-4a0a-ad3e-5c13fbcbe865
 
@@ -233,15 +233,15 @@ phase ends green on `./scripts/tl verify` and lands as its own commit.
 
 Tick what goes ahead; nothing is built until then.
 
-- [ ] **Structure:** six pages under `/settings`, with `/account` redirecting
-- [ ] **Team now or later:** build owner management now (phase 7), or keep today's
-      read-only list in the new layout until M7
-- [ ] **QR code at enrolment** (phase 8): accept a small QR library, under one ADR shared
-      with the link builder
-- [ ] **Saved-gate:** require "I have saved these" before a new set of codes or a setup
-      link can be closed
-- [ ] **Where it ships:** together with the enhancement plan's Phase A as one pre-M6 PR, or
-      on its own
+- [x] **Structure:** six pages under `/settings`, with `/account` redirecting
+- [x] **Team now or later:** build owner management now (phase 7), or keep today's
+      read-only list in the new layout until M7 — *now*
+- [x] **QR code at enrolment** (phase 8): accept a small QR library, under one ADR shared
+      with the link builder — *not now: no new dependency*
+- [x] **Saved-gate:** require "I have saved these" before a new set of codes or a setup
+      link can be closed — *yes*
+- [x] **Where it ships:** together with the enhancement plan's Phase A as one pre-M6 PR, or
+      on its own — *with Phase A, on `feat/m5.6-ui-enhancements`*
 
 Approval changes DESIGN only (§10.8 and §10.9 layouts, §5 for the Toast, §12 for the new
 entries) and adds a MILESTONES row. No SPEC change: every requirement stays as written. A

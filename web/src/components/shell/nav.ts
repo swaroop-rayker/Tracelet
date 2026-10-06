@@ -61,6 +61,14 @@ export const NAV_GROUPS: readonly NavGroup[] = [
         key: 'b',
         hint: 'Location, network, device',
       },
+      {
+        to: '/links',
+        label: 'Links',
+        icon: 'Link',
+        filtered: true,
+        key: 'l',
+        hint: 'Every tracking link, and each one’s own dashboard',
+      },
     ],
   },
   {
@@ -86,14 +94,71 @@ export const NAV_GROUPS: readonly NavGroup[] = [
   },
 ];
 
+/** The Settings area (DESIGN §10.8); `/account` redirects to it. */
 export const ACCOUNT_ITEM: NavItem = {
-  to: '/account',
-  label: 'Account & security',
+  to: '/settings',
+  label: 'Settings',
   icon: 'Account',
   filtered: false,
   key: 'a',
-  hint: 'Password, two-factor, sessions, Telegram',
+  hint: 'Profile, security, sessions, team',
 };
+
+export interface SettingsSection {
+  readonly path: string;
+  readonly label: string;
+  readonly icon: IconName;
+  /** The page's one line under its title. */
+  readonly description: string;
+  /** Hidden from analysts (UI-17: a pure configuration page); the server refuses them anyway. */
+  readonly ownerOnly: boolean;
+}
+
+/** The Settings pages, in sub-navigation order (DESIGN §10.8). */
+export const SETTINGS_SECTIONS: readonly SettingsSection[] = [
+  {
+    path: 'profile',
+    label: 'Profile',
+    icon: 'Profile',
+    description: 'Who you are signed in as, and this session.',
+    ownerOnly: false,
+  },
+  {
+    path: 'preferences',
+    label: 'Preferences',
+    icon: 'Theme',
+    description: 'How the dashboard looks and which time zone it shows times in.',
+    ownerOnly: false,
+  },
+  {
+    path: 'security',
+    label: 'Security',
+    icon: 'Security',
+    description: 'Password, two-factor, recovery codes and the Telegram recovery chat.',
+    ownerOnly: false,
+  },
+  {
+    path: 'sessions',
+    label: 'Sessions',
+    icon: 'Sessions',
+    description: 'Every device signed in to your account.',
+    ownerOnly: false,
+  },
+  {
+    path: 'team',
+    label: 'Team',
+    icon: 'Invite',
+    description: 'The admins of this dashboard: invite, change role, disable or remove.',
+    ownerOnly: true,
+  },
+  {
+    path: 'system',
+    label: 'System',
+    icon: 'System',
+    description: 'Whether the server is ready: database, PostGIS and migrations.',
+    ownerOnly: false,
+  },
+];
 
 export const ALL_ITEMS: readonly NavItem[] = [...NAV_GROUPS.flatMap((g) => g.items), ACCOUNT_ITEM];
 
@@ -112,7 +177,9 @@ export function locate(path: string): {
       }
     }
   }
-  if (path.startsWith('/account')) return { group: null, item: ACCOUNT_ITEM };
+  if (path.startsWith('/settings') || path.startsWith('/account')) {
+    return { group: null, item: ACCOUNT_ITEM };
+  }
   return { group: null, item: null };
 }
 
@@ -120,6 +187,10 @@ export function locate(path: string): {
 export function isFilteredPath(path: string): boolean {
   const { item } = locate(path);
   return (
-    item?.filtered === true && !/^\/visits\/[^/]+/.test(path) && !path.startsWith('/visitors/')
+    item?.filtered === true &&
+    !/^\/visits\/[^/]+/.test(path) &&
+    !path.startsWith('/visitors/') &&
+    // The Links index counts all-time visits; a link's own page is filtered (DESIGN §10.11).
+    path !== '/links'
   );
 }

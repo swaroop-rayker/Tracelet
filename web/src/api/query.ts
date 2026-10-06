@@ -42,12 +42,20 @@ export function useApi<T>(
   path: string,
   params: URLSearchParams | null,
   schema: z.ZodType<T>,
-  options?: { readonly enabled?: boolean },
+  options?: {
+    readonly enabled?: boolean;
+    /**
+     * Poll every so many milliseconds (DESIGN 12 E18). React Query pauses polling while the
+     * tab is hidden, so a background tab costs nothing (UI-18).
+     */
+    readonly refetchInterval?: number;
+  },
 ): UseQueryResult<T, ApiFailure> {
   const key = params?.toString() ?? '';
   return useQuery<T, ApiFailure>({
     queryKey: [path, key],
     queryFn: () => getParsed(path, params, schema),
     enabled: options?.enabled ?? true,
+    refetchInterval: options?.refetchInterval ?? false,
   });
 }

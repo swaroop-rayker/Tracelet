@@ -158,6 +158,40 @@ async def test_an_owner_may_be_demoted_while_another_active_owner_exists(
     assert (await second_client.get(ADMINS)).status_code == 403
 
 
+async def test_role_and_status_changes_record_what_they_changed_from(
+    exclusive_owner: SignedIn,
+    db_client: AsyncClient,
+    integration_settings: Settings,
+    new_client: ClientFactory,
+    totp_clock: TotpClock,
+) -> None:
+    """The audit row says where a change came from, not the new value twice (E51).
+
+    The ORM update synchronises the session, so reading the target after it reported
+    every promotion as {"from": "owner", "to": "owner"}.
+    """
+    invited = await helpers.invite(integration_settings, role=AdminRole.ANALYST)
+    analyst = await helpers.enroll(await new_client(), invited, totp_clock)
+
+    promoted = await db_client.patch(
+        f"{ADMINS}/{analyst.id}",
+        json={"role": AdminRole.OWNER.value},
+        headers=exclusive_owner.headers(),
+    )
+    disabled = await db_client.patch(
+        f"{ADMINS}/{analyst.id}",
+        json={"status": "disabled"},
+        headers=exclusive_owner.headers(),
+    )
+
+    assert promoted.status_code == 200, promoted.text
+    assert disabled.status_code == 200, disabled.text
+    roles = await helpers.audit_details(exclusive_owner.id, "admin.role_changed")
+    statuses = await helpers.audit_details(exclusive_owner.id, "admin.status_changed")
+    assert roles[-1] == {"from": "analyst", "to": "owner"}
+    assert statuses[-1] == {"from": "active", "to": "disabled"}
+
+
 async def test_a_pending_owner_does_not_count_as_an_active_one(
     exclusive_owner: SignedIn, db_client: AsyncClient, integration_settings: Settings
 ) -> None:

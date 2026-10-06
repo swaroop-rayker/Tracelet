@@ -717,3 +717,95 @@
     max-width: 100%;
   }
 }
+
+/* --- the Settings area (DESIGN §10.8, §12 E23) ----------------------------------- */
+
+.settings__body {
+  display: grid;
+  grid-template-columns: 200px minmax(0, 1fr);
+  gap: var(--space-6);
+  align-items: start;
+}
+
+.settings__nav ul {
+  display: grid;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.settings__link {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-md);
+  color: var(--text-muted);
+  font-size: var(--fs-secondary);
+  text-decoration: none;
+}
+
+.settings__link:hover {
+  background: var(--surface-2);
+  color: var(--text);
+}
+
+.settings__link.is-active {
+  background: var(--accent-bg);
+  color: var(--text);
+  font-weight: 600;
+}
+
+.settings__picker {
+  display: none;
+}
+
+.settings__content {
+  display: grid;
+  gap: var(--space-5);
+  min-width: 0;
+  max-width: 880px;
+}
+
+@media (max-width: 1023px) {
+  .settings__body {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--space-4);
+  }
+
+  .settings__nav {
+    display: none;
+  }
+
+  .settings__picker {
+    display: block;
+  }
+}
+
+.profile-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-4);
+}
+
+.profile-head__who {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+  flex: 1;
+}
+
+.profile-head__name {
+  font-size: var(--fs-section);
+  line-height: var(--lh-section);
+  font-weight: 600;
+  color: var(--text);
+}
+
+.avatar.avatar--lg {
+  width: 48px;
+  height: 48px;
+  font-size: var(--fs-body);
+}
