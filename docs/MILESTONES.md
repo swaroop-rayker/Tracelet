@@ -19,7 +19,7 @@ then open the PR (CLAUDE.md section 2).
 | M1 | Admin auth and account security | L | **[x] done** — 285 tests, 15 bugs recorded as E8–E22 |
 | M2 | Capture path, server-authoritative | L | **[x] done** — 631 tests, Spike B run (Android), 4 bugs recorded as E23–E26 |
 | M3 | Location inference engine | L | **[x] done** — 738 tests (463 unit, 275 integration); real-visit check deferred to M9 (owner decision); 5 bugs recorded as E27–E31 |
-| M4 | Anti-spoofing and classification | L | [ ] |
+| M4 | Anti-spoofing and classification | L | **[x] done** — 9 of 10 items; the UI item moves to M5; bugs E32–E33; R19 and R21 closed |
 | M5 | Dashboard analytics and visualisation | L | [ ] |
 | M6 | Geofencing and Telegram notifications | M | [ ] |
 | M7 | System health and operations | L | [ ] |
@@ -515,7 +515,7 @@ this development database now runs them as version 31.
 **Scope**
 - Canonical fingerprint with **stability bucketing**; `visitor_id`, `session_fp`,
   `fingerprint_id` (three peppers, ADR-0006)
-- Server rules: UA denylist, header-order hash, missing `Accept-Language`, HTTP/1.0,
+- Server rules: UA denylist, **header set** (was "header-order hash"; SPEC §11 row 7), missing `Accept-Language`, HTTP/1.0,
   `Accept: */*`, TLS mismatch, hosting ASN, rDNS scanner patterns, rate anomaly,
   malicious ASN/UA lists
 - Client rules: `webdriver`, missing `window.chrome`, SwiftShader/Mesa/llvmpipe,
@@ -524,23 +524,31 @@ this development database now runs them as version 31.
   screen vs device class, impossible travel
 - **Honeypot** endpoint + hidden link + hidden field
 - **Fingerprint collision → proxy**, and the inverse → NAT/gateway, **not** proxy
-- Header-order and HTTP/2 fingerprinting (the JA4 substitute)
+- ~~Header-order and HTTP/2 fingerprinting (the JA4 substitute)~~ — **header-set** fingerprinting
+  instead; order is unobservable behind Caddy (RISKS R19, SPEC §11 row 7)
 - Datacenter/VPN/Tor from ASN type, org keywords, rDNS, curated lists
 - `agreement_score`, `conflict_score`, `bot_score`, `spoof_score`, `signals` JSONB + GIN
 - `classifier_version` stamping; thresholds in versioned config
 
 **Done checklist**
-- [ ] Headless Chrome against a real link is classified with the specific reasons listed
-- [ ] `curl` and a Python `requests` client are both caught by header-order alone
-- [ ] Spoofed UA (Windows UA + Apple GPU) raises `spoof_score` with the cross-check named
-- [ ] `deviceMemory` + iOS UA flagged
-- [ ] Honeypot hit classifies as automation
-- [ ] Same fingerprint across 3+ ASNs sets `is_proxy_suspected`
-- [ ] **Many fingerprints behind one prefix classified as NAT, not proxy** — the regression
-      that would otherwise misclassify most Indian mobile traffic
-- [ ] Every verdict shows its fired rules with weights in the UI
-- [ ] A `server_only` visit still classifies from server signals alone
-- [ ] Docs: ARCHITECTURE section 4 verified
+- [x] Headless Chrome against a real link is classified with the specific reasons listed
+      — *real Playwright Chromium through Caddy, 2026-10-02: bot 100 on eight rules; with a
+      real Chrome UA and `webdriver` hidden, still bot 100 on six (ARCHITECTURE 4.1)*
+- [x] `curl` and a Python `requests` client are both caught by the **header set** alone
+      (amended from "header-order", SPEC §11 row 7) — *`test_an_http_library_wearing_a_chrome_ua_is_caught_by_its_header_set_alone`,
+      `test_a_library_with_a_browser_ua_is_a_bot_from_its_headers`*
+- [x] Spoofed UA (Windows UA + Apple GPU) raises `spoof_score` with the cross-check named
+      — *`test_a_windows_ua_with_an_apple_gpu_is_spoofed`*
+- [x] `deviceMemory` + iOS UA flagged — *`test_device_memory_under_an_ios_ua_is_flagged`*
+- [x] Honeypot hit classifies as automation — *`test_a_honeypot_hit_classifies_as_automation` (real `/api/v1/hp` hit)*
+- [x] Same fingerprint across 3+ ASNs sets `is_proxy_suspected` — *`test_one_device_on_three_networks_is_a_proxy`*
+- [x] **Many fingerprints behind one prefix classified as NAT, not proxy** — the regression
+      that would otherwise misclassify most Indian mobile traffic — *`test_many_devices_behind_one_prefix_is_a_gateway_not_a_proxy` (unit and integration)*
+- [ ] Every verdict shows its fired rules with weights in the UI — *the API serves them
+      (`signals[]` with category and weight, `client.probes`); the UI is M5's, and this
+      item is ticked there*
+- [x] A `server_only` visit still classifies from server signals alone — *`test_a_server_only_visit_classifies_from_server_signals_alone`*
+- [x] Docs: ARCHITECTURE section 4 verified — *4.1 written with the code; the diagram's header line amended*
 
 ---
 
@@ -570,6 +578,9 @@ this development database now runs them as version 31.
 - [ ] Export streams and contains no plaintext IP
 - [ ] All three themes pass WCAG AA contrast; no chart relies on colour alone
 - [ ] Keyboard navigation works across all controls
+- [ ] A visit's detail shows every fired rule with its weight and evidence, and the full
+      location derivation (every source, accepted or suppressed with reason) — *carried
+      from M4 and M3; the API already serves both*
 - [ ] OpenAPI drift check fails on a deliberate response-model change
 - [ ] Docs: API section 8 verified
 

@@ -142,3 +142,41 @@ ASN and UA lists, scanner and exploit-probe patterns on the capture path — sur
   either means it is no longer measuring what it was written to measure.
 - Enough labelled classification data accumulates to make a model trainable **and** an
   explanation mechanism is available for it. Both conditions, not one.
+
+---
+
+## Amendment (M4, 2026-09-29) — as built
+
+Recorded before the code, per CLAUDE.md section 2. The decision — weighted, explainable
+rules — is unchanged; these are the places where building it showed the text above to be
+wrong or incomplete.
+
+1. **Header *set*, not header order.** The cross-check table's "header order vs claimed
+   client" cannot be built behind Caddy (RISKS R19); SPEC section 11 row 7 replaced it with
+   the header set: which headers a real browser of the claimed family always sends
+   (`Sec-Fetch-*` for any modern browser, `Sec-CH-UA*` for Chromium) and whether their
+   values agree with the UA string. Weight that header order would have carried moves to
+   the UA-CH cross-checks, the headless probes, the honeypot and network reputation.
+2. **Impossible travel is per `fingerprint_id`, not per `visitor_id`.** ADR-0006 derives
+   `visitor_id` from the fingerprint *and the IP prefix*, so two visits sharing one are on
+   the same network by construction and can never be far apart. The network-independent
+   `fingerprint_id` is the identifier for which "two places at once" means anything.
+3. **Where it runs.** Classification joins location inference in the ADR-0015 job, in the
+   same write transaction, after inference — the tz-vs-country and datacenter rules need
+   inference's output. It never runs in a request; a classifier failure is `unknown` with
+   `classifier.engine_error`, and the redirect is untouched (F5.AC14).
+4. **Weights and thresholds are a `classifier` section of the versioned
+   `inference_settings`** (owner decision): one settings history, one audit trail, one
+   rollback. `classifier_version` is `<classifier revision>+s<settings version>`.
+5. **Datacenter covers Tor and hosting-ASN VPN egress.** The class list has no `tor` or
+   `vpn`; the address describes infrastructure, as F4.AC12(c) already says for location,
+   so the class is `datacenter` and `is_tor` / `is_vpn_suspected` say which. A real person
+   behind a VPN is therefore not `human` — the conservative error for an alerting system
+   (CLAUDE.md invariant 6).
+6. **A `server_only` visit can be `human`**, on server evidence alone: a header set
+   consistent with a real browser, a residential network, nothing fired. Requiring client
+   evidence would make every visit whose enrichment the webview killed — the iOS in-app
+   case, R5 — permanently `unknown`, and never notifiable.
+7. **Precedence** when several classes are supported: `crawler` (a known preview fetcher)
+   → `spam` (malicious-automation signals, F5.AC13) → `bot` (automation evidence at or
+   over the bot threshold) → `datacenter` → `spoofed` → `human` → `unknown`.

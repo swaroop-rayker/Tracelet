@@ -281,7 +281,7 @@ def decide(
     # Rule (c) -- hosting, VPN and Tor ASNs: the address describes infrastructure, so
     # nothing derived from it may be acted on. Advisory still shows the guess.
     strict_pool = locating
-    if asn.is_hosting:
+    if asn.is_hosting or asn.is_tor:
         strict_pool = [(i, c) for i, c in locating if _is_gps(c)]
         for i, c in locating:
             if not _is_gps(c):
@@ -304,7 +304,7 @@ def decide(
             reason = blocked_by
         elif level in artifact_levels:
             reason = SuppressedReason.REGISTRY_ARTIFACT.value
-        elif asn.is_hosting and s is None and advisory.had_candidates.get(level):
+        elif (asn.is_hosting or asn.is_tor) and s is None and advisory.had_candidates.get(level):
             reason = SuppressedReason.HOSTING_ASN.value
         elif (
             (asn.is_mobile or asn.is_cgnat)

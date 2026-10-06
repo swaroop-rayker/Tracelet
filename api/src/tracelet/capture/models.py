@@ -298,6 +298,8 @@ class Visit(Base):
     classifier_version: Mapped[str | None] = mapped_column(Text)
     signals: Mapped[list[dict[str, Any]]] = mapped_column(pg.JSONB, nullable=False, default=list)
     request_headers: Mapped[dict[str, str] | None] = mapped_column(pg.JSONB)
+    # M4: the capture page's headless-browser probes, as reported (migration 0006).
+    client_probes: Mapped[dict[str, Any] | None] = mapped_column(pg.JSONB)
 
     # --- location (M3) ------------------------------------------------------
     consent_state: Mapped[ConsentState] = mapped_column(

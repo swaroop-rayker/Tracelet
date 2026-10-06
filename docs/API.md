@@ -464,6 +464,13 @@ every source for every visit. `inferred_at` is added beside `finalized_at`; `nul
 the visit is still in the inference queue (ADR-0015), not that inference failed.
 `location.primary_source` names the source behind the deepest advisory value.
 
+**As shipped in M4:** `classification`, `bot_score` and `spoof_score` are the classifier's
+(ADR-0011 amendment); every fired rule is in `signals[]` with its `category` and weight.
+`client.probes` is the capture page's headless probes as reported — the evidence behind
+the `client.*` rules. `visitor_id` is the hex of the stable identifier; `is_datacenter`,
+`is_vpn_suspected`, `is_tor` and `is_proxy_suspected` are `null` where they could not be
+assessed, never a defaulted `false`.
+
 ### `GET /api/v1/visits/{id}/ip` — `owner` only
 
 Decrypts and returns the IP for one visit.
@@ -592,7 +599,9 @@ reviewable configuration. Validation is total — a threshold of `1.7` is a `422
 nothing is saved. `POST /rollback/{version}` reactivates an existing version (`404` if
 there is none; rolling back to the active version is a no-op and writes no audit row).
 Both writes are owner-only and record `inference.settings_changed` (with the dotted paths
-that changed) or `inference.settings_rolled_back`. `/flow` is M7's (F10.AC8).
+that changed) or `inference.settings_rolled_back`. `/flow` is M7's (F10.AC8). Since M4 the settings object also has a `classifier` section: per-rule
+`weights`, the bot/spoof/spam thresholds, the human ceilings, and the collision, gateway,
+rate and impossible-travel parameters — changed and rolled back exactly like the rest.
 
 ---
 

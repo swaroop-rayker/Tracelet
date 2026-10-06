@@ -251,3 +251,32 @@ def normalise_tls_version(value: str | None) -> str | None:
         return None
     match = re.fullmatch(r"tls\s*1\.(\d)", value.strip(), re.IGNORECASE)
     return f"TLS 1.{match.group(1)}" if match else None
+
+
+# ---------------------------------------------------------------------------
+# Exploit probes (F5.AC13)
+# ---------------------------------------------------------------------------
+
+# Scanner and exploit payloads that arrive on the capture path's query string. Matched
+# on keys and values; only the *name* of what matched is stored, never the payload --
+# a payload is attacker-controlled text and has no business in the database.
+EXPLOIT_PATTERNS: Final[tuple[tuple[str, re.Pattern[str]], ...]] = (
+    (
+        "sql_injection",
+        re.compile(
+            r"union\s+(all\s+)?select|'\s*or\s+'?\d|sleep\s*\(\s*\d|benchmark\s*\(|information_schema",
+            re.I,
+        ),
+    ),
+    ("script_injection", re.compile(r"<\s*script|javascript:|onerror\s*=|onload\s*=", re.I)),
+    ("path_traversal", re.compile(r"\.\./|\.\.%2f|%2e%2e[/%]", re.I)),
+    ("jndi_lookup", re.compile(r"\$\{\s*jndi:", re.I)),
+    ("command_injection", re.compile(r";\s*(cat|wget|curl|bash|sh)\s|\$\(|`[^`]*`", re.I)),
+    ("sensitive_file", re.compile(r"/etc/passwd|\.env\b|wp-config|\.git/", re.I)),
+)
+
+
+def exploit_probes(query: Mapping[str, str]) -> list[str]:
+    """Names of exploit patterns present anywhere in the query string."""
+    text = " ".join(f"{k} {v}" for k, v in query.items())[:4096]
+    return [name for name, pattern in EXPLOIT_PATTERNS if pattern.search(text)]

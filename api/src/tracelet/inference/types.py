@@ -142,6 +142,9 @@ class AsnInfo:
     is_mobile: bool = False
     is_hosting: bool = False
     is_cgnat: bool = False
+    # A Tor exit (M4, the Tor Project's list). Like hosting, the address describes
+    # infrastructure, so location rule (c) applies (F4.AC12(c) names Tor).
+    is_tor: bool = False
     modal_city: str | None = None
     modal_admin1: str | None = None
     modal_share: float | None = None

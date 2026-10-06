@@ -27,7 +27,8 @@ from sqlalchemy.dialects import postgresql as pg
 from sqlalchemy.exc import DBAPIError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from tracelet.capture.models import ConsentState, Visit, VisitStage
+from tracelet.capture.models import Classification, ConsentState, Visit, VisitStage
+from tracelet.classify.job import Classified, classify_visit
 from tracelet.config import Settings, get_settings
 from tracelet.crypto.envelope import DecryptionError, Envelope, open_str
 from tracelet.db.engine import session_scope
@@ -82,6 +83,8 @@ class Toolkit:
     asn_lookup: AsnLookup | None = None
     databases: dict[InferenceSource, DbProducer] = field(default_factory=dict)
     place: Placer | None = None
+    # The Tor Project's exit list (M4). None when not installed: is_tor stays unassessed.
+    tor_exits: frozenset[str] | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -111,6 +114,12 @@ class Inferred:
     # any other visit, so a bug here fails loudly rather than storing it.
     resolved_address: str | None = None
     address_absent: str | None = None
+    # M4: classification joins the same write (ADR-0011 amendment, item 3).
+    classified: Classified | None = None
+    classify_error: str | None = None
+    # Whether the Tor exit list was installed when this visit was inferred: without it,
+    # is_tor is unassessed (NULL), not "not Tor" (F3.AC5).
+    tor_assessed: bool = False
 
 
 # ---------------------------------------------------------------------------
@@ -204,6 +213,8 @@ async def infer_visit(
     if asn_number is not None:
         classified = asn_org.classify(asn_number, org)
         asn = _combine(classified, asn)
+    if ip is not None and toolkit.tor_exits is not None and str(ip) in toolkit.tor_exits:
+        asn = dataclasses.replace(asn, is_tor=True)
 
     outcomes: list[SourceOutcome] = []
     candidates: list[Candidate] = []
@@ -294,6 +305,7 @@ async def infer_visit(
         ptr_masked=rdns.mask_ptr(ptr) if ptr else None,
         resolved_address=address,
         address_absent=address_absent,
+        tor_assessed=toolkit.tor_exits is not None,
     )
 
 
@@ -322,6 +334,7 @@ def _combine(classified: AsnInfo, profiled: AsnInfo) -> AsnInfo:
         is_mobile=classified.is_mobile or profiled.is_mobile,
         is_hosting=classified.is_hosting or profiled.is_hosting,
         is_cgnat=classified.is_cgnat or profiled.is_cgnat,
+        is_tor=classified.is_tor or profiled.is_tor,
         modal_city=profiled.modal_city,
         modal_admin1=profiled.modal_admin1,
         modal_share=profiled.modal_share,
@@ -489,6 +502,7 @@ async def persist(db: AsyncSession, result: Inferred) -> bool:
         )
     if result.resolved_address is not None:
         values["resolved_address"] = result.resolved_address
+    values |= _classification_values(result, absences)
     if absences:
         values["signals"] = Visit.signals.op("||")(literal(absences, type_=pg.JSONB))
     row = (
@@ -536,19 +550,11 @@ async def _default_toolkit(db: AsyncSession) -> Toolkit:
 
 async def _claim(
     db: AsyncSession, batch: int, only: Sequence[uuid.UUID] | None
-) -> list[VisitFacts]:
+) -> list[tuple[VisitFacts, Visit]]:
+    """The rows to work on, whole: classification reads far more of the visit than
+    inference does, and the session keeps loaded rows usable after it closes."""
     stmt = (
-        select(
-            Visit.id,
-            Visit.ip_enc,
-            Visit.ip_key_version,
-            Visit.consent_state,
-            Visit.gps_lat,
-            Visit.gps_lng,
-            Visit.gps_accuracy_m,
-            Visit.tz_iana,
-            Visit.cf_colo,
-        )
+        select(Visit)
         .where(
             Visit.finalized_at.is_not(None),
             Visit.inferred_at.is_(None),
@@ -559,7 +565,24 @@ async def _claim(
     )
     if only is not None:
         stmt = stmt.where(Visit.id.in_(list(only)))
-    return [VisitFacts(*r) for r in (await db.execute(stmt)).all()]
+    rows = list((await db.execute(stmt)).scalars())
+    return [
+        (
+            VisitFacts(
+                v.id,
+                v.ip_enc,
+                v.ip_key_version,
+                v.consent_state,
+                v.gps_lat,
+                v.gps_lng,
+                v.gps_accuracy_m,
+                v.tz_iana,
+                v.cf_colo,
+            ),
+            v,
+        )
+        for v in rows
+    ]
 
 
 async def run_once(
@@ -571,9 +594,11 @@ async def run_once(
     re-running inference on chosen visits once their ``inferred_at`` is cleared.
     """
     async with session_scope() as db:
-        facts = await _claim(db, batch, only)
-        if not facts:
+        claimed = await _claim(db, batch, only)
+        if not claimed:
             return 0
+        facts = [f for f, _ in claimed]
+        rows = {f.id: row for f, row in claimed}
         active = await store.active_settings(db)
         toolkit = await (_toolkit_factory or _default_toolkit)(db)
         profiles: dict[int, AsnInfo] = {}
@@ -593,7 +618,7 @@ async def run_once(
     async def one(f: VisitFacts) -> Inferred:
         async with gate:
             try:
-                return await infer_visit(
+                inferred = await infer_visit(
                     f,
                     settings=settings,
                     config=active.config,
@@ -608,7 +633,8 @@ async def run_once(
                     error_type=type(exc).__name__,
                     exc_info=exc,
                 )
-                return engine_error(f, active.version, "engine_error")
+                inferred = engine_error(f, active.version, "engine_error")
+            return await _classify(inferred, rows[f.id], settings, active)
 
     results = await asyncio.gather(*(one(f) for f in facts))
     by_id = {f.id: f for f in facts}
@@ -638,3 +664,78 @@ async def run_once(
 async def run_job_once() -> int:
     """The scheduler's entry point: no arguments, like the sweeper's."""
     return await run_once(get_settings())
+
+
+async def _classify(
+    inferred: Inferred, visit: Visit, settings: Settings, active: store.ActiveSettings
+) -> Inferred:
+    """Classification never fails a visit (F5.AC14): a failure is 'unknown' with a reason."""
+    decision = inferred.decision
+    country = decision.levels[GeoLevel.COUNTRY].advisory if decision is not None else None
+    try:
+        classified = await classify_visit(
+            visit,
+            settings=settings,
+            config=active.config.classifier,
+            settings_version=active.version,
+            asn=inferred.asn,
+            country=country,
+            point=decision.strict_point if decision is not None else None,
+            ptr_masked=inferred.ptr_masked,
+        )
+    except Exception as exc:  # noqa: BLE001 - F5.AC14: classification degrades, never raises
+        log.error("classifier_failed", visit_id=str(visit.id), error_type=type(exc).__name__)
+        return dataclasses.replace(inferred, classify_error=type(exc).__name__)
+    return dataclasses.replace(inferred, classified=classified)
+
+
+def _classification_values(result: Inferred, signals: list[dict[str, Any]]) -> dict[str, Any]:
+    """The classifier's columns, and its fired rules appended to ``signals`` (F5.AC2)."""
+    if result.classified is None:
+        signals.append(
+            {
+                "rule_id": "classifier.engine_error",
+                "category": "absence",
+                "weight": 0,
+                "detail": {"error": result.classify_error or "not_run"},
+            }
+        )
+        return {"classification": Classification.UNKNOWN}
+    c = result.classified
+    v = c.verdict
+    signals.extend(s.as_json() for s in v.signals)
+    if c.identity.missing_peppers:
+        signals.append(
+            {
+                "rule_id": "identity.pepper_missing",
+                "category": "absence",
+                "weight": 0,
+                "detail": {"peppers": list(c.identity.missing_peppers)},
+            }
+        )
+    if c.identity.server_only:
+        signals.append(
+            {
+                "rule_id": "identity.server_only",
+                "category": "absence",
+                "weight": 0,
+                "detail": {"reason": "no_client_enrichment"},
+            }
+        )
+    return {
+        "classification": v.classification,
+        "bot_score": v.bot_score,
+        "spoof_score": v.spoof_score,
+        "classifier_version": c.version,
+        "visitor_id": c.identity.visitor_id,
+        "session_fp": c.identity.session_fp,
+        "fingerprint_id": c.identity.fingerprint_id,
+        # Each flag is NULL unless its evidence existed (F3.AC5): no ASN, no network
+        # verdict; no exit list, no Tor verdict; no fingerprint, no proxy verdict.
+        "is_datacenter": v.is_datacenter if result.asn.asn is not None else None,
+        "is_vpn_suspected": v.is_vpn_suspected if result.asn.asn is not None else None,
+        "is_tor": v.is_tor if result.tor_assessed else None,
+        "is_proxy_suspected": (
+            v.is_proxy_suspected if c.identity.fingerprint_id is not None else None
+        ),
+    }
