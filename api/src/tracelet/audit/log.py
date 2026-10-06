@@ -73,6 +73,12 @@ class Action:
     LINK_ARCHIVED: Final = "link.archived"
     LINK_DELETED: Final = "link.deleted"
 
+    # geofences (M6, F6) -- owner-only configuration, invariant 9
+    GEOFENCE_CREATED: Final = "geofence.created"
+    GEOFENCE_UPDATED: Final = "geofence.updated"  # names every changed field, old and new
+    GEOFENCE_DELETED: Final = "geofence.deleted"
+    GEOFENCE_IMPORTED: Final = "geofence.imported"
+
     # visits (M2)
     IP_DECRYPTED: Final = "visit.ip_decrypted"  # F12.AC4
 

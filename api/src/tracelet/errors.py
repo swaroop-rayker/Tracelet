@@ -26,7 +26,7 @@ import structlog
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, SerializerFunctionWrapHandler, model_serializer
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 log = structlog.get_logger(__name__)
@@ -40,12 +40,30 @@ TYPE_BASE = "https://tracelet/errors"
 # ---------------------------------------------------------------------------
 
 
+class GeoPoint(BaseModel):
+    lat: float
+    lng: float
+
+
 class FieldError(BaseModel):
-    """One field-level validation failure."""
+    """One field-level validation failure.
+
+    ``location`` points at the failure on a map -- where a geofence ring crosses itself
+    (F6.AC4, DESIGN section 16) -- and is omitted, not ``null``, when there is none, so
+    every other error keeps its shape.
+    """
 
     field: str
     code: str
     message: str
+    location: GeoPoint | None = None
+
+    @model_serializer(mode="wrap")
+    def _omit_absent_location(self, handler: SerializerFunctionWrapHandler) -> dict[str, Any]:
+        data: dict[str, Any] = handler(self)
+        if data.get("location") is None:
+            data.pop("location", None)
+        return data
 
 
 class Problem(BaseModel):
@@ -233,6 +251,14 @@ class GeofenceTooManyVertices(TraceletError):
     status = 422
     code = "GEOFENCE_TOO_MANY_VERTICES"
     title = "Geofence has too many vertices"
+
+
+class GeofenceUnknownRegion(TraceletError):
+    """A region key the catalogue does not list (ADR-0020)."""
+
+    status = 422
+    code = "GEOFENCE_UNKNOWN_REGION"
+    title = "Unknown region"
 
 
 class PayloadTooLarge(TraceletError):

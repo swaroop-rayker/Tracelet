@@ -107,6 +107,25 @@ async def _covering(
     return {r[0] for r in rows}
 
 
+def _assemble(
+    fences: Sequence[ActiveGeofence], place: StrictPlace, covered: set[uuid.UUID]
+) -> Evaluation:
+    results = tuple(
+        Evaluated(
+            f,
+            region_result(f.region_keys, place)
+            if f.shape_kind is ShapeKind.REGION
+            else shape_result(f.id in covered, place),
+        )
+        for f in fences
+    )
+    return Evaluation(results, combine([e.result for e in results]))
+
+
+def _shape_ids(fences: Sequence[ActiveGeofence]) -> list[uuid.UUID]:
+    return [f.id for f in fences if f.shape_kind is not ShapeKind.REGION]
+
+
 async def evaluate(
     db: AsyncSession,
     fences: Sequence[ActiveGeofence],
@@ -118,18 +137,33 @@ async def evaluate(
     """Evaluate one visit against the geofences that apply to its link. Reads the
     visit's geopoint from the database, so call it after the geopoint is written."""
     applicable = [f for f in fences if applies(f.link_ids, link_id)]
-    shapes = [f.id for f in applicable if f.shape_kind is not ShapeKind.REGION]
+    shapes = _shape_ids(applicable)
     covered = await _covering(db, visit_id, shapes) if shapes and place.has_geopoint else set()
-    results = tuple(
-        Evaluated(
-            f,
-            region_result(f.region_keys, place)
-            if f.shape_kind is ShapeKind.REGION
-            else shape_result(f.id in covered, place),
+    return _assemble(applicable, place, covered)
+
+
+async def evaluate_point(
+    db: AsyncSession,
+    fences: Sequence[ActiveGeofence],
+    *,
+    lat: float,
+    lng: float,
+    place: StrictPlace,
+) -> Evaluation:
+    """Evaluate a coordinate against every given geofence, whatever its links, and
+    write nothing (F6.AC10). The point is the geopoint; ``place`` names it."""
+    shapes = _shape_ids(fences)
+    covered: set[uuid.UUID] = set()
+    if shapes:
+        rows = await db.execute(
+            text(
+                "SELECT id FROM geofences WHERE id = ANY(:ids) AND ST_Covers(area, "
+                "ST_SetSRID(ST_MakePoint(:lng, :lat), 4326)::geography)"
+            ),
+            {"ids": shapes, "lat": lat, "lng": lng},
         )
-        for f in applicable
-    )
-    return Evaluation(results, combine([e.result for e in results]))
+        covered = {r[0] for r in rows}
+    return _assemble(fences, place, covered)
 
 
 async def record(db: AsyncSession, visit_id: uuid.UUID, evaluation: Evaluation) -> None:

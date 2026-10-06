@@ -658,24 +658,31 @@ after a GeoNames rename; flagged, never silently dropped), `matches_7d` (visits 
 the last 7 days), `created_by`, `created_at`, `updated_at`.
 
 **Errors** (`422`, field-level): `GEOFENCE_INVALID_GEOMETRY` for a self-intersecting or
-otherwise invalid ring, carrying PostGIS's reason and the offending location as
-`{lat, lng}` so the editor can mark it on the map; `GEOFENCE_TOO_MANY_VERTICES` above 2000
-(F6.AC4); `GEOFENCE_UNKNOWN_REGION` for a key the catalogue does not list. A key that
+otherwise invalid ring, carrying PostGIS's reason as the message and the offending point as
+the field error's `location: {lat, lng}` (§12), so the editor can mark it on the map; `GEOFENCE_TOO_MANY_VERTICES` above 2000
+(F6.AC4); `GEOFENCE_UNKNOWN_REGION` for a key the catalogue does not list, addressed as
+`region_keys.{i}`; `UNKNOWN_LINK` for a `link_ids` entry that is not a link. In a `PATCH`,
+`NOT_FOR_SHAPE` names a field that belongs to another shape and `REQUIRED` one the shape
+needs. A circle's centre or radius may change alone. A key that
 becomes unknown *later* is kept and reported in `unknown_region_keys`.
 
 ### `GET /api/v1/geofences/regions`
 
 ```json
 {
-  "countries": [{ "key": "IN", "name": "India" }],
-  "divisions": [{ "key": "IN|Karnataka", "country": "IN", "name": "Karnataka", "has_outline": true }]
+  "countries": [{ "key": "IN" }],
+  "divisions": [{ "key": "IN|Karnataka", "code": "IN.19", "country": "IN", "name": "Karnataka" }]
 }
 ```
 
 Built from the GeoNames admin1 table the engine names states from, so every key is
-spelled as a strict state is. `has_outline` is false for the divisions the map cannot draw
-(about 13 %), which can still be picked from the list. Cacheable; it changes only with a
-geo-database update (M7).
+spelled as a strict state is. `code` is the GeoNames admin1 code the map's outlines carry
+(`/geo/admin1/IN.json`), which is how a clicked outline becomes a key; a division with no
+outline (about 13 %) is still listed and can be picked from the list. Countries are the ISO
+codes the table covers; their names are the browser's (`Intl.DisplayNames`), because the API
+has no country-name table and matching needs none. `503 GEO_DB_UNAVAILABLE` until the
+GeoNames admin1 file is installed, and creating a region geofence fails the same way.
+`Cache-Control: private, max-age=3600`; it changes only with a geo-database update (M7).
 
 ### `POST /api/v1/geofences/test`
 
@@ -800,6 +807,10 @@ RFC 9457 Problem Details, from a typed exception hierarchy through a single hand
   ]
 }
 ```
+
+A field error may carry `location: {lat, lng}`, a point on a map the error refers to --
+today only where a geofence ring crosses itself (§9). It is **omitted**, not `null`, when
+there is none, so every other error keeps its shape. *Added in M6.*
 
 **A 5xx returns only `type`, `title`, `status`, `code` and `trace_id`.** No stack trace,
 no SQL, no internal hostname (F15.AC3). The detail is written to the log under the same
