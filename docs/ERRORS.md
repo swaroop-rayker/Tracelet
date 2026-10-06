@@ -1885,6 +1885,54 @@ write may have synchronised.
 
 **Related:** CLAUDE.md invariant 9, API §5, ERRORS E16.
 
+### E52 — Test geofences outlived their tests and applied to every dev visit
+
+**Status:** Fixed. **Milestone:** M6. **Date:** 2026-10-06.
+
+**Symptom.** A new outbox test expected a strict-Maharashtra visit to be `outside` a Karnataka
+geofence and got `undetermined`. The database held six active geofences named "Test fence",
+with `link_ids` NULL -- applying to every link -- left by the first two runs of the geofence
+invariant tests. Any visit inferred afterwards, in a test or by the dev server, would have been
+evaluated against them; a polygon with no geopoint is undetermined, which outranks outside.
+
+**Root cause.** The integration suite shares the dev database (E36). The invariant tests
+inserted *valid* geofences to prove the shape CHECKs accept them, with the column defaults:
+active, every link. Nothing removed them. A geofence differs from most test rows: it is not
+looked up by id, it is applied to every later visit.
+
+**Fix.** The rows were deleted. Every geofence a test makes is now named `itest ...`, inserted
+inactive where the test does not need it active, and deleted by an autouse fixture. The suites
+that infer visits narrow the job's loader to their own geofences, so an owner's real dev
+geofence cannot change their results either.
+
+**Prevention.** A test row that the system *applies* (geofences now; any future global rule)
+is created inactive or scoped, named for cleanup, and removed after the test. Assertions about
+a combined state are made where only the test's own inputs can reach the code under test.
+
+**Related:** ERRORS E36, ADR-0020 decision 5.
+
+---
+
+### E53 — The delivery log crashed: `dict()` read a query result as a mapping
+
+**Status:** Fixed before commit. **Milestone:** M6. **Date:** 2026-10-06.
+
+**Symptom.** `GET /api/v1/health/outbox` returned 500, logged as `TypeError:
+'ChunkedIteratorResult' object is not subscriptable`.
+
+**Root cause.** The status counts were built as `dict(await db.execute(select(status,
+count(*))...).tuples())`. `dict()` treats any argument with a `keys()` method as a mapping and
+indexes it by those keys, and a SQLAlchemy `Result` -- tuples or not -- has `keys()` (the
+column names). Ruff's C416 then suggests exactly this form as the "simpler" rewrite of a
+comprehension.
+
+**Fix.** An explicit loop over `.tuples()`, with a comment saying why it is not `dict(...)`.
+
+**Prevention.** Never pass a `Result` to `dict()`; iterate it. The integration test that reads
+the delivery log covers the endpoint, so a regression fails the suite rather than the page.
+
+**Related:** API §10.
+
 ---
 
 Add entries here as bugs are found and fixed. Use the next available `E<n>` identifier and

@@ -671,19 +671,25 @@ when none applied (section 5.3 invariant 5).
 |---|---|---|
 | `id` | `bigserial` PK | |
 | `kind` | `outbox_kind` | |
-| `dedup_key` | `text` UNIQUE NULL | e.g. `visit_alert:{link_id}:{visitor_id}:{local_date}`, the visit's arrival date in the reporting timezone (SPEC §11 row 17) |
-| `payload` | `jsonb` | Self-contained; references a visit by id with **no FK** |
-| `status` | `outbox_status` | |
-| `attempts` | `integer` | |
+| `dedup_key` | `text` UNIQUE NULL | `visit_alert:{link_id}:{visitor_id}:{local_date}`, the visit's arrival date in the reporting timezone (SPEC §11 row 17). A visit with no `visitor_id` is keyed by its `ip_hmac` instead (`…:ip:{hex}:…`), so it still alerts once per network per day rather than on every request |
+| `priority` | `notify_priority` | `high` or `normal`, resolved at enqueue (SPEC §11 row 18). **Never `silent`**: a silent alert is not enqueued. Quiet hours hold `normal` (F7.AC9). Added in M6 |
+| `payload` | `jsonb` | Self-contained: the message's facts, rendered at send time; references a visit by id with **no FK** |
+| `status` | `outbox_status` | `pending` → `in_flight` → `done`; on failure `failed` (retried) or `dead` |
+| `attempts` | `integer` | Incremented when claimed |
 | `max_attempts` | `integer` | Default 8 |
-| `next_attempt_at` | `timestamptz` | |
+| `next_attempt_at` | `timestamptz` | Exponential backoff with full jitter: up to 30 s × 2^(attempts−1), capped at 1 h; Telegram's own `retry_after` when it gives one |
 | `locked_by` | `text` NULL | Worker identity |
 | `locked_at` | `timestamptz` NULL | |
-| `last_error` | `text` NULL | |
+| `last_error` | `text` NULL | Never contains the bot token |
 | `created_at`, `completed_at` | `timestamptz` | |
 
 **Indexes:** `UNIQUE(dedup_key)`; partial `(next_attempt_at)` where `status IN
-('pending','failed')`; partial `(status)` where `status='dead'` for the health panel.
+('pending','failed')`; partial `(status)` where `status='dead'` for the health panel;
+`(created_at DESC)` for the delivery log.
+
+**`CHECK`s** (migration 0010): `priority <> 'silent'`; `(status = 'in_flight') = (locked_at
+IS NOT NULL)`; `(status IN ('done','dead')) = (completed_at IS NOT NULL)`; `attempts >= 0`;
+`max_attempts BETWEEN 1 AND 20`.
 
 **Invariants**
 1. Inserted in the **same transaction** as visit finalisation — NFR5.AC2, F7.AC5. A
@@ -695,6 +701,12 @@ when none applied (section 5.3 invariant 5).
    the payload is already self-contained.
 5. `attempts >= max_attempts` sets `status='dead'`, surfaced with a manual retry —
    F7.AC6, F10.AC13.
+6. **Only `classification = 'human'` is ever enqueued** (CLAUDE.md invariant 6, F7.AC1), and
+   only after geofence evaluation, from the same savepoint (ADR-0015).
+7. An `in_flight` row whose lock is older than 5 minutes was abandoned by a crashed worker
+   and returns to `failed`. Delivery is therefore **at least once**: a crash between
+   Telegram accepting a message and the row being marked `done` can repeat one alert, which
+   is preferred to losing it (F7.AC5).
 
 ---
 
@@ -786,14 +798,22 @@ cli_reset_defaults`), for a database seeded before the defaults changed.
 ### 8.5 `retention_policy`
 
 Singleton (`CHECK (id = 1)`): `visit_days` default 180, `ip_days` default 30,
-`audit_days` default 365, `rollup_forever boolean` default true, `quiet_hours jsonb`,
-`updated_by`, `updated_at`.
+`audit_days` default 365, `rollup_forever boolean` default true, `updated_by`,
+`updated_at`. *Quiet hours moved to `app_settings` in M6, which needs them before M7
+builds this table.*
 
 ### 8.6 `app_settings`
 
-`key text` PK, `value jsonb`, `updated_by`, `updated_at`.
-**Invariant: no secrets.** Secrets come from the environment and `0400` files only —
-F12.AC3, F14.AC5.
+`key text` PK, `value jsonb`, `updated_by uuid NULL` FK admins `ON DELETE SET NULL`,
+`updated_at`. **Invariant: no secrets.** Secrets come from the environment and `0400`
+files only — F12.AC3, F14.AC5. Created in M6 (migration 0010). Keys:
+
+| Key | Value | Default when absent |
+|---|---|---|
+| `notifications.quiet_hours` | `{enabled, start: "HH:MM", end: "HH:MM", timezone: IANA}` — F7.AC9. A window whose end is before its start crosses midnight | `{enabled: false, start: "23:00", end: "07:00", timezone: "Asia/Kolkata"}` |
+
+Every change is owner-only and writes `settings.changed` with the old and new value
+(invariant 9); the audit row is the history, and restoring a value is another change.
 
 ### 8.7 `rate_limit_buckets` — GCRA state
 

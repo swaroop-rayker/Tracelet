@@ -222,6 +222,14 @@ class DefaultLinkRequired(TraceletError):
     title = "A default link is required"
 
 
+class OutboxNotDead(TraceletError):
+    """Only a dead letter is retried by hand (F7.AC6); anything else is still in hand."""
+
+    status = 409
+    code = "OUTBOX_NOT_DEAD"
+    title = "Only a dead-lettered delivery can be retried"
+
+
 class NonceInvalid(TraceletError):
     """Enrichment nonce expired, already consumed, or bound to another prefix."""
 
@@ -315,6 +323,15 @@ class ExternalSourceUnavailable(TraceletError):
     status = 503
     code = "EXTERNAL_SOURCE_UNAVAILABLE"
     title = "External source unavailable"
+
+
+class TelegramDeliveryFailed(TraceletError):
+    """The test message (F7.AC8) did not arrive. ``detail`` is Telegram's own reason,
+    redacted of the token, because it is what the owner can act on ("chat not found")."""
+
+    status = 502
+    code = "TELEGRAM_DELIVERY_FAILED"
+    title = "Telegram did not deliver the message"
 
 
 class DependencyUnavailable(TraceletError):

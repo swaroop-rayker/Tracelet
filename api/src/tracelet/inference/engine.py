@@ -58,6 +58,7 @@ from tracelet.inference.types import (
     InferenceSource,
     SourceOutcome,
 )
+from tracelet.notify import outbox
 
 log = structlog.get_logger(__name__)
 
@@ -484,12 +485,15 @@ async def persist(
     db: AsyncSession,
     result: Inferred,
     fences: Sequence[geofences.ActiveGeofence] | None = None,
+    config: Settings | None = None,
 ) -> bool:
     """Write one result. ``False`` if another run already inferred this visit.
 
     Geofences are evaluated here, in the same savepoint as the location they are
-    evaluated against (ADR-0015, F6.AC5). ``fences`` is the tick's active geofences,
-    loaded once; ``None`` loads them.
+    evaluated against (ADR-0015, F6.AC5), and the visit's alert is queued in that same
+    savepoint (F7.AC5): a visit that rolls back emits nothing, and one that commits
+    cannot lose its alert. ``fences`` is the tick's active geofences, loaded once;
+    ``None`` loads them.
     """
     values = _visit_values(result)
     absences = _absences(result.outcomes)
@@ -552,6 +556,20 @@ async def persist(
         db, fences, visit_id=result.visit_id, link_id=link_id, place=place
     )
     await geofences.record(db, result.visit_id, evaluation)
+    config = config or get_settings()
+    enqueued = await outbox.enqueue_visit_alert(
+        db,
+        result.visit_id,
+        evaluation,
+        reporting_tz=config.reporting_tz,
+        base_url=config.public_base_url,
+    )
+    if enqueued.queued:
+        log.info(
+            "visit_alert_queued",
+            visit_id=str(result.visit_id),
+            priority=enqueued.priority.value if enqueued.priority else None,
+        )
     return True
 
 
@@ -671,7 +689,7 @@ async def run_once(
             # back on every tick -- it is written as an engine error instead.
             try:
                 async with db.begin_nested():
-                    written += int(await persist(db, result, fences))
+                    written += int(await persist(db, result, fences, settings))
             except DBAPIError as exc:
                 log.error(
                     "inference_write_refused",
@@ -680,7 +698,7 @@ async def run_once(
                 )
                 fallback = engine_error(by_id[result.visit_id], active.version, "write_refused")
                 async with db.begin_nested():
-                    written += int(await persist(db, fallback, fences))
+                    written += int(await persist(db, fallback, fences, settings))
     if written:
         log.info("visits_inferred", count=written, inference_version=results[0].version)
     return written

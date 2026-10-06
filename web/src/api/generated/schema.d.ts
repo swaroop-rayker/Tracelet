@@ -743,6 +743,63 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/health/outbox": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Delivery counts and the delivery log, newest first */
+        get: operations["list_outbox_api_v1_health_outbox_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/health/outbox/{outbox_id}/retry": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Requeue a dead-lettered delivery
+         * @description Starts it again with fresh attempts (F7.AC6). Only a dead letter.
+         */
+        post: operations["retry_outbox_api_v1_health_outbox__outbox_id__retry_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/health/telegram/test": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Send a test message to the owner chat
+         * @description Sent at once, not through the outbox: the owner is watching for the answer (F7.AC8). A failure is 502 with Telegram's own reason, without the token.
+         */
+        post: operations["send_test_api_v1_health_telegram_test_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/links": {
         parameters: {
             query?: never;
@@ -847,6 +904,27 @@ export interface paths {
         options?: never;
         head?: never;
         patch?: never;
+        trace?: never;
+    };
+    "/api/v1/notifications/settings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Telegram status and quiet hours */
+        get: operations["get_settings_api_v1_notifications_settings_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Change quiet hours
+         * @description Quiet hours hold normal-priority alerts until the window closes (F7.AC9).
+         */
+        patch: operations["update_settings_api_v1_notifications_settings_patch"];
         trace?: never;
     };
     "/api/v1/s/{nonce}": {
@@ -1302,6 +1380,40 @@ export interface components {
             decrypted_at: string;
             /** Ip */
             ip: string;
+        };
+        /** DeliveryOut */
+        DeliveryOut: {
+            /** Attempts */
+            attempts: number;
+            /** Completed At */
+            completed_at: string | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Geofence Name */
+            geofence_name: string | null;
+            /** Geofence State */
+            geofence_state: string | null;
+            /** Id */
+            id: number;
+            kind: components["schemas"]["OutboxKind"];
+            /** Last Error */
+            last_error: string | null;
+            /** Link Label */
+            link_label: string | null;
+            /** Max Attempts */
+            max_attempts: number;
+            /**
+             * Next Attempt At
+             * Format: date-time
+             */
+            next_attempt_at: string;
+            priority: components["schemas"]["NotifyPriority"];
+            status: components["schemas"]["OutboxStatus"];
+            /** Visit Id */
+            visit_id: string | null;
         };
         /** DeviceBlock */
         DeviceBlock: {
@@ -1984,6 +2096,15 @@ export interface components {
             /** Is Vpn Suspected */
             is_vpn_suspected: boolean | null;
         };
+        /** NotificationSettingsIn */
+        NotificationSettingsIn: {
+            quiet_hours: components["schemas"]["QuietHoursIn"];
+        };
+        /** NotificationSettingsOut */
+        NotificationSettingsOut: {
+            quiet_hours: components["schemas"]["QuietHoursOut"];
+            telegram: components["schemas"]["TelegramOut"];
+        };
         /**
          * NotifyPolicy
          * @description Per-link notification priorities (F1.AC5, SPEC section 11 row 18).
@@ -2023,6 +2144,37 @@ export interface components {
          * @enum {string}
          */
         NotifyPriority: "high" | "normal" | "silent";
+        /** OutboxCounts */
+        OutboxCounts: {
+            /** Dead */
+            dead: number;
+            /** Failed */
+            failed: number;
+            /** Held */
+            held: number;
+            /** In Flight */
+            in_flight: number;
+            /** Pending */
+            pending: number;
+        };
+        /**
+         * OutboxKind
+         * @enum {string}
+         */
+        OutboxKind: "telegram.visit_alert" | "telegram.password_reset" | "telegram.health_alert" | "telegram.test";
+        /** OutboxOut */
+        OutboxOut: {
+            counts: components["schemas"]["OutboxCounts"];
+            /** Items */
+            items: components["schemas"]["DeliveryOut"][];
+            /** Next Cursor */
+            next_cursor: number | null;
+        };
+        /**
+         * OutboxStatus
+         * @enum {string}
+         */
+        OutboxStatus: "pending" | "in_flight" | "done" | "failed" | "dead";
         /** PlacedOut */
         PlacedOut: {
             /** Admin1 */
@@ -2092,6 +2244,48 @@ export interface components {
             theme?: ("semi_dark" | "light" | "dark") | null;
             /** Timezone */
             timezone?: string | null;
+        };
+        /** QuietHoursIn */
+        QuietHoursIn: {
+            /** Enabled */
+            enabled: boolean;
+            /**
+             * End
+             * @example 07:00
+             */
+            end: string;
+            /**
+             * Start
+             * @example 23:00
+             */
+            start: string;
+            /**
+             * Timezone
+             * @example Asia/Kolkata
+             */
+            timezone: string;
+        };
+        /** QuietHoursOut */
+        QuietHoursOut: {
+            /** Active Now */
+            active_now: boolean;
+            /** Enabled */
+            enabled: boolean;
+            /**
+             * End
+             * @example 07:00
+             */
+            end: string;
+            /**
+             * Start
+             * @example 23:00
+             */
+            start: string;
+            /**
+             * Timezone
+             * @example Asia/Kolkata
+             */
+            timezone: string;
         };
         /** ReadinessResponse */
         ReadinessResponse: {
@@ -2309,6 +2503,15 @@ export interface components {
              */
             previous_start: string;
         };
+        /** TelegramOut */
+        TelegramOut: {
+            /** Bot Token Set */
+            bot_token_set: boolean;
+            /** Chat Id Set */
+            chat_id_set: boolean;
+            /** Chat Verified */
+            chat_verified: boolean;
+        };
         /** TelegramVerifyConfirm */
         TelegramVerifyConfirm: {
             /** Code */
@@ -2335,6 +2538,16 @@ export interface components {
             /** Reason */
             reason: string | null;
             result: components["schemas"]["GeofenceState"];
+        };
+        /** TestSentOut */
+        TestSentOut: {
+            /**
+             * Delivered At
+             * Format: date-time
+             */
+            delivered_at: string;
+            /** Message Id */
+            message_id: number;
         };
         /**
          * Thresholds
@@ -4046,6 +4259,90 @@ export interface operations {
             };
         };
     };
+    list_outbox_api_v1_health_outbox_get: {
+        parameters: {
+            query?: {
+                status?: ("pending" | "in_flight" | "done" | "failed" | "dead") | null;
+                limit?: number;
+                cursor?: number | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OutboxOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    retry_outbox_api_v1_health_outbox__outbox_id__retry_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                outbox_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DeliveryOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    send_test_api_v1_health_telegram_test_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TestSentOut"];
+                };
+            };
+        };
+    };
     list_links_api_v1_links_get: {
         parameters: {
             query?: {
@@ -4289,6 +4586,59 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["LinkOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_settings_api_v1_notifications_settings_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotificationSettingsOut"];
+                };
+            };
+        };
+    };
+    update_settings_api_v1_notifications_settings_patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["NotificationSettingsIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotificationSettingsOut"];
                 };
             };
             /** @description Validation Error */

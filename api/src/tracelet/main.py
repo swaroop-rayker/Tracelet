@@ -30,6 +30,7 @@ from tracelet.inference.geodb import readers as geodb_readers
 from tracelet.inference.router import router as inference_router
 from tracelet.logging import configure_logging
 from tracelet.middleware import AccessLogMiddleware, TraceIdMiddleware
+from tracelet.notify.router import router as notifications_router
 from tracelet.worker.scheduler import Scheduler
 
 log = structlog.get_logger(__name__)
@@ -130,6 +131,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(admins_router)
     app.include_router(links_router)
     app.include_router(geofences_router)
+    app.include_router(notifications_router)
     app.include_router(visits_router)
     app.include_router(inference_router)
     app.include_router(analytics_router)

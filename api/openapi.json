@@ -773,6 +773,126 @@
         "title": "DecryptedIp",
         "type": "object"
       },
+      "DeliveryOut": {
+        "properties": {
+          "attempts": {
+            "title": "Attempts",
+            "type": "integer"
+          },
+          "completed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Completed At"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "geofence_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Geofence Name"
+          },
+          "geofence_state": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Geofence State"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/OutboxKind"
+          },
+          "last_error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Error"
+          },
+          "link_label": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Link Label"
+          },
+          "max_attempts": {
+            "title": "Max Attempts",
+            "type": "integer"
+          },
+          "next_attempt_at": {
+            "format": "date-time",
+            "title": "Next Attempt At",
+            "type": "string"
+          },
+          "priority": {
+            "$ref": "#/components/schemas/NotifyPriority"
+          },
+          "status": {
+            "$ref": "#/components/schemas/OutboxStatus"
+          },
+          "visit_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Visit Id"
+          }
+        },
+        "required": [
+          "id",
+          "kind",
+          "priority",
+          "status",
+          "attempts",
+          "max_attempts",
+          "created_at",
+          "next_attempt_at",
+          "completed_at",
+          "last_error",
+          "visit_id",
+          "link_label",
+          "geofence_name",
+          "geofence_state"
+        ],
+        "title": "DeliveryOut",
+        "type": "object"
+      },
       "DeviceBlock": {
         "properties": {
           "browser": {
@@ -2719,6 +2839,34 @@
         "title": "NetworkBlock",
         "type": "object"
       },
+      "NotificationSettingsIn": {
+        "properties": {
+          "quiet_hours": {
+            "$ref": "#/components/schemas/QuietHoursIn"
+          }
+        },
+        "required": [
+          "quiet_hours"
+        ],
+        "title": "NotificationSettingsIn",
+        "type": "object"
+      },
+      "NotificationSettingsOut": {
+        "properties": {
+          "quiet_hours": {
+            "$ref": "#/components/schemas/QuietHoursOut"
+          },
+          "telegram": {
+            "$ref": "#/components/schemas/TelegramOut"
+          }
+        },
+        "required": [
+          "telegram",
+          "quiet_hours"
+        ],
+        "title": "NotificationSettingsOut",
+        "type": "object"
+      },
       "NotifyPolicy": {
         "description": "Per-link notification priorities (F1.AC5, SPEC section 11 row 18).\n\n``inside`` is combined with the matching geofence's own priority, the less urgent\nwinning. ``automated`` admits only ``silent``: automated traffic never notifies\n(CLAUDE.md invariant 6), and ``ck_links_automated_silent`` holds the same line.",
         "properties": {
@@ -2769,6 +2917,92 @@
           "silent"
         ],
         "title": "NotifyPriority",
+        "type": "string"
+      },
+      "OutboxCounts": {
+        "properties": {
+          "dead": {
+            "title": "Dead",
+            "type": "integer"
+          },
+          "failed": {
+            "title": "Failed",
+            "type": "integer"
+          },
+          "held": {
+            "title": "Held",
+            "type": "integer"
+          },
+          "in_flight": {
+            "title": "In Flight",
+            "type": "integer"
+          },
+          "pending": {
+            "title": "Pending",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "pending",
+          "in_flight",
+          "failed",
+          "dead",
+          "held"
+        ],
+        "title": "OutboxCounts",
+        "type": "object"
+      },
+      "OutboxKind": {
+        "enum": [
+          "telegram.visit_alert",
+          "telegram.password_reset",
+          "telegram.health_alert",
+          "telegram.test"
+        ],
+        "title": "OutboxKind",
+        "type": "string"
+      },
+      "OutboxOut": {
+        "properties": {
+          "counts": {
+            "$ref": "#/components/schemas/OutboxCounts"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/DeliveryOut"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "next_cursor": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Cursor"
+          }
+        },
+        "required": [
+          "counts",
+          "items",
+          "next_cursor"
+        ],
+        "title": "OutboxOut",
+        "type": "object"
+      },
+      "OutboxStatus": {
+        "enum": [
+          "pending",
+          "in_flight",
+          "done",
+          "failed",
+          "dead"
+        ],
+        "title": "OutboxStatus",
         "type": "string"
       },
       "PlacedOut": {
@@ -2970,6 +3204,85 @@
           }
         },
         "title": "PreferencesRequest",
+        "type": "object"
+      },
+      "QuietHoursIn": {
+        "properties": {
+          "enabled": {
+            "title": "Enabled",
+            "type": "boolean"
+          },
+          "end": {
+            "examples": [
+              "07:00"
+            ],
+            "title": "End",
+            "type": "string"
+          },
+          "start": {
+            "examples": [
+              "23:00"
+            ],
+            "title": "Start",
+            "type": "string"
+          },
+          "timezone": {
+            "examples": [
+              "Asia/Kolkata"
+            ],
+            "title": "Timezone",
+            "type": "string"
+          }
+        },
+        "required": [
+          "enabled",
+          "start",
+          "end",
+          "timezone"
+        ],
+        "title": "QuietHoursIn",
+        "type": "object"
+      },
+      "QuietHoursOut": {
+        "properties": {
+          "active_now": {
+            "title": "Active Now",
+            "type": "boolean"
+          },
+          "enabled": {
+            "title": "Enabled",
+            "type": "boolean"
+          },
+          "end": {
+            "examples": [
+              "07:00"
+            ],
+            "title": "End",
+            "type": "string"
+          },
+          "start": {
+            "examples": [
+              "23:00"
+            ],
+            "title": "Start",
+            "type": "string"
+          },
+          "timezone": {
+            "examples": [
+              "Asia/Kolkata"
+            ],
+            "title": "Timezone",
+            "type": "string"
+          }
+        },
+        "required": [
+          "enabled",
+          "start",
+          "end",
+          "timezone",
+          "active_now"
+        ],
+        "title": "QuietHoursOut",
         "type": "object"
       },
       "ReadinessResponse": {
@@ -3513,6 +3826,29 @@
         "title": "Summary",
         "type": "object"
       },
+      "TelegramOut": {
+        "properties": {
+          "bot_token_set": {
+            "title": "Bot Token Set",
+            "type": "boolean"
+          },
+          "chat_id_set": {
+            "title": "Chat Id Set",
+            "type": "boolean"
+          },
+          "chat_verified": {
+            "title": "Chat Verified",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "bot_token_set",
+          "chat_id_set",
+          "chat_verified"
+        ],
+        "title": "TelegramOut",
+        "type": "object"
+      },
       "TelegramVerifyConfirm": {
         "properties": {
           "code": {
@@ -3604,6 +3940,25 @@
           "reason"
         ],
         "title": "TestResultOut",
+        "type": "object"
+      },
+      "TestSentOut": {
+        "properties": {
+          "delivered_at": {
+            "format": "date-time",
+            "title": "Delivered At",
+            "type": "string"
+          },
+          "message_id": {
+            "title": "Message Id",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "delivered_at",
+          "message_id"
+        ],
+        "title": "TestSentOut",
         "type": "object"
       },
       "Thresholds": {
@@ -9456,6 +9811,156 @@
         ]
       }
     },
+    "/api/v1/health/outbox": {
+      "get": {
+        "operationId": "list_outbox_api_v1_health_outbox_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "pending",
+                    "in_flight",
+                    "done",
+                    "failed",
+                    "dead"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Status"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 100,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "minimum": 1,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Cursor"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OutboxOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Delivery counts and the delivery log, newest first",
+        "tags": [
+          "notifications"
+        ]
+      }
+    },
+    "/api/v1/health/outbox/{outbox_id}/retry": {
+      "post": {
+        "description": "Starts it again with fresh attempts (F7.AC6). Only a dead letter.",
+        "operationId": "retry_outbox_api_v1_health_outbox__outbox_id__retry_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "outbox_id",
+            "required": true,
+            "schema": {
+              "title": "Outbox Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeliveryOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Requeue a dead-lettered delivery",
+        "tags": [
+          "notifications"
+        ]
+      }
+    },
+    "/api/v1/health/telegram/test": {
+      "post": {
+        "description": "Sent at once, not through the outbox: the owner is watching for the answer (F7.AC8). A failure is 502 with Telegram's own reason, without the token.",
+        "operationId": "send_test_api_v1_health_telegram_test_post",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TestSentOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Send a test message to the owner chat",
+        "tags": [
+          "notifications"
+        ]
+      }
+    },
     "/api/v1/links": {
       "get": {
         "operationId": "list_links_api_v1_links_get",
@@ -9806,6 +10311,67 @@
         "summary": "Make this the default link",
         "tags": [
           "links"
+        ]
+      }
+    },
+    "/api/v1/notifications/settings": {
+      "get": {
+        "operationId": "get_settings_api_v1_notifications_settings_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotificationSettingsOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Telegram status and quiet hours",
+        "tags": [
+          "notifications"
+        ]
+      },
+      "patch": {
+        "description": "Quiet hours hold normal-priority alerts until the window closes (F7.AC9).",
+        "operationId": "update_settings_api_v1_notifications_settings_patch",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NotificationSettingsIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotificationSettingsOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Change quiet hours",
+        "tags": [
+          "notifications"
         ]
       }
     },

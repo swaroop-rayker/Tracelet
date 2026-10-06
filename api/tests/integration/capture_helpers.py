@@ -29,6 +29,20 @@ CHROME_UA = (
     "Chrome/131.0.0.0 Mobile Safari/537.36"
 )
 FB_FETCHER_UA = "facebookexternalhit/1.1 (+http://www.facebook.com/externalhit_uatext.php)"
+# What Chrome on Android sends with a navigation. Without these, the classifier sees a
+# library behind a browser UA (no fetch metadata, no Accept-Language) and calls it a bot.
+BROWSER_HEADERS: dict[str, str] = {
+    "accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+    "accept-language": "en-IN,en;q=0.9",
+    "sec-ch-ua": '"Google Chrome";v="131", "Chromium";v="131", "Not_A Brand";v="24"',
+    "sec-ch-ua-mobile": "?1",
+    "sec-ch-ua-platform": '"Android"',
+    "sec-fetch-dest": "document",
+    "sec-fetch-mode": "navigate",
+    "sec-fetch-site": "none",
+    "sec-fetch-user": "?1",
+    "upgrade-insecure-requests": "1",
+}
 
 # A distinctive visitor address, used to prove it appears nowhere it should not.
 VISITOR_IP = "49.207.12.34"

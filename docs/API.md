@@ -725,6 +725,49 @@ Editing a geofence does not re-evaluate past visits; `matches_7d` counts what wa
 
 ---
 
+## 9a. Notifications (M6, F7)
+
+| Method | Path | Role | Purpose |
+|---|---|---|---|
+| `GET` | `/api/v1/notifications/settings` | any | Whether Telegram is configured, and quiet hours |
+| `PATCH` | `/api/v1/notifications/settings` | owner | Change quiet hours (F7.AC9). Audited as `settings.changed`, old and new |
+
+```json
+{
+  "telegram": { "bot_token_set": true, "chat_id_set": true, "chat_verified": true },
+  "quiet_hours": { "enabled": true, "start": "23:00", "end": "07:00", "timezone": "Asia/Kolkata", "active_now": false }
+}
+```
+
+The bot token and the owner chat id are secrets and deployment facts: they stay in the
+environment (`TRACELET_TELEGRAM_BOT_TOKEN`, `TRACELET_TELEGRAM_OWNER_CHAT_ID`; F12.AC3), and
+this API says only whether they are set. `chat_verified` is whether an admin has verified
+that chat through the bot (F8.AC7). `PATCH` takes `{quiet_hours: {enabled, start, end,
+timezone}}`: times `HH:MM`, a window whose end is before its start crosses midnight, the
+timezone an IANA name. Quiet hours hold `normal` alerts until the window closes; `high`
+alerts are never held.
+
+**What is sent, and when** (SPEC §11 rows 17 and 18, ADR-0020 decision 7). A visit is
+evaluated when it is inferred; if it is `human` (never otherwise, CLAUDE.md invariant 6)
+its alert is queued in the same transaction (F7.AC5), at a priority resolved from the
+link's `notify_policy` and the deciding geofence:
+
+| Visit's geofence state | Priority | Message headline |
+|---|---|---|
+| `inside` | the less urgent of the link's `inside` and the highest-priority matching geofence's `notify_priority` | "Inside *geofence name*" |
+| `outside` | the link's `outside` | "New visitor, outside your geofences" |
+| `undetermined` | the link's `undetermined` | "Location not confirmed: could not be checked against your geofences" |
+| `null` (no geofence applies) | the link's `outside` | "New visitor" |
+
+`silent` queues nothing. At most one alert per link and visitor per local day in the
+reporting timezone (F7.AC2); later visits that day queue nothing, whatever their state.
+The message lists the time, the link, the strict location with its confidence (or the best
+guess, marked so, where strict abstained), device and browser, connection class, ASN and
+ISP, the classification with its bot score, and a link to the visit (F7.AC4).
+
+
+---
+
 ## 10. System health and operations
 
 | Method | Path | Role | Purpose |
@@ -744,9 +787,9 @@ Editing a geofence does not re-evaluate past visits; `matches_7d` counts what wa
 | `POST` | `/api/v1/health/backups` | owner | `202` manual backup |
 | `GET` | `/api/v1/health/backups/{id}/download` | owner | Streamed. **The only off-VM path** (F12.AC11) |
 | `POST` | `/api/v1/health/backups/{id}/verify-restore` | owner | `202`. Restores into a scratch schema and asserts row counts (F12.AC10) |
-| `GET` | `/api/v1/health/outbox` | any | Depth, in-flight, failed, dead with last error (F10.AC13) |
-| `POST` | `/api/v1/health/outbox/{id}/retry` | owner | Requeue a dead job |
-| `POST` | `/api/v1/health/telegram/test` | owner | Send a test message (F7.AC8) |
+| `GET` | `/api/v1/health/outbox` | any | Counts (`pending`, `in_flight`, `failed`, `dead`, and `held` by quiet hours) and the delivery log, newest first; `?status=`, `limit` (≤ 100), `cursor` (F10.AC13). **As built in M6** |
+| `POST` | `/api/v1/health/outbox/{id}/retry` | owner | Requeue a dead letter with fresh attempts; `409 OUTBOX_NOT_DEAD` otherwise; audited `outbox.retried`. **M6** |
+| `POST` | `/api/v1/health/telegram/test` | owner | Send a test message now, not through the outbox (F7.AC8): `{delivered_at, message_id}`, or `502 TELEGRAM_DELIVERY_FAILED` with Telegram's own reason, never the token. **M6** |
 | `GET` | `/api/v1/health/degradation` | any | Active degradation conditions for the banner (F10.AC14) |
 | `GET`/`PATCH` | `/api/v1/health/ratelimits` | any / owner | Limits, editable without redeployment (F11.AC9) |
 
@@ -840,6 +883,8 @@ no SQL, no internal hostname (F15.AC3). The detail is written to the log under t
 | `GEOFENCE_INVALID_GEOMETRY` | 422 | Failed `ST_IsValid`; carries the reason and the location |
 | `GEOFENCE_TOO_MANY_VERTICES` | 422 | Above 2000 |
 | `GEOFENCE_UNKNOWN_REGION` | 422 | A region key `/geofences/regions` does not list (ADR-0020) |
+| `OUTBOX_NOT_DEAD` | 409 | Only a dead-lettered delivery is retried by hand (F7.AC6) |
+| `TELEGRAM_DELIVERY_FAILED` | 502 | The test message did not arrive; `detail` is Telegram's reason, without the token (F7.AC8) |
 | `PAYLOAD_TOO_LARGE` | 413 | Body above cap |
 | `RATE_LIMITED` | 429 | `Retry-After` set (F11.AC10) |
 | `GEO_DB_UNAVAILABLE` | 503 | A source is missing or corrupt; inference degraded, not failed |

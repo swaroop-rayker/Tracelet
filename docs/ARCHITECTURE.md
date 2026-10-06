@@ -388,7 +388,7 @@ the previous located visit of the same fingerprint). Weights and thresholds are 
 |---|---|---|
 | Secrets (DB password, HMAC peppers, IP key, Telegram token, API keys) | environment variables and `0400` files; the IP key is a file **outside** the DB volume | Never in the database, never logged, never returned by an API — F12.AC3 |
 | Deployment shape (domain, Cloudflare mode, worker count, memory limits) | `.env`, documented in `.env.example` | Domain-agnostic so one image serves both domain paths — F13.AC5 |
-| Runtime behaviour (inference toggles, weights, thresholds, rate limits, retention, quiet hours) | database, **versioned** | Editable from the dashboard, no restart, every change audit-logged and rollback-able — F4.AC14 |
+| Runtime behaviour (inference toggles, weights, thresholds, rate limits, retention, quiet hours) | database: inference settings **versioned** (F4.AC14); quiet hours in `app_settings` (M6) | Editable from the dashboard, no restart. Inference settings roll back to any version; other settings are audit-logged with the old and new value, and restoring one is another change |
 
 ### 5.2 Trust boundaries
 
