@@ -1090,8 +1090,14 @@
             "type": "array"
           },
           "state": {
-            "title": "State",
-            "type": "string"
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/GeofenceState"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "required": [
@@ -1100,6 +1106,15 @@
         ],
         "title": "GeofenceBlock",
         "type": "object"
+      },
+      "GeofenceState": {
+        "enum": [
+          "inside",
+          "outside",
+          "undetermined"
+        ],
+        "title": "GeofenceState",
+        "type": "string"
       },
       "Grain": {
         "enum": [
@@ -2196,15 +2211,11 @@
         "type": "object"
       },
       "NotifyPolicy": {
-        "description": "Per-link notification priorities (F1.AC5). Acted on from M6.",
+        "description": "Per-link notification priorities (F1.AC5, SPEC section 11 row 18).\n\n``inside`` is combined with the matching geofence's own priority, the less urgent\nwinning. ``automated`` admits only ``silent``: automated traffic never notifies\n(CLAUDE.md invariant 6), and ``ck_links_automated_silent`` holds the same line.",
         "properties": {
           "automated": {
+            "const": "silent",
             "default": "silent",
-            "enum": [
-              "high",
-              "normal",
-              "silent"
-            ],
             "title": "Automated",
             "type": "string"
           },
@@ -2226,6 +2237,16 @@
               "silent"
             ],
             "title": "Outside",
+            "type": "string"
+          },
+          "undetermined": {
+            "default": "normal",
+            "enum": [
+              "high",
+              "normal",
+              "silent"
+            ],
+            "title": "Undetermined",
             "type": "string"
           }
         },

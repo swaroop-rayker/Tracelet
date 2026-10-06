@@ -345,12 +345,19 @@ to twelve hours.
   "destination_url": "https://example.com/landing",
   "is_active": true,
   "interstitial_ms": 700,
-  "notify_policy": { "inside": "high", "outside": "normal", "automated": "silent" }
+  "notify_policy": { "inside": "high", "outside": "normal", "undetermined": "normal", "automated": "silent" }
 }
 ```
 
 `destination_url` validation: `https` scheme, publicly-resolvable host, no embedded
 credentials, length ≤ 2048 (F1.AC2). A rejection returns `422` with a field-level error.
+
+`notify_policy` (F1.AC5): each of `inside`, `outside` and `undetermined` is `high`, `normal`
+or `silent`, defaulting to `high`, `normal`, `normal`. `automated` accepts only `silent`;
+anything else is a field-level `422`, because automated traffic never notifies (CLAUDE.md
+invariant 6). An omitted key takes its default. How the policy combines with a geofence's
+`notify_priority` is SPEC §11 row 18. *`undetermined` and the `automated` restriction were
+added in M6.*
 
 **The destination is only ever read from this row. Never from a request parameter,
 header, or path** (F1.AC7, F13.AC3).
@@ -503,7 +510,11 @@ Decrypts and returns the IP for one visit.
 
 **As shipped in M2:** in the summary and detail shapes, fields later milestones fill --
 location, scores, `visitor_id`, `is_returning`, geofence -- are present and `null` (or
-`"undetermined"` / `"unknown"`), never absent and never a fabricated zero (F3.AC5). The
+`"unknown"`), never absent and never a fabricated zero (F3.AC5).
+**Since M6**, `geofence.state` is `inside`, `outside`, `undetermined` or `null`. `null`
+means no active geofence applied to the visit, or it is not inferred yet; it is never
+reported as `outside` (ADR-0020 decision 5). `matched` lists every geofence the visit is
+inside (F6.AC7). The
 device block's key is `class`, as documented. The detail view adds `request.headers`: the
 header set **as sanitised at capture**, with no address-bearing or credential header.
 `candidates` is `[]` until M3.

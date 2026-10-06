@@ -61,7 +61,12 @@ async def test_an_owner_creates_a_link(owner: SignedIn) -> None:
     assert link["slug"] == "t-ig-bio"
     assert link["interstitial_ms"] == 900
     assert link["capture_url"] == "https://localhost/r/t-ig-bio"
-    assert link["notify_policy"] == {"inside": "high", "outside": "normal", "automated": "silent"}
+    assert link["notify_policy"] == {
+        "inside": "high",
+        "outside": "normal",
+        "undetermined": "normal",
+        "automated": "silent",
+    }
     assert link["visit_count"] == 0
 
 
@@ -101,6 +106,9 @@ async def test_a_slug_is_normalised_to_lower_case(owner: SignedIn) -> None:
         ({"interstitial_ms": 1501}, "interstitial_ms"),
         ({"label": ""}, "label"),
         ({"notify_policy": {"inside": "loud"}}, "notify_policy"),
+        # Automated traffic never notifies (CLAUDE.md invariant 6, SPEC s11 row 18).
+        ({"notify_policy": {"automated": "high"}}, "notify_policy"),
+        ({"notify_policy": {"undetermined": "loud"}}, "notify_policy"),
     ],
 )
 async def test_invalid_input_is_a_field_level_422(
@@ -156,6 +164,25 @@ async def test_the_engine_refuses_a_non_https_destination(db_app: object) -> Non
                     "INSERT INTO links (id, slug, label, destination_url) "
                     "VALUES (gen_random_uuid(), 't-plain-http', 'x', 'http://example.com/')"
                 )
+            )
+
+
+async def test_the_engine_refuses_an_automated_policy_that_notifies(db_app: object) -> None:
+    """Invariant 6 below the API: a link written around the application still cannot
+    ask for alerts on automated traffic."""
+    del db_app
+    policy = (
+        '{"inside": "high", "outside": "normal", "undetermined": "normal", "automated": "high"}'
+    )
+    with pytest.raises(IntegrityError, match="ck_links_automated_silent"):
+        async with session_scope() as db:
+            await db.execute(
+                text(
+                    "INSERT INTO links (id, slug, label, destination_url, notify_policy) "
+                    "VALUES (gen_random_uuid(), 't-loud-bots', 'x', 'https://example.com/', "
+                    "CAST(:policy AS jsonb))"
+                ),
+                {"policy": policy},
             )
 
 

@@ -57,7 +57,12 @@ async def create_link(
             is_active=is_active,
             is_default=is_default,
             interstitial_ms=interstitial_ms,
-            notify_policy={"inside": "high", "outside": "normal", "automated": "silent"},
+            notify_policy={
+                "inside": "high",
+                "outside": "normal",
+                "undetermined": "normal",
+                "automated": "silent",
+            },
             archived_at=dt.datetime.now(dt.UTC) if archived else None,
         )
         db.add(link)

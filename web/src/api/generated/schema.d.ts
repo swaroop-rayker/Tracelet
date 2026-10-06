@@ -1281,9 +1281,13 @@ export interface components {
         GeofenceBlock: {
             /** Matched */
             matched: string[];
-            /** State */
-            state: string;
+            state: components["schemas"]["GeofenceState"] | null;
         };
+        /**
+         * GeofenceState
+         * @enum {string}
+         */
+        GeofenceState: "inside" | "outside" | "undetermined";
         /**
          * Grain
          * @enum {string}
@@ -1708,15 +1712,19 @@ export interface components {
         };
         /**
          * NotifyPolicy
-         * @description Per-link notification priorities (F1.AC5). Acted on from M6.
+         * @description Per-link notification priorities (F1.AC5, SPEC section 11 row 18).
+         *
+         *     ``inside`` is combined with the matching geofence's own priority, the less urgent
+         *     winning. ``automated`` admits only ``silent``: automated traffic never notifies
+         *     (CLAUDE.md invariant 6), and ``ck_links_automated_silent`` holds the same line.
          */
         NotifyPolicy: {
             /**
              * Automated
              * @default silent
-             * @enum {string}
+             * @constant
              */
-            automated: "high" | "normal" | "silent";
+            automated: "silent";
             /**
              * Inside
              * @default high
@@ -1729,6 +1737,12 @@ export interface components {
              * @enum {string}
              */
             outside: "high" | "normal" | "silent";
+            /**
+             * Undetermined
+             * @default normal
+             * @enum {string}
+             */
+            undetermined: "high" | "normal" | "silent";
         };
         /** PointCluster */
         PointCluster: {

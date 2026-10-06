@@ -340,10 +340,11 @@ class Visit(Base):
     matched_geofence_ids: Mapped[list[uuid.UUID]] = mapped_column(
         pg.ARRAY(pg.UUID(as_uuid=True)), nullable=False, default=list
     )
-    geofence_state: Mapped[GeofenceState] = mapped_column(
-        pg_enum(GeofenceState, "geofence_state"),
-        nullable=False,
-        default=GeofenceState.UNDETERMINED,
+    # NULL: no active geofence applied to the visit, or it is not inferred yet.
+    # Distinct from all three states, so "outside" never means "no geofences"
+    # (ADR-0020 decision 5).
+    geofence_state: Mapped[GeofenceState | None] = mapped_column(
+        pg_enum(GeofenceState, "geofence_state")
     )
 
     # --- referral -----------------------------------------------------------

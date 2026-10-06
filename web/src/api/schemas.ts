@@ -32,6 +32,11 @@ const stage = z.enum(['server', 'enriched', 'server_only', 'rate_limited']) sati
   S['VisitStage']
 >;
 
+// null: no active geofence applied, never "outside" (ADR-0020 decision 5).
+const geofenceState = z.enum(['inside', 'outside', 'undetermined']) satisfies z.ZodType<
+  S['GeofenceState']
+>;
+
 const level = z.enum(['country', 'admin1', 'admin2', 'city']);
 
 export const stageMixSchema: z.ZodType<S['StageMix']> = z.object({
@@ -204,7 +209,7 @@ const visitSummaryShape = {
     device_memory_gb: z.number().nullable(),
     gpu_renderer: z.string().nullable(),
   }),
-  geofence: z.object({ state: z.string(), matched: z.array(z.string()) }),
+  geofence: z.object({ state: geofenceState.nullable(), matched: z.array(z.string()) }),
   visitor_id: z.string().nullable(),
   is_returning: z.boolean().nullable(),
 };

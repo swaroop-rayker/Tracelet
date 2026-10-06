@@ -71,11 +71,17 @@ Priority = Literal["high", "normal", "silent"]
 
 
 class NotifyPolicy(BaseModel):
-    """Per-link notification priorities (F1.AC5). Acted on from M6."""
+    """Per-link notification priorities (F1.AC5, SPEC section 11 row 18).
+
+    ``inside`` is combined with the matching geofence's own priority, the less urgent
+    winning. ``automated`` admits only ``silent``: automated traffic never notifies
+    (CLAUDE.md invariant 6), and ``ck_links_automated_silent`` holds the same line.
+    """
 
     inside: Priority = "high"
     outside: Priority = "normal"
-    automated: Priority = "silent"
+    undetermined: Priority = "normal"
+    automated: Literal["silent"] = "silent"
 
 
 class LinkCreate(BaseModel):
