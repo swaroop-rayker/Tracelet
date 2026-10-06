@@ -56,6 +56,11 @@ Doing it as an application-level "have we sent one already?" check would race un
 concurrent visits from the same visitor — two requests would both read "no" and both send.
 A unique constraint cannot race.
 
+**Amended 2026-10-06 (SPEC §11 row 17):** the date in the key is the visit's arrival date in
+the reporting timezone (`TRACELET_REPORTING_TZ`, default `Asia/Kolkata`), not the UTC date, and
+F7.AC2's rule is one alert per link and visitor per local day rather than a rolling 24 hours.
+The mechanism, a plain `UNIQUE`, is unchanged.
+
 **No foreign key to `visits`.** A retention purge must never block a pending notification,
 and the payload is self-contained.
 

@@ -780,7 +780,8 @@ F9.AC6, F9.AC16–F9.AC18, NFR7. No new requirement: every item reads an existin
 - `undetermined` sends a normal alert worded "Location not confirmed" (ADR-0020 decision 7)
 - GeoJSON import/export; coordinate test endpoint
 - `outbox` + worker: `SKIP LOCKED`, backoff + jitter, dead-letter, manual retry
-- **`dedup_key` unique constraint implementing 24h dedup** (F7.AC2)
+- **`dedup_key` unique constraint: one alert per link and visitor per local day** (F7.AC2 as
+  amended, SPEC §11 row 17)
 - Inside = high priority, outside = normal, automated = never (F7.AC1, F7.AC3)
 - Quiet hours; Telegram test-message control
 - Advisory-locked scheduler
@@ -791,7 +792,8 @@ F9.AC6, F9.AC16–F9.AC18, NFR7. No new requirement: every item reads an existin
 - [ ] Physically enter a geofence and **receive the high-priority alert on Telegram**
 - [ ] Outside visit receives a normal alert
 - [ ] Bot/crawler visit receives **nothing**
-- [ ] Second visit from the same visitor within 24h sends **nothing** — proven concurrently
+- [ ] Second visit from the same visitor on the same local day sends **nothing** — proven
+  concurrently
 - [ ] **Abstaining inference yields `undetermined`, not `outside`** — integration test
 - [ ] Telegram outage: job retries, dead-letters, is visible, and manual retry delivers
 - [ ] **Rolled-back visit emits no notification** — transactional atomicity test (NFR5.AC2)

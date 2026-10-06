@@ -641,7 +641,7 @@ principal reason PostGIS was chosen (ADR-0002).
 |---|---|---|
 | `id` | `bigserial` PK | |
 | `kind` | `outbox_kind` | |
-| `dedup_key` | `text` UNIQUE NULL | e.g. `visit_alert:{link_id}:{visitor_id}:{utc_date}` |
+| `dedup_key` | `text` UNIQUE NULL | e.g. `visit_alert:{link_id}:{visitor_id}:{local_date}`, the visit's arrival date in the reporting timezone (SPEC §11 row 17) |
 | `payload` | `jsonb` | Self-contained; references a visit by id with **no FK** |
 | `status` | `outbox_status` | |
 | `attempts` | `integer` | |
@@ -658,7 +658,7 @@ principal reason PostGIS was chosen (ADR-0002).
 **Invariants**
 1. Inserted in the **same transaction** as visit finalisation — NFR5.AC2, F7.AC5. A
    visit never exists without its queued alert; a rolled-back visit never emits one.
-2. **`UNIQUE(dedup_key)` is what actually implements the 24-hour deduplication rule**
+2. **`UNIQUE(dedup_key)` is what actually implements the once-per-local-day deduplication rule**
    (F7.AC2). Doing it in application code would race under concurrent visits.
 3. Claimed with `SELECT … FOR UPDATE SKIP LOCKED LIMIT n` — correct with two workers.
 4. **No FK to `visits`.** A retention purge must not block a pending notification, and
