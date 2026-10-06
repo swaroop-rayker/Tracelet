@@ -296,6 +296,7 @@ export type LinkSummary = Pick<
   | 'is_default'
   | 'visit_count'
   | 'created_at'
+  | 'ask_location'
 >;
 export const linksSchema: z.ZodType<LinkSummary[]> = z.array(
   z.object({
@@ -309,6 +310,7 @@ export const linksSchema: z.ZodType<LinkSummary[]> = z.array(
     is_default: z.boolean(),
     visit_count: z.number(),
     created_at: z.string(),
+    ask_location: z.boolean(),
   }),
 );
 

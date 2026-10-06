@@ -170,6 +170,8 @@ class Link(Base):
     is_default: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     notify_policy: Mapped[dict[str, Any]] = mapped_column(pg.JSONB, nullable=False)
     interstitial_ms: Mapped[int] = mapped_column(Integer, nullable=False, default=700)
+    # ADR-0021: show consent text and the browser's location prompt, and wait for the answer.
+    ask_location: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     cloned_from: Mapped[uuid.UUID | None] = mapped_column(
         pg.UUID(as_uuid=True), ForeignKey("links.id", ondelete="SET NULL"), nullable=True
     )

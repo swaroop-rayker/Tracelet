@@ -9,6 +9,7 @@ its own terms, not only because validation happened to run first.
 
 from __future__ import annotations
 
+import json
 import re
 
 import pytest
@@ -104,8 +105,10 @@ def test_the_csp_permits_nothing_from_another_origin() -> None:
 
 def test_the_page_references_no_external_resource() -> None:
     body = _body(_page())
-    for tag in ("<link ", "<img ", "<iframe", 'src="http'):
+    for tag in ("<img ", "<iframe", 'src="http'):
         assert tag not in body
+    # The one <link> is the empty inline icon (E63): it loads nothing from anywhere.
+    assert re.findall(r"<link [^>]*>", body) == ['<link rel="icon" href="data:,">']
 
 
 def test_enrichment_is_a_json_post_not_a_pixel() -> None:
@@ -239,3 +242,59 @@ def test_the_rate_limited_redirect_is_a_302_that_is_never_cached() -> None:
     assert response.status_code == 302
     assert response.headers["location"] == DEST
     assert "no-store" in response.headers["cache-control"]
+
+
+# ---------------------------------------------------------------------------
+# Links that ask for location (ADR-0021, F1.AC11, F4.AC1 and F2.AC5 as amended)
+# ---------------------------------------------------------------------------
+
+
+def _config(response: Response) -> dict[str, object]:
+    match = re.search(r'<script type="application/json" id="cfg">(.*?)</script>', _body(response))
+    assert match is not None
+    parsed = json.loads(match.group(1))
+    assert isinstance(parsed, dict)
+    return parsed
+
+
+def test_a_link_that_asks_explains_why_and_offers_to_go_on_without_sharing() -> None:
+    body = _body(_page(ask_location=True))
+    assert "would like your location, to tell its owner roughly where you opened it" in body
+    assert "You can say no" in body
+    assert 'id="skip" href="https://example.com/landing?ref=bio"' in body
+    assert "Continue without sharing" in body
+    assert 'href="/privacy"' in body
+
+
+def test_a_link_that_asks_waits_at_most_15_seconds() -> None:
+    config = _config(_page(ask_location=True))
+    assert config["ask"] is True
+    assert config["askMs"] == 15_000
+    assert config["ms"] == 700, "the ordinary interstitial is kept for when the answer is quick"
+
+
+def test_a_link_that_asks_still_works_without_javascript() -> None:
+    """Invariant 1: the noscript refresh and the Continue link reach the destination."""
+    body = _body(_page(ask_location=True))
+    assert re.search(r'<noscript><meta http-equiv="refresh" content="0;url=', body)
+    assert "Continue without sharing</a>" in body
+
+
+def test_a_link_that_does_not_ask_is_unchanged() -> None:
+    body = _body(_page())
+    assert "would like your location" not in body
+    assert "Continue now" in body
+    assert _config(_page())["ask"] is False
+
+
+def test_nothing_is_asked_where_nothing_is_recorded() -> None:
+    """The fallback page (not recorded, no nonce) has no script to ask with."""
+    body = _body(_page(ask_location=True, nonce=None, enrich=False))
+    assert "would like your location" not in body
+
+
+def test_the_page_declares_an_empty_icon_so_no_favicon_is_fetched() -> None:
+    """ERRORS E63: Firefox requested /favicon.ico on every visit and the CSP refused it."""
+    response = _page()
+    assert '<link rel="icon" href="data:,">' in _body(response)
+    assert "img-src data:;" in response.headers["content-security-policy"]

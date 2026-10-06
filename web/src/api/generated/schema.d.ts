@@ -1901,6 +1901,11 @@ export interface components {
         };
         /** LinkCreate */
         LinkCreate: {
+            /**
+             * Ask Location
+             * @default false
+             */
+            ask_location: boolean;
             /** Destination Url */
             destination_url: string;
             /**
@@ -1923,6 +1928,8 @@ export interface components {
         LinkOut: {
             /** Archived At */
             archived_at: string | null;
+            /** Ask Location */
+            ask_location: boolean;
             /** Capture Url */
             capture_url: string;
             /** Cloned From */
@@ -1966,6 +1973,8 @@ export interface components {
         };
         /** LinkUpdate */
         LinkUpdate: {
+            /** Ask Location */
+            ask_location?: boolean | null;
             /** Destination Url */
             destination_url?: string | null;
             /** Interstitial Ms */

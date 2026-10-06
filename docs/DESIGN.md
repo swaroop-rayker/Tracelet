@@ -1308,6 +1308,11 @@ rail** and a right **inspector drawer**:
   geofences as a list with inside, outside or undetermined Badges; `undetermined` explains
   itself (F6.AC6).
 
+**Asking for location (ADR-0021).** The Links list gains an "Asks for location" column: an
+owner-only switch per link, optimistic and reversible (UI-13), read as Yes/No by analysts
+(UI-17). The capture page of a link that asks shows plain consent text, "Continue without
+sharing", and the privacy link, and waits up to 15 s for the browser's answer.
+
 **Alerts page** (Telegram, F7):
 
 - Setting rows (§10.8): Telegram chat (verified badge), Quiet hours (two time inputs plus the

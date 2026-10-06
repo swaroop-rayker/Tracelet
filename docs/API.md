@@ -345,12 +345,17 @@ to twelve hours.
   "destination_url": "https://example.com/landing",
   "is_active": true,
   "interstitial_ms": 700,
-  "notify_policy": { "inside": "high", "outside": "normal", "undetermined": "normal", "automated": "silent" }
+  "notify_policy": { "inside": "high", "outside": "normal", "undetermined": "normal", "automated": "silent" },
+  "ask_location": false
 }
 ```
 
 `destination_url` validation: `https` scheme, publicly-resolvable host, no embedded
 credentials, length ≤ 2048 (F1.AC2). A rejection returns `422` with a field-level error.
+
+`ask_location` (F1.AC11, ADR-0021): `true` makes the capture page ask for the visitor's
+location, with consent text, and wait up to 15 s for the answer; default `false`. Changing it
+is audited like any other field. *Added in M6.*
 
 `notify_policy` (F1.AC5): each of `inside`, `outside` and `undetermined` is `high`, `normal`
 or `silent`, defaulting to `high`, `normal`, `normal`. `automated` accepts only `silent`;

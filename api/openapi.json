@@ -2198,6 +2198,11 @@
       },
       "LinkCreate": {
         "properties": {
+          "ask_location": {
+            "default": false,
+            "title": "Ask Location",
+            "type": "boolean"
+          },
           "destination_url": {
             "maxLength": 2048,
             "minLength": 1,
@@ -2251,6 +2256,10 @@
               }
             ],
             "title": "Archived At"
+          },
+          "ask_location": {
+            "title": "Ask Location",
+            "type": "boolean"
           },
           "capture_url": {
             "title": "Capture Url",
@@ -2323,6 +2332,7 @@
           "is_default",
           "notify_policy",
           "interstitial_ms",
+          "ask_location",
           "cloned_from",
           "visit_count",
           "created_at",
@@ -2357,6 +2367,17 @@
       },
       "LinkUpdate": {
         "properties": {
+          "ask_location": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ask Location"
+          },
           "destination_url": {
             "anyOf": [
               {

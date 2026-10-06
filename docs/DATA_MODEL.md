@@ -306,6 +306,7 @@ because *their* lifetimes and delivery paths genuinely differ.
 | `is_default` | `boolean` | |
 | `notify_policy` | `jsonb` | `{inside, outside, undetermined, automated}` priorities — F1.AC5. `undetermined` added in M6, default `normal`; `automated` is always `silent` (`CHECK ck_links_automated_silent`, CLAUDE.md invariant 6). How they combine with a geofence's priority: SPEC §11 row 18 |
 | `interstitial_ms` | `integer` | `CHECK BETWEEN 300 AND 1500`, default 700 — F1.AC6 |
+| `ask_location` | `boolean` | Default `false`. When true the capture page shows consent text and the browser's location prompt, and waits up to 15 s for the answer — F1.AC11, ADR-0021. Added in migration 0011 |
 | `cloned_from` | `uuid` NULL FK self, `ON DELETE SET NULL` | F1.AC9 |
 | `created_by` | `uuid` NULL FK admins, `ON DELETE SET NULL` | Deleting an admin must neither delete nor be blocked by their links |
 | `created_at`, `updated_at` | `timestamptz` | |

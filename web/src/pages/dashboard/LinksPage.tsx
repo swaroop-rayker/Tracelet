@@ -1,19 +1,21 @@
 /**
  * Links (DESIGN §10.11, §12 E20): every tracking link, where it sends visitors, and its
- * all-time visit count, each opening its own dashboard. Read-only: creating and editing links
- * is M7's (F10.AC6).
+ * all-time visit count, each opening its own dashboard. Creating and editing links is M7's
+ * (F10.AC6); the one setting changed here is "Asks for location" (F1.AC11, ADR-0021).
  *
  * The request always names `include_archived`, so its cache entry is never the link
  * selector's, which parses the same endpoint with a narrower schema.
  */
 
+import { useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { Link, useLocation } from 'react-router';
+import { setAskLocation } from '@/api/links';
 import { useApi } from '@/api/query';
 import { linksSchema, type LinkSummary } from '@/api/schemas';
 import { Panel } from '@/components/Panel';
 import { PageHeader } from '@/components/shell/PageHeader';
-import { Badge, DataTable, Switch, Timestamp } from '@/components/ui';
+import { Badge, DataTable, Switch, Timestamp, toast } from '@/components/ui';
 import { count } from '@/format';
 import { useSession } from '@/session';
 
@@ -41,6 +43,44 @@ export function LinkStatus({ link }: { readonly link: LinkSummary }): React.JSX.
       )}
       {link.is_default && <Badge tone="info">Default</Badge>}
     </span>
+  );
+}
+
+/**
+ * Whether the link asks visitors for their location (F1.AC11, ADR-0021): a consent screen and
+ * the browser prompt, waiting up to 15 s. Owner only, optimistic and reversible (UI-13); an
+ * analyst sees the setting as text (UI-17).
+ */
+function AskCell({ link }: { readonly link: LinkSummary }): React.JSX.Element {
+  const { me } = useSession();
+  const client = useQueryClient();
+  const [value, setValue] = useState(link.ask_location);
+  if (me.role !== 'owner' || link.archived_at !== null) {
+    return <span>{link.ask_location ? 'Yes' : 'No'}</span>;
+  }
+  return (
+    <Switch
+      label={`${link.label} asks for location`}
+      hideLabel
+      checked={value}
+      onChange={(next) => {
+        setValue(next);
+        void setAskLocation(me.csrf_token, link.id, next).then((result) => {
+          if (!result.ok) {
+            setValue(!next);
+            toast(`Could not change ${link.label}: ${result.error.message}`);
+            return;
+          }
+          setValue(result.data.ask_location);
+          toast(
+            result.data.ask_location
+              ? `${link.label} now asks visitors for their location.`
+              : `${link.label} no longer asks for location.`,
+          );
+          void client.invalidateQueries({ queryKey: ['/api/v1/links'] });
+        });
+      }}
+    />
   );
 }
 
@@ -103,6 +143,11 @@ export default function LinksPage(): React.JSX.Element {
                 ),
               },
               { key: 'status', header: 'Status', render: (l) => <LinkStatus link={l} /> },
+              {
+                key: 'ask',
+                header: 'Asks for location',
+                render: (l) => <AskCell link={l} />,
+              },
               {
                 key: 'visits',
                 header: 'Visits',

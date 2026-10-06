@@ -306,6 +306,26 @@ async def test_a_clone_keeps_the_configuration_and_leaves_the_visits_behind(
 # ---------------------------------------------------------------------------
 
 
+async def test_asking_for_location_is_off_by_default_audited_and_cloned(owner: SignedIn) -> None:
+    """F1.AC11, ADR-0021."""
+    link = await _create(owner)
+    assert link["ask_location"] is False
+
+    response = await owner.client.patch(
+        f"{LINKS}/{link['id']}", json={"ask_location": True}, headers=owner.headers()
+    )
+    assert response.status_code == 200, response.text
+    assert response.json()["ask_location"] is True
+    (detail,) = await ch.audit_details_for(uuid.UUID(str(link["id"])), "link.updated")
+    assert detail["ask_location"] == {"from": False, "to": True}
+
+    clone = await owner.client.post(
+        f"{LINKS}/{link['id']}/clone", json={"slug": ch.new_slug()}, headers=owner.headers()
+    )
+    assert clone.status_code == 201, clone.text
+    assert clone.json()["ask_location"] is True
+
+
 async def test_making_a_link_default_clears_the_previous_one(owner: SignedIn) -> None:
     await _create(owner)
     second = await _create(owner)

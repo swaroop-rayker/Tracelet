@@ -90,6 +90,8 @@ class LinkCreate(BaseModel):
     destination_url: Destination
     is_active: bool = True
     interstitial_ms: int = Field(default=700, ge=300, le=1500)
+    # F1.AC11, ADR-0021: show consent text and the location prompt, waiting up to 15 s.
+    ask_location: bool = False
     notify_policy: NotifyPolicy = Field(default_factory=NotifyPolicy)
 
 
@@ -99,6 +101,7 @@ class LinkUpdate(BaseModel):
     destination_url: Destination | None = None
     is_active: bool | None = None
     interstitial_ms: int | None = Field(default=None, ge=300, le=1500)
+    ask_location: bool | None = None
     notify_policy: NotifyPolicy | None = None
 
 
@@ -117,6 +120,7 @@ class LinkOut(BaseModel):
     is_default: bool
     notify_policy: NotifyPolicy
     interstitial_ms: int
+    ask_location: bool
     cloned_from: str | None
     visit_count: int
     created_at: dt.datetime
@@ -135,6 +139,7 @@ def _out(link: Link, base_url: str, visit_count: int) -> LinkOut:
         is_default=link.is_default,
         notify_policy=NotifyPolicy.model_validate(link.notify_policy),
         interstitial_ms=link.interstitial_ms,
+        ask_location=link.ask_location,
         cloned_from=str(link.cloned_from) if link.cloned_from else None,
         visit_count=visit_count,
         created_at=link.created_at,
@@ -271,6 +276,7 @@ async def create_link(
         is_active=payload.is_active,
         is_default=not has_default,
         interstitial_ms=payload.interstitial_ms,
+        ask_location=payload.ask_location,
         notify_policy=payload.notify_policy.model_dump(),
         created_by=principal.admin.id,
     )
@@ -333,7 +339,7 @@ async def update_link(
             raise _slug_conflict()
         changes["slug"] = payload.slug
         detail["slug"] = {"from": link.slug, "to": payload.slug}
-    for name in ("label", "is_active", "interstitial_ms"):
+    for name in ("label", "is_active", "interstitial_ms", "ask_location"):
         value = getattr(payload, name)
         if value is not None and value != getattr(link, name):
             changes[name] = value
@@ -397,6 +403,7 @@ async def clone_link(
         is_active=True,
         is_default=False,
         interstitial_ms=source.interstitial_ms,
+        ask_location=source.ask_location,
         notify_policy=dict(source.notify_policy),
         cloned_from=source.id,
         created_by=principal.admin.id,

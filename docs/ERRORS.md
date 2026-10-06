@@ -2174,6 +2174,49 @@ every query key that holds what it changed, not only the list's.
 
 ---
 
+### E63 — Firefox reported a CSP violation on every capture page
+
+**Status:** Fixed. **Milestone:** M6 (present since M2). **Date:** 2026-10-06.
+
+**Symptom.** Testing ADR-0021's asking links in Firefox, every capture visit -- asking or
+not -- logged `img-src` blocking `https://localhost/favicon.ico`.
+
+**Root cause.** The capture page declares no icon, so Firefox requests `/favicon.ico` on its
+own, and the page's CSP is `img-src 'none'`. Chromium and WebKit happen not to fetch it there,
+which is why the M2 checks never saw it.
+
+**Fix.** The page declares an empty inline icon, `<link rel="icon" href="data:,">`, and the
+CSP allows `img-src data:`. Nothing loads from any origin; F2.AC12 holds. The unit test that
+forbade every `<link>` now asserts the one allowed: the inline icon.
+
+**Prevention.** Every server-rendered page declares its icon, so no browser fetches one the
+CSP refuses.
+
+**Related:** F2.AC12, F13.AC2.
+
+---
+
+### E64 — The Links page's "Asks for location" switch flipped back after it had saved
+
+**Status:** Fixed before commit. **Milestone:** M6. **Date:** 2026-10-06.
+
+**Symptom.** Toggling the switch showed an error and the switch returned to its old position,
+yet the audit log showed the change saved; the next click then sent no change at all.
+
+**Root cause.** The call declared that it read nothing from the response (`parse: () =>
+null`). The API client reads a parser's `null` on a non-empty body as a malformed response, so
+a successful save was reported as a failure and the optimistic switch was undone.
+
+**Fix.** The call parses the saved link (`id`, `ask_location`) and the switch shows what the
+server holds.
+
+**Prevention.** A write's parser proves the response it gets; `noContent` is only for
+endpoints that answer with no body.
+
+**Related:** UI-13.
+
+---
+
 Add entries here as bugs are found and fixed. Use the next available `E<n>` identifier and
 the same structure: symptom, root cause, fix, **prevention**.
 
