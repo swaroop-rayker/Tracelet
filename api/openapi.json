@@ -436,6 +436,89 @@
         "title": "CheckResult",
         "type": "object"
       },
+      "CircleCreate": {
+        "properties": {
+          "center": {
+            "$ref": "#/components/schemas/LatLng"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "maxLength": 500,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "is_active": {
+            "default": true,
+            "title": "Is Active",
+            "type": "boolean"
+          },
+          "link_ids": {
+            "anyOf": [
+              {
+                "items": {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                "maxItems": 500,
+                "minItems": 1,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Link Ids"
+          },
+          "name": {
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          },
+          "notify_priority": {
+            "default": "high",
+            "enum": [
+              "high",
+              "normal",
+              "silent"
+            ],
+            "title": "Notify Priority",
+            "type": "string"
+          },
+          "priority": {
+            "default": 0,
+            "maximum": 1000000.0,
+            "minimum": -1000000.0,
+            "title": "Priority",
+            "type": "integer"
+          },
+          "radius_m": {
+            "maximum": 1000000.0,
+            "minimum": 50.0,
+            "title": "Radius M",
+            "type": "number"
+          },
+          "shape_kind": {
+            "const": "circle",
+            "title": "Shape Kind",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "shape_kind",
+          "center",
+          "radius_m"
+        ],
+        "title": "CircleCreate",
+        "type": "object"
+      },
       "Classification": {
         "enum": [
           "human",
@@ -608,6 +691,19 @@
         "title": "CountryCount",
         "type": "object"
       },
+      "CountryOut": {
+        "properties": {
+          "key": {
+            "title": "Key",
+            "type": "string"
+          }
+        },
+        "required": [
+          "key"
+        ],
+        "title": "CountryOut",
+        "type": "object"
+      },
       "CreateAdminRequest": {
         "properties": {
           "display_name": {
@@ -675,6 +771,126 @@
           "decrypted_at"
         ],
         "title": "DecryptedIp",
+        "type": "object"
+      },
+      "DeliveryOut": {
+        "properties": {
+          "attempts": {
+            "title": "Attempts",
+            "type": "integer"
+          },
+          "completed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Completed At"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "geofence_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Geofence Name"
+          },
+          "geofence_state": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Geofence State"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/OutboxKind"
+          },
+          "last_error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Error"
+          },
+          "link_label": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Link Label"
+          },
+          "max_attempts": {
+            "title": "Max Attempts",
+            "type": "integer"
+          },
+          "next_attempt_at": {
+            "format": "date-time",
+            "title": "Next Attempt At",
+            "type": "string"
+          },
+          "priority": {
+            "$ref": "#/components/schemas/NotifyPriority"
+          },
+          "status": {
+            "$ref": "#/components/schemas/OutboxStatus"
+          },
+          "visit_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Visit Id"
+          }
+        },
+        "required": [
+          "id",
+          "kind",
+          "priority",
+          "status",
+          "attempts",
+          "max_attempts",
+          "created_at",
+          "next_attempt_at",
+          "completed_at",
+          "last_error",
+          "visit_id",
+          "link_label",
+          "geofence_name",
+          "geofence_state"
+        ],
+        "title": "DeliveryOut",
         "type": "object"
       },
       "DeviceBlock": {
@@ -791,6 +1007,34 @@
         ],
         "title": "DeviceClass",
         "type": "string"
+      },
+      "DivisionOut": {
+        "properties": {
+          "code": {
+            "title": "Code",
+            "type": "string"
+          },
+          "country": {
+            "title": "Country",
+            "type": "string"
+          },
+          "key": {
+            "title": "Key",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "key",
+          "code",
+          "country",
+          "name"
+        ],
+        "title": "DivisionOut",
+        "type": "object"
       },
       "Drift": {
         "description": "What changed between two consecutive visits by the same visitor.",
@@ -935,6 +1179,62 @@
         ],
         "title": "ExportFormat",
         "type": "string"
+      },
+      "FeatureCollectionIn": {
+        "properties": {
+          "features": {
+            "items": {
+              "$ref": "#/components/schemas/FeatureIn"
+            },
+            "maxItems": 200,
+            "minItems": 1,
+            "title": "Features",
+            "type": "array"
+          },
+          "type": {
+            "const": "FeatureCollection",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "type",
+          "features"
+        ],
+        "title": "FeatureCollectionIn",
+        "type": "object"
+      },
+      "FeatureIn": {
+        "properties": {
+          "geometry": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Geometry"
+          },
+          "properties": {
+            "additionalProperties": true,
+            "title": "Properties",
+            "type": "object"
+          },
+          "type": {
+            "const": "Feature",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "type",
+          "geometry"
+        ],
+        "title": "FeatureIn",
+        "type": "object"
       },
       "FlowLink": {
         "properties": {
@@ -1090,8 +1390,14 @@
             "type": "array"
           },
           "state": {
-            "title": "State",
-            "type": "string"
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/GeofenceState"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "required": [
@@ -1099,6 +1405,322 @@
           "matched"
         ],
         "title": "GeofenceBlock",
+        "type": "object"
+      },
+      "GeofenceOut": {
+        "properties": {
+          "center": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/LatLng"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "created_by": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Created By"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "geometry": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Geometry"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "is_active": {
+            "title": "Is Active",
+            "type": "boolean"
+          },
+          "link_ids": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Link Ids"
+          },
+          "matches_7d": {
+            "title": "Matches 7D",
+            "type": "integer"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "notify_priority": {
+            "$ref": "#/components/schemas/NotifyPriority"
+          },
+          "priority": {
+            "title": "Priority",
+            "type": "integer"
+          },
+          "radius_m": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Radius M"
+          },
+          "region_keys": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Region Keys"
+          },
+          "shape_kind": {
+            "$ref": "#/components/schemas/ShapeKind"
+          },
+          "unknown_region_keys": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Unknown Region Keys",
+            "type": "array"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "description",
+          "shape_kind",
+          "region_keys",
+          "geometry",
+          "center",
+          "radius_m",
+          "priority",
+          "is_active",
+          "notify_priority",
+          "link_ids",
+          "unknown_region_keys",
+          "matches_7d",
+          "created_by",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "GeofenceOut",
+        "type": "object"
+      },
+      "GeofenceState": {
+        "enum": [
+          "inside",
+          "outside",
+          "undetermined"
+        ],
+        "title": "GeofenceState",
+        "type": "string"
+      },
+      "GeofenceUpdate": {
+        "description": "Any subset. ``description`` and ``link_ids`` may be set to ``null`` explicitly\n(no description; every link), which is why \"absent\" is read from the fields set.",
+        "properties": {
+          "center": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/LatLng"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "description": {
+            "anyOf": [
+              {
+                "maxLength": 500,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "geometry": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PolygonGeometry"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "is_active": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Is Active"
+          },
+          "link_ids": {
+            "anyOf": [
+              {
+                "items": {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                "maxItems": 500,
+                "minItems": 1,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Link Ids"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "maxLength": 100,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "notify_priority": {
+            "anyOf": [
+              {
+                "enum": [
+                  "high",
+                  "normal",
+                  "silent"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Notify Priority"
+          },
+          "priority": {
+            "anyOf": [
+              {
+                "maximum": 1000000.0,
+                "minimum": -1000000.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Priority"
+          },
+          "radius_m": {
+            "anyOf": [
+              {
+                "maximum": 1000000.0,
+                "minimum": 50.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Radius M"
+          },
+          "region_keys": {
+            "anyOf": [
+              {
+                "items": {
+                  "maxLength": 200,
+                  "minLength": 2,
+                  "type": "string"
+                },
+                "maxItems": 1000,
+                "minItems": 1,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Region Keys"
+          },
+          "shape_kind": {
+            "anyOf": [
+              {
+                "enum": [
+                  "region",
+                  "circle",
+                  "polygon"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Shape Kind"
+          }
+        },
+        "title": "GeofenceUpdate",
         "type": "object"
       },
       "Grain": {
@@ -1416,6 +2038,28 @@
         "title": "Kpi",
         "type": "object"
       },
+      "LatLng": {
+        "properties": {
+          "lat": {
+            "maximum": 90.0,
+            "minimum": -90.0,
+            "title": "Lat",
+            "type": "number"
+          },
+          "lng": {
+            "maximum": 180.0,
+            "minimum": -180.0,
+            "title": "Lng",
+            "type": "number"
+          }
+        },
+        "required": [
+          "lat",
+          "lng"
+        ],
+        "title": "LatLng",
+        "type": "object"
+      },
       "LevelAccuracy": {
         "properties": {
           "coverage": {
@@ -1554,6 +2198,11 @@
       },
       "LinkCreate": {
         "properties": {
+          "ask_location": {
+            "default": false,
+            "title": "Ask Location",
+            "type": "boolean"
+          },
           "destination_url": {
             "maxLength": 2048,
             "minLength": 1,
@@ -1607,6 +2256,10 @@
               }
             ],
             "title": "Archived At"
+          },
+          "ask_location": {
+            "title": "Ask Location",
+            "type": "boolean"
           },
           "capture_url": {
             "title": "Capture Url",
@@ -1679,6 +2332,7 @@
           "is_default",
           "notify_policy",
           "interstitial_ms",
+          "ask_location",
           "cloned_from",
           "visit_count",
           "created_at",
@@ -1713,6 +2367,17 @@
       },
       "LinkUpdate": {
         "properties": {
+          "ask_location": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ask Location"
+          },
           "destination_url": {
             "anyOf": [
               {
@@ -2195,16 +2860,40 @@
         "title": "NetworkBlock",
         "type": "object"
       },
+      "NotificationSettingsIn": {
+        "properties": {
+          "quiet_hours": {
+            "$ref": "#/components/schemas/QuietHoursIn"
+          }
+        },
+        "required": [
+          "quiet_hours"
+        ],
+        "title": "NotificationSettingsIn",
+        "type": "object"
+      },
+      "NotificationSettingsOut": {
+        "properties": {
+          "quiet_hours": {
+            "$ref": "#/components/schemas/QuietHoursOut"
+          },
+          "telegram": {
+            "$ref": "#/components/schemas/TelegramOut"
+          }
+        },
+        "required": [
+          "telegram",
+          "quiet_hours"
+        ],
+        "title": "NotificationSettingsOut",
+        "type": "object"
+      },
       "NotifyPolicy": {
-        "description": "Per-link notification priorities (F1.AC5). Acted on from M6.",
+        "description": "Per-link notification priorities (F1.AC5, SPEC section 11 row 18).\n\n``inside`` is combined with the matching geofence's own priority, the less urgent\nwinning. ``automated`` admits only ``silent``: automated traffic never notifies\n(CLAUDE.md invariant 6), and ``ck_links_automated_silent`` holds the same line.",
         "properties": {
           "automated": {
+            "const": "silent",
             "default": "silent",
-            "enum": [
-              "high",
-              "normal",
-              "silent"
-            ],
             "title": "Automated",
             "type": "string"
           },
@@ -2227,9 +2916,211 @@
             ],
             "title": "Outside",
             "type": "string"
+          },
+          "undetermined": {
+            "default": "normal",
+            "enum": [
+              "high",
+              "normal",
+              "silent"
+            ],
+            "title": "Undetermined",
+            "type": "string"
           }
         },
         "title": "NotifyPolicy",
+        "type": "object"
+      },
+      "NotifyPriority": {
+        "enum": [
+          "high",
+          "normal",
+          "silent"
+        ],
+        "title": "NotifyPriority",
+        "type": "string"
+      },
+      "OutboxCounts": {
+        "properties": {
+          "dead": {
+            "title": "Dead",
+            "type": "integer"
+          },
+          "failed": {
+            "title": "Failed",
+            "type": "integer"
+          },
+          "held": {
+            "title": "Held",
+            "type": "integer"
+          },
+          "in_flight": {
+            "title": "In Flight",
+            "type": "integer"
+          },
+          "pending": {
+            "title": "Pending",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "pending",
+          "in_flight",
+          "failed",
+          "dead",
+          "held"
+        ],
+        "title": "OutboxCounts",
+        "type": "object"
+      },
+      "OutboxKind": {
+        "enum": [
+          "telegram.visit_alert",
+          "telegram.password_reset",
+          "telegram.health_alert",
+          "telegram.test"
+        ],
+        "title": "OutboxKind",
+        "type": "string"
+      },
+      "OutboxOut": {
+        "properties": {
+          "counts": {
+            "$ref": "#/components/schemas/OutboxCounts"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/DeliveryOut"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "next_cursor": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Cursor"
+          }
+        },
+        "required": [
+          "counts",
+          "items",
+          "next_cursor"
+        ],
+        "title": "OutboxOut",
+        "type": "object"
+      },
+      "OutboxStatus": {
+        "enum": [
+          "pending",
+          "in_flight",
+          "done",
+          "failed",
+          "dead"
+        ],
+        "title": "OutboxStatus",
+        "type": "string"
+      },
+      "PlaceOut": {
+        "properties": {
+          "admin1": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Admin1"
+          },
+          "lat": {
+            "title": "Lat",
+            "type": "number"
+          },
+          "lng": {
+            "title": "Lng",
+            "type": "number"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "population": {
+            "title": "Population",
+            "type": "integer"
+          },
+          "tier": {
+            "$ref": "#/components/schemas/Tier"
+          }
+        },
+        "required": [
+          "name",
+          "admin1",
+          "lat",
+          "lng",
+          "population",
+          "tier"
+        ],
+        "title": "PlaceOut",
+        "type": "object"
+      },
+      "PlacedOut": {
+        "properties": {
+          "admin1": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Admin1"
+          },
+          "country_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Country Code"
+          }
+        },
+        "required": [
+          "country_code",
+          "admin1"
+        ],
+        "title": "PlacedOut",
+        "type": "object"
+      },
+      "PlacesOut": {
+        "properties": {
+          "country": {
+            "title": "Country",
+            "type": "string"
+          },
+          "places": {
+            "items": {
+              "$ref": "#/components/schemas/PlaceOut"
+            },
+            "title": "Places",
+            "type": "array"
+          }
+        },
+        "required": [
+          "country",
+          "places"
+        ],
+        "title": "PlacesOut",
         "type": "object"
       },
       "PointCluster": {
@@ -2253,6 +3144,115 @@
           "count"
         ],
         "title": "PointCluster",
+        "type": "object"
+      },
+      "PolygonCreate": {
+        "properties": {
+          "description": {
+            "anyOf": [
+              {
+                "maxLength": 500,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "geometry": {
+            "$ref": "#/components/schemas/PolygonGeometry"
+          },
+          "is_active": {
+            "default": true,
+            "title": "Is Active",
+            "type": "boolean"
+          },
+          "link_ids": {
+            "anyOf": [
+              {
+                "items": {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                "maxItems": 500,
+                "minItems": 1,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Link Ids"
+          },
+          "name": {
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          },
+          "notify_priority": {
+            "default": "high",
+            "enum": [
+              "high",
+              "normal",
+              "silent"
+            ],
+            "title": "Notify Priority",
+            "type": "string"
+          },
+          "priority": {
+            "default": 0,
+            "maximum": 1000000.0,
+            "minimum": -1000000.0,
+            "title": "Priority",
+            "type": "integer"
+          },
+          "shape_kind": {
+            "const": "polygon",
+            "title": "Shape Kind",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "shape_kind",
+          "geometry"
+        ],
+        "title": "PolygonCreate",
+        "type": "object"
+      },
+      "PolygonGeometry": {
+        "description": "A GeoJSON ``Polygon``: longitude first (RFC 7946), each ring closed.",
+        "properties": {
+          "coordinates": {
+            "items": {
+              "items": {
+                "items": {
+                  "type": "number"
+                },
+                "maxItems": 3,
+                "minItems": 2,
+                "type": "array"
+              },
+              "minItems": 4,
+              "type": "array"
+            },
+            "minItems": 1,
+            "title": "Coordinates",
+            "type": "array"
+          },
+          "type": {
+            "const": "Polygon",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "type",
+          "coordinates"
+        ],
+        "title": "PolygonGeometry",
         "type": "object"
       },
       "PreferencesRequest": {
@@ -2290,6 +3290,85 @@
           }
         },
         "title": "PreferencesRequest",
+        "type": "object"
+      },
+      "QuietHoursIn": {
+        "properties": {
+          "enabled": {
+            "title": "Enabled",
+            "type": "boolean"
+          },
+          "end": {
+            "examples": [
+              "07:00"
+            ],
+            "title": "End",
+            "type": "string"
+          },
+          "start": {
+            "examples": [
+              "23:00"
+            ],
+            "title": "Start",
+            "type": "string"
+          },
+          "timezone": {
+            "examples": [
+              "Asia/Kolkata"
+            ],
+            "title": "Timezone",
+            "type": "string"
+          }
+        },
+        "required": [
+          "enabled",
+          "start",
+          "end",
+          "timezone"
+        ],
+        "title": "QuietHoursIn",
+        "type": "object"
+      },
+      "QuietHoursOut": {
+        "properties": {
+          "active_now": {
+            "title": "Active Now",
+            "type": "boolean"
+          },
+          "enabled": {
+            "title": "Enabled",
+            "type": "boolean"
+          },
+          "end": {
+            "examples": [
+              "07:00"
+            ],
+            "title": "End",
+            "type": "string"
+          },
+          "start": {
+            "examples": [
+              "23:00"
+            ],
+            "title": "Start",
+            "type": "string"
+          },
+          "timezone": {
+            "examples": [
+              "Asia/Kolkata"
+            ],
+            "title": "Timezone",
+            "type": "string"
+          }
+        },
+        "required": [
+          "enabled",
+          "start",
+          "end",
+          "timezone",
+          "active_now"
+        ],
+        "title": "QuietHoursOut",
         "type": "object"
       },
       "ReadinessResponse": {
@@ -2339,6 +3418,114 @@
           "code"
         ],
         "title": "RecoveryCodeRequest",
+        "type": "object"
+      },
+      "RegionCreate": {
+        "properties": {
+          "description": {
+            "anyOf": [
+              {
+                "maxLength": 500,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "is_active": {
+            "default": true,
+            "title": "Is Active",
+            "type": "boolean"
+          },
+          "link_ids": {
+            "anyOf": [
+              {
+                "items": {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                "maxItems": 500,
+                "minItems": 1,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Link Ids"
+          },
+          "name": {
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          },
+          "notify_priority": {
+            "default": "high",
+            "enum": [
+              "high",
+              "normal",
+              "silent"
+            ],
+            "title": "Notify Priority",
+            "type": "string"
+          },
+          "priority": {
+            "default": 0,
+            "maximum": 1000000.0,
+            "minimum": -1000000.0,
+            "title": "Priority",
+            "type": "integer"
+          },
+          "region_keys": {
+            "items": {
+              "maxLength": 200,
+              "minLength": 2,
+              "type": "string"
+            },
+            "maxItems": 1000,
+            "minItems": 1,
+            "title": "Region Keys",
+            "type": "array"
+          },
+          "shape_kind": {
+            "const": "region",
+            "title": "Shape Kind",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "shape_kind",
+          "region_keys"
+        ],
+        "title": "RegionCreate",
+        "type": "object"
+      },
+      "RegionsOut": {
+        "properties": {
+          "countries": {
+            "items": {
+              "$ref": "#/components/schemas/CountryOut"
+            },
+            "title": "Countries",
+            "type": "array"
+          },
+          "divisions": {
+            "items": {
+              "$ref": "#/components/schemas/DivisionOut"
+            },
+            "title": "Divisions",
+            "type": "array"
+          }
+        },
+        "required": [
+          "countries",
+          "divisions"
+        ],
+        "title": "RegionsOut",
         "type": "object"
       },
       "RegistryArtifact": {
@@ -2515,6 +3702,15 @@
         ],
         "title": "SettingsVersionOut",
         "type": "object"
+      },
+      "ShapeKind": {
+        "enum": [
+          "polygon",
+          "circle",
+          "region"
+        ],
+        "title": "ShapeKind",
+        "type": "string"
       },
       "SignalRow": {
         "properties": {
@@ -2716,6 +3912,29 @@
         "title": "Summary",
         "type": "object"
       },
+      "TelegramOut": {
+        "properties": {
+          "bot_token_set": {
+            "title": "Bot Token Set",
+            "type": "boolean"
+          },
+          "chat_id_set": {
+            "title": "Chat Id Set",
+            "type": "boolean"
+          },
+          "chat_verified": {
+            "title": "Chat Verified",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "bot_token_set",
+          "chat_id_set",
+          "chat_verified"
+        ],
+        "title": "TelegramOut",
+        "type": "object"
+      },
       "TelegramVerifyConfirm": {
         "properties": {
           "code": {
@@ -2742,6 +3961,90 @@
           "chat_id"
         ],
         "title": "TelegramVerifyStart",
+        "type": "object"
+      },
+      "TestOut": {
+        "properties": {
+          "placed": {
+            "$ref": "#/components/schemas/PlacedOut"
+          },
+          "results": {
+            "items": {
+              "$ref": "#/components/schemas/TestResultOut"
+            },
+            "title": "Results",
+            "type": "array"
+          },
+          "state": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/GeofenceState"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "placed",
+          "state",
+          "results"
+        ],
+        "title": "TestOut",
+        "type": "object"
+      },
+      "TestResultOut": {
+        "properties": {
+          "geofence_id": {
+            "title": "Geofence Id",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          },
+          "result": {
+            "$ref": "#/components/schemas/GeofenceState"
+          }
+        },
+        "required": [
+          "geofence_id",
+          "name",
+          "result",
+          "reason"
+        ],
+        "title": "TestResultOut",
+        "type": "object"
+      },
+      "TestSentOut": {
+        "properties": {
+          "delivered_at": {
+            "format": "date-time",
+            "title": "Delivered At",
+            "type": "string"
+          },
+          "message_id": {
+            "title": "Message Id",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "delivered_at",
+          "message_id"
+        ],
+        "title": "TestSentOut",
         "type": "object"
       },
       "Thresholds": {
@@ -2779,6 +4082,16 @@
         },
         "title": "Thresholds",
         "type": "object"
+      },
+      "Tier": {
+        "enum": [
+          "metro",
+          "tier1",
+          "tier2",
+          "tier3"
+        ],
+        "title": "Tier",
+        "type": "string"
       },
       "TimeSeries": {
         "properties": {
@@ -8150,6 +9463,391 @@
         ]
       }
     },
+    "/api/v1/geofences": {
+      "get": {
+        "operationId": "list_geofences_api_v1_geofences_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/GeofenceOut"
+                  },
+                  "title": "Response List Geofences Api V1 Geofences Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "List geofences",
+        "tags": [
+          "geofences"
+        ]
+      },
+      "post": {
+        "operationId": "create_geofence_api_v1_geofences_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "discriminator": {
+                  "mapping": {
+                    "circle": "#/components/schemas/CircleCreate",
+                    "polygon": "#/components/schemas/PolygonCreate",
+                    "region": "#/components/schemas/RegionCreate"
+                  },
+                  "propertyName": "shape_kind"
+                },
+                "oneOf": [
+                  {
+                    "$ref": "#/components/schemas/RegionCreate"
+                  },
+                  {
+                    "$ref": "#/components/schemas/CircleCreate"
+                  },
+                  {
+                    "$ref": "#/components/schemas/PolygonCreate"
+                  }
+                ],
+                "title": "Payload"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GeofenceOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create a geofence",
+        "tags": [
+          "geofences"
+        ]
+      }
+    },
+    "/api/v1/geofences/export": {
+      "get": {
+        "description": "A FeatureCollection in the import format, so an export re-imports unchanged: a polygon is a Polygon, a circle a Point with `radius_m`, a region a feature with no geometry and `region_keys`.",
+        "operationId": "export_geofences_api_v1_geofences_export_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/geo+json": {},
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Every geofence as GeoJSON",
+        "tags": [
+          "geofences"
+        ]
+      }
+    },
+    "/api/v1/geofences/import": {
+      "post": {
+        "description": "Each feature is checked exactly as a create would be; one invalid feature fails the request with its errors addressed as `features.{i}.<field>`, and nothing is saved (F6.AC9).",
+        "operationId": "import_geofences_api_v1_geofences_import_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FeatureCollectionIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/GeofenceOut"
+                  },
+                  "title": "Response Import Geofences Api V1 Geofences Import Post",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create geofences from GeoJSON, all or nothing",
+        "tags": [
+          "geofences"
+        ]
+      }
+    },
+    "/api/v1/geofences/places": {
+      "get": {
+        "description": "Places of 50,000 people or more, from the GeoNames table the engine names cities from, largest first, each with its tier (metro 4M+, tier 1 1M+, tier 2 300k+, tier 3 50k+). 503 until GeoNames is installed.",
+        "operationId": "list_places_api_v1_geofences_places_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "country",
+            "required": true,
+            "schema": {
+              "pattern": "^[A-Z]{2}$",
+              "title": "Country",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlacesOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "A country's cities and towns, by population tier, for the editor's map",
+        "tags": [
+          "geofences"
+        ]
+      }
+    },
+    "/api/v1/geofences/regions": {
+      "get": {
+        "description": "Built from the GeoNames admin1 table the engine names strict states from, so a key is spelled exactly as a strict state is (ADR-0020). Country names are left to the browser.",
+        "operationId": "list_regions_api_v1_geofences_regions_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RegionsOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Every country and division a region geofence can name",
+        "tags": [
+          "geofences"
+        ]
+      }
+    },
+    "/api/v1/geofences/test": {
+      "post": {
+        "description": "Treated as a consented GPS fix: the coordinate is the geopoint, and its country and state are named from GeoNames as S1's are. Creates no visit (F6.AC10).",
+        "operationId": "test_coordinate_api_v1_geofences_test_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LatLng"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TestOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Evaluate a coordinate against the active geofences",
+        "tags": [
+          "geofences"
+        ]
+      }
+    },
+    "/api/v1/geofences/{geofence_id}": {
+      "delete": {
+        "description": "Visits that matched it keep its id in `matched_geofence_ids`.",
+        "operationId": "delete_geofence_api_v1_geofences__geofence_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "geofence_id",
+            "required": true,
+            "schema": {
+              "title": "Geofence Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Delete a geofence",
+        "tags": [
+          "geofences"
+        ]
+      },
+      "get": {
+        "operationId": "get_geofence_api_v1_geofences__geofence_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "geofence_id",
+            "required": true,
+            "schema": {
+              "title": "Geofence Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GeofenceOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "One geofence",
+        "tags": [
+          "geofences"
+        ]
+      },
+      "patch": {
+        "description": "Any subset. Changing `shape_kind` needs that shape's fields too. Past visits keep the result they were evaluated with.",
+        "operationId": "update_geofence_api_v1_geofences__geofence_id__patch",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "geofence_id",
+            "required": true,
+            "schema": {
+              "title": "Geofence Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GeofenceUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GeofenceOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Update a geofence",
+        "tags": [
+          "geofences"
+        ]
+      }
+    },
     "/api/v1/health/inference": {
       "get": {
         "operationId": "get_settings_api_v1_health_inference_get",
@@ -8250,6 +9948,156 @@
         "summary": "Reactivate an earlier settings version (owner only)",
         "tags": [
           "inference"
+        ]
+      }
+    },
+    "/api/v1/health/outbox": {
+      "get": {
+        "operationId": "list_outbox_api_v1_health_outbox_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "pending",
+                    "in_flight",
+                    "done",
+                    "failed",
+                    "dead"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Status"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 100,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "minimum": 1,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Cursor"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OutboxOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Delivery counts and the delivery log, newest first",
+        "tags": [
+          "notifications"
+        ]
+      }
+    },
+    "/api/v1/health/outbox/{outbox_id}/retry": {
+      "post": {
+        "description": "Starts it again with fresh attempts (F7.AC6). Only a dead letter.",
+        "operationId": "retry_outbox_api_v1_health_outbox__outbox_id__retry_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "outbox_id",
+            "required": true,
+            "schema": {
+              "title": "Outbox Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeliveryOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Requeue a dead-lettered delivery",
+        "tags": [
+          "notifications"
+        ]
+      }
+    },
+    "/api/v1/health/telegram/test": {
+      "post": {
+        "description": "Sent at once, not through the outbox: the owner is watching for the answer (F7.AC8). A failure is 502 with Telegram's own reason, without the token.",
+        "operationId": "send_test_api_v1_health_telegram_test_post",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TestSentOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Send a test message to the owner chat",
+        "tags": [
+          "notifications"
         ]
       }
     },
@@ -8603,6 +10451,67 @@
         "summary": "Make this the default link",
         "tags": [
           "links"
+        ]
+      }
+    },
+    "/api/v1/notifications/settings": {
+      "get": {
+        "operationId": "get_settings_api_v1_notifications_settings_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotificationSettingsOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Telegram status and quiet hours",
+        "tags": [
+          "notifications"
+        ]
+      },
+      "patch": {
+        "description": "Quiet hours hold normal-priority alerts until the window closes (F7.AC9).",
+        "operationId": "update_settings_api_v1_notifications_settings_patch",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NotificationSettingsIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotificationSettingsOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Change quiet hours",
+        "tags": [
+          "notifications"
         ]
       }
     },

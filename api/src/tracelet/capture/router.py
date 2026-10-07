@@ -85,6 +85,7 @@ async def _capture(slug: str | None, request: Request, settings: Settings) -> Re
             return pages.capture_page(
                 destination=result.link.destination_url,
                 interstitial_ms=result.link.interstitial_ms,
+                ask_location=result.link.ask_location,
                 nonce=result.nonce,
                 webview_host=result.webview_host,
                 os_family=result.os_family,

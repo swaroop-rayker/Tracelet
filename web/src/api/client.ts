@@ -25,6 +25,8 @@ export interface FieldProblem {
   readonly field: string;
   readonly code: string;
   readonly message: string;
+  /** A point on the map the error refers to: where a geofence ring crosses itself (API §12). */
+  readonly location?: { readonly lat: number; readonly lng: number };
 }
 
 /** Everything a page needs in order to say something useful about a failure. */
@@ -61,9 +63,15 @@ function parseFieldProblems(value: unknown): readonly FieldProblem[] {
   const problems: FieldProblem[] = [];
   for (const entry of value) {
     if (!isRecord(entry)) continue;
-    const { field, code, message } = entry;
+    const { field, code, message, location } = entry;
     if (typeof field === 'string' && typeof code === 'string' && typeof message === 'string') {
-      problems.push({ field, code, message });
+      const at =
+        isRecord(location) && typeof location.lat === 'number' && typeof location.lng === 'number'
+          ? { lat: location.lat, lng: location.lng }
+          : null;
+      problems.push(
+        at === null ? { field, code, message } : { field, code, message, location: at },
+      );
     }
   }
   return problems;

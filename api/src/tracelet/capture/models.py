@@ -170,6 +170,8 @@ class Link(Base):
     is_default: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     notify_policy: Mapped[dict[str, Any]] = mapped_column(pg.JSONB, nullable=False)
     interstitial_ms: Mapped[int] = mapped_column(Integer, nullable=False, default=700)
+    # ADR-0021: show consent text and the browser's location prompt, and wait for the answer.
+    ask_location: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     cloned_from: Mapped[uuid.UUID | None] = mapped_column(
         pg.UUID(as_uuid=True), ForeignKey("links.id", ondelete="SET NULL"), nullable=True
     )
@@ -340,10 +342,11 @@ class Visit(Base):
     matched_geofence_ids: Mapped[list[uuid.UUID]] = mapped_column(
         pg.ARRAY(pg.UUID(as_uuid=True)), nullable=False, default=list
     )
-    geofence_state: Mapped[GeofenceState] = mapped_column(
-        pg_enum(GeofenceState, "geofence_state"),
-        nullable=False,
-        default=GeofenceState.UNDETERMINED,
+    # NULL: no active geofence applied to the visit, or it is not inferred yet.
+    # Distinct from all three states, so "outside" never means "no geofences"
+    # (ADR-0020 decision 5).
+    geofence_state: Mapped[GeofenceState | None] = mapped_column(
+        pg_enum(GeofenceState, "geofence_state")
     )
 
     # --- referral -----------------------------------------------------------

@@ -582,6 +582,149 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/geofences": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List geofences */
+        get: operations["list_geofences_api_v1_geofences_get"];
+        put?: never;
+        /** Create a geofence */
+        post: operations["create_geofence_api_v1_geofences_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/geofences/export": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Every geofence as GeoJSON
+         * @description A FeatureCollection in the import format, so an export re-imports unchanged: a polygon is a Polygon, a circle a Point with `radius_m`, a region a feature with no geometry and `region_keys`.
+         */
+        get: operations["export_geofences_api_v1_geofences_export_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/geofences/import": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Create geofences from GeoJSON, all or nothing
+         * @description Each feature is checked exactly as a create would be; one invalid feature fails the request with its errors addressed as `features.{i}.<field>`, and nothing is saved (F6.AC9).
+         */
+        post: operations["import_geofences_api_v1_geofences_import_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/geofences/places": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * A country's cities and towns, by population tier, for the editor's map
+         * @description Places of 50,000 people or more, from the GeoNames table the engine names cities from, largest first, each with its tier (metro 4M+, tier 1 1M+, tier 2 300k+, tier 3 50k+). 503 until GeoNames is installed.
+         */
+        get: operations["list_places_api_v1_geofences_places_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/geofences/regions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Every country and division a region geofence can name
+         * @description Built from the GeoNames admin1 table the engine names strict states from, so a key is spelled exactly as a strict state is (ADR-0020). Country names are left to the browser.
+         */
+        get: operations["list_regions_api_v1_geofences_regions_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/geofences/test": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Evaluate a coordinate against the active geofences
+         * @description Treated as a consented GPS fix: the coordinate is the geopoint, and its country and state are named from GeoNames as S1's are. Creates no visit (F6.AC10).
+         */
+        post: operations["test_coordinate_api_v1_geofences_test_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/geofences/{geofence_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** One geofence */
+        get: operations["get_geofence_api_v1_geofences__geofence_id__get"];
+        put?: never;
+        post?: never;
+        /**
+         * Delete a geofence
+         * @description Visits that matched it keep its id in `matched_geofence_ids`.
+         */
+        delete: operations["delete_geofence_api_v1_geofences__geofence_id__delete"];
+        options?: never;
+        head?: never;
+        /**
+         * Update a geofence
+         * @description Any subset. Changing `shape_kind` needs that shape's fields too. Past visits keep the result they were evaluated with.
+         */
+        patch: operations["update_geofence_api_v1_geofences__geofence_id__patch"];
+        trace?: never;
+    };
     "/api/v1/health/inference": {
         parameters: {
             query?: never;
@@ -614,6 +757,63 @@ export interface paths {
         put?: never;
         /** Reactivate an earlier settings version (owner only) */
         post: operations["rollback_api_v1_health_inference_rollback__version__post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/health/outbox": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Delivery counts and the delivery log, newest first */
+        get: operations["list_outbox_api_v1_health_outbox_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/health/outbox/{outbox_id}/retry": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Requeue a dead-lettered delivery
+         * @description Starts it again with fresh attempts (F7.AC6). Only a dead letter.
+         */
+        post: operations["retry_outbox_api_v1_health_outbox__outbox_id__retry_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/health/telegram/test": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Send a test message to the owner chat
+         * @description Sent at once, not through the outbox: the owner is watching for the answer (F7.AC8). A failure is 502 with Telegram's own reason, without the token.
+         */
+        post: operations["send_test_api_v1_health_telegram_test_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -724,6 +924,27 @@ export interface paths {
         options?: never;
         head?: never;
         patch?: never;
+        trace?: never;
+    };
+    "/api/v1/notifications/settings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Telegram status and quiet hours */
+        get: operations["get_settings_api_v1_notifications_settings_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Change quiet hours
+         * @description Quiet hours hold normal-priority alerts until the window closes (F7.AC9).
+         */
+        patch: operations["update_settings_api_v1_notifications_settings_patch"];
         trace?: never;
     };
     "/api/v1/s/{nonce}": {
@@ -1017,6 +1238,39 @@ export interface components {
             /** Ok */
             ok: boolean;
         };
+        /** CircleCreate */
+        CircleCreate: {
+            center: components["schemas"]["LatLng"];
+            /** Description */
+            description?: string | null;
+            /**
+             * Is Active
+             * @default true
+             */
+            is_active: boolean;
+            /** Link Ids */
+            link_ids?: string[] | null;
+            /** Name */
+            name: string;
+            /**
+             * Notify Priority
+             * @default high
+             * @enum {string}
+             */
+            notify_priority: "high" | "normal" | "silent";
+            /**
+             * Priority
+             * @default 0
+             */
+            priority: number;
+            /** Radius M */
+            radius_m: number;
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            shape_kind: "circle";
+        };
         /**
          * Classification
          * @enum {string}
@@ -1112,6 +1366,11 @@ export interface components {
             /** Country Code */
             country_code: string;
         };
+        /** CountryOut */
+        CountryOut: {
+            /** Key */
+            key: string;
+        };
         /** CreateAdminRequest */
         CreateAdminRequest: {
             /** Display Name */
@@ -1142,6 +1401,40 @@ export interface components {
             /** Ip */
             ip: string;
         };
+        /** DeliveryOut */
+        DeliveryOut: {
+            /** Attempts */
+            attempts: number;
+            /** Completed At */
+            completed_at: string | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Geofence Name */
+            geofence_name: string | null;
+            /** Geofence State */
+            geofence_state: string | null;
+            /** Id */
+            id: number;
+            kind: components["schemas"]["OutboxKind"];
+            /** Last Error */
+            last_error: string | null;
+            /** Link Label */
+            link_label: string | null;
+            /** Max Attempts */
+            max_attempts: number;
+            /**
+             * Next Attempt At
+             * Format: date-time
+             */
+            next_attempt_at: string;
+            priority: components["schemas"]["NotifyPriority"];
+            status: components["schemas"]["OutboxStatus"];
+            /** Visit Id */
+            visit_id: string | null;
+        };
         /** DeviceBlock */
         DeviceBlock: {
             /** Browser */
@@ -1168,6 +1461,17 @@ export interface components {
          * @enum {string}
          */
         DeviceClass: "mobile" | "tablet" | "desktop" | "tv" | "server" | "bot" | "unknown";
+        /** DivisionOut */
+        DivisionOut: {
+            /** Code */
+            code: string;
+            /** Country */
+            country: string;
+            /** Key */
+            key: string;
+            /** Name */
+            name: string;
+        };
         /**
          * Drift
          * @description What changed between two consecutive visits by the same visitor.
@@ -1229,6 +1533,32 @@ export interface components {
          * @enum {string}
          */
         ExportFormat: "csv" | "ndjson";
+        /** FeatureCollectionIn */
+        FeatureCollectionIn: {
+            /** Features */
+            features: components["schemas"]["FeatureIn"][];
+            /**
+             * Type
+             * @constant
+             */
+            type: "FeatureCollection";
+        };
+        /** FeatureIn */
+        FeatureIn: {
+            /** Geometry */
+            geometry: {
+                [key: string]: unknown;
+            } | null;
+            /** Properties */
+            properties?: {
+                [key: string]: unknown;
+            };
+            /**
+             * Type
+             * @constant
+             */
+            type: "Feature";
+        };
         /** FlowLink */
         FlowLink: {
             /** Source */
@@ -1281,8 +1611,81 @@ export interface components {
         GeofenceBlock: {
             /** Matched */
             matched: string[];
-            /** State */
-            state: string;
+            state: components["schemas"]["GeofenceState"] | null;
+        };
+        /** GeofenceOut */
+        GeofenceOut: {
+            center: components["schemas"]["LatLng"] | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Created By */
+            created_by: string | null;
+            /** Description */
+            description: string | null;
+            /** Geometry */
+            geometry: {
+                [key: string]: unknown;
+            } | null;
+            /** Id */
+            id: string;
+            /** Is Active */
+            is_active: boolean;
+            /** Link Ids */
+            link_ids: string[] | null;
+            /** Matches 7D */
+            matches_7d: number;
+            /** Name */
+            name: string;
+            notify_priority: components["schemas"]["NotifyPriority"];
+            /** Priority */
+            priority: number;
+            /** Radius M */
+            radius_m: number | null;
+            /** Region Keys */
+            region_keys: string[] | null;
+            shape_kind: components["schemas"]["ShapeKind"];
+            /** Unknown Region Keys */
+            unknown_region_keys: string[];
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+        };
+        /**
+         * GeofenceState
+         * @enum {string}
+         */
+        GeofenceState: "inside" | "outside" | "undetermined";
+        /**
+         * GeofenceUpdate
+         * @description Any subset. ``description`` and ``link_ids`` may be set to ``null`` explicitly
+         *     (no description; every link), which is why "absent" is read from the fields set.
+         */
+        GeofenceUpdate: {
+            center?: components["schemas"]["LatLng"] | null;
+            /** Description */
+            description?: string | null;
+            geometry?: components["schemas"]["PolygonGeometry"] | null;
+            /** Is Active */
+            is_active?: boolean | null;
+            /** Link Ids */
+            link_ids?: string[] | null;
+            /** Name */
+            name?: string | null;
+            /** Notify Priority */
+            notify_priority?: ("high" | "normal" | "silent") | null;
+            /** Priority */
+            priority?: number | null;
+            /** Radius M */
+            radius_m?: number | null;
+            /** Region Keys */
+            region_keys?: string[] | null;
+            /** Shape Kind */
+            shape_kind?: ("region" | "circle" | "polygon") | null;
         };
         /**
          * Grain
@@ -1447,6 +1850,13 @@ export interface components {
             /** Value */
             value: number | null;
         };
+        /** LatLng */
+        LatLng: {
+            /** Lat */
+            lat: number;
+            /** Lng */
+            lng: number;
+        };
         /** LevelAccuracy */
         LevelAccuracy: {
             /** Coverage */
@@ -1491,6 +1901,11 @@ export interface components {
         };
         /** LinkCreate */
         LinkCreate: {
+            /**
+             * Ask Location
+             * @default false
+             */
+            ask_location: boolean;
             /** Destination Url */
             destination_url: string;
             /**
@@ -1513,6 +1928,8 @@ export interface components {
         LinkOut: {
             /** Archived At */
             archived_at: string | null;
+            /** Ask Location */
+            ask_location: boolean;
             /** Capture Url */
             capture_url: string;
             /** Cloned From */
@@ -1556,6 +1973,8 @@ export interface components {
         };
         /** LinkUpdate */
         LinkUpdate: {
+            /** Ask Location */
+            ask_location?: boolean | null;
             /** Destination Url */
             destination_url?: string | null;
             /** Interstitial Ms */
@@ -1706,17 +2125,30 @@ export interface components {
             /** Is Vpn Suspected */
             is_vpn_suspected: boolean | null;
         };
+        /** NotificationSettingsIn */
+        NotificationSettingsIn: {
+            quiet_hours: components["schemas"]["QuietHoursIn"];
+        };
+        /** NotificationSettingsOut */
+        NotificationSettingsOut: {
+            quiet_hours: components["schemas"]["QuietHoursOut"];
+            telegram: components["schemas"]["TelegramOut"];
+        };
         /**
          * NotifyPolicy
-         * @description Per-link notification priorities (F1.AC5). Acted on from M6.
+         * @description Per-link notification priorities (F1.AC5, SPEC section 11 row 18).
+         *
+         *     ``inside`` is combined with the matching geofence's own priority, the less urgent
+         *     winning. ``automated`` admits only ``silent``: automated traffic never notifies
+         *     (CLAUDE.md invariant 6), and ``ck_links_automated_silent`` holds the same line.
          */
         NotifyPolicy: {
             /**
              * Automated
              * @default silent
-             * @enum {string}
+             * @constant
              */
-            automated: "high" | "normal" | "silent";
+            automated: "silent";
             /**
              * Inside
              * @default high
@@ -1729,6 +2161,76 @@ export interface components {
              * @enum {string}
              */
             outside: "high" | "normal" | "silent";
+            /**
+             * Undetermined
+             * @default normal
+             * @enum {string}
+             */
+            undetermined: "high" | "normal" | "silent";
+        };
+        /**
+         * NotifyPriority
+         * @enum {string}
+         */
+        NotifyPriority: "high" | "normal" | "silent";
+        /** OutboxCounts */
+        OutboxCounts: {
+            /** Dead */
+            dead: number;
+            /** Failed */
+            failed: number;
+            /** Held */
+            held: number;
+            /** In Flight */
+            in_flight: number;
+            /** Pending */
+            pending: number;
+        };
+        /**
+         * OutboxKind
+         * @enum {string}
+         */
+        OutboxKind: "telegram.visit_alert" | "telegram.password_reset" | "telegram.health_alert" | "telegram.test";
+        /** OutboxOut */
+        OutboxOut: {
+            counts: components["schemas"]["OutboxCounts"];
+            /** Items */
+            items: components["schemas"]["DeliveryOut"][];
+            /** Next Cursor */
+            next_cursor: number | null;
+        };
+        /**
+         * OutboxStatus
+         * @enum {string}
+         */
+        OutboxStatus: "pending" | "in_flight" | "done" | "failed" | "dead";
+        /** PlaceOut */
+        PlaceOut: {
+            /** Admin1 */
+            admin1: string | null;
+            /** Lat */
+            lat: number;
+            /** Lng */
+            lng: number;
+            /** Name */
+            name: string;
+            /** Population */
+            population: number;
+            tier: components["schemas"]["Tier"];
+        };
+        /** PlacedOut */
+        PlacedOut: {
+            /** Admin1 */
+            admin1: string | null;
+            /** Country Code */
+            country_code: string | null;
+        };
+        /** PlacesOut */
+        PlacesOut: {
+            /** Country */
+            country: string;
+            /** Places */
+            places: components["schemas"]["PlaceOut"][];
         };
         /** PointCluster */
         PointCluster: {
@@ -1739,6 +2241,50 @@ export interface components {
             /** Lng */
             lng: number;
         };
+        /** PolygonCreate */
+        PolygonCreate: {
+            /** Description */
+            description?: string | null;
+            geometry: components["schemas"]["PolygonGeometry"];
+            /**
+             * Is Active
+             * @default true
+             */
+            is_active: boolean;
+            /** Link Ids */
+            link_ids?: string[] | null;
+            /** Name */
+            name: string;
+            /**
+             * Notify Priority
+             * @default high
+             * @enum {string}
+             */
+            notify_priority: "high" | "normal" | "silent";
+            /**
+             * Priority
+             * @default 0
+             */
+            priority: number;
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            shape_kind: "polygon";
+        };
+        /**
+         * PolygonGeometry
+         * @description A GeoJSON ``Polygon``: longitude first (RFC 7946), each ring closed.
+         */
+        PolygonGeometry: {
+            /** Coordinates */
+            coordinates: number[][][];
+            /**
+             * Type
+             * @constant
+             */
+            type: "Polygon";
+        };
         /**
          * PreferencesRequest
          * @description Display preferences: per admin, persisted, and harmless (F9.AC16).
@@ -1748,6 +2294,48 @@ export interface components {
             theme?: ("semi_dark" | "light" | "dark") | null;
             /** Timezone */
             timezone?: string | null;
+        };
+        /** QuietHoursIn */
+        QuietHoursIn: {
+            /** Enabled */
+            enabled: boolean;
+            /**
+             * End
+             * @example 07:00
+             */
+            end: string;
+            /**
+             * Start
+             * @example 23:00
+             */
+            start: string;
+            /**
+             * Timezone
+             * @example Asia/Kolkata
+             */
+            timezone: string;
+        };
+        /** QuietHoursOut */
+        QuietHoursOut: {
+            /** Active Now */
+            active_now: boolean;
+            /** Enabled */
+            enabled: boolean;
+            /**
+             * End
+             * @example 07:00
+             */
+            end: string;
+            /**
+             * Start
+             * @example 23:00
+             */
+            start: string;
+            /**
+             * Timezone
+             * @example Asia/Kolkata
+             */
+            timezone: string;
         };
         /** ReadinessResponse */
         ReadinessResponse: {
@@ -1766,6 +2354,45 @@ export interface components {
             code: string;
             /** Email */
             email: string;
+        };
+        /** RegionCreate */
+        RegionCreate: {
+            /** Description */
+            description?: string | null;
+            /**
+             * Is Active
+             * @default true
+             */
+            is_active: boolean;
+            /** Link Ids */
+            link_ids?: string[] | null;
+            /** Name */
+            name: string;
+            /**
+             * Notify Priority
+             * @default high
+             * @enum {string}
+             */
+            notify_priority: "high" | "normal" | "silent";
+            /**
+             * Priority
+             * @default 0
+             */
+            priority: number;
+            /** Region Keys */
+            region_keys: string[];
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            shape_kind: "region";
+        };
+        /** RegionsOut */
+        RegionsOut: {
+            /** Countries */
+            countries: components["schemas"]["CountryOut"][];
+            /** Divisions */
+            divisions: components["schemas"]["DivisionOut"][];
         };
         /**
          * RegistryArtifact
@@ -1839,6 +2466,11 @@ export interface components {
             /** Version */
             version: number;
         };
+        /**
+         * ShapeKind
+         * @enum {string}
+         */
+        ShapeKind: "polygon" | "circle" | "region";
         /** SignalRow */
         SignalRow: {
             /** Category */
@@ -1921,6 +2553,15 @@ export interface components {
              */
             previous_start: string;
         };
+        /** TelegramOut */
+        TelegramOut: {
+            /** Bot Token Set */
+            bot_token_set: boolean;
+            /** Chat Id Set */
+            chat_id_set: boolean;
+            /** Chat Verified */
+            chat_verified: boolean;
+        };
         /** TelegramVerifyConfirm */
         TelegramVerifyConfirm: {
             /** Code */
@@ -1930,6 +2571,33 @@ export interface components {
         TelegramVerifyStart: {
             /** Chat Id */
             chat_id: number;
+        };
+        /** TestOut */
+        TestOut: {
+            placed: components["schemas"]["PlacedOut"];
+            /** Results */
+            results: components["schemas"]["TestResultOut"][];
+            state: components["schemas"]["GeofenceState"] | null;
+        };
+        /** TestResultOut */
+        TestResultOut: {
+            /** Geofence Id */
+            geofence_id: string;
+            /** Name */
+            name: string;
+            /** Reason */
+            reason: string | null;
+            result: components["schemas"]["GeofenceState"];
+        };
+        /** TestSentOut */
+        TestSentOut: {
+            /**
+             * Delivered At
+             * Format: date-time
+             */
+            delivered_at: string;
+            /** Message Id */
+            message_id: number;
         };
         /**
          * Thresholds
@@ -1960,6 +2628,11 @@ export interface components {
              */
             country: number;
         };
+        /**
+         * Tier
+         * @enum {string}
+         */
+        Tier: "metro" | "tier1" | "tier2" | "tier3";
         /** TimeSeries */
         TimeSeries: {
             bucket: components["schemas"]["Grain"];
@@ -3302,6 +3975,292 @@ export interface operations {
             };
         };
     };
+    list_geofences_api_v1_geofences_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GeofenceOut"][];
+                };
+            };
+        };
+    };
+    create_geofence_api_v1_geofences_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RegionCreate"] | components["schemas"]["CircleCreate"] | components["schemas"]["PolygonCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GeofenceOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    export_geofences_api_v1_geofences_export_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/geo+json": unknown;
+                    "application/json": unknown;
+                };
+            };
+        };
+    };
+    import_geofences_api_v1_geofences_import_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FeatureCollectionIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GeofenceOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_places_api_v1_geofences_places_get: {
+        parameters: {
+            query: {
+                country: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PlacesOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_regions_api_v1_geofences_regions_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RegionsOut"];
+                };
+            };
+        };
+    };
+    test_coordinate_api_v1_geofences_test_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LatLng"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TestOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_geofence_api_v1_geofences__geofence_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                geofence_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GeofenceOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_geofence_api_v1_geofences__geofence_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                geofence_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_geofence_api_v1_geofences__geofence_id__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                geofence_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["GeofenceUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GeofenceOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     get_settings_api_v1_health_inference_get: {
         parameters: {
             query?: never;
@@ -3382,6 +4341,90 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_outbox_api_v1_health_outbox_get: {
+        parameters: {
+            query?: {
+                status?: ("pending" | "in_flight" | "done" | "failed" | "dead") | null;
+                limit?: number;
+                cursor?: number | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OutboxOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    retry_outbox_api_v1_health_outbox__outbox_id__retry_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                outbox_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DeliveryOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    send_test_api_v1_health_telegram_test_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TestSentOut"];
                 };
             };
         };
@@ -3629,6 +4672,59 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["LinkOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_settings_api_v1_notifications_settings_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotificationSettingsOut"];
+                };
+            };
+        };
+    };
+    update_settings_api_v1_notifications_settings_patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["NotificationSettingsIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotificationSettingsOut"];
                 };
             };
             /** @description Validation Error */

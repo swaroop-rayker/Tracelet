@@ -21,9 +21,9 @@ then open the PR (CLAUDE.md section 2).
 | M3 | Location inference engine | L | **[x] done** — 738 tests (463 unit, 275 integration); real-visit check deferred to M9 (owner decision); 5 bugs recorded as E27–E31 |
 | M4 | Anti-spoofing and classification | L | **[x] done** — 10 of 10 items (the UI item ticked in M5); bugs E32–E33; R19 and R21 closed |
 | M5 | Dashboard analytics and visualisation | L | **[x] done** — 10 of 10 items; rollups p95 ≤ 70 ms at design load; raw fallback slow on long windows (R25); bugs E34–E36 |
-| M5.5 | Design system and UI polish (owner-directed 2026-10-02, approved 2026-10-03; docs/DESIGN.md) | L | **built** — 10 of 11 items; CSP 0 in Chromium, Firefox and WebKit; 72-image matrix; bugs E41–E47; open: hand keyboard walkthrough |
+| M5.5 | Design system and UI polish (owner-directed 2026-10-02, approved 2026-10-03; docs/DESIGN.md) | L | **[x] done** — 11 of 11 items; CSP 0 in Chromium, Firefox and WebKit; 72-image matrix; bugs E41–E47; hand keyboard walkthrough by the owner 2026-10-07 |
 | M5.6 | Dashboard enhancements and the Settings redesign, UI only (owner-approved 2026-10-06; docs/plans/ENHANCEMENTS-PLAN.md Phase A, SETTINGS-REDESIGN-PLAN.md) | M | **[x] built** — dashboard 6/6, Settings 6/6; CSP 0 in three engines; no server change; bugs E48–E50 |
-| M6 | Geofencing and Telegram notifications | M | [ ] |
+| M6 | Geofencing and Telegram notifications | M | **[x] done** — 11 of 11; both Telegram alerts received on the owner's phone 2026-10-07 (inside: high, as the same-day upgrade); bugs E52–E65 |
 | M7 | System health and operations | L | [ ] |
 | M8 | Accuracy hardening and ground truth | M | [ ] |
 | M9 | Production hardening and deploy | M | [ ] |
@@ -670,11 +670,15 @@ E4–E10. **Plan:** docs/DESIGN.md Part II; **decision:** ADR-0019. **F/AC-IDs:*
       taken with Playwright. Each image also checks for horizontal overflow, which found
       Breakdowns at 390 px and Visits at 1024 px wider than the screen (E47, fixed). After the
       fix, no page overflows at any width, in any theme or engine*
-- [ ] Keyboard walkthrough of every page, menu, dialog and the command palette, mouse-free —
-      **partly**: *menu arrow keys and typeahead, dialog focus-in/return and Escape, palette
-      combobox (arrows, Enter, id jump), shortcuts (`g`, `?`, `/`, `[`) verified by script in the
+- [x] Keyboard walkthrough of every page, menu, dialog and the command palette, mouse-free —
+      *menu arrow keys and typeahead, dialog focus-in/return and Escape, palette combobox
+      (arrows, Enter, id jump), shortcuts (`g`, `?`, `/`, `[`) verified by script in the
       browser; every page has one `h1`, no skipped heading level, and no unnamed button, link or
-      field (automated sweep). A by-hand Tab-through remains*
+      field (automated sweep). By hand, by the owner on 2026-10-07: the shortcuts, then a
+      Tab-through of every page (including the M5.6 Settings pages and the M6 geofence and
+      alerts pages), menu, dialog, drawer, filter editor, popover and the palette -- focus
+      always visible, a sensible order, no trap, every control operable, focus returned on
+      close. Nothing failed*
 - [x] Zero CSP violations on the Caddy-served build, every page, every theme — *Caddy itself,
       in Chromium, Firefox and WebKit, with Playwright: the signed-out pages, all 11 signed-in
       routes in all 3 themes, then every popup, filter editor, palette, help, tooltip, chart
@@ -767,31 +771,44 @@ F9.AC6, F9.AC16–F9.AC18, NFR7. No new requirement: every item reads an existin
 
 **Scope**
 - `geofences` with `geography(Polygon,4326)`, GiST, `ST_IsValid` + vertex-cap constraints
-- Leaflet + Geoman drawing: polygon and circle, vertex edit, drag, delete
-- **First, choose a basemap for drawing, with an ADR** -- CARTO's keyless tiles ended in M5,
-  and the analytics map's outlines carry no streets (ADR-0017, RISKS R26)
+- Leaflet + Geoman drawing: polygon and circle, vertex edit, drag, delete -- **Geoman only if
+  its three-engine CSP spike is clean**, else small own tools on Leaflet (ADR-0020 decision 8)
+- ~~First, choose a basemap for drawing, with an ADR~~ -- **decided: no basemap** (ADR-0020,
+  accepted 2026-10-06). The editor draws over the M5 outlines, with typed coordinates
+- **Region geofences** (`shape_kind='region'`, `region_keys`), matched on strict country and
+  strict state only (ADR-0020 decisions 2, 4)
 - Circle round-trip via retained `center` + `radius_m`
 - `ST_Covers` evaluation on finalisation; priority resolution; `matched_geofence_ids`
-- **`geofence_state='undetermined'` when `geopoint IS NULL`** (F6.AC6)
+- **Visit state: inside if any, else undetermined if any, else outside; NULL with no applicable
+  geofence** (F6.AC5, F6.AC6 as amended; ADR-0020 decision 5)
+- `undetermined` sends a normal alert worded "Location not confirmed" (ADR-0020 decision 7)
 - GeoJSON import/export; coordinate test endpoint
 - `outbox` + worker: `SKIP LOCKED`, backoff + jitter, dead-letter, manual retry
-- **`dedup_key` unique constraint implementing 24h dedup** (F7.AC2)
+- **`dedup_key` unique constraint: one alert per link and visitor per local day** (F7.AC2 as
+  amended, SPEC §11 row 17)
 - Inside = high priority, outside = normal, automated = never (F7.AC1, F7.AC3)
 - Quiet hours; Telegram test-message control
 - Advisory-locked scheduler
 
 **Done checklist**
-- [ ] Draw a polygon and a circle; both round-trip through edit without distortion
-- [ ] Self-intersecting ring rejected with the specific error code
-- [ ] Physically enter a geofence and **receive the high-priority alert on Telegram**
-- [ ] Outside visit receives a normal alert
-- [ ] Bot/crawler visit receives **nothing**
-- [ ] Second visit from the same visitor within 24h sends **nothing** — proven concurrently
-- [ ] **Abstaining inference yields `undetermined`, not `outside`** — integration test
-- [ ] Telegram outage: job retries, dead-letters, is visible, and manual retry delivers
-- [ ] **Rolled-back visit emits no notification** — transactional atomicity test (NFR5.AC2)
-- [ ] Geofence evaluation under 5 ms at p95
-- [ ] Docs: DATA_MODEL sections 6, 7 and API section 9 verified
+- [x] Draw a polygon and a circle; both round-trip through edit without distortion -- API tests
+  and the browser walk (drawn, vertex-edited, saved, reloaded)
+- [x] Self-intersecting ring rejected with the specific error code -- `GEOFENCE_INVALID_GEOMETRY`,
+  with the crossing marked on the map
+- [x] Physically enter a geofence and **receive the high-priority alert on Telegram** -- owner,
+  on a phone, 2026-10-07: location allowed, strict IN/Karnataka, inside a Karnataka region
+  geofence; the alert went out as the day's one upgrade over an earlier "Location not
+  confirmed" (SPEC §11 row 20)
+- [x] Outside visit receives a normal alert -- owner, on a phone, 2026-10-07: strict
+  IN/Karnataka against a Maharashtra geofence, received at normal priority
+- [x] Bot/crawler visit receives **nothing** -- integration test
+- [x] Second visit from the same visitor on the same local day sends **nothing** — proven
+  concurrently (two racing transactions, one row)
+- [x] **Abstaining inference yields `undetermined`, not `outside`** — integration test
+- [x] Telegram outage: job retries, dead-letters, is visible, and manual retry delivers
+- [x] **Rolled-back visit emits no notification** — transactional atomicity test (NFR5.AC2)
+- [x] Geofence evaluation under 5 ms at p95 -- 40 geofences on one link
+- [x] Docs: DATA_MODEL sections 6, 7 and API section 9 verified (and §9a, §10, §12)
 
 ---
 

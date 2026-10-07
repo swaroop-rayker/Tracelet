@@ -322,6 +322,31 @@
   color: var(--text-muted);
 }
 
+/* The breadcrumb gives way first: it shrinks and truncates rather than push the header's
+   controls off a phone screen (M6 added the bell). */
+.crumbs {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.crumbs ol {
+  min-width: 0;
+}
+
+.crumbs li {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+@media (max-width: 767px) {
+  /* "Configure", "Analytics": the page name says enough on a phone. */
+  .crumbs__group {
+    display: none;
+  }
+}
+
 .crumbs li + li::before {
   content: '/';
   margin-right: var(--space-2);

@@ -4,7 +4,6 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import { z } from 'zod';
 import type { Breakdown, Calendar, Funnel, Meta, SourceFlow, TimeSeries } from '@/api/schemas';
 import { chartTheme } from '@/components/chartkit';
 import { filterForBreakdown } from '@/components/shell/filterDefs';
@@ -18,7 +17,7 @@ import {
 } from '@/charts';
 import { parseFilters, serializeFilters } from '@/filters';
 import type { Palette } from '@/theme';
-import '@/api/schemas';
+import { z } from '@/api/zod';
 
 const META: Meta = {
   start: '2026-09-03T00:00:00+05:30',
@@ -124,6 +123,7 @@ describe('CSP and accessibility settings that are easy to undo', () => {
     surface2: 'g',
     overlay: 'h',
     accent: 'i',
+    accentBg: 'i2',
     ok: 'j',
     warn: 'k',
     error: 'l',
@@ -182,6 +182,7 @@ describe('M5.6 charts (DESIGN 12 E19, E21, E22)', () => {
       surface2: 'g',
       overlay: 'h',
       accent: 'i',
+      accentBg: 'i2',
       ok: 'j',
       warn: 'k',
       error: 'l',

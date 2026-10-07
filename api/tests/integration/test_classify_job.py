@@ -26,18 +26,7 @@ from tracelet.inference.sources import IPAddress, rdns
 
 pytestmark = pytest.mark.integration
 
-BROWSER_HEADERS = {
-    "accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-    "accept-language": "en-IN,en;q=0.9",
-    "sec-ch-ua": '"Google Chrome";v="131", "Chromium";v="131", "Not_A Brand";v="24"',
-    "sec-ch-ua-mobile": "?1",
-    "sec-ch-ua-platform": '"Android"',
-    "sec-fetch-dest": "document",
-    "sec-fetch-mode": "navigate",
-    "sec-fetch-site": "none",
-    "sec-fetch-user": "?1",
-    "upgrade-insecure-requests": "1",
-}
+BROWSER_HEADERS = ch.BROWSER_HEADERS
 DEVICE: dict[str, Any] = {
     "screen": {"w": 412, "h": 915, "dpr": 2.625, "colorDepth": 24, "touchPoints": 5},
     "hardware": {"cores": 8, "deviceMemoryGb": 8},

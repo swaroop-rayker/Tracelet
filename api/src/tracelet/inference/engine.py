@@ -32,6 +32,8 @@ from tracelet.classify.job import Classified, classify_visit
 from tracelet.config import Settings, get_settings
 from tracelet.crypto.envelope import DecryptionError, Envelope, open_str
 from tracelet.db.engine import session_scope
+from tracelet.geofence import store as geofences
+from tracelet.geofence.evaluate import StrictPlace
 from tracelet.inference import consensus, nominatim, store
 from tracelet.inference.config import InferenceConfig, inference_version
 from tracelet.inference.models import VisitCandidate
@@ -56,6 +58,7 @@ from tracelet.inference.types import (
     InferenceSource,
     SourceOutcome,
 )
+from tracelet.notify import outbox
 
 log = structlog.get_logger(__name__)
 
@@ -478,8 +481,20 @@ def _candidate_rows(result: Inferred) -> list[dict[str, Any]]:
     return rows
 
 
-async def persist(db: AsyncSession, result: Inferred) -> bool:
-    """Write one result. ``False`` if another run already inferred this visit."""
+async def persist(
+    db: AsyncSession,
+    result: Inferred,
+    fences: Sequence[geofences.ActiveGeofence] | None = None,
+    config: Settings | None = None,
+) -> bool:
+    """Write one result. ``False`` if another run already inferred this visit.
+
+    Geofences are evaluated here, in the same savepoint as the location they are
+    evaluated against (ADR-0015, F6.AC5), and the visit's alert is queued in that same
+    savepoint (F7.AC5): a visit that rolls back emits nothing, and one that commits
+    cannot lose its alert. ``fences`` is the tick's active geofences, loaded once;
+    ``None`` loads them.
+    """
     values = _visit_values(result)
     absences = _absences(result.outcomes)
     if result.error is not None:
@@ -510,11 +525,12 @@ async def persist(db: AsyncSession, result: Inferred) -> bool:
             update(Visit)
             .where(Visit.id == result.visit_id, Visit.inferred_at.is_(None))
             .values(**values)
-            .returning(Visit.id)
+            .returning(Visit.link_id)
         )
     ).first()
     if row is None:
         return False
+    link_id: uuid.UUID = row[0]
     rows = _candidate_rows(result)
     if rows:
         await db.execute(pg.insert(VisitCandidate).values(rows))
@@ -527,6 +543,32 @@ async def persist(db: AsyncSession, result: Inferred) -> bool:
                 "ST_SetSRID(ST_MakePoint(:lng, :lat), 4326)::geography WHERE id = :id"
             ),
             {"lng": point[1], "lat": point[0], "id": result.visit_id},
+        )
+    # Strict fields only: a geofence never acts on a guess (ADR-0018, ADR-0020).
+    place = StrictPlace(
+        country_code=values.get("strict_country_code"),
+        admin1=values.get("strict_admin1"),
+        has_geopoint=point is not None,
+    )
+    if fences is None:
+        fences = await geofences.load_active(db)
+    evaluation = await geofences.evaluate(
+        db, fences, visit_id=result.visit_id, link_id=link_id, place=place
+    )
+    await geofences.record(db, result.visit_id, evaluation)
+    config = config or get_settings()
+    enqueued = await outbox.enqueue_visit_alert(
+        db,
+        result.visit_id,
+        evaluation,
+        reporting_tz=config.reporting_tz,
+        base_url=config.public_base_url,
+    )
+    if enqueued.queued:
+        log.info(
+            "visit_alert_queued",
+            visit_id=str(result.visit_id),
+            priority=enqueued.priority.value if enqueued.priority else None,
         )
     return True
 
@@ -640,13 +682,14 @@ async def run_once(
     by_id = {f.id: f for f in facts}
     written = 0
     async with session_scope() as db:
+        fences = await geofences.load_active(db)
         for result in results:
             # One savepoint per visit: a row the database refuses (a CHECK the engine
             # did not anticipate) must not roll back its neighbours, and must not come
             # back on every tick -- it is written as an engine error instead.
             try:
                 async with db.begin_nested():
-                    written += int(await persist(db, result))
+                    written += int(await persist(db, result, fences, settings))
             except DBAPIError as exc:
                 log.error(
                     "inference_write_refused",
@@ -655,7 +698,7 @@ async def run_once(
                 )
                 fallback = engine_error(by_id[result.visit_id], active.version, "write_refused")
                 async with db.begin_nested():
-                    written += int(await persist(db, fallback))
+                    written += int(await persist(db, fallback, fences, settings))
     if written:
         log.info("visits_inferred", count=written, inference_version=results[0].version)
     return written

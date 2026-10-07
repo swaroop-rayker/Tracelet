@@ -110,7 +110,9 @@ async def test_later_milestone_fields_are_null_not_zero(
     assert item["visitor_id"] is None
     assert item["is_returning"] is None
     assert item["network"]["is_datacenter"] is None
-    assert item["geofence"]["state"] == "undetermined"
+    # Not evaluated is null, never "outside" or a placeholder (ADR-0020 decision 5).
+    assert item["geofence"]["state"] is None
+    assert item["geofence"]["matched"] == []
     assert item["device"]["class"] == "mobile", "the documented wire name, not class_"
 
 

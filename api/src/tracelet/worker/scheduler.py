@@ -32,6 +32,7 @@ from tracelet.capture import service
 from tracelet.db.engine import session_scope
 from tracelet.inference import engine as inference
 from tracelet.inference.geodb import maintenance as geodb
+from tracelet.notify import worker as notify
 
 log = structlog.get_logger(__name__)
 
@@ -100,6 +101,9 @@ JOBS: tuple[Job, ...] = (
     # reaches the charts the same day; the last week and any never-built history daily.
     Job(name="rollup", every_seconds=300, run=rollup.run_live_once),
     Job(name="rollup_settle", every_seconds=24 * 3600, run=rollup.run_settle_once),
+    # Telegram alerts from the outbox (ADR-0009, F7.AC6). Five seconds on top of the
+    # two of inference: an alert arrives within seconds of the visit ending.
+    Job(name="outbox", every_seconds=5, run=notify.run_job_once),
 )
 
 

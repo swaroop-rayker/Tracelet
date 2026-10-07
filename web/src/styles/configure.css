@@ -1,0 +1,249 @@
+/* Configure: geofences and alerts (DESIGN §16, M6). Tokens only (UI-2); no inline styles. */
+
+/* --- the geofence list's tools ---------------------------------------------------- */
+
+.import-list {
+  max-height: 240px;
+  overflow: auto;
+  display: grid;
+  gap: var(--space-1);
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface-2);
+}
+
+.coordinate-test {
+  width: min(380px, calc(100vw - var(--space-8)));
+}
+
+.coordinate-test__fields {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-2);
+}
+
+.coordinate-test__results {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.coordinate-test__results li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+/* --- the header bell ------------------------------------------------------------- */
+
+.bell {
+  position: relative;
+  display: inline-flex;
+}
+
+.bell__count {
+  position: absolute;
+  top: -2px;
+  right: -4px;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 var(--space-1);
+  border-radius: var(--radius-sm);
+  background: var(--error);
+  color: var(--on-accent);
+  font-size: var(--fs-meta);
+  font-weight: 600;
+  line-height: 16px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+  pointer-events: none;
+}
+
+/* --- the geofence editor: rail | map | inspector ----------------------------------- */
+
+.geofence-editor__body {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) 340px;
+  gap: var(--space-3);
+  align-items: start;
+}
+
+.tool-rail {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding: var(--space-1);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+}
+
+.geofence-editor__map,
+.geofence-map-wrap {
+  display: grid;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+.map.geofence-map {
+  height: max(480px, calc(100vh - 220px));
+}
+
+.inspector {
+  display: grid;
+  gap: var(--space-5);
+  max-height: max(480px, calc(100vh - 220px));
+  overflow: auto;
+  padding: var(--space-4);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+}
+
+.inspector__group {
+  display: grid;
+  gap: var(--space-4);
+  margin: 0;
+  padding: 0;
+  border: 0;
+  min-width: 0;
+}
+
+.inspector__legend {
+  padding: 0;
+  margin-bottom: var(--space-2);
+  font-weight: 600;
+}
+
+.inspector__links {
+  display: grid;
+  gap: var(--space-1);
+  max-height: 200px;
+  overflow: auto;
+  padding-left: var(--space-5);
+}
+
+.region-picker {
+  justify-items: stretch;
+}
+
+.region-picker__chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.region-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.region-picker__results {
+  display: grid;
+  gap: var(--space-1);
+  max-height: 260px;
+  overflow: auto;
+}
+
+.region-picker__results li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  min-height: 32px;
+}
+
+.vertex-list {
+  display: grid;
+  gap: var(--space-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.vertex-row {
+  display: grid;
+  grid-template-columns: 2ch minmax(0, 1fr) minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--space-2);
+  font-variant-numeric: tabular-nums;
+}
+
+.circle-fields {
+  display: grid;
+  gap: var(--space-3);
+}
+
+/* Above the editor's map: which country is open, and the way back to the world. */
+.map-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+/* The editor map's names and city dots, one canvas (E59). Never in the way of a click; it
+   scales with a zoom and is redrawn crisp at the end (E60). Its font is the UI font. */
+.name-canvas {
+  position: absolute;
+  top: 0;
+  left: 0;
+  pointer-events: none;
+  font-family: var(--font-ui);
+}
+
+/* --- alerts ------------------------------------------------------------------------- */
+
+/* A grid column sizes to its widest child; this one may shrink, and the status filter
+   scrolls sideways on a phone instead of widening the page. */
+.delivery-log {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.delivery-log .seg {
+  max-width: 100%;
+  overflow-x: auto;
+}
+
+.quiet-hours__times {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 200px));
+  gap: var(--space-3);
+  align-items: start;
+}
+
+@media (max-width: 1023px) {
+  .geofence-editor__body {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .inspector {
+    grid-column: 1 / -1;
+    max-height: none;
+  }
+
+  .map.geofence-map {
+    height: 420px;
+  }
+}
+
+@media (max-width: 767px) {
+  .geofence-editor__body {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .tool-rail {
+    flex-direction: row;
+    flex-wrap: wrap;
+  }
+
+  .map.geofence-map {
+    height: 360px;
+  }
+
+  .quiet-hours__times {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

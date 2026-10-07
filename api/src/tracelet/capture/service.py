@@ -101,6 +101,7 @@ class LinkSnapshot:
     slug: str
     destination_url: str
     interstitial_ms: int
+    ask_location: bool
     is_live: bool
 
     @classmethod
@@ -110,6 +111,7 @@ class LinkSnapshot:
             slug=link.slug.lower(),
             destination_url=link.destination_url,
             interstitial_ms=link.interstitial_ms,
+            ask_location=link.ask_location,
             is_live=link.is_live,
         )
 
@@ -458,7 +460,8 @@ _GEO_STATES: Final[dict[str, ConsentState]] = {
     "prompt": ConsentState.NOT_ASKED,
     "unavailable": ConsentState.UNAVAILABLE,
     "unsupported": ConsentState.UNAVAILABLE,
-    # Permission was already granted, but no position arrived before the redirect.
+    # Permission was already granted, or asked for on a link that asks (ADR-0021), but no
+    # position arrived before the page left.
     "timeout": ConsentState.UNAVAILABLE,
 }
 

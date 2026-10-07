@@ -45,9 +45,14 @@ class TelegramError(RuntimeError):
     them loses the only thing the admin can act on.
     """
 
-    def __init__(self, message: str, *, permanent: bool = False) -> None:
+    def __init__(
+        self, message: str, *, permanent: bool = False, retry_after: float | None = None
+    ) -> None:
         super().__init__(message)
         self.permanent = permanent
+        # Seconds Telegram asked us to wait (HTTP 429). The outbox schedules its next
+        # attempt by it instead of by its own backoff (F7.AC6).
+        self.retry_after = retry_after
 
 
 @dataclass(frozen=True, slots=True)
@@ -65,6 +70,19 @@ def _redact(text: str, token: str) -> str:
     under a non-sensitive key.
     """
     return text.replace(token, "<bot-token>") if token else text
+
+
+def _retry_after(response: httpx.Response) -> float:
+    try:
+        value = response.json().get("parameters", {}).get("retry_after")
+    except ValueError:
+        value = None
+    if value is None:
+        value = response.headers.get("Retry-After")
+    try:
+        return max(1.0, float(value)) if value is not None else 30.0
+    except (TypeError, ValueError):
+        return 30.0
 
 
 async def send_message(
@@ -107,6 +125,14 @@ async def send_message(
                 )
 
             detail = _redact(response.text[:300], bot_token)
+
+            if response.status_code == httpx.codes.TOO_MANY_REQUESTS:
+                # Not permanent, and not worth retrying here: Telegram says how long to
+                # wait, which is longer than an admin should watch a spinner.
+                retry_after = _retry_after(response)
+                log.warning("telegram_rate_limited", retry_after=retry_after, chat_id=chat_id)
+                msg = f"Telegram rate-limited the bot (HTTP 429): retry after {retry_after} s"
+                raise TelegramError(msg, retry_after=retry_after)
 
             if 400 <= response.status_code < 500:
                 # Permanent. Surface it immediately with Telegram's own description,

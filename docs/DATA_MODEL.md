@@ -88,7 +88,7 @@ could not see it (docs/ERRORS.md E13).
 | `outbox_status` | `pending`, `in_flight`, `done`, `failed`, `dead` |
 | `backup_kind` | `daily`, `weekly`, `manual` |
 | `geo_db_status` | `installed`, `downloading`, `failed`, `stale` |
-| `shape_kind` | `polygon`, `circle` |
+| `shape_kind` | `polygon`, `circle`, `region` — `region` added in M6 (ADR-0020) |
 
 ---
 
@@ -304,8 +304,9 @@ because *their* lifetimes and delivery paths genuinely differ.
 | `destination_url` | `text` | `CHECK`: starts `https://`, length ≤ 2048. Full validation in the application — F1.AC2 |
 | `is_active` | `boolean` | |
 | `is_default` | `boolean` | |
-| `notify_policy` | `jsonb` | `{inside, outside, automated}` priorities — F1.AC5 |
+| `notify_policy` | `jsonb` | `{inside, outside, undetermined, automated}` priorities — F1.AC5. `undetermined` added in M6, default `normal`; `automated` is always `silent` (`CHECK ck_links_automated_silent`, CLAUDE.md invariant 6). How they combine with a geofence's priority: SPEC §11 row 18 |
 | `interstitial_ms` | `integer` | `CHECK BETWEEN 300 AND 1500`, default 700 — F1.AC6 |
+| `ask_location` | `boolean` | Default `false`. When true the capture page shows consent text and the browser's location prompt, and waits up to 15 s for the answer — F1.AC11, ADR-0021. Added in migration 0011 |
 | `cloned_from` | `uuid` NULL FK self, `ON DELETE SET NULL` | F1.AC9 |
 | `created_by` | `uuid` NULL FK admins, `ON DELETE SET NULL` | Deleting an admin must neither delete nor be blocked by their links |
 | `created_at`, `updated_at` | `timestamptz` | |
@@ -487,7 +488,10 @@ now uses the header *set* instead (SPEC section 11 row 7).
 
 **Geofence — F6**
 
-`matched_geofence_ids uuid[]`, `geofence_state geofence_state`.
+`matched_geofence_ids uuid[]` (default empty), `geofence_state geofence_state NULL`. NULL means
+no active geofence applied, or the visit is not inferred yet; it is distinct from all three
+states, so `outside` never means "there were no geofences" (ADR-0020 decision 5; nullable since
+migration 0009).
 
 **Referral**
 
@@ -524,8 +528,11 @@ now uses the header *set* instead (SPEC section 11 row 7).
    `inference_version`. Application-enforced; the threshold is versioned configuration.
 4. `strict_*` set to `NULL` requires a matching key in `abstain_reason`. **Abstention
    always carries a reason** — F4.AC10.
-5. `geofence_state='undetermined'` whenever `geopoint IS NULL`. **An abstaining
-   inference is never silently treated as "outside"** — F6.AC6.
+5. **An abstaining inference is never "outside" or "inside"** — F6.AC6. Restated in M6
+   (ADR-0020 decision 6): `outside` requires a strict location at some level (`geopoint` or
+   `strict_country_code`), and `inside` requires at least one `matched_geofence_ids` entry.
+   The original wording, "`undetermined` whenever `geopoint IS NULL`", became false once a
+   strict state can place a visit inside or outside a region geofence.
 6. `enrichment_consumed_at` is set by a conditional update, so a replayed nonce cannot
    double-enrich.
 7. `ip_enc IS NULL` after `ip_purge_after`, while `ip_hmac` and `ip_prefix` persist —
@@ -552,8 +559,9 @@ now uses the header *set* instead (SPEC section 11 row 7).
     unit-tested per suppression scenario. Visits stamped m3.3 or earlier may lack a mobile
     visitor's advisory city.
 
-Invariants 2 and 5 are `CHECK` constraints (`ck_visits_gps_requires_consent`,
-`ck_visits_no_geopoint_is_undetermined`), not conventions. Each is exercised by a test
+Invariants 2 and 5 are `CHECK` constraints (`ck_visits_gps_requires_consent`;
+`ck_visits_outside_needs_strict` and `ck_visits_inside_has_match`, which replaced
+`ck_visits_no_geopoint_is_undetermined` in migration 0009), not conventions. Each is exercised by a test
 that goes around the application with raw SQL, because the guarantee has to survive a
 code path that forgets it.
 
@@ -611,25 +619,48 @@ Cascade-deleted with the visit.
 |---|---|---|
 | `id` | `uuid` PK | |
 | `name`, `description` | `text` | |
-| `shape_kind` | `shape_kind` | |
-| `area` | `geography(Polygon,4326)` NOT NULL | Circles stored buffered as polygons |
-| `center` | `geography(Point,4326)` NULL | Retained for circle round-trip editing |
-| `radius_m` | `numeric(10,2)` NULL | Retained for circle round-trip editing |
-| `priority` | `integer` | Higher wins on overlap — F6.AC7 |
-| `is_active` | `boolean` | |
-| `notify_on_enter` | `boolean` | |
-| `notify_priority` | `notify_priority` | |
-| `link_ids` | `uuid[]` NULL | `NULL` = applies to all links |
-| `created_by` | `uuid` FK | |
+| `shape_kind` | `shape_kind` | `polygon`, `circle` or `region` (ADR-0020) |
+| `area` | `geography(Polygon,4326)` NULL | Polygons and circles; circles stored buffered. NULL exactly for a region |
+| `center` | `geography(Point,4326)` NULL | Circles only, retained for round-trip editing |
+| `radius_m` | `numeric(10,2)` NULL | Circles only, retained for round-trip editing; `> 0` |
+| `region_keys` | `text[]` NULL | Regions only: `IN` (a country) or `IN\|Karnataka` (a first-order division, spelled as GeoNames spells it, which is what the engine emits). 1 to 1000 keys, none NULL |
+| `priority` | `integer` | Default 0. Higher wins on overlap — F6.AC7 |
+| `is_active` | `boolean` | Default true |
+| `notify_priority` | `notify_priority` | Default `high`. Combined with the link's `notify_policy.inside`, the less urgent winning (SPEC §11 row 18) |
+| `link_ids` | `uuid[]` NULL | `NULL` = applies to all links; never empty (`is_active` says "applies to none") |
+| `created_by` | `uuid` NULL FK admins, `ON DELETE SET NULL` | As for links |
 | `created_at`, `updated_at` | `timestamptz` | |
+
+The planned `notify_on_enter boolean` was not built: `notify_priority = 'silent'` says the
+same thing, and F6.AC3 names no such field.
 
 **Indexes:** `GIST (area)`; partial `(priority DESC)` where `is_active`.
 
-**Invariants:** `CHECK (ST_IsValid(area::geometry))`; `CHECK (ST_NPoints(area::geometry)
-<= 2000)` to bound evaluation cost (F6.AC4); `shape_kind='circle'` requires `center` and
-`radius_m` non-null. Evaluation uses `ST_Covers(area, geopoint)` — **geodesically
-correct because the column is `geography`, not `geometry`**. That correctness is a
-principal reason PostGIS was chosen (ADR-0002).
+**Invariants** (all `CHECK`, migration 0009):
+- each shape carries exactly its own columns: `area` NULL exactly for a region
+  (`ck_geofences_area_iff_shape`), `region_keys` exactly for a region
+  (`ck_geofences_region_keys_iff_region`, `_region_keys_bounded`), `center` and `radius_m`
+  exactly for a circle (`ck_geofences_center_iff_circle`, `_radius_iff_circle`,
+  `_radius_positive`);
+- `ST_IsValid(area::geometry)` and `ST_NPoints(area::geometry) <= 2000` to bound evaluation
+  cost (F6.AC4: `ck_geofences_area_valid`, `_vertex_cap`). The application rejects a
+  self-intersecting ring first, with its own error code; these are the floor beneath it;
+- `link_ids` NULL or non-empty; `name` 1 to 100 characters.
+
+**Evaluation** (ADR-0020 decision 4), per applicable geofence (active, and `link_ids` NULL
+or containing the visit's link):
+- **polygon, circle:** `ST_Covers(area, geopoint)` — **geodesically correct because the
+  column is `geography`, not `geometry`**, a principal reason PostGIS was chosen (ADR-0002).
+  `undetermined` when `geopoint` is NULL;
+- **region:** a key `CC` is inside when `strict_country_code = CC`, outside when the strict
+  country is stated and different, otherwise undetermined. A key `CC|State` is inside when
+  the strict country is `CC` and `strict_admin1 = State`, outside when either strict level
+  is stated and different, otherwise undetermined. The geofence is inside if any key is,
+  outside if every key is, otherwise undetermined. **Advisory fields are never read.**
+
+The visit records every inside geofence in `matched_geofence_ids` (F6.AC7) and combines the
+results into `geofence_state`: inside if any, else undetermined if any, else outside; NULL
+when none applied (section 5.3 invariant 5).
 
 ---
 
@@ -641,30 +672,49 @@ principal reason PostGIS was chosen (ADR-0002).
 |---|---|---|
 | `id` | `bigserial` PK | |
 | `kind` | `outbox_kind` | |
-| `dedup_key` | `text` UNIQUE NULL | e.g. `visit_alert:{link_id}:{visitor_id}:{utc_date}` |
-| `payload` | `jsonb` | Self-contained; references a visit by id with **no FK** |
-| `status` | `outbox_status` | |
-| `attempts` | `integer` | |
+| `dedup_key` | `text` UNIQUE NULL | `visit_alert:{link_id}:{visitor_id}:{local_date}`, the visit's arrival date in the reporting timezone (SPEC §11 row 17). A visit with no `visitor_id` is keyed by its `ip_hmac` instead (`…:ip:{hex}:…`), so it still alerts once per network per day rather than on every request |
+| `priority` | `notify_priority` | `high` or `normal`, resolved at enqueue (SPEC §11 row 18). **Never `silent`**: a silent alert is not enqueued. Quiet hours hold `normal` (F7.AC9). Added in M6 |
+| `payload` | `jsonb` | Self-contained: the message's facts, rendered at send time; references a visit by id with **no FK** |
+| `status` | `outbox_status` | `pending` → `in_flight` → `done`; on failure `failed` (retried) or `dead` |
+| `attempts` | `integer` | Incremented when claimed |
 | `max_attempts` | `integer` | Default 8 |
-| `next_attempt_at` | `timestamptz` | |
+| `next_attempt_at` | `timestamptz` | Exponential backoff with full jitter: up to 30 s × 2^(attempts−1), capped at 1 h; Telegram's own `retry_after` when it gives one |
 | `locked_by` | `text` NULL | Worker identity |
 | `locked_at` | `timestamptz` NULL | |
-| `last_error` | `text` NULL | |
+| `last_error` | `text` NULL | Never contains the bot token |
 | `created_at`, `completed_at` | `timestamptz` | |
 
 **Indexes:** `UNIQUE(dedup_key)`; partial `(next_attempt_at)` where `status IN
-('pending','failed')`; partial `(status)` where `status='dead'` for the health panel.
+('pending','failed')`; partial `(status)` where `status='dead'` for the health panel;
+`(created_at DESC)` for the delivery log.
+
+**`CHECK`s** (migration 0010): `priority <> 'silent'`; `(status = 'in_flight') = (locked_at
+IS NOT NULL)`; `(status IN ('done','dead')) = (completed_at IS NOT NULL)`; `attempts >= 0`;
+`max_attempts BETWEEN 1 AND 20`.
 
 **Invariants**
 1. Inserted in the **same transaction** as visit finalisation — NFR5.AC2, F7.AC5. A
    visit never exists without its queued alert; a rolled-back visit never emits one.
-2. **`UNIQUE(dedup_key)` is what actually implements the 24-hour deduplication rule**
-   (F7.AC2). Doing it in application code would race under concurrent visits.
+2. **`UNIQUE(dedup_key)` is what actually implements the once-per-local-day deduplication rule**
+   (F7.AC2). Doing it in application code would race under concurrent visits. It also holds
+   the rule's one upgrade (SPEC §11 row 20): a high-priority alert whose day key is already
+   held by a *normal* alert is queued under that key plus `:upgrade`, unique too. A high
+   alert holding the day key leaves no upgrade, and a normal alert never takes one. And
+   one confirmation (SPEC §11 row 21): an *outside* alert whose day key is held by a normal
+   *undetermined* alert is queued under that key plus `:confirmed`, unless `:upgrade` is
+   already taken. So at most three alerts per link and visitor per day, in the order not
+   confirmed, outside, inside; the holder's state is read from its `payload`.
 3. Claimed with `SELECT … FOR UPDATE SKIP LOCKED LIMIT n` — correct with two workers.
 4. **No FK to `visits`.** A retention purge must not block a pending notification, and
    the payload is already self-contained.
 5. `attempts >= max_attempts` sets `status='dead'`, surfaced with a manual retry —
    F7.AC6, F10.AC13.
+6. **Only `classification = 'human'` is ever enqueued** (CLAUDE.md invariant 6, F7.AC1), and
+   only after geofence evaluation, from the same savepoint (ADR-0015).
+7. An `in_flight` row whose lock is older than 5 minutes was abandoned by a crashed worker
+   and returns to `failed`. Delivery is therefore **at least once**: a crash between
+   Telegram accepting a message and the row being marked `done` can repeat one alert, which
+   is preferred to losing it (F7.AC5).
 
 ---
 
@@ -756,14 +806,22 @@ cli_reset_defaults`), for a database seeded before the defaults changed.
 ### 8.5 `retention_policy`
 
 Singleton (`CHECK (id = 1)`): `visit_days` default 180, `ip_days` default 30,
-`audit_days` default 365, `rollup_forever boolean` default true, `quiet_hours jsonb`,
-`updated_by`, `updated_at`.
+`audit_days` default 365, `rollup_forever boolean` default true, `updated_by`,
+`updated_at`. *Quiet hours moved to `app_settings` in M6, which needs them before M7
+builds this table.*
 
 ### 8.6 `app_settings`
 
-`key text` PK, `value jsonb`, `updated_by`, `updated_at`.
-**Invariant: no secrets.** Secrets come from the environment and `0400` files only —
-F12.AC3, F14.AC5.
+`key text` PK, `value jsonb`, `updated_by uuid NULL` FK admins `ON DELETE SET NULL`,
+`updated_at`. **Invariant: no secrets.** Secrets come from the environment and `0400`
+files only — F12.AC3, F14.AC5. Created in M6 (migration 0010). Keys:
+
+| Key | Value | Default when absent |
+|---|---|---|
+| `notifications.quiet_hours` | `{enabled, start: "HH:MM", end: "HH:MM", timezone: IANA}` — F7.AC9. A window whose end is before its start crosses midnight | `{enabled: false, start: "23:00", end: "07:00", timezone: "Asia/Kolkata"}` |
+
+Every change is owner-only and writes `settings.changed` with the old and new value
+(invariant 9); the audit row is the history, and restoring a value is another change.
 
 ### 8.7 `rate_limit_buckets` — GCRA state
 

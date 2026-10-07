@@ -1885,6 +1885,385 @@ write may have synchronised.
 
 **Related:** CLAUDE.md invariant 9, API §5, ERRORS E16.
 
+### E52 — Test geofences outlived their tests and applied to every dev visit
+
+**Status:** Fixed. **Milestone:** M6. **Date:** 2026-10-06.
+
+**Symptom.** A new outbox test expected a strict-Maharashtra visit to be `outside` a Karnataka
+geofence and got `undetermined`. The database held six active geofences named "Test fence",
+with `link_ids` NULL -- applying to every link -- left by the first two runs of the geofence
+invariant tests. Any visit inferred afterwards, in a test or by the dev server, would have been
+evaluated against them; a polygon with no geopoint is undetermined, which outranks outside.
+
+**Root cause.** The integration suite shares the dev database (E36). The invariant tests
+inserted *valid* geofences to prove the shape CHECKs accept them, with the column defaults:
+active, every link. Nothing removed them. A geofence differs from most test rows: it is not
+looked up by id, it is applied to every later visit.
+
+**Fix.** The rows were deleted. Every geofence a test makes is now named `itest ...`, inserted
+inactive where the test does not need it active, and deleted by an autouse fixture. The suites
+that infer visits narrow the job's loader to their own geofences, so an owner's real dev
+geofence cannot change their results either.
+
+**Prevention.** A test row that the system *applies* (geofences now; any future global rule)
+is created inactive or scoped, named for cleanup, and removed after the test. Assertions about
+a combined state are made where only the test's own inputs can reach the code under test.
+
+**Related:** ERRORS E36, ADR-0020 decision 5.
+
+---
+
+### E53 — The delivery log crashed: `dict()` read a query result as a mapping
+
+**Status:** Fixed before commit. **Milestone:** M6. **Date:** 2026-10-06.
+
+**Symptom.** `GET /api/v1/health/outbox` returned 500, logged as `TypeError:
+'ChunkedIteratorResult' object is not subscriptable`.
+
+**Root cause.** The status counts were built as `dict(await db.execute(select(status,
+count(*))...).tuples())`. `dict()` treats any argument with a `keys()` method as a mapping and
+indexes it by those keys, and a SQLAlchemy `Result` -- tuples or not -- has `keys()` (the
+column names). Ruff's C416 then suggests exactly this form as the "simpler" rewrite of a
+comprehension.
+
+**Fix.** An explicit loop over `.tuples()`, with a comment saying why it is not `dict(...)`.
+
+**Prevention.** Never pass a `Result` to `dict()`; iterate it. The integration test that reads
+the delivery log covers the endpoint, so a regression fails the suite rather than the page.
+
+**Related:** API §10.
+
+---
+
+### E54 — zod's eval probe came back on every page once the header parsed a payload
+
+**Status:** Fixed before commit. **Milestone:** M6. **Date:** 2026-10-06.
+
+**Symptom.** The M6 Playwright walk reported `script-src` `eval` from the main chunk on every
+page, in all three engines -- the violation E44 had removed.
+
+**Root cause.** E44's fix, `z.config({ jitless: true })`, ran as a side effect of
+`api/schemas.ts`. Until M6 only lazy pages parsed payloads, and every one of them imported
+`schemas.ts` first. M6's header bell parses the outbox counts on first paint, from the main
+chunk, with a schema from `api/geofences.ts` -- before any page had loaded `schemas.ts`. zod's
+first object parse probed `new Function`, and the CSP reported it.
+
+**Fix.** `api/zod.ts` configures zod and re-exports it; it is the only module that imports
+`zod`. `schemas.ts`, `geofences.ts` and the test import `z` from it, so no schema can exist
+before the configuration does.
+
+**Prevention.** ESLint's `no-restricted-imports` forbids importing `zod` anywhere else (type
+imports allowed). A configuration that must precede every use lives in the module every use
+imports, never beside one of its users.
+
+**Related:** ERRORS E44, DESIGN UI-3.
+
+---
+
+### E55 — Leaving the geofence editor threw `_leaflet_pos`
+
+**Status:** Fixed before commit. **Milestone:** M6. **Date:** 2026-10-06.
+
+**Symptom.** The M6 walk recorded a page error, `Cannot read properties of undefined (reading
+'_leaflet_pos')`, when navigating away from the geofence editor.
+
+**Root cause.** React runs a component's effect cleanups in declaration order. The map's own
+effect, declared first, removed the map; the outline, shape and draw-tool effects then cleaned
+up against the removed map, and Leaflet read the position of a pane that no longer existed.
+
+**Fix.** Each later cleanup does nothing once `map.current` is no longer its map (removing the
+map removed its layers). `fitBounds` is no longer animated, so no animation outlives the map.
+
+**Prevention.** In a component that owns a Leaflet map, every effect cleanup other than the
+map's own checks that the map it captured is still the current one.
+
+**Related:** DESIGN §16.
+
+---
+
+### E56 — Alerts queued by the integration suite were delivered to the owner's Telegram
+
+**Status:** Fixed. **Milestone:** M6. **Date:** 2026-10-06.
+
+**Symptom.** The M6 delivery log showed 28 "Delivered" alerts for visits on "Integration
+link". They had been sent to the owner's real Telegram chat at 11:57:43–11:58:12 UTC, seconds
+after the dev API was restarted on the M6 code.
+
+**Root cause.** The integration suite shares the dev database and pauses the API while it
+runs (E36). Its inference tests now queue an alert for every human visit (F7.AC5), and nothing
+removed those rows. When the API came back with the outbox worker, the rows were due, and it
+delivered them -- through the real bot, to the real chat, because the dev server is configured
+exactly like production. A second path was open too: a test visit left uninferred would be
+inferred by the live job later and alert then.
+
+**Fix.** An autouse fixture in the integration `conftest.py` deletes, after every test, the
+outbox rows the test queued (by id high-water mark) and the visits it left uninferred on links
+it created. A check afterwards found no undelivered outbox row and no uninferred visit on any
+link. Nothing else was sent.
+
+**Consequence.** The 28 messages cannot be recalled from Telegram; they carry test data only
+(test links, test visitors, no real address).
+
+**Prevention.** Anything a test leaves in the shared database that a *running* system acts on
+-- queued messages, unprocessed visits, active geofences (E52) -- is removed by a fixture, not
+by the test's good intentions. Before a live worker is started against a database tests have
+used, its queue is inspected.
+
+**Related:** ERRORS E36, E52; F7.AC5.
+
+---
+
+### E57 — A geofence circle was half hidden, or vanished, under the land
+
+**Status:** Fixed. **Milestone:** M6. **Date:** 2026-10-06. Reported by the owner.
+
+**Symptom.** A circle drawn across the coast showed only its sea half. A circle typed as a
+centre and radius inland did not appear at all. Separately, the delivery log, filtered to a
+status with no rows, showed only "No deliveries with this status" and no way back.
+
+**Root cause.** Two for the circle. (1) Leaflet draws every vector layer in one pane, ordered
+by when it was added. The country and state outlines are filled opaque, and that effect
+redraws them -- on a region toggle, a theme change -- *after* the shape, so the land was painted
+over it. Over the sea there was no fill, so that half showed. (2) The map moved to a shape
+only when a new one appeared (keyed on "there is a circle"), so a circle whose centre was
+typed elsewhere was redrawn off-screen and looked deleted. For the log: the Panel's empty
+state replaces its whole body, and the status filter lived in the body.
+
+**Fix.** Outlines and places get their own panes below the shapes' (z 350 and 380 under
+Leaflet's 400), so the order is structural rather than temporal. The map moves to a shape
+whenever it is out of view or under 40 px across, and typed values are applied after a
+half-second pause, so the map does not chase each keystroke. The log's empty state is shown
+only when nothing was ever queued; a filter with no rows answers inside the log, filter
+still there, with "Show all deliveries". Each was checked in the browser.
+
+**Prevention.** On a Leaflet map with more than one kind of layer, every kind gets a pane
+with an explicit z-index. A filter is never inside the area its own empty state replaces.
+
+**Related:** DESIGN §16, UI-7.
+
+---
+
+### E58 — State names stuck on the editor's map after hovering
+
+**Status:** Fixed. **Milestone:** M6. **Date:** 2026-10-06. Reported by the owner.
+
+**Symptom.** In the geofence editor, state names shown on hover ("Missouri", "Kentucky")
+stayed on the map after the pointer had left them, several at once.
+
+**Root cause.** The names were Leaflet `sticky` tooltips bound to each outline. The outlines
+are rebuilt whenever the picked regions, the tool, the country or the theme change -- for
+instance on the click that picks a state, with the pointer still over it. Removing a layer
+whose tooltip is open leaves the tooltip element behind in the tooltip pane, owned by nothing,
+and nothing ever closes it.
+
+**Fix.** No hover tooltips on outlines at all. Country and state names are printed on the map
+as permanent, non-interactive labels at the centre of each area's largest part, in one
+collision pass with the city names (metros first, then areas, then other cities), and only
+where the area has room for its name. The owner asked for exactly this. Checked in
+Chromium, Firefox and WebKit: zero stray tooltips after sweeping the pointer across the
+states.
+
+**Prevention.** A tooltip on a layer that is rebuilt while it may be hovered is a leak. Names
+that identify areas are drawn as labels; hover is for transient emphasis only (an outline).
+
+**Related:** E57, DESIGN §16.
+
+---
+
+### E59 — Zooming the country map stuttered, worse with every zoom
+
+**Status:** Fixed. **Milestone:** M6. **Date:** 2026-10-06. Reported by the owner.
+
+**Symptom.** Zooming into a country in the geofence editor lagged while the city dots and
+names appeared. Measured in Chromium, zooming India from its fitted view to the maximum: main
+-thread long tasks of 99 ms and 84 ms, and after five steps **1,605 city-name elements in the
+page for 1,110 cities**.
+
+**Root cause.** Each city name was a permanent Leaflet tooltip on an SVG dot, and every zoom
+cleared and rebuilt all of them -- every city in the country, on screen or not. The rebuild
+did not remove every tooltip element (the count grew past the number of cities), and Leaflet
+repositions every tooltip on every frame of a zoom animation, so the work grew with each zoom.
+The collision test also compared each name against every name placed so far.
+
+**Fix.** Dots, city names and area names are drawn on one canvas in the places pane: no DOM
+element per name, so nothing to leak or reposition. Only what is on screen (plus a margin) is
+drawn, at most once per animation frame while panning, and the canvas is hidden mid-zoom and
+redrawn once at the end. Collisions use a uniform grid. After: no long task while zooming or
+panning, no name elements in the page, and the same names drawn (31 countries, 18 Indian
+states, all 8 metros at the fitted view) in Chromium, Firefox and WebKit.
+
+**Prevention.** Anything drawn in the hundreds on a map is drawn on a canvas, never one DOM
+element each. A layer that redraws on zoom draws only the viewport.
+
+**Related:** E58, DESIGN §16.
+
+---
+
+### E60 — Every name on the editor map blinked out on each zoom step
+
+**Status:** Fixed. **Milestone:** M6. **Date:** 2026-10-06. Reported by the owner.
+
+**Symptom.** Zooming the geofence editor's map, all city and area names vanished for the
+length of each zoom animation and reappeared at its end: a flicker on every step.
+
+**Root cause.** E59's canvas was hidden on `zoomstart` and redrawn on `zoomend`, on the
+reasoning that stretched text mid-zoom would look worse than none. A blink on every step was
+worse.
+
+**Fix.** The canvas now does what Leaflet's own canvas renderer does: on `zoomanim` (and
+`zoom`) it is transformed from the view it was drawn for to the view being zoomed to, with
+`leaflet-zoom-animated` so the transition runs with the map's; the redraw at the end resets
+the transform and draws crisp. Sampled every animation frame in Chromium, Firefox and WebKit:
+never hidden, scaled 1 to 2 zooming in and 1 to 0.5 zooming out, back to 1 with the names
+redrawn; still no long task while zooming or panning.
+
+**Prevention.** A layer that redraws after a zoom scales with the zoom in the meantime; it
+never disappears.
+
+**Related:** E59, DESIGN §16.
+
+---
+
+### E61 — A deleted circle came back half a second later
+
+**Status:** Fixed. **Milestone:** M6. **Date:** 2026-10-06. Reported by the owner.
+
+**Symptom.** The tool rail's "Delete shape" removed the shape, and it reappeared. Reproduced
+for drawn and typed circles: after delete, the radius field still read the old value, and the
+circle was back 1.5 s later.
+
+**Root cause.** E57 made typed circle values apply 500 ms after the last change, whenever the
+fields differed from the current circle. Deleting set the circle to none but left the fields
+showing it -- and "fields hold a circle, there is none" counted as a difference, so the old
+circle was applied again. Delete also switched straight into draw mode, whose hint lines made
+the map look as if something was still there.
+
+**Fix.** Only what the person typed is applied: a flag set by keystrokes, cleared whenever the
+fields are refreshed from the shape. The fields also empty when the shape is deleted, and
+delete returns the rail to Select. Checked in Chromium, Firefox and WebKit for a drawn circle,
+a typed circle and a drawn polygon: gone at once and still gone 1.5 s later.
+
+**Prevention.** A debounced "apply what is typed" acts on typing, never on a difference
+between a field and its source -- a difference also arises when the source changes.
+
+**Related:** E57.
+
+---
+
+### E62 — After saving a geofence the editor neither went back nor started a new one
+
+**Status:** Fixed. **Milestone:** M6. **Date:** 2026-10-06. Reported by the owner.
+
+**Symptom.** "Create geofence" left the editor open on the geofence just made, now headed
+with its name and offering "Save": no way back to the list and no fresh form for the next
+geofence, which is what the owner was trying to do (one geofence per test link).
+
+**Root cause.** A design choice, not a crash: a create navigated to the new geofence's own
+URL so it could be edited further. Separately, the editor reads a geofence under its own query
+key, and a save refreshed only the list's key, so reopening it within the app could show the
+pre-save values from the cache for up to a minute.
+
+**Fix.** Create and Save return to the Geofences list with a confirmation; "New geofence"
+there starts blank. A save replaces the cached geofence with the server's answer, and a delete
+drops it. Checked in Chromium, Firefox and WebKit, including reopening without a reload.
+
+**Prevention.** A form that creates returns to where the next one starts. A write updates
+every query key that holds what it changed, not only the list's.
+
+**Related:** DESIGN §16.
+
+---
+
+### E63 — Firefox reported a CSP violation on every capture page
+
+**Status:** Fixed. **Milestone:** M6 (present since M2). **Date:** 2026-10-06.
+
+**Symptom.** Testing ADR-0021's asking links in Firefox, every capture visit -- asking or
+not -- logged `img-src` blocking `https://localhost/favicon.ico`.
+
+**Root cause.** The capture page declares no icon, so Firefox requests `/favicon.ico` on its
+own, and the page's CSP is `img-src 'none'`. Chromium and WebKit happen not to fetch it there,
+which is why the M2 checks never saw it.
+
+**Fix.** The page declares an empty inline icon, `<link rel="icon" href="data:,">`, and the
+CSP allows `img-src data:`. Nothing loads from any origin; F2.AC12 holds. The unit test that
+forbade every `<link>` now asserts the one allowed: the inline icon.
+
+**Prevention.** Every server-rendered page declares its icon, so no browser fetches one the
+CSP refuses.
+
+**Related:** F2.AC12, F13.AC2.
+
+---
+
+### E64 — The Links page's "Asks for location" switch flipped back after it had saved
+
+**Status:** Fixed before commit. **Milestone:** M6. **Date:** 2026-10-06.
+
+**Symptom.** Toggling the switch showed an error and the switch returned to its old position,
+yet the audit log showed the change saved; the next click then sent no change at all.
+
+**Root cause.** The call declared that it read nothing from the response (`parse: () =>
+null`). The API client reads a parser's `null` on a non-empty body as a malformed response, so
+a successful save was reported as a failure and the optimistic switch was undone.
+
+**Fix.** The call parses the saved link (`id`, `ask_location`) and the switch shows what the
+server holds.
+
+**Prevention.** A write's parser proves the response it gets; `noContent` is only for
+endpoints that answer with no body.
+
+**Related:** UI-13.
+
+---
+
+### E65 — A refused Create in the geofence editor looked like a dead button
+
+**Status:** Fixed. **Milestone:** M6. **Date:** 2026-10-07.
+
+**Symptom.** The pre-PR browser walk timed out in all three engines after clicking "Create
+geofence" for a drawn circle: no request was sent and nothing on screen changed. The editor
+now opens on the world map, where the walk's short drag made a 1,579 km circle.
+
+**Root cause.** Not the refusal itself -- the radius limit is 50 m to 1,000 km, as the API
+enforces -- but how it was shown. The reason was placed at the foot of the inspector, which
+scrolls on its own, so at 1440 × 900 it sat below the panel's fold, far from the button at the
+top right; and it was a plain paragraph, so nothing announced it. The same held for an API
+error with no place on the map.
+
+**Fix.** The reason is `role="alert"` (DESIGN §5.2, the field-error pattern), and the inspector
+scrolls it into view when it appears, so it shows by the field at fault (UI-14).
+
+**Prevention.** Checked in Chromium, Firefox and WebKit: the refused circle's reason is an
+alert inside the visible part of the inspector, and a corrected radius then saves. The browser
+walk now sizes its circle for the world view.
+
+**Related:** UI-14, F6.AC1.
+
+### E72 — CI saw a verified owner chat that no test in the run had set up for itself
+
+**Status:** Fixed. **Milestone:** M6. **Date:** 2026-10-07.
+
+**Symptom.** PR #8's CI failed one integration test twice running,
+`test_outbox.py::test_quiet_hours_are_set_by_an_owner_and_audited`: the settings reported
+`chat_verified: true` where the test expects `false`. The same suite passed locally.
+
+**Root cause.** Test isolation, not product code. After each test the suite deletes the
+`@example.test` admins -- except that the engine refuses to remove the last active owner, so
+when no real owner exists the test owners survive. CI's database is fresh and has no real
+owner; the developer's database has one, so locally every test admin was deleted and the leak
+never showed. A `test_auth_flow` test verifies chat 424242 on its owner; that owner survived,
+and `test_outbox` uses the same chat id as the configured owner chat, so it read as verified.
+
+**Fix.** When test owners have to survive, the cleanup clears their Telegram chat and its
+verification, so no test inherits another's verified chat.
+
+**Prevention.** A cleanup that has to keep a row must also reset the state later tests read
+from it. The integration suite behaves differently with and without a real owner in the
+database; CI is the run without one, so a CI-only failure there points at isolation first.
+
+**Related:** F7.AC8, F10.AC13.
+
 ---
 
 Add entries here as bugs are found and fixed. Use the next available `E<n>` identifier and

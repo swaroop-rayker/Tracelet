@@ -45,7 +45,10 @@ def _csp(nonce: str) -> str:
         f"script-src 'nonce-{nonce}'; "
         f"style-src 'nonce-{nonce}'; "
         "connect-src 'self'; "
-        "img-src 'none'; "
+        # data: for the empty icon the page declares, so no browser asks for /favicon.ico,
+        # which Firefox did on every visit and the CSP then reported (ERRORS E63). Nothing
+        # loads from any origin.
+        "img-src data:; "
         "base-uri 'none'; "
         "form-action 'none'; "
         "frame-ancestors 'none'"
@@ -86,10 +89,15 @@ def android_intent(destination: str) -> str:
     )
 
 
+# ADR-0021: how long a link that asks for location waits for the answer, at most.
+ASK_LOCATION_MS = 15_000
+
+
 def capture_page(
     *,
     destination: str,
     interstitial_ms: int,
+    ask_location: bool = False,
     nonce: str | None,
     webview_host: str | None,
     os_family: str | None,
@@ -106,7 +114,15 @@ def capture_page(
         nonce=nonce,
         webview=affordance,
         intent_url=android_intent(destination) if affordance == "android" else "",
-        config={"dest": destination, "nonce": nonce, "ms": interstitial_ms},
+        # Asking needs the script; without enrichment there is nothing to ask with.
+        ask=ask_location and enrich and nonce is not None,
+        config={
+            "dest": destination,
+            "nonce": nonce,
+            "ms": interstitial_ms,
+            "ask": ask_location and enrich and nonce is not None,
+            "askMs": ASK_LOCATION_MS,
+        },
     )
 
 

@@ -139,7 +139,8 @@ GET /r/{slug}        (bare /r and /r/ resolve the default link instead — F1.AC
         ├─ classification: weighted rules → bot_score, spoof_score  [F5]
         ├─ location inference: 11 sources → consensus → strict +    [F4]
         │    advisory + agreement/conflict + candidate rows
-        ├─ geofence eval: ST_Covers over GiST                       [F6.AC5]
+        ├─ geofence eval: regions on strict codes; shapes by        [F6.AC5]
+        │    ST_Covers over GiST, only with a geopoint      [ADR-0020]
         └─ ══ SAME TRANSACTION ══ outbox INSERT with dedup_key      [F7.AC5]
                   ▼
         outbox worker → Telegram, backoff + jitter, dead-letter      [F7.AC6]
@@ -387,7 +388,7 @@ the previous located visit of the same fingerprint). Weights and thresholds are 
 |---|---|---|
 | Secrets (DB password, HMAC peppers, IP key, Telegram token, API keys) | environment variables and `0400` files; the IP key is a file **outside** the DB volume | Never in the database, never logged, never returned by an API — F12.AC3 |
 | Deployment shape (domain, Cloudflare mode, worker count, memory limits) | `.env`, documented in `.env.example` | Domain-agnostic so one image serves both domain paths — F13.AC5 |
-| Runtime behaviour (inference toggles, weights, thresholds, rate limits, retention, quiet hours) | database, **versioned** | Editable from the dashboard, no restart, every change audit-logged and rollback-able — F4.AC14 |
+| Runtime behaviour (inference toggles, weights, thresholds, rate limits, retention, quiet hours) | database: inference settings **versioned** (F4.AC14); quiet hours in `app_settings` (M6) | Editable from the dashboard, no restart. Inference settings roll back to any version; other settings are audit-logged with the old and new value, and restoring one is another change |
 
 ### 5.2 Trust boundaries
 
@@ -772,7 +773,7 @@ not a dependency (ADR-0003 amendment).
 | `uvicorn[standard]`, `gunicorn` | ASGI server plus worker supervision with request recycling | uvicorn alone (no supervision or recycling) |
 | `pydantic`, `pydantic-settings` | Strict typing at every boundary and typed configuration from the environment | hand-rolled validation |
 | `sqlalchemy[asyncio]` 2.0 | Typed 2.0 mappings for admin CRUD; the hot capture path uses raw SQL on the same pool | raw asyncpg only (loses migrations tooling and typed models) |
-| `geoalchemy2` | PostGIS column types in SQLAlchemy. **Not installed until M6**, which is the first code to read or write geometry; M2 adds `visits.geopoint` with plain DDL and leaves it unmapped | raw SQL for all geometry |
+| `geoalchemy2` | PostGIS column types in SQLAlchemy. **Still not installed in M6.** Geofence evaluation reads geometry only inside one `ST_Covers` query, so `geofences.area` and `center` stay unmapped like `visits.geopoint`, and every statement that touches them names its PostGIS function in SQL. Install it only if the geofence editor's reads and writes become unwieldy without it | raw SQL for all geometry (chosen so far) |
 | `alembic` | Forward-only reviewed migrations. Worth the dependency on its own | hand-written SQL migrations |
 | `asyncpg` | Fastest async PostgreSQL driver | psycopg3 async (comparable; asyncpg chosen for pool ergonomics) |
 | `psycopg[binary]` | **Sync** driver, used by Alembic only. Migrations have no reason to be async, and a sync driver makes a failed migration far easier to read | running Alembic on asyncpg (works, but every failure arrives wrapped in async machinery) |
@@ -806,7 +807,7 @@ not a dependency (ADR-0003 amendment).
 | `react-router` | Routing with URL-shareable filter state (F9.AC13) | hash routing |
 | `tailwindcss` | Utility CSS with design tokens; three themes via CSS custom properties | plain CSS modules |
 | `echarts` | **One** dependency covering line, bar, calendar heatmap, Sankey, gauge, geo and treemap, with canvas rendering that survives 90 k points | Recharts (no calendar heatmap or Sankey, SVG struggles at volume), visx (much more assembly), Chart.js (weaker chart variety) |
-| `leaflet` + `@geoman-io/leaflet-geoman-free` | Polygon and circle drawing with vertex editing. **M5 installs Leaflet only**, drawing self-hosted outlines with no tiles (ADR-0017: CARTO's keyless basemap ended); Geoman and a basemap for drawing are M6's (RISKS R26) | MapLibre GL (prettier vector, but free vector styles need a key you declined), Mapbox (paid) |
+| `leaflet` + `@geoman-io/leaflet-geoman-free` | Polygon and circle drawing with vertex editing. **M5 installs Leaflet only**, drawing self-hosted outlines with no tiles (ADR-0017: CARTO's keyless basemap ended). **M6 adds Geoman 2.20.2 (MIT)** after its CSP spike passed in three engines (ADR-0020 decision 8): 74 KB gzipped JavaScript with its lodash, turf and polyclip dependencies, and 6.5 KB of CSS, in the geofence editor's lazy chunk only (UI-24). No basemap (ADR-0020 decision 1) | MapLibre GL (prettier vector, but free vector styles need a key you declined), Mapbox (paid), own drawing tools on Leaflet's API (ADR-0020's fallback: smaller, but vertex editing, snapping and drag would be ours to write and test) |
 | `zod` | Validates API payloads at runtime. Generated types prove the *contract*; zod proves the *payload* | trusting generated types (a schema drift becomes a runtime crash) |
 | `@tailwindcss/vite` | **M5.** Tailwind 4's build integration; generates the utilities from the theme tokens at build time | PostCSS plugin plus config file (v3's arrangement, more moving parts) |
 | dev: `@types/leaflet` | **M5.** Leaflet ships no types; strict TypeScript needs them (ES1) | hand-written declarations for the parts used |

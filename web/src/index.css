@@ -16,6 +16,7 @@
 @import './styles/primitives.css';
 @import './styles/shell.css';
 @import './styles/data.css';
+@import './styles/configure.css';
 
 /* Inter Variable, self-hosted (font-src 'self', ADR-0019): Latin and Latin-Extended only.
    The browser downloads a face only when the page's text needs one of its characters. */

@@ -39,7 +39,7 @@ from tracelet.auth.dependencies import (
     OwnerPrincipal,
     client_ip,
 )
-from tracelet.capture.models import Classification, Link, Visit, VisitStage
+from tracelet.capture.models import Classification, GeofenceState, Link, Visit, VisitStage
 from tracelet.capture.service import DECRYPT_PER_ADMIN
 from tracelet.crypto.envelope import DecryptionError, Envelope, open_str
 from tracelet.db.engine import session_scope
@@ -105,7 +105,8 @@ class DeviceBlock(BaseModel):
 
 
 class GeofenceBlock(BaseModel):
-    state: str
+    # null: no active geofence applied to the visit (ADR-0020 decision 5).
+    state: GeofenceState | None
     matched: list[str]
 
 
@@ -244,7 +245,7 @@ def summarize(visit: Visit, link: Link, *, is_returning: bool | None) -> VisitSu
             gpu_renderer=visit.gpu_renderer,
         ),
         geofence=GeofenceBlock(
-            state=visit.geofence_state.value,
+            state=visit.geofence_state,
             matched=[str(g) for g in visit.matched_geofence_ids],
         ),
         visitor_id=visit.visitor_id.hex() if visit.visitor_id else None,

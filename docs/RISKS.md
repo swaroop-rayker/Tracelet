@@ -24,14 +24,14 @@ Severity is `impact × likelihood` at the time of writing, reassessed after each
 | R17 | Fingerprint instability inflates unique-visitor counts | Medium | Accepted, disclosed |
 | R18 | Telegram becomes a security dependency, not just a notifier | Medium | Accepted, mitigated |
 | R19 | **Header order and HTTP/2 detail are unobservable behind Caddy** | **High** | **Closed: header set + re-weighting built in M4 (SPEC §11 row 7)** |
-| R20 | A first-visit location prompt cannot be answered inside the interstitial | Medium | **Closed 2026-09-29: never prompt, read an existing grant (SPEC §11 row 8)** |
+| R20 | A first-visit location prompt cannot be answered inside the interstitial | Medium | **Revisited 2026-10-06 — per-link opt-in, 15 s ceiling (ADR-0021)** |
 | R21 | **A JavaScript-executing Meta scanner passes the crawler gate** | **High** | **Closed in M4: classified `datacenter`, never `human` (test fixture)** |
 | R22 | **Registry-artifact collapse to admin1 still emits the artifact's state** | **High** | **Closed 2026-09-29: collapse to country (SPEC §11 row 11)** |
 | R23 | S10 latency triangulation cannot be built without third-party requests | Medium | **Closed 2026-09-29: S10 dropped (SPEC §11 row 12)** |
 | R24 | Rule (a) cannot tell a regional ISP from a registry collapse | Medium | **Accepted for M3 — tune in M8 with ground truth** |
 | R25 | **The raw analytics fallback is slow at the design load** | Medium | **Open — rollup path measured at p95 ≤ 70 ms; raw fallback up to 10 s on long windows** |
-| R26 | Geofence drawing (M6) has no street-level basemap | Medium | **Open — decide in M6 before the drawing canvas (ADR-0017)** |
-| R27 | The UI redesign (M5.5) regresses accessibility, the CSP or behaviour | Medium | **Mitigated 2026-10-03 — 0 CSP violations in Chromium, Firefox and WebKit (after E44), filters unchanged, a11y sweep clean, 72-image matrix; the hand keyboard pass remains** |
+| R26 | Geofence drawing (M6) has no street-level basemap | Medium | **Closed 2026-10-06 — accepted: no basemap, region geofences (ADR-0020)** |
+| R27 | The UI redesign (M5.5) regresses accessibility, the CSP or behaviour | Medium | **Mitigated 2026-10-03 — 0 CSP violations in Chromium, Firefox and WebKit (after E44), filters unchanged, a11y sweep clean, 72-image matrix; hand keyboard pass by the owner 2026-10-07, nothing failed** |
 
 ---
 
@@ -437,6 +437,12 @@ records an undecided permission as `consent_state='not_asked'`. It never prompts
 **Accepted consequence:** consented (S1) location will be rare, since nothing on this
 origin ever asks.
 
+
+**Revisited 2026-10-06 (owner, ADR-0021, SPEC §11 row 19).** Option 3, holding the redirect,
+is now adopted **per link and bounded**: a link with `ask_location` shows consent text and the
+prompt, and waits for the answer for at most 15 s, with Continue always available. Links that
+do not opt in keep option 2. What stays open: how long in-app browsers hold an asking visitor
+before reporting a refusal. Measure it on the first real asking links.
 ---
 
 ## R21 — A JavaScript-executing Meta scanner passes the crawler gate · **HIGH**
@@ -596,6 +602,11 @@ the dashboard's hostname; light style only), a provider key (reopens C6), or dra
 outlines and coordinates only (honest, but hard to use). Decide before building the canvas,
 with an ADR.
 
+**Closed 2026-10-06, accepted (ADR-0020).** No basemap. The editor draws over the outlines,
+with typed coordinates and GeoJSON import for precise shapes, and adds **region geofences**
+(countries and states) matched on the strict country and state. Street-level drawing is not
+offered. Reopen if a keyless, Referer-free basemap appears.
+
 ---
 
 ## R27 — The UI redesign regresses accessibility, the CSP or behaviour · MEDIUM
@@ -632,7 +643,13 @@ been attached too late to see it (E44). After the fix: **0 violations in all thr
 The same run found three more regressions, all fixed: a chart's data table pushing the chart
 over its neighbour (E45), ECharts overwriting every chart's accessible name (E46), and two pages
 wider than the screen (E47). The 72-image matrix was captured with an overflow check on every
-image. **Still open:** the by-hand keyboard walkthrough.
+image.
+
+**Hand keyboard pass, 2026-10-07.** The owner tabbed through every page, menu, dialog, drawer,
+filter editor, popover and the command palette, mouse-free, and tried the shortcuts: focus
+always visible, a sensible order, no trap, every control operable, focus returned on close.
+Nothing failed. The last open item of M5.5 is closed; the risk stays monitored, because every
+new overlay must keep UI-11.
 
 ---
 

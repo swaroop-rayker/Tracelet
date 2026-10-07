@@ -73,6 +73,16 @@ class Action:
     LINK_ARCHIVED: Final = "link.archived"
     LINK_DELETED: Final = "link.deleted"
 
+    # geofences (M6, F6) -- owner-only configuration, invariant 9
+    GEOFENCE_CREATED: Final = "geofence.created"
+    GEOFENCE_UPDATED: Final = "geofence.updated"  # names every changed field, old and new
+    GEOFENCE_DELETED: Final = "geofence.deleted"
+    GEOFENCE_IMPORTED: Final = "geofence.imported"
+
+    # notifications (M6, F7)
+    OUTBOX_RETRIED: Final = "outbox.retried"  # a dead letter requeued by hand, F7.AC6
+    TELEGRAM_TEST_SENT: Final = "telegram.test_sent"  # F7.AC8
+
     # visits (M2)
     IP_DECRYPTED: Final = "visit.ip_decrypted"  # F12.AC4
 
@@ -82,7 +92,7 @@ class Action:
 
     # reserved for later milestones, listed so the vocabulary is visible
     RETENTION_PURGED: Final = "retention.purged"  # M7
-    SETTINGS_CHANGED: Final = "settings.changed"  # M7
+    SETTINGS_CHANGED: Final = "settings.changed"  # M6 (quiet hours), M7
 
 
 async def record(

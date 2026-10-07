@@ -39,13 +39,19 @@ export default tseslint.config(
               name: 'lucide-react',
               message: 'Import icons from @/components/icons (DESIGN §4.8).',
             },
+            {
+              // ERRORS E54: zod must be configured for the CSP before its first parse.
+              name: 'zod',
+              message: 'Import z from @/api/zod, which configures it for the CSP (ERRORS E54).',
+              allowTypeImports: true,
+            },
           ],
         },
       ],
     },
   },
   {
-    files: ['src/components/icons.ts'],
+    files: ['src/components/icons.ts', 'src/api/zod.ts'],
     rules: { 'no-restricted-imports': 'off' },
   },
   {

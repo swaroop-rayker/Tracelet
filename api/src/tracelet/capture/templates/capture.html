@@ -19,6 +19,8 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="robots" content="noindex,nofollow">
 <title>Redirecting…</title>
+{# An empty icon: without it Firefox fetches /favicon.ico, which the CSP refuses (E63). #}
+<link rel="icon" href="data:,">
 {% if not enrich %}<meta http-equiv="refresh" content="0;url={{ destination }}">{% endif %}
 <noscript><meta http-equiv="refresh" content="0;url={{ destination }}"></noscript>
 <style nonce="{{ csp_nonce }}">
@@ -44,10 +46,21 @@
 </head>
 <body>
 <main>
+  {% if ask %}
+  {# ADR-0021, F4.AC1 as amended: this link asks. Plain consent text first, then the
+     browser's own prompt; the visitor goes on either way, and never waits more than 15 s.
+     "Continue without sharing" is a real link: it works with no script at all. #}
+  <p>Taking you to <strong>{{ destination_host }}</strong>.</p>
+  <p>This link would like your location, to tell its owner roughly where you opened it.
+     You can say no &mdash; you&rsquo;ll go on to <strong>{{ destination_host }}</strong> either way.</p>
+  <a class="go" id="skip" href="{{ destination }}" rel="noreferrer">Continue without sharing</a>
+  <p class="muted">This link records basic visit details &mdash; <a href="/privacy">privacy</a>.</p>
+  {% else %}
   {# RW-4: one line, a privacy link, a Continue control. Unnoticeable in duration,
      not in existence. #}
   <p>Taking you to <strong>{{ destination_host }}</strong>. This link records basic visit details &mdash; <a href="/privacy">privacy</a>.</p>
   <a class="go" href="{{ destination }}" rel="noreferrer">Continue now</a>
+  {% endif %}
 
   {% if webview == "android" %}
   {# F2.AC10: hand the destination to the real browser. The fallback URL keeps the
@@ -80,9 +93,17 @@
   var sent = false;
 
   // F2.AC5: the visitor is never held waiting on telemetry. This fires whatever
-  // happens below, including every exception.
-  var leaveAt = cfg.ms;
-  setTimeout(function () { window.location.replace(cfg.dest); }, leaveAt);
+  // happens below, including every exception. A link that asks for location waits for
+  // the answer instead, but still at most askMs (ADR-0021).
+  var ask = cfg.ask === true;
+  var leaveAt = ask ? cfg.askMs : cfg.ms;
+  var left = false;
+  function leave() {
+    if (left) return;
+    left = true;
+    window.location.replace(cfg.dest);
+  }
+  setTimeout(leave, leaveAt);
 
   function safe(fn) { try { return fn(); } catch (e) { return null; } }
 
@@ -224,11 +245,40 @@
   var deadline = Math.max(leaveAt - 150, 0);
   setTimeout(function () { send({ state: "timeout" }); }, deadline);
 
+  // ADR-0021: a link that asks requests the browser prompt now and leaves as soon as it
+  // is answered -- with the position, or with a refusal. Pressing "Continue without
+  // sharing" is a refusal too. Nothing here can delay the hard timer above.
+  if (ask) {
+    var skip = document.getElementById("skip");
+    if (skip) {
+      skip.addEventListener("click", function () { send({ state: "denied" }); left = true; });
+    }
+    safe(function () {
+      if (!navigator.geolocation) {
+        send({ state: "unsupported" });
+        setTimeout(leave, cfg.ms);
+        return;
+      }
+      navigator.geolocation.getCurrentPosition(
+        function (p) {
+          send({ state: "granted", lat: p.coords.latitude, lng: p.coords.longitude,
+                 accuracyM: p.coords.accuracy });
+          leave();
+        },
+        function (err) {
+          send({ state: err && err.code === 1 ? "denied" : err && err.code === 3 ? "timeout" : "unavailable" });
+          leave();
+        },
+        { enableHighAccuracy: false, maximumAge: 600000, timeout: Math.max(deadline - 100, 0) }
+      );
+    });
+  }
+
   // F4.AC1 (amended, SPEC section 11 row 8): read location only where permission is
   // already granted, and never show a prompt -- one cannot be answered inside the
   // interstitial (RISKS R20). Without the Permissions API there is no way to know
   // without prompting, so the answer is "unsupported".
-  safe(function () {
+  if (!ask) safe(function () {
     if (!navigator.geolocation || !navigator.permissions || !navigator.permissions.query) {
       send({ state: "unsupported" });
       return;
