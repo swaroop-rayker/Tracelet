@@ -1056,6 +1056,14 @@ option: it means every encrypted connection is decrypted and re-encrypted inside
 process, which is a real trade independent of Docker. This is recorded as a workaround
 chosen deliberately, not as a resolution.
 
+**Recurred 2026-10-07 (M7), for a container that does not build from `api/`.** After a
+reboot the Cloudflare quick tunnel used for the owner's phone tests could not start: `failed
+to request quick Tunnel ... x509: certificate signed by unknown authority`, the issuer again
+"Norton Web/Mail Shield Root". The API image was unaffected (it has the root, above); the
+throwaway `cloudflared` container did not. Worked around for that container only by mounting
+`api/certs/local-tls-inspection.crt` read-only and pointing `SSL_CERT_DIR` at it. Nothing in
+the repository changed. A container started by hand needs the same, or the scanning turned off.
+
 **Related:** E19, E20.
 
 ---
@@ -2239,6 +2247,125 @@ alert inside the visible part of the inspector, and a corrected radius then save
 walk now sizes its circle for the world view.
 
 **Related:** UI-14, F6.AC1.
+
+---
+
+### E66 — The restore check could not restore PostGIS's own table
+
+**Status:** Fixed before commit. **Milestone:** M7. **Date:** 2026-10-07.
+
+**Symptom.** The first restore-check test failed: `pg_restore: error: could not execute query:
+ERROR: permission denied for table spatial_ref_sys`.
+
+**Root cause.** `spatial_ref_sys` belongs to PostGIS and is marked as an extension
+configuration table, so `pg_dump` includes its data. The scratch database already has that
+table, filled, from its template; and `tracelet_maint` -- rightly not a superuser -- may not
+write to an extension's table. Filtering out only the `EXTENSION` entries was not enough.
+
+**Fix.** The restore list keeps table data only for the tables the backup counted, which are
+exactly the database's own (extension-owned tables are left out of the counts too). A unit
+test pins the filter on a sample listing; the integration test restores a real dump.
+
+**Prevention.** The restore check runs against a real dump in CI (`test_backups.py`), so a
+new extension's data, or a new grant, fails there and not in production.
+
+**Related:** ADR-0022, F12.AC10.
+
+---
+
+### E67 — A purge failed at its first batch: an autocommit connection had "begun"
+
+**Status:** Fixed before commit. **Milestone:** M7. **Date:** 2026-10-07.
+
+**Symptom.** The manual purge's background task died with `InvalidRequestError: This
+connection has already initialized a SQLAlchemy Transaction() ... can't call begin()`, and the
+test only saw `last_purge` stay empty -- the test helper had gathered the task with
+`return_exceptions=True` and swallowed it.
+
+**Root cause.** The maintenance connection was opened in `AUTOCOMMIT` so the purge could
+commit batch by batch, and the advisory lock was taken with a plain `execute`. SQLAlchemy
+2.0 still *autobegins* a transaction object on that first statement, whatever the isolation
+level, so the first batch's explicit `begin()` collided with it.
+
+**Fix.** The connection uses ordinary transactions; the lock is taken inside one, because a
+session advisory lock outlives the transaction that takes it. `AUTOCOMMIT` is opt-in, only for
+`CREATE`/`DROP DATABASE`. The test helper now re-raises a failed task.
+
+**Prevention.** Background jobs started by a request are awaited in their tests with
+exceptions re-raised; "the result never appeared" is not an assertion.
+
+**Related:** ADR-0022.
+
+---
+
+### E68 — System health's flow diagram and database table were cut off
+
+**Status:** Fixed before commit. **Milestone:** M7. **Date:** 2026-10-07.
+
+**Symptom.** In the screenshot matrix, the inference flow diagram's last three columns
+(classification, geofence, alert) were clipped at 1440 px, and the geo-database table's Update
+buttons at 1024 px. The page-overflow check passed: both scrolled inside their card instead.
+
+**Root cause.** Seven fixed-minimum columns, and a seven-column table, in a content column of
+about 860 px (650 at 1024).
+
+**Fix.** The last three steps, one node each, share one column, and the columns wrap where
+they do not fit. The table merges size and checksum into one "File" column and keeps names,
+versions and identifiers on one line.
+
+**Prevention.** A clipped child is not page overflow; the matrix screenshots are read, not only
+checked for a horizontal scrollbar.
+
+**Related:** DESIGN §16 M7, UI-10.
+
+---
+
+### E69 — The retention tests cleared the dev database's encrypted IP addresses
+
+**Status:** Fixed. **Data lost in the dev database, not recoverable.** **Milestone:** M7.
+**Date:** 2026-10-07.
+
+**Symptom.** Checking System health after QA, the audit log showed a *scheduled* purge at
+16:03 that had cleared **164** encrypted IP addresses -- every one on the dev data's `demo-ig`
+link (real ISP visits, 2 September to 3 October). The 63 remaining were set to expire after 3
+days instead of 30.
+
+**Root cause.** Two retention tests change the IP period through the API (to 5 and to 3
+days), which -- correctly -- re-dates every stored IP's expiry. The fixture then "restored"
+the policy by rewriting the row in SQL, which re-dates nothing. The next test,
+`test_the_nightly_purge_runs_once_a_night`, ran the real nightly purge in the shared
+database, and every IP older than 5 days was due. The visits, their HMACs and network
+prefixes are untouched, so no analytics changed; what is lost is revealing those visits' full
+addresses. No backup predates it -- M7's first ran at 16:47.
+
+**Fix.** The fixture sets and restores the policy through `change_policy`, so the expiries are
+re-dated back. The 63 surviving expiries were re-dated by hand to the 30-day policy the same
+afternoon, before the live 10-minute purge reached them.
+
+**Prevention.** A test that changes shared state through a code path with side effects
+restores it through the same path, never by rewriting the row. The suite shares the dev
+database (ES3); a fixture's teardown is part of the test.
+
+**Related:** F12.AC2, F12.AC7, E52, E56.
+
+---
+
+### E70 — The nightly backup ran again every 15 minutes after rotation
+
+**Status:** Fixed. **Milestone:** M7. **Date:** 2026-10-07.
+
+**Symptom.** Two scheduled backups on one evening, 15 minutes apart.
+
+**Root cause.** "Has tonight's backup run?" counted only `ok` and `running` rows. A manual
+backup later the same day made the scheduled one no longer the day's newest, so rotation
+pruned its file and marked it `pruned` -- and the next 15-minute check found nothing done.
+
+**Fix.** `nightly_due()`: a pruned backup completed, so it counts; unit-tested on every status.
+
+**Prevention.** The rule is a pure function with its own tests; the integration test can be
+skipped when the shared database already has a backup that hour, the unit test cannot.
+
+**Related:** ADR-0022, F12.AC9.
 
 ---
 

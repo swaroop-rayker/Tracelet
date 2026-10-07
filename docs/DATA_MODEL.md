@@ -984,9 +984,9 @@ Tracelet reports about itself must be read with the sample size visible (RISKS R
 
 | Data | Retention | Purge behaviour |
 |---|---|---|
-| `visits.ip_enc` | 30 days (configurable) | Column set to `NULL`; `ip_hmac` and `ip_prefix` persist |
-| `visits` + `visit_candidates` | 180 days (configurable) | Batched delete, cascade to candidates, aggregates already rolled up |
-| `audit_log` | 365 days (configurable) | Deleted by a maintenance role, since the app role cannot delete |
+| `visits.ip_enc` | 30 days (configurable) | Column set to `NULL`; `ip_hmac` and `ip_prefix` persist. Every 10 minutes, on `ip_purge_after`, which capture stamps from the policy and a policy change re-dates |
+| `visits` + `visit_candidates` | 180 days (configurable, at least 8) | Batched delete, cascade to candidates, aggregates already rolled up. Nightly, an hour before the backup |
+| `audit_log` | 365 days (configurable) | Deleted by `tracelet_maint`, since the app role cannot delete. Nightly |
 | `sessions` | Expiry-driven | Reaped continuously |
 | `auth_challenges` | Minutes | Reaped once consumed or expired |
 | `admin_enrollment_tokens` | 24 hours | Reaped once consumed or expired |
@@ -994,7 +994,8 @@ Tracelet reports about itself must be read with the sample size visible (RISKS R
 | `rate_limit_buckets` | Ephemeral | Cleaned when stale |
 | `geo_cache` | TTL | Cleaned on expiry |
 | `rollup_*` | **Indefinite** | Never purged; small and the long-term history |
-| `outbox` `done` rows | 30 days | `dead` rows retained until acknowledged |
+| `outbox` `done` rows | 30 days | Nightly. `dead` rows retained until retried |
+| `backups`, `restore_checks` | Indefinite (rows) | Rows are the history and are never deleted; a backup's **file** is rotated -- the newest of each of 7 days and 4 weeks kept -- and its row becomes `pruned` (section 8.8) |
 | Reference and config (section 8) | **Indefinite** | Never purged, always backed up |
 
 **Must never be lost** (F12.AC12, NFR5.AC3): `admins`, `admin_recovery_codes`, `links`,
@@ -1003,7 +1004,10 @@ Tracelet reports about itself must be read with the sample size visible (RISKS R
 
 **Purge rules:** transactional, batched to avoid long locks, dry-runnable with exact
 counts before execution, and audit-logged with the counts actually deleted —
-F12.AC8, F10.AC12.
+F12.AC8, F10.AC12. *As built in M7:* `lifecycle/retention.py`; the purge takes the
+preview's instant and policy back and deletes against the same cutoffs, which is what makes
+the preview exact; one purge at a time (a session advisory lock); `retention.purged` holds
+the counts.
 
 ---
 
