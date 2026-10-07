@@ -1268,6 +1268,63 @@
         "title": "DegradationOut",
         "type": "object"
       },
+      "DeletePreview": {
+        "properties": {
+          "archived": {
+            "title": "Archived",
+            "type": "boolean"
+          },
+          "geofences_deactivated": {
+            "description": "Geofences scoped to this link alone: switched off.",
+            "items": {
+              "$ref": "#/components/schemas/GeofenceRef"
+            },
+            "title": "Geofences Deactivated",
+            "type": "array"
+          },
+          "geofences_updated": {
+            "description": "Geofences scoped to this link among others: this link is removed from them.",
+            "items": {
+              "$ref": "#/components/schemas/GeofenceRef"
+            },
+            "title": "Geofences Updated",
+            "type": "array"
+          },
+          "is_default": {
+            "title": "Is Default",
+            "type": "boolean"
+          },
+          "rollup_rows": {
+            "description": "The link's daily and hourly figures (rollups).",
+            "title": "Rollup Rows",
+            "type": "integer"
+          },
+          "slug": {
+            "title": "Slug",
+            "type": "string"
+          },
+          "visit_candidates": {
+            "title": "Visit Candidates",
+            "type": "integer"
+          },
+          "visits": {
+            "title": "Visits",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "slug",
+          "is_default",
+          "archived",
+          "visits",
+          "visit_candidates",
+          "rollup_rows",
+          "geofences_updated",
+          "geofences_deactivated"
+        ],
+        "title": "DeletePreview",
+        "type": "object"
+      },
       "DeliveryOut": {
         "properties": {
           "attempts": {
@@ -2347,6 +2404,24 @@
           "updated_at"
         ],
         "title": "GeofenceOut",
+        "type": "object"
+      },
+      "GeofenceRef": {
+        "properties": {
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name"
+        ],
+        "title": "GeofenceRef",
         "type": "object"
       },
       "GeofenceState": {
@@ -12284,7 +12359,7 @@
     },
     "/api/v1/links/{link_id}": {
       "delete": {
-        "description": "Refused while any visit references it (409 LINK_HAS_VISITS) -- archive it instead. Historical data is never orphaned (F1.AC10), and the foreign key enforces that even if this check were bypassed.",
+        "description": "Without `with_visits`, refused while any visit references it (409 LINK_HAS_VISITS) -- archive it instead (F1.AC10). With `with_visits=true`, a **permanent** delete of the link, its visits and their candidates, and its rollups, in one transaction; it is removed from geofences scoped to it, and one scoped to it alone is switched off (SPEC section 11 row 25). Works on archived links too.",
         "operationId": "delete_link_api_v1_links__link_id__delete",
         "parameters": [
           {
@@ -12294,6 +12369,16 @@
             "schema": {
               "title": "Link Id",
               "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "with_visits",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "With Visits",
+              "type": "boolean"
             }
           }
         ],
@@ -12543,6 +12628,49 @@
           }
         },
         "summary": "Make this the default link",
+        "tags": [
+          "links"
+        ]
+      }
+    },
+    "/api/v1/links/{link_id}/delete-preview": {
+      "get": {
+        "description": "Deletes nothing (SPEC section 11 row 25).",
+        "operationId": "delete_preview_api_v1_links__link_id__delete_preview_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "link_id",
+            "required": true,
+            "schema": {
+              "title": "Link Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeletePreview"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "What a permanent delete would remove (owner only)",
         "tags": [
           "links"
         ]

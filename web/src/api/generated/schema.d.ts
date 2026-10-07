@@ -1088,7 +1088,7 @@ export interface paths {
         post?: never;
         /**
          * Delete a link
-         * @description Refused while any visit references it (409 LINK_HAS_VISITS) -- archive it instead. Historical data is never orphaned (F1.AC10), and the foreign key enforces that even if this check were bypassed.
+         * @description Without `with_visits`, refused while any visit references it (409 LINK_HAS_VISITS) -- archive it instead (F1.AC10). With `with_visits=true`, a **permanent** delete of the link, its visits and their candidates, and its rollups, in one transaction; it is removed from geofences scoped to it, and one scoped to it alone is switched off (SPEC section 11 row 25). Works on archived links too.
          */
         delete: operations["delete_link_api_v1_links__link_id__delete"];
         options?: never;
@@ -1154,6 +1154,26 @@ export interface paths {
          * @description Clears the previous default in the same transaction (F1.AC3).
          */
         post: operations["make_default_api_v1_links__link_id__default_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/links/{link_id}/delete-preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * What a permanent delete would remove (owner only)
+         * @description Deletes nothing (SPEC section 11 row 25).
+         */
+        get: operations["delete_preview_api_v1_links__link_id__delete_preview_get"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -1819,6 +1839,34 @@ export interface components {
             /** Conditions */
             conditions: components["schemas"]["ConditionOut"][];
         };
+        /** DeletePreview */
+        DeletePreview: {
+            /** Archived */
+            archived: boolean;
+            /**
+             * Geofences Deactivated
+             * @description Geofences scoped to this link alone: switched off.
+             */
+            geofences_deactivated: components["schemas"]["GeofenceRef"][];
+            /**
+             * Geofences Updated
+             * @description Geofences scoped to this link among others: this link is removed from them.
+             */
+            geofences_updated: components["schemas"]["GeofenceRef"][];
+            /** Is Default */
+            is_default: boolean;
+            /**
+             * Rollup Rows
+             * @description The link's daily and hourly figures (rollups).
+             */
+            rollup_rows: number;
+            /** Slug */
+            slug: string;
+            /** Visit Candidates */
+            visit_candidates: number;
+            /** Visits */
+            visits: number;
+        };
         /** DeliveryOut */
         DeliveryOut: {
             /** Attempts */
@@ -2186,6 +2234,13 @@ export interface components {
              * Format: date-time
              */
             updated_at: string;
+        };
+        /** GeofenceRef */
+        GeofenceRef: {
+            /** Id */
+            id: string;
+            /** Name */
+            name: string;
         };
         /**
          * GeofenceState
@@ -5752,7 +5807,9 @@ export interface operations {
     };
     delete_link_api_v1_links__link_id__delete: {
         parameters: {
-            query?: never;
+            query?: {
+                with_visits?: boolean;
+            };
             header?: never;
             path: {
                 link_id: string;
@@ -5898,6 +5955,37 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["LinkOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_preview_api_v1_links__link_id__delete_preview_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                link_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DeletePreview"];
                 };
             };
             /** @description Validation Error */
