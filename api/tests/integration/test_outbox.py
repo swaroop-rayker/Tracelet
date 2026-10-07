@@ -364,22 +364,22 @@ async def test_one_visitor_alerts_once_a_day_even_when_visits_race(
     assert rows == 1
 
 
-async def _same_visitor_visits(client: AsyncClient, n: int) -> tuple[uuid.UUID, list[uuid.UUID]]:
-    """``n`` human visits today from one visitor, on a link whose ``outside`` alert is high
-    and ``undetermined`` alert normal -- so the evaluation alone picks each priority."""
+async def _same_visitor_visits(
+    client: AsyncClient, n: int, *, outside: str = "high"
+) -> tuple[uuid.UUID, list[uuid.UUID]]:
+    """``n`` human visits today from one visitor, on a link whose ``inside`` alert is high,
+    ``undetermined`` normal and ``outside`` as given (high by default) -- so the evaluation
+    alone picks each priority."""
     link = await ch.create_link()
     visits = []
     for _ in range(n):
         await ch.visit(client, link.slug)
         visits.append((await ch.latest_visit(link.id)).id)
+    policy = {"inside": "high", "outside": outside, "undetermined": "normal", "automated": "silent"}
     async with session_scope() as db:
         await db.execute(
-            text(
-                'UPDATE links SET notify_policy = \'{"inside": "high", '
-                '"outside": "high", "undetermined": "normal", '
-                '"automated": "silent"}\'::jsonb WHERE id = :id'
-            ),
-            {"id": link.id},
+            text("UPDATE links SET notify_policy = CAST(:p AS jsonb) WHERE id = :id"),
+            {"p": json.dumps(policy), "id": link.id},
         )
         await db.execute(
             text(
@@ -470,6 +470,90 @@ async def test_concurrent_upgrades_race_to_one(
     gate.set()
     assert sorted(await asyncio.gather(*tasks)) == ["duplicate", "upgrade"]
     assert [p for _, p in await _day_rows(link_id)] == [NotifyPriority.NORMAL, NotifyPriority.HIGH]
+
+
+# On a link whose `outside` is normal: a confirmed outside, and a confirmed inside (high).
+OUTSIDE = Evaluation((), GeofenceState.OUTSIDE)
+INSIDE = Evaluation((), GeofenceState.INSIDE)
+
+
+async def test_a_confirmed_outside_follows_location_not_confirmed_once(
+    db_client: AsyncClient, integration_settings: Settings
+) -> None:
+    """SPEC section 11 row 21, the owner's phone test: location refused, then allowed and
+    placed outside -- both alert. A later inside still upgrades (row 20): three alerts, in
+    the order not confirmed, outside, inside, and nothing after."""
+    link_id, (v1, v2, v3, v4, v5) = await _same_visitor_visits(db_client, 5, outside="normal")
+
+    assert await _enqueue(v1, NORMAL, integration_settings) == "queued"
+    assert await _enqueue(v2, OUTSIDE, integration_settings) == "confirmed"
+    assert await _enqueue(v3, OUTSIDE, integration_settings) == "duplicate"
+    assert await _enqueue(v4, INSIDE, integration_settings) == "upgrade"
+    assert await _enqueue(v5, OUTSIDE, integration_settings) == "duplicate"
+
+    (base, _), (confirmed, _), (upgrade, _) = rows = await _day_rows(link_id)
+    assert (confirmed, upgrade) == (base + outbox.CONFIRMED, base + outbox.UPGRADE)
+    assert [p for _, p in rows] == [
+        NotifyPriority.NORMAL,
+        NotifyPriority.NORMAL,
+        NotifyPriority.HIGH,
+    ]
+
+
+async def test_no_confirmed_outside_after_a_high_alert(
+    db_client: AsyncClient, integration_settings: Settings
+) -> None:
+    """A normal alert never follows a high one: once the inside upgrade has gone out, a
+    confirmed outside that day says nothing."""
+    link_id, (v1, v2, v3) = await _same_visitor_visits(db_client, 3, outside="normal")
+
+    assert await _enqueue(v1, NORMAL, integration_settings) == "queued"
+    assert await _enqueue(v2, INSIDE, integration_settings) == "upgrade"
+    assert await _enqueue(v3, OUTSIDE, integration_settings) == "duplicate"
+
+    assert [p for _, p in await _day_rows(link_id)] == [NotifyPriority.NORMAL, NotifyPriority.HIGH]
+
+
+async def test_a_confirmed_first_alert_has_nothing_to_confirm(
+    db_client: AsyncClient, integration_settings: Settings
+) -> None:
+    """Only "Location not confirmed" is followed by a confirmation; an outside first alert
+    is the day's alert, and a later unconfirmed visit adds nothing."""
+    link_id, (v1, v2, v3) = await _same_visitor_visits(db_client, 3, outside="normal")
+
+    assert await _enqueue(v1, OUTSIDE, integration_settings) == "queued"
+    assert await _enqueue(v2, OUTSIDE, integration_settings) == "duplicate"
+    assert await _enqueue(v3, NORMAL, integration_settings) == "duplicate"
+
+    assert len(await _day_rows(link_id)) == 1
+
+
+async def test_concurrent_confirmations_race_to_one(
+    db_client: AsyncClient, integration_settings: Settings
+) -> None:
+    """The confirmation is a unique key too (SPEC section 11 row 21)."""
+    link_id, (first, *racing) = await _same_visitor_visits(db_client, 3, outside="normal")
+    assert await _enqueue(first, NORMAL, integration_settings) == "queued"
+
+    gate = asyncio.Event()
+
+    async def queue(visit_id: uuid.UUID) -> str:
+        async with session_scope() as db:
+            await gate.wait()
+            result = await outbox.enqueue_visit_alert(
+                db,
+                visit_id,
+                OUTSIDE,
+                reporting_tz=integration_settings.reporting_tz,
+                base_url="https://x",
+            )
+            await asyncio.sleep(0.2)  # hold the transaction open across the other insert
+            return result.reason
+
+    tasks = [asyncio.create_task(queue(v)) for v in racing]
+    gate.set()
+    assert sorted(await asyncio.gather(*tasks)) == ["confirmed", "duplicate"]
+    assert len(await _day_rows(link_id)) == 2
 
 
 # ---------------------------------------------------------------------------

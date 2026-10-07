@@ -8,7 +8,10 @@ and the database decides which, so no application check can be raced.
 
 The rule has one upgrade (SPEC section 11 row 20): a high-priority alert whose day is
 already held by a *normal* alert is queued under the day key plus ``UPGRADE``, unique
-too, so concurrent upgrades also race to one row.
+too, so concurrent upgrades also race to one row. And one confirmation (row 21): an
+outside alert whose day is held by a normal "Location not confirmed" is queued under the
+day key plus ``CONFIRMED``, unless the upgrade has gone out -- a normal alert never
+follows a high one.
 
 The worker side -- claim, complete, fail, recover, retry -- is here too, so every state
 change of a row is in one file. ``notify/worker.py`` drives it.
@@ -30,7 +33,7 @@ from sqlalchemy.dialects import postgresql as pg
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import Mapped, mapped_column
 
-from tracelet.capture.models import Classification, Link, Visit, pg_enum
+from tracelet.capture.models import Classification, GeofenceState, Link, Visit, pg_enum
 from tracelet.db.base import Base
 from tracelet.geofence.models import NotifyPriority
 from tracelet.geofence.store import Evaluation
@@ -41,6 +44,8 @@ STALE_LOCK: Final = dt.timedelta(minutes=5)
 CLAIM_BATCH: Final = 10
 # The day's one upgrade from a normal alert to a high one (SPEC section 11 row 20).
 UPGRADE: Final = ":upgrade"
+# The day's one confirmed outside after a "Location not confirmed" (SPEC section 11 row 21).
+CONFIRMED: Final = ":confirmed"
 
 
 class OutboxKind(enum.StrEnum):
@@ -186,13 +191,22 @@ async def enqueue_visit_alert(
     payload = visit_payload(visit, link, evaluation, reporting_tz=reporting_tz, base_url=base_url)
     if await _insert(db, key, priority, payload):
         return Enqueued(queued=True, reason="queued", priority=priority)
+    holder = await _holder(db, key)
+    if holder is None or holder.priority is not NotifyPriority.NORMAL:
+        return Enqueued(queued=False, reason="duplicate", priority=priority)
     # SPEC section 11 row 20: the day's alert was only normal, and this one is high.
-    if (
-        priority is NotifyPriority.HIGH
-        and await _holder(db, key) is NotifyPriority.NORMAL
-        and await _insert(db, key + UPGRADE, priority, payload)
+    if priority is NotifyPriority.HIGH:
+        if await _insert(db, key + UPGRADE, priority, payload):
+            return Enqueued(queued=True, reason="upgrade", priority=priority)
+    # Row 21: the day's alert was "Location not confirmed", this one is a confirmed
+    # outside, and no high alert has gone out since.
+    elif (
+        holder.state is GeofenceState.UNDETERMINED
+        and evaluation.state is GeofenceState.OUTSIDE
+        and await _holder(db, key + UPGRADE) is None
+        and await _insert(db, key + CONFIRMED, priority, payload)
     ):
-        return Enqueued(queued=True, reason="upgrade", priority=priority)
+        return Enqueued(queued=True, reason="confirmed", priority=priority)
     return Enqueued(queued=False, reason="duplicate", priority=priority)
 
 
@@ -216,13 +230,29 @@ async def _insert(
     return inserted is not None
 
 
-async def _holder(db: AsyncSession, key: str) -> NotifyPriority | None:
-    """The priority of the alert holding ``key``. A conflicting insert waits for the
-    holder's transaction to commit, so the row is visible here; None only if a retention
-    purge removed it in between."""
-    return (
-        await db.execute(select(Outbox.priority).where(Outbox.dedup_key == key))
-    ).scalar_one_or_none()
+@dataclass(frozen=True, slots=True)
+class Holder:
+    """The alert holding a dedup key: its priority, and the geofence state it reported."""
+
+    priority: NotifyPriority
+    state: GeofenceState | None
+
+
+async def _holder(db: AsyncSession, key: str) -> Holder | None:
+    """The alert holding ``key``. A conflicting insert waits for the holder's transaction
+    to commit, so the row is visible here; None if nothing holds it -- or, for the day
+    key, if a retention purge removed it in between."""
+    row = (
+        await db.execute(
+            select(Outbox.priority, Outbox.payload["geofence_state"].astext).where(
+                Outbox.dedup_key == key
+            )
+        )
+    ).first()
+    if row is None:
+        return None
+    priority, state = row
+    return Holder(priority, GeofenceState(state) if state is not None else None)
 
 
 # ---------------------------------------------------------------------------
