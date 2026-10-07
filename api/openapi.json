@@ -143,6 +143,37 @@
         "title": "AdminSummary",
         "type": "object"
       },
+      "AttemptOut": {
+        "properties": {
+          "at": {
+            "format": "date-time",
+            "title": "At",
+            "type": "string"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "status",
+          "at",
+          "error"
+        ],
+        "title": "AttemptOut",
+        "type": "object"
+      },
       "BackupKind": {
         "enum": [
           "scheduled",
@@ -828,6 +859,40 @@
         "title": "ClassifierConfig",
         "type": "object"
       },
+      "ConditionOut": {
+        "properties": {
+          "detail": {
+            "title": "Detail",
+            "type": "string"
+          },
+          "key": {
+            "title": "Key",
+            "type": "string"
+          },
+          "severity": {
+            "description": "critical, warning or notice.",
+            "title": "Severity",
+            "type": "string"
+          },
+          "still_works": {
+            "title": "Still Works",
+            "type": "string"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "key",
+          "severity",
+          "title",
+          "detail",
+          "still_works"
+        ],
+        "title": "ConditionOut",
+        "type": "object"
+      },
       "Confidence": {
         "properties": {
           "levels": {
@@ -936,6 +1001,42 @@
         "title": "CountsModel",
         "type": "object"
       },
+      "CpuOut": {
+        "properties": {
+          "count": {
+            "title": "Count",
+            "type": "integer"
+          },
+          "load": {
+            "maxItems": 3,
+            "minItems": 3,
+            "prefixItems": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "number"
+              },
+              {
+                "type": "number"
+              }
+            ],
+            "title": "Load",
+            "type": "array"
+          },
+          "percent": {
+            "title": "Percent",
+            "type": "number"
+          }
+        },
+        "required": [
+          "percent",
+          "count",
+          "load"
+        ],
+        "title": "CpuOut",
+        "type": "object"
+      },
       "CreateAdminRequest": {
         "properties": {
           "display_name": {
@@ -1018,6 +1119,114 @@
         "title": "CutoffsModel",
         "type": "object"
       },
+      "DatabaseOut": {
+        "properties": {
+          "age_days": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Age Days"
+          },
+          "attribution": {
+            "title": "Attribution",
+            "type": "string"
+          },
+          "configured": {
+            "description": "False when its vendor credentials are not set.",
+            "title": "Configured",
+            "type": "boolean"
+          },
+          "feeds": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The inference source it feeds, if any.",
+            "title": "Feeds"
+          },
+          "installed": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/InstalledOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "kind": {
+            "title": "Kind",
+            "type": "string"
+          },
+          "last_attempt": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AttemptOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "staleness_days": {
+            "title": "Staleness Days",
+            "type": "integer"
+          },
+          "updating": {
+            "title": "Updating",
+            "type": "boolean"
+          },
+          "verdict": {
+            "description": "up_to_date, stale, missing or not_configured.",
+            "title": "Verdict",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "kind",
+          "feeds",
+          "attribution",
+          "configured",
+          "staleness_days",
+          "verdict",
+          "age_days",
+          "installed",
+          "last_attempt",
+          "updating"
+        ],
+        "title": "DatabaseOut",
+        "type": "object"
+      },
+      "DatabasesOut": {
+        "properties": {
+          "databases": {
+            "items": {
+              "$ref": "#/components/schemas/DatabaseOut"
+            },
+            "title": "Databases",
+            "type": "array"
+          }
+        },
+        "required": [
+          "databases"
+        ],
+        "title": "DatabasesOut",
+        "type": "object"
+      },
       "DecryptedIp": {
         "properties": {
           "decrypted_at": {
@@ -1035,6 +1244,28 @@
           "decrypted_at"
         ],
         "title": "DecryptedIp",
+        "type": "object"
+      },
+      "DegradationOut": {
+        "properties": {
+          "checked_at": {
+            "format": "date-time",
+            "title": "Checked At",
+            "type": "string"
+          },
+          "conditions": {
+            "items": {
+              "$ref": "#/components/schemas/ConditionOut"
+            },
+            "title": "Conditions",
+            "type": "array"
+          }
+        },
+        "required": [
+          "conditions",
+          "checked_at"
+        ],
+        "title": "DegradationOut",
         "type": "object"
       },
       "DeliveryOut": {
@@ -1271,6 +1502,45 @@
         ],
         "title": "DeviceClass",
         "type": "string"
+      },
+      "DiskOut": {
+        "properties": {
+          "path": {
+            "title": "Path",
+            "type": "string"
+          },
+          "percent": {
+            "title": "Percent",
+            "type": "number"
+          },
+          "state": {
+            "description": "ok, warn or critical against the thresholds.",
+            "title": "State",
+            "type": "string"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          },
+          "used": {
+            "title": "Used",
+            "type": "integer"
+          },
+          "warn_percent": {
+            "title": "Warn Percent",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "used",
+          "total",
+          "percent",
+          "warn_percent",
+          "state",
+          "path"
+        ],
+        "title": "DiskOut",
+        "type": "object"
       },
       "DivisionOut": {
         "properties": {
@@ -2264,6 +2534,76 @@
         "title": "InferenceSource",
         "type": "string"
       },
+      "InstalledOut": {
+        "properties": {
+          "installed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Installed At"
+          },
+          "released_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Released At"
+          },
+          "sha256": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sha256"
+          },
+          "size_bytes": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Size Bytes"
+          },
+          "version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Version"
+          }
+        },
+        "required": [
+          "version",
+          "released_at",
+          "installed_at",
+          "size_bytes",
+          "sha256"
+        ],
+        "title": "InstalledOut",
+        "type": "object"
+      },
       "Kpi": {
         "properties": {
           "change": {
@@ -2499,6 +2839,93 @@
           "city"
         ],
         "title": "LevelPriors",
+        "type": "object"
+      },
+      "LimitOut": {
+        "properties": {
+          "burst": {
+            "title": "Burst",
+            "type": "integer"
+          },
+          "ceiling_per_second": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ceiling Per Second"
+          },
+          "default": {
+            "$ref": "#/components/schemas/LimitValue"
+          },
+          "description": {
+            "title": "Description",
+            "type": "string"
+          },
+          "group": {
+            "title": "Group",
+            "type": "string"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "overridden": {
+            "title": "Overridden",
+            "type": "boolean"
+          },
+          "per_period": {
+            "title": "Per Period",
+            "type": "integer"
+          },
+          "period_seconds": {
+            "title": "Period Seconds",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "per_period",
+          "period_seconds",
+          "burst",
+          "name",
+          "group",
+          "label",
+          "description",
+          "default",
+          "overridden",
+          "ceiling_per_second"
+        ],
+        "title": "LimitOut",
+        "type": "object"
+      },
+      "LimitValue": {
+        "properties": {
+          "burst": {
+            "title": "Burst",
+            "type": "integer"
+          },
+          "per_period": {
+            "title": "Per Period",
+            "type": "integer"
+          },
+          "period_seconds": {
+            "title": "Period Seconds",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "per_period",
+          "period_seconds",
+          "burst"
+        ],
+        "title": "LimitValue",
         "type": "object"
       },
       "LinkClone": {
@@ -3798,6 +4225,52 @@
         "title": "QuietHoursOut",
         "type": "object"
       },
+      "RateLimitsChange": {
+        "properties": {
+          "limits": {
+            "additionalProperties": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/LimitValue"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "description": "By name: the new value, or null to go back to the default. Names left out are unchanged.",
+            "title": "Limits",
+            "type": "object"
+          }
+        },
+        "required": [
+          "limits"
+        ],
+        "title": "RateLimitsChange",
+        "type": "object"
+      },
+      "RateLimitsOut": {
+        "properties": {
+          "applies_within_seconds": {
+            "description": "Each worker re-reads the limits this often.",
+            "title": "Applies Within Seconds",
+            "type": "integer"
+          },
+          "limits": {
+            "items": {
+              "$ref": "#/components/schemas/LimitOut"
+            },
+            "title": "Limits",
+            "type": "array"
+          }
+        },
+        "required": [
+          "limits",
+          "applies_within_seconds"
+        ],
+        "title": "RateLimitsOut",
+        "type": "object"
+      },
       "ReadinessResponse": {
         "properties": {
           "checks": {
@@ -4483,6 +4956,74 @@
         "title": "Summary",
         "type": "object"
       },
+      "SystemOut": {
+        "properties": {
+          "cpu": {
+            "$ref": "#/components/schemas/CpuOut"
+          },
+          "database_bytes": {
+            "title": "Database Bytes",
+            "type": "integer"
+          },
+          "disk": {
+            "$ref": "#/components/schemas/DiskOut"
+          },
+          "memory": {
+            "$ref": "#/components/schemas/UsageOut"
+          },
+          "poll_seconds": {
+            "description": "How often the dashboard should ask again.",
+            "title": "Poll Seconds",
+            "type": "integer"
+          },
+          "sampled_at": {
+            "format": "date-time",
+            "title": "Sampled At",
+            "type": "string"
+          },
+          "scope": {
+            "description": "host, or container when the host's /proc is not mounted.",
+            "title": "Scope",
+            "type": "string"
+          },
+          "scope_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Scope Reason"
+          },
+          "swap": {
+            "$ref": "#/components/schemas/UsageOut"
+          },
+          "temperature": {
+            "$ref": "#/components/schemas/TemperatureOut"
+          },
+          "uptime_seconds": {
+            "title": "Uptime Seconds",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "scope",
+          "scope_reason",
+          "sampled_at",
+          "cpu",
+          "memory",
+          "swap",
+          "disk",
+          "uptime_seconds",
+          "database_bytes",
+          "temperature",
+          "poll_seconds"
+        ],
+        "title": "SystemOut",
+        "type": "object"
+      },
       "TelegramOut": {
         "properties": {
           "bot_token_set": {
@@ -4532,6 +5073,51 @@
           "chat_id"
         ],
         "title": "TelegramVerifyStart",
+        "type": "object"
+      },
+      "TemperatureOut": {
+        "properties": {
+          "celsius": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Celsius"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Why there is no reading, when there is none (RW-5).",
+            "title": "Reason"
+          },
+          "sensor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sensor"
+          }
+        },
+        "required": [
+          "celsius",
+          "sensor",
+          "reason"
+        ],
+        "title": "TemperatureOut",
         "type": "object"
       },
       "TestOut": {
@@ -4756,6 +5342,58 @@
           }
         },
         "title": "UpdateAdminRequest",
+        "type": "object"
+      },
+      "UpdateStarted": {
+        "properties": {
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "status": {
+            "default": "started",
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "title": "UpdateStarted",
+        "type": "object"
+      },
+      "UsageOut": {
+        "properties": {
+          "percent": {
+            "title": "Percent",
+            "type": "number"
+          },
+          "state": {
+            "description": "ok, warn or critical against the thresholds.",
+            "title": "State",
+            "type": "string"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          },
+          "used": {
+            "title": "Used",
+            "type": "integer"
+          },
+          "warn_percent": {
+            "title": "Warn Percent",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "used",
+          "total",
+          "percent",
+          "warn_percent",
+          "state"
+        ],
+        "title": "UsageOut",
         "type": "object"
       },
       "ValidationError": {
@@ -10544,6 +11182,91 @@
         ]
       }
     },
+    "/api/v1/health/databases": {
+      "get": {
+        "operationId": "get_databases_api_v1_health_databases_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DatabasesOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Geo databases (F10.AC3)",
+        "tags": [
+          "system health"
+        ]
+      }
+    },
+    "/api/v1/health/databases/{name}/update": {
+      "post": {
+        "description": "F10.AC4. Downloads, verifies in a memory-capped subprocess and swaps atomically; a failure leaves the previous version serving and is shown as the last attempt. `409 LIFECYCLE_JOB_RUNNING` while that database is already updating.",
+        "operationId": "update_database_api_v1_health_databases__name__update_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "title": "Name",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UpdateStarted"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Update one geo database now (owner only)",
+        "tags": [
+          "system health"
+        ]
+      }
+    },
+    "/api/v1/health/degradation": {
+      "get": {
+        "operationId": "get_degradation_api_v1_health_degradation_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DegradationOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "What is degraded now, for the banner (F10.AC14)",
+        "tags": [
+          "system health"
+        ]
+      }
+    },
     "/api/v1/health/inference": {
       "get": {
         "operationId": "get_settings_api_v1_health_inference_get",
@@ -10775,6 +11498,67 @@
         ]
       }
     },
+    "/api/v1/health/ratelimits": {
+      "get": {
+        "operationId": "get_ratelimits_api_v1_health_ratelimits_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RateLimitsOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Rate limits in force",
+        "tags": [
+          "system health"
+        ]
+      },
+      "patch": {
+        "description": "F11.AC9: no redeploy; every worker applies the change within `applies_within_seconds`. Audited `settings.changed` with the old and new values. An outbound limit may not exceed its third party's own terms.",
+        "operationId": "change_ratelimits_api_v1_health_ratelimits_patch",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RateLimitsChange"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RateLimitsOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Change rate limits (owner only)",
+        "tags": [
+          "system health"
+        ]
+      }
+    },
     "/api/v1/health/retention": {
       "get": {
         "operationId": "get_retention_api_v1_health_retention_get",
@@ -10897,6 +11681,27 @@
         "summary": "Purge what a preview showed (owner only)",
         "tags": [
           "lifecycle"
+        ]
+      }
+    },
+    "/api/v1/health/system": {
+      "get": {
+        "operationId": "get_system_api_v1_health_system_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SystemOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Host metrics (F10.AC1, F10.AC2)",
+        "tags": [
+          "system health"
         ]
       }
     },

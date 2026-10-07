@@ -24,6 +24,7 @@ from tracelet.db.engine import dispose_engine, init_engine
 from tracelet.db.request_session import DatabaseSessionMiddleware
 from tracelet.errors import install_error_handlers
 from tracelet.geofence.router import router as geofences_router
+from tracelet.health.ops_router import router as system_health_router
 from tracelet.health.router import router as health_router
 from tracelet.inference import engine as inference_engine
 from tracelet.inference.geodb import readers as geodb_readers
@@ -137,6 +138,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(inference_router)
     app.include_router(analytics_router)
     app.include_router(lifecycle_router)
+    app.include_router(system_health_router)
 
     return app
 

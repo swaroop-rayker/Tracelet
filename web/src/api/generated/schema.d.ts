@@ -786,6 +786,60 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/health/databases": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Geo databases (F10.AC3) */
+        get: operations["get_databases_api_v1_health_databases_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/health/databases/{name}/update": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Update one geo database now (owner only)
+         * @description F10.AC4. Downloads, verifies in a memory-capped subprocess and swaps atomically; a failure leaves the previous version serving and is shown as the last attempt. `409 LIFECYCLE_JOB_RUNNING` while that database is already updating.
+         */
+        post: operations["update_database_api_v1_health_databases__name__update_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/health/degradation": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** What is degraded now, for the banner (F10.AC14) */
+        get: operations["get_degradation_api_v1_health_degradation_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/health/inference": {
         parameters: {
             query?: never;
@@ -861,6 +915,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/health/ratelimits": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Rate limits in force */
+        get: operations["get_ratelimits_api_v1_health_ratelimits_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Change rate limits (owner only)
+         * @description F11.AC9: no redeploy; every worker applies the change within `applies_within_seconds`. Audited `settings.changed` with the old and new values. An outbound limit may not exceed its third party's own terms.
+         */
+        patch: operations["change_ratelimits_api_v1_health_ratelimits_patch"];
+        trace?: never;
+    };
     "/api/v1/health/retention": {
         parameters: {
             query?: never;
@@ -916,6 +991,23 @@ export interface paths {
          * @description Send the preview's `as_of` and `policy`. Refused with `409 RETENTION_PREVIEW_STALE` if the preview is over 15 minutes old or the periods have changed, and `409 LIFECYCLE_JOB_RUNNING` if a purge is running. Runs in the background; the counts deleted are in the audit row `retention.purged` and in `GET /retention` as `last_purge`.
          */
         post: operations["purge_retention_api_v1_health_retention_purge_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/health/system": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Host metrics (F10.AC1, F10.AC2) */
+        get: operations["get_system_api_v1_health_system_get"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -1265,6 +1357,18 @@ export interface components {
             /** Totp Enrolled */
             totp_enrolled: boolean;
         };
+        /** AttemptOut */
+        AttemptOut: {
+            /**
+             * At
+             * Format: date-time
+             */
+            at: string;
+            /** Error */
+            error: string | null;
+            /** Status */
+            status: string;
+        };
         /**
          * BackupKind
          * @enum {string}
@@ -1525,6 +1629,22 @@ export interface components {
                 [key: string]: number;
             };
         };
+        /** ConditionOut */
+        ConditionOut: {
+            /** Detail */
+            detail: string;
+            /** Key */
+            key: string;
+            /**
+             * Severity
+             * @description critical, warning or notice.
+             */
+            severity: string;
+            /** Still Works */
+            still_works: string;
+            /** Title */
+            title: string;
+        };
         /** Confidence */
         Confidence: {
             /** Levels */
@@ -1565,6 +1685,19 @@ export interface components {
             visit_candidates: number;
             /** Visits */
             visits: number;
+        };
+        /** CpuOut */
+        CpuOut: {
+            /** Count */
+            count: number;
+            /** Load */
+            load: [
+                number,
+                number,
+                number
+            ];
+            /** Percent */
+            percent: number;
         };
         /** CreateAdminRequest */
         CreateAdminRequest: {
@@ -1609,6 +1742,43 @@ export interface components {
              */
             visits: string;
         };
+        /** DatabaseOut */
+        DatabaseOut: {
+            /** Age Days */
+            age_days: number | null;
+            /** Attribution */
+            attribution: string;
+            /**
+             * Configured
+             * @description False when its vendor credentials are not set.
+             */
+            configured: boolean;
+            /**
+             * Feeds
+             * @description The inference source it feeds, if any.
+             */
+            feeds: string | null;
+            installed: components["schemas"]["InstalledOut"] | null;
+            /** Kind */
+            kind: string;
+            last_attempt: components["schemas"]["AttemptOut"] | null;
+            /** Name */
+            name: string;
+            /** Staleness Days */
+            staleness_days: number;
+            /** Updating */
+            updating: boolean;
+            /**
+             * Verdict
+             * @description up_to_date, stale, missing or not_configured.
+             */
+            verdict: string;
+        };
+        /** DatabasesOut */
+        DatabasesOut: {
+            /** Databases */
+            databases: components["schemas"]["DatabaseOut"][];
+        };
         /** DecryptedIp */
         DecryptedIp: {
             /**
@@ -1618,6 +1788,16 @@ export interface components {
             decrypted_at: string;
             /** Ip */
             ip: string;
+        };
+        /** DegradationOut */
+        DegradationOut: {
+            /**
+             * Checked At
+             * Format: date-time
+             */
+            checked_at: string;
+            /** Conditions */
+            conditions: components["schemas"]["ConditionOut"][];
         };
         /** DeliveryOut */
         DeliveryOut: {
@@ -1679,6 +1859,24 @@ export interface components {
          * @enum {string}
          */
         DeviceClass: "mobile" | "tablet" | "desktop" | "tv" | "server" | "bot" | "unknown";
+        /** DiskOut */
+        DiskOut: {
+            /** Path */
+            path: string;
+            /** Percent */
+            percent: number;
+            /**
+             * State
+             * @description ok, warn or critical against the thresholds.
+             */
+            state: string;
+            /** Total */
+            total: number;
+            /** Used */
+            used: number;
+            /** Warn Percent */
+            warn_percent: number;
+        };
         /** DivisionOut */
         DivisionOut: {
             /** Code */
@@ -2062,6 +2260,19 @@ export interface components {
          * @enum {string}
          */
         InferenceSource: "gps" | "geolite2" | "ip2location" | "ipinfo" | "dbip" | "rdns" | "asn_org" | "cf_colo" | "external_api" | "latency" | "timezone";
+        /** InstalledOut */
+        InstalledOut: {
+            /** Installed At */
+            installed_at: string | null;
+            /** Released At */
+            released_at: string | null;
+            /** Sha256 */
+            sha256: string | null;
+            /** Size Bytes */
+            size_bytes: number | null;
+            /** Version */
+            version: string | null;
+        };
         /** Kpi */
         Kpi: {
             /** Change */
@@ -2134,6 +2345,37 @@ export interface components {
             city: number;
             /** Country */
             country: number;
+        };
+        /** LimitOut */
+        LimitOut: {
+            /** Burst */
+            burst: number;
+            /** Ceiling Per Second */
+            ceiling_per_second: number | null;
+            default: components["schemas"]["LimitValue"];
+            /** Description */
+            description: string;
+            /** Group */
+            group: string;
+            /** Label */
+            label: string;
+            /** Name */
+            name: string;
+            /** Overridden */
+            overridden: boolean;
+            /** Per Period */
+            per_period: number;
+            /** Period Seconds */
+            period_seconds: number;
+        };
+        /** LimitValue */
+        LimitValue: {
+            /** Burst */
+            burst: number;
+            /** Per Period */
+            per_period: number;
+            /** Period Seconds */
+            period_seconds: number;
         };
         /** LinkClone */
         LinkClone: {
@@ -2632,6 +2874,26 @@ export interface components {
              */
             timezone: string;
         };
+        /** RateLimitsChange */
+        RateLimitsChange: {
+            /**
+             * Limits
+             * @description By name: the new value, or null to go back to the default. Names left out are unchanged.
+             */
+            limits: {
+                [key: string]: components["schemas"]["LimitValue"] | null;
+            };
+        };
+        /** RateLimitsOut */
+        RateLimitsOut: {
+            /**
+             * Applies Within Seconds
+             * @description Each worker re-reads the limits this often.
+             */
+            applies_within_seconds: number;
+            /** Limits */
+            limits: components["schemas"]["LimitOut"][];
+        };
         /** ReadinessResponse */
         ReadinessResponse: {
             /** Checks */
@@ -2910,6 +3172,35 @@ export interface components {
              */
             previous_start: string;
         };
+        /** SystemOut */
+        SystemOut: {
+            cpu: components["schemas"]["CpuOut"];
+            /** Database Bytes */
+            database_bytes: number;
+            disk: components["schemas"]["DiskOut"];
+            memory: components["schemas"]["UsageOut"];
+            /**
+             * Poll Seconds
+             * @description How often the dashboard should ask again.
+             */
+            poll_seconds: number;
+            /**
+             * Sampled At
+             * Format: date-time
+             */
+            sampled_at: string;
+            /**
+             * Scope
+             * @description host, or container when the host's /proc is not mounted.
+             */
+            scope: string;
+            /** Scope Reason */
+            scope_reason: string | null;
+            swap: components["schemas"]["UsageOut"];
+            temperature: components["schemas"]["TemperatureOut"];
+            /** Uptime Seconds */
+            uptime_seconds: number;
+        };
         /** TelegramOut */
         TelegramOut: {
             /** Bot Token Set */
@@ -2928,6 +3219,18 @@ export interface components {
         TelegramVerifyStart: {
             /** Chat Id */
             chat_id: number;
+        };
+        /** TemperatureOut */
+        TemperatureOut: {
+            /** Celsius */
+            celsius: number | null;
+            /**
+             * Reason
+             * @description Why there is no reading, when there is none (RW-5).
+             */
+            reason: string | null;
+            /** Sensor */
+            sensor: string | null;
         };
         /** TestOut */
         TestOut: {
@@ -3012,6 +3315,32 @@ export interface components {
             display_name?: string | null;
             role?: components["schemas"]["AdminRole"] | null;
             status?: components["schemas"]["AdminStatus"] | null;
+        };
+        /** UpdateStarted */
+        UpdateStarted: {
+            /** Name */
+            name: string;
+            /**
+             * Status
+             * @default started
+             */
+            status: string;
+        };
+        /** UsageOut */
+        UsageOut: {
+            /** Percent */
+            percent: number;
+            /**
+             * State
+             * @description ok, warn or critical against the thresholds.
+             */
+            state: string;
+            /** Total */
+            total: number;
+            /** Used */
+            used: number;
+            /** Warn Percent */
+            warn_percent: number;
         };
         /** ValidationError */
         ValidationError: {
@@ -4720,6 +5049,77 @@ export interface operations {
             };
         };
     };
+    get_databases_api_v1_health_databases_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DatabasesOut"];
+                };
+            };
+        };
+    };
+    update_database_api_v1_health_databases__name__update_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                name: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UpdateStarted"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_degradation_api_v1_health_degradation_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DegradationOut"];
+                };
+            };
+        };
+    };
     get_settings_api_v1_health_inference_get: {
         parameters: {
             query?: never;
@@ -4868,6 +5268,59 @@ export interface operations {
             };
         };
     };
+    get_ratelimits_api_v1_health_ratelimits_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RateLimitsOut"];
+                };
+            };
+        };
+    };
+    change_ratelimits_api_v1_health_ratelimits_patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RateLimitsChange"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RateLimitsOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     get_retention_api_v1_health_retention_get: {
         parameters: {
             query?: never;
@@ -4970,6 +5423,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_system_api_v1_health_system_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SystemOut"];
                 };
             };
         };

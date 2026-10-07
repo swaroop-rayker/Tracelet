@@ -830,6 +830,7 @@ files only — F12.AC3, F14.AC5. Created in M6 (migration 0010). Keys:
 | Key | Value | Default when absent |
 |---|---|---|
 | `notifications.quiet_hours` | `{enabled, start: "HH:MM", end: "HH:MM", timezone: IANA}` — F7.AC9. A window whose end is before its start crosses midnight | `{enabled: false, start: "23:00", end: "07:00", timezone: "Asia/Kolkata"}` |
+| `ratelimits` | `{<limit name>: {per_period, period_seconds, burst}}` — F11.AC9, M7. Only the limits an owner changed; each worker re-reads it at most every 30 s, so a change applies without a restart. Names come from `ratelimit/registry.py`; an outbound limit may not exceed its third party's terms | absent: every limit at its default in code |
 
 Every change is owner-only and writes `settings.changed` with the old and new value
 (invariant 9); the audit row is the history, and restoring a value is another change.
@@ -838,6 +839,10 @@ Every change is owner-only and writes `settings.changed` with the old and new va
 
 `key text` PK (e.g. `cap:203.0.113.0/24`, `login:user@example.com`), `tat timestamptz`
 (theoretical arrival time), `updated_at`.
+
+**Also, since M7: `breaker:<name>`** (`breaker:ipwhois`, `breaker:nominatim`) with `tat` =
+the time an open circuit breaker stays open until, written when it opens and deleted
+when a call succeeds, so the degradation banner sees it from either worker (F10.AC14).
 
 **Index:** `(updated_at)` for the cleanup job. Ephemeral and rebuildable — the only
 table deliberately **excluded** from the must-never-be-lost set. Shared across both

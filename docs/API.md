@@ -817,6 +817,48 @@ ISP, the classification with its bot score, and a link to the visit (F7.AC4).
 preview before purge**; the API does not enforce ordering, but the dashboard does and
 the audit log records both.
 
+### System health — as built in M7 (F10.AC1–AC4, F10.AC14, F11.AC9)
+
+`GET /system` returns `{scope, scope_reason, sampled_at, cpu: {percent, count, load}, memory,
+swap, disk, uptime_seconds, database_bytes, temperature, poll_seconds}`. `memory`, `swap` and
+`disk` are `{used, total, percent, warn_percent, state: "ok"|"warn"|"critical"}` (bytes);
+`disk` also has `path`, the backups volume, which lives on the host's disk. `scope` is
+`host` when the host's `/proc` is mounted at `/host/proc` (F10.AC15) and `container` -- with
+the reason -- when it is not, so a figure is never passed off as the host's. `cpu.percent` is
+measured over a quarter of a second. `temperature` is `{celsius, sensor, reason}`: on a host
+with no sensor (GCP, Docker Desktop's VM) `celsius` is `null` and `reason` says why (RW-5).
+Thresholds come from `TRACELET_DISK_WARN_PERCENT` (85), `_DISK_CRITICAL_PERCENT` (95),
+`_MEMORY_WARN_PERCENT` (90) and `_SWAP_WARN_PERCENT` (50).
+
+`GET /databases` returns `{databases[]}`, one per catalogue entry whether or not it was ever
+installed: `{name, kind, feeds, attribution, configured, staleness_days, verdict:
+"up_to_date"|"stale"|"missing"|"not_configured", age_days, installed: {version, released_at,
+installed_at, size_bytes, sha256} | null, last_attempt: {status, at, error} | null,
+updating}`. `POST /databases/{name}/update` (owner) is `202 {name, status: "started"}`; it
+runs the same install as the scheduler, forced; `404` for an unknown name, `409
+LIFECYCLE_JOB_RUNNING` while that database is updating; audited `geodb.update_requested`.
+**`PATCH /databases/{name}` (enable or disable) is not built:** no requirement asks for it,
+`geo_databases.is_enabled` has never been read, and turning a database's source off in the
+inference settings already stops its use; a database whose vendor credentials are not
+configured is skipped by the updater on its own.
+
+`GET /degradation` returns `{conditions[], checked_at}`, most severe first. Each condition is
+`{key, severity: "critical"|"warning"|"notice", title, detail, still_works}`. Keys: `disk`,
+`swap`, `backups` (not set up, failed, or none in 36 h), `restore` (failed, or none passed in
+35 days), `download` (notice: no backup downloaded within the reminder period), `outbox`
+(dead letters), `breaker:<name>` (an open circuit breaker), `geodb:<name>` (a configured
+database stale or missing). Read from shared state, so both workers agree.
+
+`GET /ratelimits` returns `{limits[], applies_within_seconds: 30}`; each limit is `{name,
+group: "capture"|"admin"|"outbound", label, description, per_period, period_seconds, burst,
+default: {per_period, period_seconds, burst}, overridden, ceiling_per_second}`. `PATCH
+/ratelimits` (owner) takes `{limits: {<name>: {per_period, period_seconds, burst} | null}}`:
+`null`, or a value equal to the default, removes the override; names left out are unchanged.
+Any refused entry -- an unknown name, a value out of range, or an outbound limit above its
+third party's terms -- is `422` with one field error per entry, and nothing is saved.
+Audited `settings.changed` with the old and new overrides; this worker applies it at once and
+the other within 30 seconds.
+
 ### Retention — as built in M7 (F10.AC12, F12.AC7–AC8)
 
 `GET /retention` returns `{policy: {visit_days, ip_days, audit_days}, delivered_alerts_days:

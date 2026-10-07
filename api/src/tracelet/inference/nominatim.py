@@ -94,9 +94,9 @@ async def street_address(
         response.raise_for_status()
         body = response.json()
     except (httpx.HTTPError, ValueError) as exc:
-        outbound.NOMINATIM_BREAKER.failure()
+        await outbound.failed(outbound.NOMINATIM_BREAKER)
         raise SourceUnavailable(f"request_failed:{type(exc).__name__}") from exc
-    outbound.NOMINATIM_BREAKER.success()
+    await outbound.succeeded(outbound.NOMINATIM_BREAKER)
     name = body.get("display_name") if isinstance(body, dict) else None
     address = str(name)[:MAX_ADDRESS_CHARS] if name else None
     remember(lat, lng, address)

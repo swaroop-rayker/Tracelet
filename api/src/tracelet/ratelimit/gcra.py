@@ -15,12 +15,20 @@ limited request. If contention ever shows up in ``pg_stat_statements``, the next
 is an in-process front cache with PostgreSQL as the authority -- not a new service.
 
 M1 uses this for login limiting (F8.AC9). M2 extends it to the capture path.
+
+**Editable without a redeploy (F11.AC9, M7).** The values in code are defaults. An owner's
+changes are stored in ``app_settings`` under ``ratelimits`` and applied by ``check``,
+which re-reads that one row at most every 30 seconds per worker -- one primary-key lookup,
+so a change takes effect within half a minute everywhere and the capture path pays
+nothing measurable for it.
 """
 
 from __future__ import annotations
 
 import datetime as dt
+import time
 from dataclasses import dataclass
+from typing import Any, Final
 
 import structlog
 from sqlalchemy import text
@@ -54,6 +62,47 @@ class Limit:
     def delay_tolerance(self) -> dt.timedelta:
         """How far ahead of the sustained rate a caller may run."""
         return self.emission_interval * self.burst
+
+
+OVERRIDES_KEY: Final = "ratelimits"
+OVERRIDES_TTL_S: Final = 30.0
+_overrides: dict[str, Limit] = {}
+_loaded_at: float = float("-inf")
+
+
+def parse_overrides(value: dict[str, Any] | None) -> dict[str, Limit]:
+    """``{name: {per_period, period_seconds, burst}}`` as stored; anything malformed is
+    ignored rather than trusted, and the default applies."""
+    parsed: dict[str, Limit] = {}
+    for name, spec in (value or {}).items():
+        try:
+            parsed[str(name)] = Limit(
+                name=str(name),
+                per_period=int(spec["per_period"]),
+                period=dt.timedelta(seconds=int(spec["period_seconds"])),
+                burst=int(spec["burst"]),
+            )
+        except (KeyError, TypeError, ValueError):
+            log.warning("ratelimit_override_ignored", limit=str(name))
+    return {n: lim for n, lim in parsed.items() if lim.per_period > 0 and lim.burst > 0}
+
+
+async def reload_overrides(db: AsyncSession) -> dict[str, Limit]:
+    global _overrides, _loaded_at
+    value = (
+        await db.execute(
+            text("SELECT value FROM app_settings WHERE key = :k"), {"k": OVERRIDES_KEY}
+        )
+    ).scalar_one_or_none()
+    _overrides, _loaded_at = parse_overrides(value), time.monotonic()
+    return _overrides
+
+
+async def effective(db: AsyncSession, limit: Limit) -> Limit:
+    """The limit in force: the owner's override if there is one, else the default."""
+    if time.monotonic() - _loaded_at > OVERRIDES_TTL_S:
+        await reload_overrides(db)
+    return _overrides.get(limit.name, limit)
 
 
 @dataclass(frozen=True, slots=True)
@@ -121,6 +170,7 @@ async def check(db: AsyncSession, *, key: str, limit: Limit) -> Decision:
     ``login:user@example.com`` or ``cap:203.0.113.0/24``, or two different limits
     would share one bucket.
     """
+    limit = await effective(db, limit)
     namespaced = f"{limit.name}:{key}"
     row = (
         await db.execute(

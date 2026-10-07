@@ -299,6 +299,10 @@ a table, so no second copy of consented addresses outlives visit retention. Both
 through `inference/outbound.py`: a shared GCRA budget in PostgreSQL (ipwho.is 900/day;
 Nominatim 4/min, the policy's figure for scheduled use) and a per-process circuit
 breaker (five consecutive failures open it for two minutes, then one trial call).
+Since M7 a breaker that opens also announces it -- `breaker:<name>` in
+`rate_limit_buckets`, with the time it stays open until -- and withdraws it when a call
+succeeds, so System Health's banner sees it from either worker; the decision itself
+stays in process.
 `TRACELET_EXTERNAL_GEO_ENABLED=false` stops both; `street_address_enabled` in the
 versioned settings stops Nominatim alone. S10 was dropped (SPEC section 11 row 12, RISKS
 R23). A registry-artifact city collapses to the country, not admin1 (row 11, R22).
