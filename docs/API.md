@@ -859,15 +859,22 @@ release check could not reach the vendor: `check_error`), `not_installed`, `upda
 schedule says it is due), `up_to_date`. `stale` is separately true when the installed copy is
 older than its staleness threshold; it raises the degradation banner.
 
-`POST /databases/{name}/update` (owner) is `202 {name, status: "started"}`: the same install as
-the scheduler, forced, whatever `auto_update` says; `404` for an unknown name, `409
-LIFECYCLE_JOB_RUNNING` while that database is updating; audited `geodb.update_requested`.
+`POST /databases/{name}/update` (owner) **asks the vendor first** (SPEC §11 row 26): if
+nothing is newer than the installed copy it downloads nothing and answers `200 {name, status:
+"up_to_date"}`; otherwise it starts the install and answers `202 {name, status: "started"}`. It
+downloads without asking when the database is not installed, its file is missing, it is never
+checked (IP2Location), the check fails, or the dates cannot be compared. `?force=true` is
+**Download again**: no check, always `202`. Either way, whatever `auto_update` says. `404` for
+an unknown name, `409 LIFECYCLE_JOB_RUNNING` while it is updating; audited
+`geodb.update_requested` with `force` and the outcome.
 `PATCH /databases/{name}` (owner) takes `{auto_update}` and returns the database; audited
 `geodb.toggled` with the old and new value. `POST /databases/check` (owner) runs the release
 check for every database now and returns `{databases[]}`; the six-hourly update job runs it
 too. The check is a HEAD request for the vendor's `Last-Modified` (DB-IP: whether this month's
 edition is published); IP2Location is never checked over the network, because its URL is
-metered per token.
+metered per token. **The scheduler trusts a successful check** made in the last 12 hours: it
+downloads a checked database only when the check found a newer release; the refresh period
+applies to IP2Location, to a failed or old check, and when the dates cannot be compared.
 
 `GET /degradation` returns `{conditions[], checked_at}`, most severe first. Each condition is
 `{key, severity: "critical"|"warning"|"notice", title, detail, still_works}`. Keys: `shedding`

@@ -1443,7 +1443,9 @@ geolite2-asn      —                ● Unable to update · no key    —      
   `info` with the percent and the step, **as a number, never a bar**; update failed `error`
   and unable to update `warn`, each with the reason inline (the installed copy keeps
   serving); not installed `error`. A "Stale" Badge is added when the copy is older than its
-  threshold. **Update**: confirm → "Updating n %" polling every 2 s → the result (UI-15).
+  threshold. **Update**: confirm → the vendor is asked first → "Already up to date —
+  nothing downloaded", or "Updating n %" polling every 2 s → the result (UI-15). The same
+  dialog offers **Download again**, for a damaged copy (SPEC §11 row 26).
   The Switch saves at once (reversible, UI-13), owner only.
 - **Inference** (`/health/inference`): the **source switches** as SettingRows (label, code,
   family; "Applies to visits inferred from now on — no restart"); saving creates a settings
