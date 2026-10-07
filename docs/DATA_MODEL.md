@@ -787,6 +787,17 @@ file unchanged leaves no row. On disk: `<geo_data_dir>/<name>/<version>-<sha8>/<
 with `<name>/current` a symlink to the serving version; the previous version is kept and
 older ones pruned.
 
+**Added in M7, SPEC §11 row 24 (migration 0013).** The attempt row also carries its
+progress, so either worker can report it: `phase text NULL` (`downloading`, `verifying`,
+`unpacking`, `validating`, `installing`), `progress_bytes bigint NULL`, `total_bytes bigint
+NULL` (the vendor's `Content-Length`, when it sends one). Written at most every second or 2 %.
+
+**`geo_database_settings`** -- one row per database name, written the first time it is needed:
+`name text` PK, `auto_update boolean` default true, `latest_version text NULL`,
+`latest_released_at timestamptz NULL` (from the last release check), `checked_at timestamptz
+NULL`, `check_error text NULL`, `updated_by uuid NULL` FK admins `ON DELETE SET NULL`,
+`updated_at`. In the must-never-be-lost set like the rest of section 8.
+
 ### 8.4 `inference_settings`
 
 `id`, `version integer` UNIQUE, `settings jsonb` (source toggles, weights, thresholds,

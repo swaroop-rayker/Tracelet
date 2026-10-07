@@ -334,7 +334,8 @@ to twelve hours.
 | `POST` | `/api/v1/links/{id}/clone` | owner | Rotate a burned slug, keeping configuration (F1.AC9) |
 | `POST` | `/api/v1/links/{id}/default` | owner | Set default; clears the previous atomically |
 | `POST` | `/api/v1/links/{id}/archive` | owner | Archive |
-| `DELETE` | `/api/v1/links/{id}` | owner | `409 LINK_HAS_VISITS` if referenced — archive instead (F1.AC10) |
+| `DELETE` | `/api/v1/links/{id}` | owner | `409 LINK_HAS_VISITS` if referenced — archive instead (F1.AC10); with `?with_visits=true`, a permanent delete of the link and its visits (SPEC §11 row 25) |
+| `GET` | `/api/v1/links/{id}/delete-preview` | owner | Exactly what a permanent delete would remove. **M7** |
 
 **Create / update body**
 
@@ -392,6 +393,18 @@ header, or path** (F1.AC7, F13.AC3).
 * **Every write** is owner-only and writes an `audit_log` row: `link.created`,
   `link.updated` (with `{from, to}` for each changed field -- F1.AC8), `link.cloned`,
   `link.default_changed`, `link.archived`, `link.deleted`.
+
+### 6.2 Permanent delete — added in M7 (SPEC §11 row 25)
+
+`GET /api/v1/links/{id}/delete-preview` returns `{slug, is_default, archived, visits,
+visit_candidates, rollup_rows, geofences_updated: [{id, name}], geofences_deactivated: [{id,
+name}]}` and deletes nothing. `DELETE /api/v1/links/{id}?with_visits=true` then removes, in one
+transaction, the link, its visits and their candidates, and its rollup rows (foreign keys
+cascade); removes it from every geofence's `link_ids`, switching off a geofence that was scoped
+to it alone; and leaves queued alerts to send. `204`. It works on archived links too. The
+default link while another live one exists is still `409 DEFAULT_LINK_REQUIRED`. Without
+`with_visits`, a link with visits is `409 LINK_HAS_VISITS` as before. Audited `link.deleted`
+with `slug`, `destination_url`, `with_visits` and the counts deleted.
 
 ---
 
@@ -795,7 +808,8 @@ ISP, the classification with its bot score, and a link to the visit (F7.AC4).
 | `GET` | `/api/v1/health/system` | any | CPU %, RAM, swap, disk, load, uptime, DB size, **temperature or `null` with a reason** (F10.AC1, RW-5) |
 | `GET` | `/api/v1/health/databases` | any | Each geo database: version, dates, size, sha256, staleness verdict (F10.AC3) |
 | `POST` | `/api/v1/health/databases/{name}/update` | owner | `202` job. Streams, verifies, atomic swap. Failure leaves the previous version serving (F10.AC4) |
-| `PATCH` | `/api/v1/health/databases/{name}` | owner | Enable or disable |
+| `PATCH` | `/api/v1/health/databases/{name}` | owner | `{auto_update}`: whether the scheduler updates it (SPEC §11 row 24). **M7** |
+| `POST` | `/api/v1/health/databases/check` | owner | Check every database for a newer release now; no download. **M7** |
 | `GET` | `/api/v1/health/inference` | any | Active settings version: source toggles, weights, thresholds |
 | `PATCH` | `/api/v1/health/inference` | owner | Creates a **new version**; old versions retained for rollback (F4.AC14) |
 | `POST` | `/api/v1/health/inference/rollback/{version}` | owner | Reactivate an earlier version |
@@ -831,16 +845,29 @@ Thresholds come from `TRACELET_DISK_WARN_PERCENT` (85), `_DISK_CRITICAL_PERCENT`
 `_MEMORY_WARN_PERCENT` (90) and `_SWAP_WARN_PERCENT` (50).
 
 `GET /databases` returns `{databases[]}`, one per catalogue entry whether or not it was ever
-installed: `{name, kind, feeds, attribution, configured, staleness_days, verdict:
-"up_to_date"|"stale"|"missing"|"not_configured", age_days, installed: {version, released_at,
-installed_at, size_bytes, sha256} | null, last_attempt: {status, at, error} | null,
-updating}`. `POST /databases/{name}/update` (owner) is `202 {name, status: "started"}`; it
-runs the same install as the scheduler, forced; `404` for an unknown name, `409
+installed: `{name, kind, feeds, attribution, configured, auto_update, staleness_days, stale,
+state, progress, age_days, installed, latest, last_attempt, check_error, checked_at}`.
+`installed` is `{version, released_at, installed_at, size_bytes, sha256}` or `null`; `latest` is
+what the last release check found, `{version, released_at}` or `null`.
+
+`state` (SPEC §11 row 24) is one of, in this order of precedence: `updating` (an attempt in
+flight; `progress` is `{phase, percent}` -- `percent` may be `null` while downloading from a
+vendor that sends no length), `update_failed` (the newest attempt failed; the installed copy
+keeps serving; `last_attempt.error` says why), `unable_to_update` (no credentials, or the last
+release check could not reach the vendor: `check_error`), `not_installed`, `update_available`
+(the check found a newer release, or -- for a database that cannot be checked -- its refresh
+schedule says it is due), `up_to_date`. `stale` is separately true when the installed copy is
+older than its staleness threshold; it raises the degradation banner.
+
+`POST /databases/{name}/update` (owner) is `202 {name, status: "started"}`: the same install as
+the scheduler, forced, whatever `auto_update` says; `404` for an unknown name, `409
 LIFECYCLE_JOB_RUNNING` while that database is updating; audited `geodb.update_requested`.
-**`PATCH /databases/{name}` (enable or disable) is not built:** no requirement asks for it,
-`geo_databases.is_enabled` has never been read, and turning a database's source off in the
-inference settings already stops its use; a database whose vendor credentials are not
-configured is skipped by the updater on its own.
+`PATCH /databases/{name}` (owner) takes `{auto_update}` and returns the database; audited
+`geodb.toggled` with the old and new value. `POST /databases/check` (owner) runs the release
+check for every database now and returns `{databases[]}`; the six-hourly update job runs it
+too. The check is a HEAD request for the vendor's `Last-Modified` (DB-IP: whether this month's
+edition is published); IP2Location is never checked over the network, because its URL is
+metered per token.
 
 `GET /degradation` returns `{conditions[], checked_at}`, most severe first. Each condition is
 `{key, severity: "critical"|"warning"|"notice", title, detail, still_works}`. Keys: `shedding`

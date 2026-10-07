@@ -1060,8 +1060,16 @@ error boundary renders an Alert with the trace id when one exists. No illustrati
 
 ### 10.11 Links and link detail (M5.6, §12 E20)
 
-`/links` lists every tracking link; `/links/:slug` is one link's dashboard. Creating and
-editing links stays in M7 (F10.AC6): these pages only read.
+`/links` lists every tracking link; `/links/:slug` is one link's dashboard. *M7 (F10.AC6,
+SPEC §11 row 25) adds the writes to `/links`:* **[＋ New link]** in the header; a **•••
+menu** per row with Edit…, Make default, Archive, and **Delete permanently…**; archived links
+(Show archived) keep only Delete permanently…. **New** and **Edit** share one Dialog: label,
+slug (with the capture URL it gives), destination, active, interstitial (ms), asks for
+location, and the three alert priorities. **Delete permanently** is a danger Dialog that first
+loads the preview -- "Deletes demo-ig, 164 visits and their 812 location candidates, 37 days
+of figures; geofence *Campus* will be switched off" -- and is enabled only when the slug is
+typed (UI-16). Every write is the owner's; an analyst sees the actions disabled with the
+reason (UI-17).
 
 ```
 Links                                                              [ ] Show archived
@@ -1418,12 +1426,25 @@ The server, its data and its safety nets.
   the line of smaller facts, readiness (taken over from Settings › System, which now points
   here), and the F10.AC6 links. Polls every 15 s. `scope: container` shows a `warn` Callout:
   "These figures are the container's — the host's /proc is not mounted."
-- **Geo databases** (`/health/databases`): a DataTable — name and what it feeds, version,
-  age, verdict Badge (up to date `ok`, stale `warn`, missing `error`, not configured
-  neutral), size, last attempt (error in a tooltip). **Update** per row: confirm dialog
-  ("Download and verify a new copy; the current one keeps serving until it passes") → the row
-  shows "Updating…" while `updating` → the new version or the error (UI-15). Polls every 15 s
-  while any row is updating.
+- **Geo databases** (`/health/databases`): a DataTable — name and what it feeds, version
+  and age, **state**, file, **Auto-update** Switch, and Update. *Amended for SPEC §11 row 24:*
+
+```
+Database          Version          State                          File        Auto
+dbip-city-lite    2026-10          ● Up to date                   121 MB …    [on]   [Update]
+geolite2-city     20261006T…       ● Update available · 9 Oct     61 MB …     [on]   [Update]
+ipinfo-lite       20261006T…       ● Updating 42 % · downloading  23 MB …     [on]   [Updating…]
+ip2location-…     20260929T…       ● Update failed · checksum …   220 MB …    [off]  [Update]
+geolite2-asn      —                ● Unable to update · no key    —           [on]   [Update ⓘ]
+[⟳ Check for updates]   Last checked 10:20
+```
+
+  State Badges: up to date `ok`; update available `info` with the release date; updating
+  `info` with the percent and the step, **as a number, never a bar**; update failed `error`
+  and unable to update `warn`, each with the reason inline (the installed copy keeps
+  serving); not installed `error`. A "Stale" Badge is added when the copy is older than its
+  threshold. **Update**: confirm → "Updating n %" polling every 2 s → the result (UI-15).
+  The Switch saves at once (reversible, UI-13), owner only.
 - **Inference** (`/health/inference`): the **source switches** as SettingRows (label, code,
   family; "Applies to visits inferred from now on — no restart"); saving creates a settings
   version (one Save for all, the diff named in the confirmation). Below, the **flow diagram**:
