@@ -9,7 +9,8 @@ owner-only and both write an audit row (CLAUDE.md invariant 9).
 from __future__ import annotations
 
 import datetime as dt
-from typing import Any
+import uuid
+from typing import Any, Final
 
 from fastapi import APIRouter, Request
 from pydantic import BaseModel, Field
@@ -23,8 +24,9 @@ from tracelet.auth.dependencies import (
     client_ip,
 )
 from tracelet.errors import NotFound
-from tracelet.inference import store
+from tracelet.inference import flow, store
 from tracelet.inference.config import ENGINE_REVISION, InferenceConfig, inference_version
+from tracelet.inference.types import LEVELS
 from tracelet.net import prefix_of
 
 router = APIRouter(prefix="/api/v1/health/inference", tags=["inference"])
@@ -166,3 +168,137 @@ async def rollback(
             detail={"from_version": before.version, "to_version": target.version},
         )
     return await _out(db)
+
+
+# ---------------------------------------------------------------------------
+# The flow diagram (F10.AC8)
+# ---------------------------------------------------------------------------
+
+
+class FlowSourceOut(BaseModel):
+    source: str
+    code: str = Field(description="S1-S11, as SPEC F4 numbers them.")
+    label: str
+    family: str
+    order: int
+    enabled: bool
+    timeout_ms: int
+    priors: dict[str, float]
+
+
+class FlowFamilyOut(BaseModel):
+    family: str
+    label: str
+    sources: list[str]
+
+
+class FlowRuleOut(BaseModel):
+    rule: str
+    label: str
+    description: str
+
+
+class FlowLevelOut(BaseModel):
+    level: str
+    threshold: float = Field(description="Minimum confidence for the strict value (F4.AC10).")
+
+
+class FiredOut(BaseModel):
+    level: str
+    value: str
+    accepted: bool
+    suppressed_reason: str | None
+    effective_weight: float
+
+
+class SourceOutcomeOut(BaseModel):
+    source: str
+    status: str = Field(description="fired, suppressed, disabled, unavailable, empty or silent.")
+    reason: str | None
+    candidates: list[FiredOut]
+
+
+class LevelOutcomeOut(BaseModel):
+    level: str
+    strict: str | None
+    advisory: str | None
+    confidence: float | None
+    abstain_reason: str | None
+
+
+class SampleOut(BaseModel):
+    visit_id: str
+    inference_version: str | None = Field(
+        description="The settings it was inferred under, which may not be the active ones."
+    )
+    classification: str
+    geo_source_primary: str | None
+    geofence_state: str | None
+    sources: list[SourceOutcomeOut]
+    levels: list[LevelOutcomeOut]
+    rules_fired: list[str]
+    alert: dict[str, Any] | None
+
+
+class FlowOut(BaseModel):
+    inference_version: str
+    stages: list[str] = Field(description="The pipeline, in order, from capture to alert.")
+    families: list[FlowFamilyOut]
+    sources: list[FlowSourceOut]
+    rules: list[FlowRuleOut]
+    levels: list[FlowLevelOut]
+    sample: SampleOut | None
+
+
+STAGES: Final = (
+    "capture",
+    "sources",
+    "suppression",
+    "consensus",
+    "classification",
+    "geofence",
+    "alert",
+)
+
+
+@router.get(
+    "/flow",
+    response_model=FlowOut,
+    summary="The inference flow diagram's model (F10.AC8)",
+    description=(
+        "The source levels in order and which are enabled, under the active settings. With "
+        "`sample_visit_id`, what inference recorded for that visit: which sources fired, "
+        "which were suppressed and why, which did not answer, and each level's outcome."
+    ),
+)
+async def get_flow(
+    principal: CurrentPrincipal, db: DbSession, sample_visit_id: uuid.UUID | None = None
+) -> FlowOut:
+    del principal
+    active = await store.active_settings(db)
+    nodes = flow.sources(active.config)
+    sample = None
+    if sample_visit_id is not None:
+        found = await flow.sample(db, sample_visit_id)
+        if found is None:
+            raise NotFound("No such visit.")
+        sample = SampleOut.model_validate(found, from_attributes=True)
+    return FlowOut(
+        inference_version=inference_version(active.version),
+        stages=list(STAGES),
+        families=[
+            FlowFamilyOut(
+                family=family,
+                label=label,
+                sources=[n.source for n in nodes if n.family == family],
+            )
+            for family, label in flow.FAMILY_LABELS.items()
+        ],
+        sources=[FlowSourceOut.model_validate(n, from_attributes=True) for n in nodes],
+        rules=[FlowRuleOut(rule=r, label=label, description=d) for r, label, d in flow.RULES],
+        levels=[
+            FlowLevelOut(level=level.value, threshold=active.config.thresholds.at(level))
+            for level in LEVELS
+        ],
+        sample=sample,
+    )

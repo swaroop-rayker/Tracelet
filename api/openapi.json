@@ -1802,6 +1802,91 @@
         "title": "FeatureIn",
         "type": "object"
       },
+      "FiredOut": {
+        "properties": {
+          "accepted": {
+            "title": "Accepted",
+            "type": "boolean"
+          },
+          "effective_weight": {
+            "title": "Effective Weight",
+            "type": "number"
+          },
+          "level": {
+            "title": "Level",
+            "type": "string"
+          },
+          "suppressed_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Suppressed Reason"
+          },
+          "value": {
+            "title": "Value",
+            "type": "string"
+          }
+        },
+        "required": [
+          "level",
+          "value",
+          "accepted",
+          "suppressed_reason",
+          "effective_weight"
+        ],
+        "title": "FiredOut",
+        "type": "object"
+      },
+      "FlowFamilyOut": {
+        "properties": {
+          "family": {
+            "title": "Family",
+            "type": "string"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "sources": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Sources",
+            "type": "array"
+          }
+        },
+        "required": [
+          "family",
+          "label",
+          "sources"
+        ],
+        "title": "FlowFamilyOut",
+        "type": "object"
+      },
+      "FlowLevelOut": {
+        "properties": {
+          "level": {
+            "title": "Level",
+            "type": "string"
+          },
+          "threshold": {
+            "description": "Minimum confidence for the strict value (F4.AC10).",
+            "title": "Threshold",
+            "type": "number"
+          }
+        },
+        "required": [
+          "level",
+          "threshold"
+        ],
+        "title": "FlowLevelOut",
+        "type": "object"
+      },
       "FlowLink": {
         "properties": {
           "source": {
@@ -1823,6 +1908,146 @@
           "value"
         ],
         "title": "FlowLink",
+        "type": "object"
+      },
+      "FlowOut": {
+        "properties": {
+          "families": {
+            "items": {
+              "$ref": "#/components/schemas/FlowFamilyOut"
+            },
+            "title": "Families",
+            "type": "array"
+          },
+          "inference_version": {
+            "title": "Inference Version",
+            "type": "string"
+          },
+          "levels": {
+            "items": {
+              "$ref": "#/components/schemas/FlowLevelOut"
+            },
+            "title": "Levels",
+            "type": "array"
+          },
+          "rules": {
+            "items": {
+              "$ref": "#/components/schemas/FlowRuleOut"
+            },
+            "title": "Rules",
+            "type": "array"
+          },
+          "sample": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SampleOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "sources": {
+            "items": {
+              "$ref": "#/components/schemas/FlowSourceOut"
+            },
+            "title": "Sources",
+            "type": "array"
+          },
+          "stages": {
+            "description": "The pipeline, in order, from capture to alert.",
+            "items": {
+              "type": "string"
+            },
+            "title": "Stages",
+            "type": "array"
+          }
+        },
+        "required": [
+          "inference_version",
+          "stages",
+          "families",
+          "sources",
+          "rules",
+          "levels",
+          "sample"
+        ],
+        "title": "FlowOut",
+        "type": "object"
+      },
+      "FlowRuleOut": {
+        "properties": {
+          "description": {
+            "title": "Description",
+            "type": "string"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "rule": {
+            "title": "Rule",
+            "type": "string"
+          }
+        },
+        "required": [
+          "rule",
+          "label",
+          "description"
+        ],
+        "title": "FlowRuleOut",
+        "type": "object"
+      },
+      "FlowSourceOut": {
+        "properties": {
+          "code": {
+            "description": "S1-S11, as SPEC F4 numbers them.",
+            "title": "Code",
+            "type": "string"
+          },
+          "enabled": {
+            "title": "Enabled",
+            "type": "boolean"
+          },
+          "family": {
+            "title": "Family",
+            "type": "string"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "order": {
+            "title": "Order",
+            "type": "integer"
+          },
+          "priors": {
+            "additionalProperties": {
+              "type": "number"
+            },
+            "title": "Priors",
+            "type": "object"
+          },
+          "source": {
+            "title": "Source",
+            "type": "string"
+          },
+          "timeout_ms": {
+            "title": "Timeout Ms",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "source",
+          "code",
+          "label",
+          "family",
+          "order",
+          "enabled",
+          "timeout_ms",
+          "priors"
+        ],
+        "title": "FlowSourceOut",
         "type": "object"
       },
       "Funnel": {
@@ -2801,6 +3026,67 @@
           "reason"
         ],
         "title": "LevelAccuracy",
+        "type": "object"
+      },
+      "LevelOutcomeOut": {
+        "properties": {
+          "abstain_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Abstain Reason"
+          },
+          "advisory": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Advisory"
+          },
+          "confidence": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Confidence"
+          },
+          "level": {
+            "title": "Level",
+            "type": "string"
+          },
+          "strict": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Strict"
+          }
+        },
+        "required": [
+          "level",
+          "strict",
+          "advisory",
+          "confidence",
+          "abstain_reason"
+        ],
+        "title": "LevelOutcomeOut",
         "type": "object"
       },
       "LevelPriors": {
@@ -4607,6 +4893,98 @@
         "title": "RetentionOut",
         "type": "object"
       },
+      "SampleOut": {
+        "properties": {
+          "alert": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Alert"
+          },
+          "classification": {
+            "title": "Classification",
+            "type": "string"
+          },
+          "geo_source_primary": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Geo Source Primary"
+          },
+          "geofence_state": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Geofence State"
+          },
+          "inference_version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The settings it was inferred under, which may not be the active ones.",
+            "title": "Inference Version"
+          },
+          "levels": {
+            "items": {
+              "$ref": "#/components/schemas/LevelOutcomeOut"
+            },
+            "title": "Levels",
+            "type": "array"
+          },
+          "rules_fired": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Rules Fired",
+            "type": "array"
+          },
+          "sources": {
+            "items": {
+              "$ref": "#/components/schemas/SourceOutcomeOut"
+            },
+            "title": "Sources",
+            "type": "array"
+          },
+          "visit_id": {
+            "title": "Visit Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "visit_id",
+          "inference_version",
+          "classification",
+          "geo_source_primary",
+          "geofence_state",
+          "sources",
+          "levels",
+          "rules_fired",
+          "alert"
+        ],
+        "title": "SampleOut",
+        "type": "object"
+      },
       "Series": {
         "properties": {
           "key": {
@@ -4838,6 +5216,45 @@
           "links"
         ],
         "title": "SourceFlow",
+        "type": "object"
+      },
+      "SourceOutcomeOut": {
+        "properties": {
+          "candidates": {
+            "items": {
+              "$ref": "#/components/schemas/FiredOut"
+            },
+            "title": "Candidates",
+            "type": "array"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          },
+          "source": {
+            "title": "Source",
+            "type": "string"
+          },
+          "status": {
+            "description": "fired, suppressed, disabled, unavailable, empty or silent.",
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "source",
+          "status",
+          "reason",
+          "candidates"
+        ],
+        "title": "SourceOutcomeOut",
         "type": "object"
       },
       "SourceSettings": {
@@ -11323,6 +11740,57 @@
           }
         },
         "summary": "Save a new settings version and make it active (owner only)",
+        "tags": [
+          "inference"
+        ]
+      }
+    },
+    "/api/v1/health/inference/flow": {
+      "get": {
+        "description": "The source levels in order and which are enabled, under the active settings. With `sample_visit_id`, what inference recorded for that visit: which sources fired, which were suppressed and why, which did not answer, and each level's outcome.",
+        "operationId": "get_flow_api_v1_health_inference_flow_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "sample_visit_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Sample Visit Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FlowOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "The inference flow diagram's model (F10.AC8)",
         "tags": [
           "inference"
         ]

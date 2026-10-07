@@ -931,10 +931,31 @@ reviewable configuration. Validation is total — a threshold of `1.7` is a `422
 nothing is saved. `POST /rollback/{version}` reactivates an existing version (`404` if
 there is none; rolling back to the active version is a no-op and writes no audit row).
 Both writes are owner-only and record `inference.settings_changed` (with the dotted paths
-that changed) or `inference.settings_rolled_back`. `/flow` is M7's (F10.AC8). Since M4 the settings object also has a `classifier` section: per-rule
+that changed) or `inference.settings_rolled_back`. `/flow` is M7's (F10.AC8), below. Since M4 the settings object also has a `classifier` section: per-rule
 `weights`, the bot/spoof/spam thresholds, the human ceilings, and the collision, gateway,
 rate and impossible-travel parameters — changed and rolled back exactly like the rest.
 
+
+### `/api/v1/health/inference/flow` — as built in M7 (F10.AC8)
+
+`GET /flow` returns `{inference_version, stages, families, sources, rules, levels, sample}`.
+`stages` is the pipeline in order: `capture`, `sources`, `suppression`, `consensus`,
+`classification`, `geofence`, `alert`. `sources` lists S1–S9 and S11 in their order, each
+`{source, code, label, family, order, enabled, timeout_ms, priors}` under the **active**
+settings, so a toggle shows at once; `families` groups them (`client`, `database`,
+`network`, `edge`, `context`); `rules` are the suppression rules with a sentence each;
+`levels` are the four levels with their strict thresholds.
+
+With `?sample_visit_id=`, `sample` is what inference **recorded** for that visit --
+nothing is recomputed: `{visit_id, inference_version, classification, geo_source_primary,
+geofence_state, sources[], levels[], rules_fired, alert}`. Each source is `{source, status,
+reason, candidates[]}` with `status` `fired` (a candidate was accepted), `suppressed`
+(every candidate was, `reason` naming the rule), `disabled`, `unavailable` or `empty` (as
+inference recorded the absence, with its reason), or `silent` (nothing recorded). Each level
+is `{level, strict, advisory, confidence, abstain_reason}`. `alert` is the visit's first
+queued alert `{priority, status, upgrade}`, or `null`. `inference_version` may differ from
+the active one: the overlay shows the settings the visit was inferred under. `404` for an
+unknown visit.
 ---
 
 ## 11. Ground truth and accuracy

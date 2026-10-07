@@ -861,6 +861,26 @@ export interface paths {
         patch: operations["change_settings_api_v1_health_inference_patch"];
         trace?: never;
     };
+    "/api/v1/health/inference/flow": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The inference flow diagram's model (F10.AC8)
+         * @description The source levels in order and which are enabled, under the active settings. With `sample_visit_id`, what inference recorded for that visit: which sources fired, which were suppressed and why, which did not answer, and each level's outcome.
+         */
+        get: operations["get_flow_api_v1_health_inference_flow_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/health/inference/rollback/{version}": {
         parameters: {
             query?: never;
@@ -1987,6 +2007,38 @@ export interface components {
              */
             type: "Feature";
         };
+        /** FiredOut */
+        FiredOut: {
+            /** Accepted */
+            accepted: boolean;
+            /** Effective Weight */
+            effective_weight: number;
+            /** Level */
+            level: string;
+            /** Suppressed Reason */
+            suppressed_reason: string | null;
+            /** Value */
+            value: string;
+        };
+        /** FlowFamilyOut */
+        FlowFamilyOut: {
+            /** Family */
+            family: string;
+            /** Label */
+            label: string;
+            /** Sources */
+            sources: string[];
+        };
+        /** FlowLevelOut */
+        FlowLevelOut: {
+            /** Level */
+            level: string;
+            /**
+             * Threshold
+             * @description Minimum confidence for the strict value (F4.AC10).
+             */
+            threshold: number;
+        };
         /** FlowLink */
         FlowLink: {
             /** Source */
@@ -1995,6 +2047,58 @@ export interface components {
             target: string;
             /** Value */
             value: number;
+        };
+        /** FlowOut */
+        FlowOut: {
+            /** Families */
+            families: components["schemas"]["FlowFamilyOut"][];
+            /** Inference Version */
+            inference_version: string;
+            /** Levels */
+            levels: components["schemas"]["FlowLevelOut"][];
+            /** Rules */
+            rules: components["schemas"]["FlowRuleOut"][];
+            sample: components["schemas"]["SampleOut"] | null;
+            /** Sources */
+            sources: components["schemas"]["FlowSourceOut"][];
+            /**
+             * Stages
+             * @description The pipeline, in order, from capture to alert.
+             */
+            stages: string[];
+        };
+        /** FlowRuleOut */
+        FlowRuleOut: {
+            /** Description */
+            description: string;
+            /** Label */
+            label: string;
+            /** Rule */
+            rule: string;
+        };
+        /** FlowSourceOut */
+        FlowSourceOut: {
+            /**
+             * Code
+             * @description S1-S11, as SPEC F4 numbers them.
+             */
+            code: string;
+            /** Enabled */
+            enabled: boolean;
+            /** Family */
+            family: string;
+            /** Label */
+            label: string;
+            /** Order */
+            order: number;
+            /** Priors */
+            priors: {
+                [key: string]: number;
+            };
+            /** Source */
+            source: string;
+            /** Timeout Ms */
+            timeout_ms: number;
         };
         /** Funnel */
         Funnel: {
@@ -2328,6 +2432,19 @@ export interface components {
             precision: number | null;
             /** Reason */
             reason: string | null;
+        };
+        /** LevelOutcomeOut */
+        LevelOutcomeOut: {
+            /** Abstain Reason */
+            abstain_reason: string | null;
+            /** Advisory */
+            advisory: string | null;
+            /** Confidence */
+            confidence: number | null;
+            /** Level */
+            level: string;
+            /** Strict */
+            strict: string | null;
         };
         /**
          * LevelPriors
@@ -3026,6 +3143,32 @@ export interface components {
              */
             updated_at: string;
         };
+        /** SampleOut */
+        SampleOut: {
+            /** Alert */
+            alert: {
+                [key: string]: unknown;
+            } | null;
+            /** Classification */
+            classification: string;
+            /** Geo Source Primary */
+            geo_source_primary: string | null;
+            /** Geofence State */
+            geofence_state: string | null;
+            /**
+             * Inference Version
+             * @description The settings it was inferred under, which may not be the active ones.
+             */
+            inference_version: string | null;
+            /** Levels */
+            levels: components["schemas"]["LevelOutcomeOut"][];
+            /** Rules Fired */
+            rules_fired: string[];
+            /** Sources */
+            sources: components["schemas"]["SourceOutcomeOut"][];
+            /** Visit Id */
+            visit_id: string;
+        };
         /** Series */
         Series: {
             /** Key */
@@ -3115,6 +3258,20 @@ export interface components {
             sources: string[];
             /** Visits */
             visits: number;
+        };
+        /** SourceOutcomeOut */
+        SourceOutcomeOut: {
+            /** Candidates */
+            candidates: components["schemas"]["FiredOut"][];
+            /** Reason */
+            reason: string | null;
+            /** Source */
+            source: string;
+            /**
+             * Status
+             * @description fired, suppressed, disabled, unavailable, empty or silent.
+             */
+            status: string;
         };
         /** SourceSettings */
         SourceSettings: {
@@ -5160,6 +5317,37 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["InferenceSettingsOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_flow_api_v1_health_inference_flow_get: {
+        parameters: {
+            query?: {
+                sample_visit_id?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FlowOut"];
                 };
             };
             /** @description Validation Error */
