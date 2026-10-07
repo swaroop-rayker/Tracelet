@@ -120,6 +120,15 @@ async def _purge_test_admins(db_app: object) -> AsyncIterator[None]:
                 ),
                 {"pattern": TEST_DOMAIN_LIKE},
             )
+            # The survivors must not carry one test's state into the next: a verified
+            # Telegram chat made the owner chat look verified to a later test (E72).
+            await db.execute(
+                text(
+                    "UPDATE admins SET telegram_chat_id = NULL, telegram_verified_at = NULL "
+                    "WHERE email LIKE :pattern"
+                ),
+                {"pattern": TEST_DOMAIN_LIKE},
+            )
 
 
 @pytest.fixture
