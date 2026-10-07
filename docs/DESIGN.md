@@ -1390,6 +1390,83 @@ sharing", and the privacy link, and waits up to 15 s for the browser's answer.
   (UI-18).
 - **Links** (F10.AC6) and **admins:** DataTables with a Dialog for create and edit forms.
 
+**As designed for the build (2026-10-07, UI-23).** One area, **System health**, in the
+sidebar's Configure group (`/health`, icon `Health`, `g h`), laid out like Settings (§10.8):
+a sub-navigation on the left at ≥ 1024 px, a select above the content below it. Five pages,
+because each answers one question; the polling ones say how fresh they are (UI-18).
+
+```
+System health                                                  ● Live · updated 10:25
+The server, its data and its safety nets.
+┌ nav ─────────────┐ ┌──────────────────────────────────────────────────────────────────┐
+│ ♡ Overview       │ │ ⚠ The last backup failed — "pg_dump exited 1: …"     (Callout)    │
+│ ⛁ Geo databases  │ │   Still works: earlier backups are on disk.          [Backups ›] │
+│ ⌬ Inference      │ │ ┌ CPU ──────┐ ┌ Memory ───┐ ┌ Swap ─────┐ ┌ Disk ─────────────┐  │
+│ ⛃ Data           │ │ │ 12 %      │ │ 61 %      │ │ 3 %       │ │ 91 % ● warn       │  │
+│ ⇅ Rate limits    │ │ │ 16 CPUs   │ │ 4.5/7.4 GB│ │ 0.1/2 GB  │ │ above the 85 % …  │  │
+└──────────────────┘ │ └───────────┘ └───────────┘ └───────────┘ └───────────────────┘  │
+                     │ Load 0.4 · 0.6 · 0.8   Uptime 3 d 4 h   Database 127 MB          │
+                     │ Temperature — "This host exposes no temperature sensor…"          │
+                     │ Readiness ✓ database ✓ PostGIS ✓ migrations (head 0012)           │
+                     │ Also from here: Links ›  Team ›  Alerts and the delivery log ›     │
+                     └──────────────────────────────────────────────────────────────────┘
+```
+
+- **Overview** (`/health`): every degradation condition as a Callout (critical `error`,
+  warning `warn`, notice `info`), each with what still works and a link to where it is fixed;
+  "Nothing is degraded" when empty. Then the host Stats with threshold Badges **and** words,
+  the line of smaller facts, readiness (taken over from Settings › System, which now points
+  here), and the F10.AC6 links. Polls every 15 s. `scope: container` shows a `warn` Callout:
+  "These figures are the container's — the host's /proc is not mounted."
+- **Geo databases** (`/health/databases`): a DataTable — name and what it feeds, version,
+  age, verdict Badge (up to date `ok`, stale `warn`, missing `error`, not configured
+  neutral), size, last attempt (error in a tooltip). **Update** per row: confirm dialog
+  ("Download and verify a new copy; the current one keeps serving until it passes") → the row
+  shows "Updating…" while `updating` → the new version or the error (UI-15). Polls every 15 s
+  while any row is updating.
+- **Inference** (`/health/inference`): the **source switches** as SettingRows (label, code,
+  family; "Applies to visits inferred from now on — no restart"); saving creates a settings
+  version (one Save for all, the diff named in the confirmation). Below, the **flow diagram**:
+
+```
+ Capture → Sources                → Suppression          → Consensus      → Classification → Geofence → Alert
+           ┌ The visitor's device ┐ ┌ Registry artifact ┐   ┌ Country ≥ 0.60 ┐
+           │ S1 Device location ● │ │ Mobile network    │   │ Admin1  ≥ 0.75 │
+           ├ Registry databases ──┤ │ Hosting network   │   │ Admin2  ≥ 0.75 │
+           │ S2 GeoLite2      ●   │ │ Time-zone mismatch│   │ City    ≥ 0.80 │
+           │ S3 IP2Location   ○ off │ Outvoted          │   └────────────────┘
+           │ …                    │ │ Below threshold   │
+           └──────────────────────┘ └───────────────────┘
+ [Visit ID ____________ Show]   Showing 01a1123c… (inferred under m3.3+s7)
+```
+
+  Columns of nodes in the sankey's node style (§6: `--surface-2`, `--border`), the stage
+  names above them; no lines — the columns are the order. *As built:* classification, geofence
+  and alert hold one node each and share the last column, so five columns fit at 1440; where
+  they do not fit (1024, 390) they wrap and read left to right, then down. Off sources are dimmed and say
+  "off". With a visit, each source node gains its outcome (fired `ok`, suppressed `warn` with
+  the rule, unavailable/empty neutral with the reason), each rule that fired is outlined in
+  `--accent`, each level shows strict / advisory / why it abstained, and the right-hand
+  stages show classification, geofence state and the alert. The visit is in the URL
+  (`?visit=`, UI-9), and a visit's page links here with it.
+- **Data** (`/health/data`): **Retention** — three number Fields (visits, encrypted IP,
+  audit log, in days), rollups "kept forever", delivered alerts "30 days"; Save; then
+  **Preview purge** → the exact counts in a DataTable → **Purge…** opens a typed confirmation
+  quoting the counts ("Type PURGE to delete 1 204 visits, …") → progress → the result,
+  which is the last purge line (UI-15, UI-16). **Backups** — a Stat row (last backup, last
+  restore check, last download, with the R11 notice when overdue), **Back up now**, and a
+  DataTable: started, kind, status Badge, size, tables/rows, checksum (Identifier), restore
+  check Badge, and Download · Verify now per row.
+- **Rate limits** (`/health/limits`): a DataTable grouped by capture / admin / outbound —
+  label, the limit in words ("30 a minute, bursts of 10"), default, an "edited" Badge; **Edit**
+  opens a Dialog with three number Fields and "Back to default"; an outbound row states its
+  third party's ceiling. "Applies within 30 seconds, no restart."
+- **The global banner** (§5.6): every page polls `/health/degradation` every 60 s and shows
+  one Banner for the most severe critical or warning condition ("+2 more"), linking to System
+  health. Notices stay on the Overview. Analysts see it too; it is information.
+- **Analysts** see every page; every write (Save, Update, Purge, Back up, Verify, Edit,
+  Download) is disabled with "Only the owner can …" (UI-17).
+
 ### M8 — Accuracy hardening and ground truth
 
 - **Labelling queue:** one visit at a time in a focused layout. The derivation is on the left;

@@ -2,9 +2,9 @@
  * The navigation, defined once (DESIGN §9.1): the sidebar, the breadcrumb, the command
  * palette and the `g` shortcuts all read this list, so they cannot disagree.
  *
- * Slots for later milestones (System health in M7) are added here when they ship -- never
- * before, because a link to nothing is a dead control (UI-12). Geofences and Alerts shipped
- * in M6.
+ * Slots for later milestones are added here when they ship -- never before, because a link
+ * to nothing is a dead control (UI-12). Geofences and Alerts shipped in M6, System health in
+ * M7.
  */
 
 import type { IconName } from '@/components/icons';
@@ -112,6 +112,14 @@ export const NAV_GROUPS: readonly NavGroup[] = [
         key: 'n',
         hint: 'Telegram, quiet hours and the delivery log',
       },
+      {
+        to: '/health',
+        label: 'System health',
+        icon: 'Health',
+        filtered: false,
+        key: 'h',
+        hint: 'Host, geo databases, inference switches, retention, backups, rate limits',
+      },
     ],
   },
 ];
@@ -179,6 +187,48 @@ export const SETTINGS_SECTIONS: readonly SettingsSection[] = [
     icon: 'System',
     description: 'Whether the server is ready: database, PostGIS and migrations.',
     ownerOnly: false,
+  },
+];
+
+export interface HealthSection {
+  /** Relative to `/health`; '' is the overview. */
+  readonly path: string;
+  readonly label: string;
+  readonly icon: IconName;
+  readonly description: string;
+}
+
+/** The System health pages, in sub-navigation order (DESIGN §16, M7). */
+export const HEALTH_SECTIONS: readonly HealthSection[] = [
+  {
+    path: '',
+    label: 'Overview',
+    icon: 'Health',
+    description: 'What is degraded, the host, and whether the server is ready.',
+  },
+  {
+    path: 'databases',
+    label: 'Geo databases',
+    icon: 'Databases',
+    description: 'The offline databases inference reads: version, age and updates.',
+  },
+  {
+    path: 'inference',
+    label: 'Inference',
+    icon: 'Inference',
+    description: 'Which sources are on, and how a visit flows through them.',
+  },
+  {
+    path: 'data',
+    label: 'Data',
+    icon: 'Data',
+    description: 'How long data is kept, purges, backups and restore checks.',
+  },
+  {
+    path: 'limits',
+    label: 'Rate limits',
+    icon: 'Limits',
+    description: 'How fast visitors, sign-ins and outbound lookups may go.',
   },
 ];
 

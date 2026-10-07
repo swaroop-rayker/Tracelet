@@ -1,0 +1,122 @@
+/* --- System health (DESIGN §16 M7) ------------------------------------------------ */
+
+/* Tables and the flow diagram need more width than Settings' 880 px column. */
+.settings__content--wide {
+  max-width: none;
+}
+
+.row-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+}
+
+.form-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: var(--space-4);
+  align-items: start;
+}
+
+/* Times, sizes and identifiers read as one unit; never break them across lines. */
+.nowrap {
+  white-space: nowrap;
+}
+
+.settings-list {
+  display: grid;
+}
+
+.health-links,
+.health-checks {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: var(--fs-secondary);
+}
+
+.flow-picker {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--space-2);
+}
+
+.flow-picker .field {
+  min-width: 220px;
+}
+
+/* The flow diagram: the pipeline's stages as columns of nodes, in the sankey's node style
+   (§6: --surface-2 with --border). No connecting lines -- the columns are the order. */
+/* Five columns, left to right; where they do not fit they wrap, and the order still reads
+   left to right, then down. */
+.flow {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: var(--space-4) var(--space-3);
+}
+
+.flow__column {
+  display: grid;
+  align-content: start;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.flow__stage {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: var(--fs-meta);
+  font-weight: 600;
+}
+
+.flow__nodes,
+.flow__group {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.flow__group-label {
+  color: var(--text-subtle);
+  font-size: var(--fs-meta);
+}
+
+.flow__node {
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface-2);
+}
+
+.flow__node--off {
+  opacity: 0.55;
+}
+
+.flow__node--hit {
+  border-color: var(--accent);
+}
+
+.flow__title {
+  font-size: var(--fs-secondary);
+  font-weight: 600;
+}
+
+.flow__note {
+  margin-top: var(--space-1);
+  color: var(--text-muted);
+  font-size: var(--fs-meta);
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 767px) {
+  .flow-picker {
+    flex-wrap: wrap;
+  }
+
+  .flow-picker .field {
+    min-width: 0;
+    flex: 1 1 100%;
+  }
+}
