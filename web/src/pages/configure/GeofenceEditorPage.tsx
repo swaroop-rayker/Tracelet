@@ -215,6 +215,12 @@ function Editor({
   const [deleting, setDeleting] = useState(false);
   const [deleteBusy, setDeleteBusy] = useState(false);
   const [deleteError, setDeleteError] = useState<ApiError | null>(null);
+  // Why Create or Save was refused sits at the foot of the inspector, which scrolls on its
+  // own; bring it into view so the click visibly did something (UI-14).
+  const refusal = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (problem !== null || error !== null) refusal.current?.scrollIntoView({ block: 'nearest' });
+  }, [problem, error]);
 
   const places = useApi(
     `${FENCES}/places`,
@@ -577,16 +583,24 @@ function Editor({
             )}
           </fieldset>
 
-          {problem !== null && <p className="error-text small">{problem}</p>}
-          {error !== null && errorAt === null && <ErrorNotice error={error} />}
-          {error !== null && error.fields.length > 0 && errorAt === null && (
-            <ul className="plain small">
-              {error.fields.map((f) => (
-                <li key={`${f.field}-${f.code}`}>
-                  <span className="t-mono">{f.field}</span>: {f.message}
-                </li>
-              ))}
-            </ul>
+          {(problem !== null || (error !== null && errorAt === null)) && (
+            <div ref={refusal} className="stack-sm">
+              {problem !== null && (
+                <p className="error-text small" role="alert">
+                  {problem}
+                </p>
+              )}
+              {error !== null && errorAt === null && <ErrorNotice error={error} />}
+              {error !== null && error.fields.length > 0 && errorAt === null && (
+                <ul className="plain small">
+                  {error.fields.map((f) => (
+                    <li key={`${f.field}-${f.code}`}>
+                      <span className="t-mono">{f.field}</span>: {f.message}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
           )}
         </aside>
       </div>

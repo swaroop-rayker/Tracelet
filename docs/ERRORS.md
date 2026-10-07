@@ -2217,6 +2217,31 @@ endpoints that answer with no body.
 
 ---
 
+### E65 — A refused Create in the geofence editor looked like a dead button
+
+**Status:** Fixed. **Milestone:** M6. **Date:** 2026-10-07.
+
+**Symptom.** The pre-PR browser walk timed out in all three engines after clicking "Create
+geofence" for a drawn circle: no request was sent and nothing on screen changed. The editor
+now opens on the world map, where the walk's short drag made a 1,579 km circle.
+
+**Root cause.** Not the refusal itself -- the radius limit is 50 m to 1,000 km, as the API
+enforces -- but how it was shown. The reason was placed at the foot of the inspector, which
+scrolls on its own, so at 1440 × 900 it sat below the panel's fold, far from the button at the
+top right; and it was a plain paragraph, so nothing announced it. The same held for an API
+error with no place on the map.
+
+**Fix.** The reason is `role="alert"` (DESIGN §5.2, the field-error pattern), and the inspector
+scrolls it into view when it appears, so it shows by the field at fault (UI-14).
+
+**Prevention.** Checked in Chromium, Firefox and WebKit: the refused circle's reason is an
+alert inside the visible part of the inspector, and a corrected radius then saves. The browser
+walk now sizes its circle for the world view.
+
+**Related:** UI-14, F6.AC1.
+
+---
+
 Add entries here as bugs are found and fixed. Use the next available `E<n>` identifier and
 the same structure: symptom, root cause, fix, **prevention**.
 
