@@ -57,6 +57,29 @@ data — because NFR3.AC2 and the CLAUDE.md invariant "the redirect must never f
 telemetry completeness. Losing a visit record is acceptable; breaking a human journey is
 not.
 
+### Amended 2026-10-07 (M7): shedding under memory pressure (F15.AC6, RISKS R6)
+
+F15.AC6 asks that, when the host swaps, requests are shed at L2 before the kernel's OOM
+killer has to choose. The mechanism, which no earlier milestone built:
+
+- **Signal:** the kernel's pressure stall information, `/proc/pressure/memory` "some
+  avg10" -- the share of the last ten seconds in which a task waited for memory. It
+  measures thrashing directly, which free-memory or swap-used figures do not: a box can
+  hold swap it is not using. On a kernel without PSI, the swap-in rate from `/proc/vmstat`
+  stands in.
+- **Threshold:** shed at `TRACELET_SHED_MEMORY_PRESSURE` (20 %), stop below half of it, so
+  it does not flap; `0` turns it off. The swap-in fallback uses
+  `TRACELET_SHED_SWAPIN_PAGES_PER_S` (256).
+- **Where:** each worker reads the host's file at most every two seconds (no background
+  task, no shared state). While shedding, a capture skips the limiter and is handled
+  exactly as a rate-limited one -- redirected at once, recorded as `stage='rate_limited'`
+  -- so it costs one small insert and the visitor never waits on memory.
+- **Seen:** the degradation banner shows `shedding`, critical, with the count so far.
+
+Rejected: a shared "shedding" flag in the database (a write under exactly the conditions
+that make writes slow), dropping the record too (shedding would be invisible in the
+funnel), and shedding the dashboard (the owner needs it most then).
+
 ### Both directions — the "upstream and downstream" requirement
 
 **Inbound** (F11.AC2, F11.AC5, F11.AC6):

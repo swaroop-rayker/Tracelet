@@ -136,6 +136,11 @@ class Settings(BaseSettings):
     disk_critical_percent: int = Field(default=95, ge=50, le=99)
     memory_warn_percent: int = Field(default=90, ge=50, le=99)
     swap_warn_percent: int = Field(default=50, ge=5, le=99)
+    # Load shedding (F15.AC6, health/pressure.py): shed capture work while the host's memory
+    # pressure ("some avg10", percent) is at or above this; 0 turns shedding off. The
+    # fallback, on a kernel without pressure information, is the swap-in rate.
+    shed_memory_pressure: float = Field(default=20.0, ge=0, le=100)
+    shed_swapin_pages_per_s: int = Field(default=256, ge=1)
 
     # --- analytics (ADR-0016) ----------------------------------------------
     # Days and hours are bucketed in this zone. India is UTC+05:30, so UTC buckets

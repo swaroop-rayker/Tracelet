@@ -20,7 +20,7 @@ from sqlalchemy import func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from tracelet.config import Settings
-from tracelet.health import databases
+from tracelet.health import databases, pressure
 from tracelet.health.system import use_host_procfs
 from tracelet.inference.outbound import BREAKER_KEY_PREFIX
 from tracelet.lifecycle.models import Backup, BackupStatus, RestoreCheck, RestoreStatus
@@ -78,6 +78,29 @@ def _disk_memory(settings: Settings) -> list[Condition]:
             )
         )
     return out
+
+
+def _shedding(settings: Settings) -> list[Condition]:
+    now = pressure.current(settings)
+    if not now.shedding:
+        return []
+    what = (
+        f"memory pressure {now.value:.0f} %"
+        if now.signal == "memory_pressure"
+        else f"{now.value:.0f} pages a second swapped in"
+    )
+    return [
+        Condition(
+            key="shedding",
+            severity="critical",
+            title="Shedding visits: the host is short of memory",
+            detail=(
+                f"The host reports {what}. Visits are redirected without being captured "
+                f"({now.shed_count} so far) until it eases (F15.AC6)."
+            ),
+            still_works="Every visitor is still redirected; the dashboard still answers.",
+        )
+    ]
 
 
 async def _geo(db: AsyncSession, settings: Settings) -> list[Condition]:
@@ -237,7 +260,8 @@ async def _backups(db: AsyncSession, settings: Settings) -> list[Condition]:
 
 async def conditions(db: AsyncSession, settings: Settings) -> list[Condition]:
     found = (
-        _disk_memory(settings)
+        _shedding(settings)
+        + _disk_memory(settings)
         + await _backups(db, settings)
         + await _outbox(db)
         + await _breakers(db)

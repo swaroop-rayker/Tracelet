@@ -90,6 +90,7 @@ GET /r/{slug}        (bare /r and /r/ resolve the default link instead — F1.AC
  │
  ├─3  L2 GCRA check ─── over limit ──► 302 to destination, no capture,
  │                                     row stage='rate_limited'              [F11.AC3]
+ │      memory pressure (PSI ≥ 20 %) ──► the same, without the limiter     [F15.AC6]
  │
  ├─4  server-side signal extraction (always available, no JS involved)
  │      IP → HMAC + /24|/48 prefix + AES-GCM ciphertext                      [F12.AC1]

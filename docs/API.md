@@ -843,7 +843,8 @@ inference settings already stops its use; a database whose vendor credentials ar
 configured is skipped by the updater on its own.
 
 `GET /degradation` returns `{conditions[], checked_at}`, most severe first. Each condition is
-`{key, severity: "critical"|"warning"|"notice", title, detail, still_works}`. Keys: `disk`,
+`{key, severity: "critical"|"warning"|"notice", title, detail, still_works}`. Keys: `shedding`
+(capture is being shed on memory pressure, F15.AC6), `disk`,
 `swap`, `backups` (not set up, failed, or none in 36 h), `restore` (failed, or none passed in
 35 days), `download` (notice: no backup downloaded within the reminder period), `outbox`
 (dead letters), `breaker:<name>` (an open circuit breaker), `geodb:<name>` (a configured

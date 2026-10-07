@@ -114,6 +114,9 @@ def integration_settings(ip_key_file: Path) -> Settings:
         pepper_rotating=SecretStr("integration-test-pepper-rotating-0123456789abcd"),
         pepper_fp=SecretStr("integration-test-pepper-fp-0123456789abcdef0123"),
         session_secret=SecretStr("integration-test-session-secret-0123456789abcd"),
+        # Load shedding reads the host's real memory pressure; a busy developer machine
+        # must not make capture tests shed. The shedding tests turn it on themselves.
+        shed_memory_pressure=0,
         # The maintenance role, for purges, backups and the restore check (ADR-0022).
         maint_database_url=(
             SecretStr(os.environ["TRACELET_MAINT_DATABASE_URL"])
