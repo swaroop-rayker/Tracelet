@@ -31,7 +31,7 @@ Severity is `impact × likelihood` at the time of writing, reassessed after each
 | R24 | Rule (a) cannot tell a regional ISP from a registry collapse | Medium | **Accepted for M3 — tune in M8 with ground truth** |
 | R25 | **The raw analytics fallback is slow at the design load** | Medium | **Open — rollup path measured at p95 ≤ 70 ms; raw fallback up to 10 s on long windows** |
 | R26 | Geofence drawing (M6) has no street-level basemap | Medium | **Closed 2026-10-06 — accepted: no basemap, region geofences (ADR-0020)** |
-| R27 | The UI redesign (M5.5) regresses accessibility, the CSP or behaviour | Medium | **Mitigated 2026-10-03 — 0 CSP violations in Chromium, Firefox and WebKit (after E44), filters unchanged, a11y sweep clean, 72-image matrix; the hand keyboard pass remains** |
+| R27 | The UI redesign (M5.5) regresses accessibility, the CSP or behaviour | Medium | **Mitigated 2026-10-03 — 0 CSP violations in Chromium, Firefox and WebKit (after E44), filters unchanged, a11y sweep clean, 72-image matrix; hand keyboard pass by the owner 2026-10-07, nothing failed** |
 
 ---
 
@@ -643,7 +643,13 @@ been attached too late to see it (E44). After the fix: **0 violations in all thr
 The same run found three more regressions, all fixed: a chart's data table pushing the chart
 over its neighbour (E45), ECharts overwriting every chart's accessible name (E46), and two pages
 wider than the screen (E47). The 72-image matrix was captured with an overflow check on every
-image. **Still open:** the by-hand keyboard walkthrough.
+image.
+
+**Hand keyboard pass, 2026-10-07.** The owner tabbed through every page, menu, dialog, drawer,
+filter editor, popover and the command palette, mouse-free, and tried the shortcuts: focus
+always visible, a sensible order, no trap, every control operable, focus returned on close.
+Nothing failed. The last open item of M5.5 is closed; the risk stays monitored, because every
+new overlay must keep UI-11.
 
 ---
 

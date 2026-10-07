@@ -21,7 +21,7 @@ then open the PR (CLAUDE.md section 2).
 | M3 | Location inference engine | L | **[x] done** — 738 tests (463 unit, 275 integration); real-visit check deferred to M9 (owner decision); 5 bugs recorded as E27–E31 |
 | M4 | Anti-spoofing and classification | L | **[x] done** — 10 of 10 items (the UI item ticked in M5); bugs E32–E33; R19 and R21 closed |
 | M5 | Dashboard analytics and visualisation | L | **[x] done** — 10 of 10 items; rollups p95 ≤ 70 ms at design load; raw fallback slow on long windows (R25); bugs E34–E36 |
-| M5.5 | Design system and UI polish (owner-directed 2026-10-02, approved 2026-10-03; docs/DESIGN.md) | L | **built** — 10 of 11 items; CSP 0 in Chromium, Firefox and WebKit; 72-image matrix; bugs E41–E47; open: hand keyboard walkthrough |
+| M5.5 | Design system and UI polish (owner-directed 2026-10-02, approved 2026-10-03; docs/DESIGN.md) | L | **[x] done** — 11 of 11 items; CSP 0 in Chromium, Firefox and WebKit; 72-image matrix; bugs E41–E47; hand keyboard walkthrough by the owner 2026-10-07 |
 | M5.6 | Dashboard enhancements and the Settings redesign, UI only (owner-approved 2026-10-06; docs/plans/ENHANCEMENTS-PLAN.md Phase A, SETTINGS-REDESIGN-PLAN.md) | M | **[x] built** — dashboard 6/6, Settings 6/6; CSP 0 in three engines; no server change; bugs E48–E50 |
 | M6 | Geofencing and Telegram notifications | M | **[x] done** — 11 of 11; both Telegram alerts received on the owner's phone 2026-10-07 (inside: high, as the same-day upgrade); bugs E52–E65 |
 | M7 | System health and operations | L | [ ] |
@@ -670,11 +670,15 @@ E4–E10. **Plan:** docs/DESIGN.md Part II; **decision:** ADR-0019. **F/AC-IDs:*
       taken with Playwright. Each image also checks for horizontal overflow, which found
       Breakdowns at 390 px and Visits at 1024 px wider than the screen (E47, fixed). After the
       fix, no page overflows at any width, in any theme or engine*
-- [ ] Keyboard walkthrough of every page, menu, dialog and the command palette, mouse-free —
-      **partly**: *menu arrow keys and typeahead, dialog focus-in/return and Escape, palette
-      combobox (arrows, Enter, id jump), shortcuts (`g`, `?`, `/`, `[`) verified by script in the
+- [x] Keyboard walkthrough of every page, menu, dialog and the command palette, mouse-free —
+      *menu arrow keys and typeahead, dialog focus-in/return and Escape, palette combobox
+      (arrows, Enter, id jump), shortcuts (`g`, `?`, `/`, `[`) verified by script in the
       browser; every page has one `h1`, no skipped heading level, and no unnamed button, link or
-      field (automated sweep). A by-hand Tab-through remains*
+      field (automated sweep). By hand, by the owner on 2026-10-07: the shortcuts, then a
+      Tab-through of every page (including the M5.6 Settings pages and the M6 geofence and
+      alerts pages), menu, dialog, drawer, filter editor, popover and the palette -- focus
+      always visible, a sensible order, no trap, every control operable, focus returned on
+      close. Nothing failed*
 - [x] Zero CSP violations on the Caddy-served build, every page, every theme — *Caddy itself,
       in Chromium, Firefox and WebKit, with Playwright: the signed-out pages, all 11 signed-in
       routes in all 3 themes, then every popup, filter editor, palette, help, tooltip, chart
