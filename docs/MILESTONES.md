@@ -833,11 +833,13 @@ F9.AC6, F9.AC16–F9.AC18, NFR7. No new requirement: every item reads an existin
 
 **Done checklist**
 - [ ] All metrics real and reflecting the **host**, not the container
-- [ ] Temperature `N/A` with reason on GCP; real on the WSL box
+- [ ] Temperature `N/A` with reason on GCP and on the dev box (neither exposes a sensor); the
+  reading path proved by a test against a fake `/sys` with a thermal zone (SPEC §11 row 23)
 - [ ] Flow diagram shows enabled sources and what fired for a chosen visit
 - [ ] Toggling a source changes behaviour **without a restart**
 - [ ] Retention preview counts **exactly** match what the purge then deletes
-- [ ] Manual backup, download, and **automated restore-verify all pass**
+- [ ] Manual backup, download, and **automated restore-verify all pass** -- into a scratch
+  database, counts equal to the dump's own (ADR-0022)
 - [ ] Dead-lettered job visible and retryable from the UI
 - [ ] Every row of the F15.AC6 degradation matrix exercised — **each one still redirects**
 - [ ] Geo-database update under memory cap; failure leaves previous version serving

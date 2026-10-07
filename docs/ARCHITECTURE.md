@@ -673,7 +673,8 @@ load. `TRACELET_DB_MAX_CONNECTIONS` must be kept in step with the
 | Spike | Size | Mitigation |
 |---|---|---|
 | Argon2id verification | 32 MB × concurrent logins | **Pinned to `m=32MiB, t=3, p=1`. Library defaults of 64 MiB to 1 GiB would OOM the box on one login.** Logins are serialised by rate limit |
-| `pg_dump` | ~40 MB | Scheduled off-peak, streamed and compressed |
+| `pg_dump` | ~40 MB | Scheduled off-peak, streamed and compressed. A subprocess of the API, inside its `mem_limit` (ADR-0022) |
+| `pg_restore` into `tracelet_verify` | ~40 MB, plus the database's size on disk while it exists | Monthly, off-peak; refuses to start without the free disk; the scratch database is dropped whatever the outcome (ADR-0022) |
 | Geo database update | ~150 MB | **The riskiest one.** Streams to disk, validates in a memory-capped subprocess, atomic symlink swap, off-peak. A failed update must never take down capture — RISKS R4 |
 | Analytics aggregate | `work_mem` bounded | Dashboard reads rollups, not raw rows — F9.AC19 |
 
@@ -785,7 +786,8 @@ not a dependency (ADR-0003 amendment).
 | `IP2Location` | IP2Location LITE ships a proprietary BIN format. Zero dependencies | converting BIN to mmdb ourselves, a maintenance liability |
 | `jinja2` | Server-rendered capture page; already a FastAPI-adjacent standard. **Installed in M2.** Autoescaping is the reason: the destination and the nonce are interpolated into attributes and an inline script | f-string templating, unsafe for HTML |
 | `structlog` | Structured JSON logs with redaction processors | stdlib logging plus a custom formatter |
-| `psutil` | Host CPU, RAM, disk, swap, uptime for System Health | parsing `/proc` by hand |
+| `psutil` | Host CPU, RAM, disk, swap, uptime for System Health. **Installed in M7**, reading the host's `/proc` mounted read-only at `/host/proc` (`psutil.PROCFS_PATH`, F10.AC15). Temperature is read from `/host/sys` by our own few lines, because psutil's sensor reader hard-codes `/sys` | parsing `/proc` by hand |
+| system: `postgresql-client-16` (PostgreSQL apt repository) | `pg_dump` and `pg_restore` for backups and restore-verification, run by the API's scheduler (ADR-0022). **Added in M7**, about 15 MB of image; RSS only while a job runs | Debian's `postgresql-client` 17 (its `pg_restore` emits settings a 16 server rejects), a backup container (a second scheduler and idle memory), `docker exec` into `db` (needs the Docker socket) |
 | `python-ulid` | Sortable `trace_id`, better index locality than UUID4 | `uuid4` (no time ordering) |
 | **Rejected: `shapely`** | — | Unnecessary once PostGIS owns the geometry |
 | **Rejected: `reverse_geocoder`** | — | Drags in numpy + scipy, roughly 80 MB on a 1 GB box |

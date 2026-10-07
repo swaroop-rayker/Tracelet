@@ -841,6 +841,31 @@ Recorded as a deviation in docs/MILESTONES.md.
 
 ---
 
+### 8.8 `backups` and `restore_checks` -- added in M7 (ADR-0014, ADR-0022)
+
+**`backups`** -- one row per backup attempt. `id uuid` PK, `kind backup_kind`
+(`scheduled`, `manual`), `status backup_status` (`running`, `ok`, `failed`, `pruned`),
+`file_name text NULL`, `size_bytes bigint NULL`, `sha256 text NULL`, `row_counts jsonb NULL`
+(table name to count, taken in the dump's own snapshot), `error text NULL`, `started_at`,
+`finished_at NULL`, `requested_by uuid NULL` FK admins `ON DELETE SET NULL`,
+`last_downloaded_at timestamptz NULL`.
+
+**`restore_checks`** -- one row per restore-verification. `id bigint` identity PK,
+`backup_id uuid` FK backups `ON DELETE RESTRICT`, `kind backup_kind`, `status
+restore_status` (`running`, `passed`, `failed`), `mismatches jsonb NULL` (table to `{expected,
+restored}`), `error text NULL`, `started_at`, `finished_at NULL`, `requested_by uuid NULL` FK
+admins `ON DELETE SET NULL`.
+
+**Invariants**
+1. `status = 'ok'` exactly when `file_name`, `size_bytes`, `sha256` and `row_counts` are all
+   set, and `pruned` keeps them as history (`CHECK`). A `pruned` row's file is gone.
+2. At most one `running` backup and one `running` restore check (partial unique indexes), so
+   a second trigger is refused rather than run twice.
+3. Rows are never deleted: both tables are small, and they are the history System Health
+   shows. `error` never contains a password or a connection string.
+4. A restore check passes only if every table's restored count **equals** the backup's
+   `row_counts` (ADR-0022) -- no tolerance.
+
 ## 9. Derived and cached data
 
 ### 9.1 `rollup_visit_daily`
@@ -971,7 +996,7 @@ F12.AC8, F10.AC12.
 | Role | Grants | Why |
 |---|---|---|
 | `tracelet_app` | `SELECT`, `INSERT`, `UPDATE`, `DELETE` on data tables; **`INSERT` and `SELECT` only on `audit_log`** | Makes the audit log append-only at the engine level, not by convention — NFR5.AC5 |
-| `tracelet_maint` | Additionally `DELETE` on `audit_log`; `VACUUM`; used by purge, backup and restore-verify | Separates routine traffic from destructive maintenance |
+| `tracelet_maint` | Additionally `DELETE` on `audit_log`; `VACUUM`; **`CREATEDB`** (M7, for the scratch database `tracelet_verify`, made from the template `tracelet_verify_template` -- ADR-0022); used by purge, backup and restore-verify, through `TRACELET_MAINT_DATABASE_URL` | Separates routine traffic from destructive maintenance |
 | `tracelet_migrate` | DDL | Used only by Alembic, never by the running application |
 
 A SQL-injection foothold in the application path therefore cannot erase the evidence of
