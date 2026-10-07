@@ -62,15 +62,6 @@ export function limitInWords(value: LimitValue): string {
   return `${rate}, bursts of ${value.burst.toLocaleString('en-IN')}`;
 }
 
-export const VERDICT: Readonly<
-  Record<string, { readonly label: string; readonly tone?: 'ok' | 'warn' | 'error' }>
-> = {
-  up_to_date: { label: 'Up to date', tone: 'ok' },
-  stale: { label: 'Stale', tone: 'warn' },
-  missing: { label: 'Missing', tone: 'error' },
-  not_configured: { label: 'Not configured' },
-};
-
 export const SOURCE_STATUS: Readonly<
   Record<string, { readonly label: string; readonly tone?: 'ok' | 'warn' | 'info' }>
 > = {

@@ -81,14 +81,27 @@ export const degradationSchema = z.object({
 // Geo databases
 // ---------------------------------------------------------------------------
 
+export const dbState = z.enum([
+  'updating',
+  'update_failed',
+  'unable_to_update',
+  'not_installed',
+  'update_available',
+  'up_to_date',
+]);
+export type DbState = z.infer<typeof dbState>;
+
 const database = z.object({
   name: z.string(),
   kind: z.string(),
   feeds: z.string().nullable(),
   attribution: z.string(),
   configured: z.boolean(),
+  auto_update: z.boolean(),
   staleness_days: z.number(),
-  verdict: z.enum(['up_to_date', 'stale', 'missing', 'not_configured']),
+  stale: z.boolean(),
+  state: dbState,
+  progress: z.object({ phase: z.string(), percent: z.number().nullable() }).nullable(),
   age_days: z.number().nullable(),
   installed: z
     .object({
@@ -99,8 +112,10 @@ const database = z.object({
       sha256: z.string().nullable(),
     })
     .nullable(),
+  latest: z.object({ version: z.string().nullable(), released_at: iso.nullable() }).nullable(),
   last_attempt: z.object({ status: z.string(), at: iso, error: z.string().nullable() }).nullable(),
-  updating: z.boolean(),
+  check_error: z.string().nullable(),
+  checked_at: iso.nullable(),
 }) satisfies z.ZodType<S['DatabaseOut']>;
 export type GeoDatabase = z.infer<typeof database>;
 
@@ -111,6 +126,29 @@ export const databasesSchema = z.object({
 const started = z.object({ name: z.string(), status: z.string() }) satisfies z.ZodType<
   S['UpdateStarted']
 >;
+
+export function setAutoUpdate(
+  csrfToken: string,
+  name: string,
+  autoUpdate: boolean,
+): Promise<ApiResult<GeoDatabase>> {
+  return request(`${HEALTH}/databases/${encodeURIComponent(name)}`, {
+    method: 'PATCH',
+    body: { auto_update: autoUpdate },
+    csrfToken,
+    parse: parseWith(database),
+  });
+}
+
+export function checkDatabases(
+  csrfToken: string,
+): Promise<ApiResult<z.infer<typeof databasesSchema>>> {
+  return request(`${HEALTH}/databases/check`, {
+    method: 'POST',
+    csrfToken,
+    parse: parseWith(databasesSchema),
+  });
+}
 
 export function updateDatabase(
   csrfToken: string,

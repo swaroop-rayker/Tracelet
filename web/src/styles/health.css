@@ -120,3 +120,17 @@
     flex: 1 1 100%;
   }
 }
+
+/* A geo database's state: the Badge, a Stale Badge if any, and the reason or date under them. */
+.db-state {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1) var(--space-2);
+  max-width: 260px;
+}
+
+.db-state__note {
+  flex-basis: 100%;
+  overflow-wrap: anywhere;
+}
