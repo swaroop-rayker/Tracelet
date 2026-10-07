@@ -699,8 +699,11 @@ IS NOT NULL)`; `(status IN ('done','dead')) = (completed_at IS NOT NULL)`; `atte
    (F7.AC2). Doing it in application code would race under concurrent visits. It also holds
    the rule's one upgrade (SPEC §11 row 20): a high-priority alert whose day key is already
    held by a *normal* alert is queued under that key plus `:upgrade`, unique too. A high
-   alert holding the day key leaves no upgrade, and a normal alert never takes one -- so at
-   most two alerts per link and visitor per day, the second always high.
+   alert holding the day key leaves no upgrade, and a normal alert never takes one. And
+   one confirmation (SPEC §11 row 21): an *outside* alert whose day key is held by a normal
+   *undetermined* alert is queued under that key plus `:confirmed`, unless `:upgrade` is
+   already taken. So at most three alerts per link and visitor per day, in the order not
+   confirmed, outside, inside; the holder's state is read from its `payload`.
 3. Claimed with `SELECT … FOR UPDATE SKIP LOCKED LIMIT n` — correct with two workers.
 4. **No FK to `visits`.** A retention purge must not block a pending notification, and
    the payload is already self-contained.

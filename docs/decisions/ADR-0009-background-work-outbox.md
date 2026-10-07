@@ -66,6 +66,12 @@ already held by a normal alert is queued under that key plus `:upgrade`. It is t
 mechanism -- a second unique key, not an application check -- so concurrent upgrades still
 race to one row.
 
+**Amended 2026-10-07 (SPEC §11 row 21):** one confirmation. An outside alert whose day key is
+held by a normal `undetermined` alert is queued under that key plus `:confirmed`, unless
+`:upgrade` is taken. A third unique key, the same mechanism. The one check outside a
+constraint -- "has a high alert gone out?" -- can race only against a visit finalised at
+the same moment; the SPEC row accepts that both then alert.
+
 **No foreign key to `visits`.** A retention purge must never block a pending notification,
 and the payload is self-contained.
 
