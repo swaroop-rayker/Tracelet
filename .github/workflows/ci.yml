@@ -118,11 +118,18 @@ jobs:
       # roles are created here. Kept deliberately in step with
       # db/init/01-extensions-and-roles.sh — if they diverge, CI stops testing
       # what actually ships.
+      #
+      # The image's own init script has already run here, and it installs more
+      # than db/init does: topology, fuzzystrmatch and the tiger geocoder, with
+      # their schemas. Compose mounts db/init over that script, so the shipped
+      # database has none of them; they are dropped first (docs/ERRORS.md E73).
       - name: Initialise extensions and roles
         env:
           PGPASSWORD: ci-postgres
         run: |
           psql -h localhost -U tracelet -d tracelet -v ON_ERROR_STOP=1 <<'SQL'
+            DROP EXTENSION IF EXISTS postgis_tiger_geocoder, postgis_topology, fuzzystrmatch CASCADE;
+            DROP SCHEMA IF EXISTS tiger, tiger_data, topology CASCADE;
             CREATE EXTENSION IF NOT EXISTS postgis;
             CREATE EXTENSION IF NOT EXISTS citext;
             CREATE ROLE tracelet_app      LOGIN PASSWORD 'ci-app';

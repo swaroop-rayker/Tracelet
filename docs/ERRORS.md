@@ -2417,6 +2417,35 @@ database; CI is the run without one, so a CI-only failure there points at isolat
 
 ---
 
+### E73 — Every backup failed on CI: `permission denied for schema tiger`
+
+**Status:** Fixed. **Milestone:** M7. **Date:** 2026-10-07.
+
+**Symptom.** PR #9's first CI run failed five `test_backups.py` tests. `pg_dump` exited 1
+with `permission denied for schema tiger`; the other four followed from it (no completed
+backup to restore, download or count). The same tests passed locally and against the live
+scheduler.
+
+**Root cause.** CI's database was not the one that ships. Both use
+`postgis/postgis:16-3.4-alpine`, but Compose mounts `db/init` over the image's
+`/docker-entrypoint-initdb.d`, replacing its init script, so the shipped database has only
+`postgis`, `citext` and `pg_stat_statements`. A CI service container cannot mount it, so the
+image's own script runs and also installs `postgis_topology`, `fuzzystrmatch` and the tiger
+geocoder, with the schemas `tiger`, `tiger_data` and `topology`. `pg_dump` dumps every
+schema, and `tracelet_maint` has no rights on those.
+
+**Fix.** CI's initialisation drops those extensions and schemas before creating what
+`db/init` creates, so the database under test matches the shipped one. The backup code is
+unchanged: on the shipped database it was right.
+
+**Prevention.** The CI step says why the drop is there. When CI and the dev box disagree on a
+database test, compare the schemas and extensions first:
+`SELECT nspname FROM pg_namespace; SELECT extname FROM pg_extension;`.
+
+**Related:** F12.AC9, ADR-0022.
+
+---
+
 Add entries here as bugs are found and fixed. Use the next available `E<n>` identifier and
 the same structure: symptom, root cause, fix, **prevention**.
 
