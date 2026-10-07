@@ -23,7 +23,7 @@ then open the PR (CLAUDE.md section 2).
 | M5 | Dashboard analytics and visualisation | L | **[x] done** — 10 of 10 items; rollups p95 ≤ 70 ms at design load; raw fallback slow on long windows (R25); bugs E34–E36 |
 | M5.5 | Design system and UI polish (owner-directed 2026-10-02, approved 2026-10-03; docs/DESIGN.md) | L | **built** — 10 of 11 items; CSP 0 in Chromium, Firefox and WebKit; 72-image matrix; bugs E41–E47; open: hand keyboard walkthrough |
 | M5.6 | Dashboard enhancements and the Settings redesign, UI only (owner-approved 2026-10-06; docs/plans/ENHANCEMENTS-PLAN.md Phase A, SETTINGS-REDESIGN-PLAN.md) | M | **[x] built** — dashboard 6/6, Settings 6/6; CSP 0 in three engines; no server change; bugs E48–E50 |
-| M6 | Geofencing and Telegram notifications | M | **built** — 9 of 11; open: the owner's two Telegram receipt checks; bugs E52–E61 |
+| M6 | Geofencing and Telegram notifications | M | **[x] done** — 11 of 11; both Telegram alerts received on the owner's phone 2026-10-07 (inside: high, as the same-day upgrade); bugs E52–E61 |
 | M7 | System health and operations | L | [ ] |
 | M8 | Accuracy hardening and ground truth | M | [ ] |
 | M9 | Production hardening and deploy | M | [ ] |
@@ -791,10 +791,12 @@ F9.AC6, F9.AC16–F9.AC18, NFR7. No new requirement: every item reads an existin
   and the browser walk (drawn, vertex-edited, saved, reloaded)
 - [x] Self-intersecting ring rejected with the specific error code -- `GEOFENCE_INVALID_GEOMETRY`,
   with the crossing marked on the map
-- [ ] Physically enter a geofence and **receive the high-priority alert on Telegram** -- owner,
-  on a phone; the path to the send is integration-tested
-- [ ] Outside visit receives a normal alert -- queued at normal priority (integration test);
-  receipt on Telegram is the owner's check with the one above
+- [x] Physically enter a geofence and **receive the high-priority alert on Telegram** -- owner,
+  on a phone, 2026-10-07: location allowed, strict IN/Karnataka, inside a Karnataka region
+  geofence; the alert went out as the day's one upgrade over an earlier "Location not
+  confirmed" (SPEC §11 row 20)
+- [x] Outside visit receives a normal alert -- owner, on a phone, 2026-10-07: strict
+  IN/Karnataka against a Maharashtra geofence, received at normal priority
 - [x] Bot/crawler visit receives **nothing** -- integration test
 - [x] Second visit from the same visitor on the same local day sends **nothing** — proven
   concurrently (two racing transactions, one row)
