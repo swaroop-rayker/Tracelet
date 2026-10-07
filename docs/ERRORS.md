@@ -2369,6 +2369,28 @@ skipped when the shared database already has a backup that hour, the unit test c
 
 ---
 
+### E71 — The Tor exit list read "Update available" right after it was updated
+
+**Status:** Fixed before commit. **Milestone:** M7. **Date:** 2026-10-07.
+
+**Symptom.** In the browser walk of the new geo-database states, `tor-exits` showed "Update
+available" both before and after a manual update that succeeded.
+
+**Root cause.** The release check compares the vendor's `Last-Modified` with the installed
+copy's `released_at`. The Tor Project republishes the list every few minutes with a new date
+and, mostly, the same bytes. The installer rightly keeps the serving copy when the bytes are
+identical -- and recorded nothing, so the installed date stayed old and the check found a
+"newer" release every time.
+
+**Fix.** When a download is identical to the serving copy, its `released_at` takes the new
+date: the serving copy is the latest release.
+
+**Prevention.** `test_the_same_bytes_under_a_newer_date_take_the_date` in the installer tests.
+
+**Related:** SPEC §11 row 24, F10.AC3.
+
+---
+
 Add entries here as bugs are found and fixed. Use the next available `E<n>` identifier and
 the same structure: symptom, root cause, fix, **prevention**.
 

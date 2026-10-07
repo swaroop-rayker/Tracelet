@@ -130,6 +130,24 @@ async def test_an_identical_download_changes_nothing(
     assert [r.status for r in await rows(spec.name)] == [GeoDbStatus.INSTALLED]
 
 
+async def test_the_same_bytes_under_a_newer_date_take_the_date(
+    settings: Settings, spec_for: Callable[..., DatabaseSpec]
+) -> None:
+    """ERRORS E71: the Tor list is republished with a new Last-Modified and the same bytes.
+    The serving copy is then the latest release, and must say so, or the release check calls
+    it outdated for ever (SPEC section 11 row 24)."""
+    spec = spec_for()
+    first = "Wed, 07 Oct 2026 06:00:00 GMT"
+    later = "Wed, 07 Oct 2026 07:00:00 GMT"
+    client, _ = serving({URL: httpx.Response(200, content=GOOD, headers={"last-modified": first})})
+    await install(spec, settings, client=client)
+    client, _ = serving({URL: httpx.Response(200, content=GOOD, headers={"last-modified": later})})
+
+    assert (await install(spec, settings, client=client)).status == "unchanged"
+    (row,) = await rows(spec.name)
+    assert row.released_at is not None and row.released_at.hour == 7
+
+
 async def test_a_corrupt_update_leaves_the_previous_version_serving(
     settings: Settings, spec_for: Callable[..., DatabaseSpec]
 ) -> None:

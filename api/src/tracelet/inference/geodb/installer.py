@@ -315,7 +315,13 @@ async def install(
                 await db.execute(
                     update(GeoDatabase)
                     .where(GeoDatabase.id == serving.id)
-                    .values(last_check_at=dt.datetime.now(dt.UTC))
+                    # The vendor republished the same bytes under a newer date (the Tor list
+                    # does, every few minutes): the serving copy *is* the latest, so take
+                    # the date, or the release check would call it outdated for ever (E71).
+                    .values(
+                        last_check_at=dt.datetime.now(dt.UTC),
+                        released_at=released or serving.released_at,
+                    )
                 )
                 # Nothing was installed, so the attempt leaves no row behind.
                 await db.execute(delete(GeoDatabase).where(GeoDatabase.id == row_id))
