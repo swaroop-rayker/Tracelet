@@ -8,6 +8,7 @@ table is put back as it was.
 
 from __future__ import annotations
 
+import asyncio
 import datetime as dt
 from collections.abc import AsyncIterator
 from typing import Any
@@ -22,6 +23,7 @@ from tracelet.audit import log as audit
 from tracelet.auth.models import AdminRole
 from tracelet.config import Settings
 from tracelet.db.engine import session_scope
+from tracelet.health import ops_router
 from tracelet.inference.geodb import check, maintenance
 from tracelet.inference.geodb.installer import InstallResult, Progress
 
@@ -188,3 +190,41 @@ async def test_geo_database_writes_are_the_owners(
     ):
         response = await analyst.client.request(method, path, json=body, headers=analyst.headers())
         assert response.status_code == 403, (method, path)
+
+
+async def test_update_downloads_nothing_when_nothing_is_newer(
+    owner: SignedIn, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """SPEC section 11 row 26: Update asks first; Download again does not."""
+    asked: list[str] = []
+    installed: list[tuple[str, bool]] = []
+
+    async def nothing_newer(spec: Any, settings: Settings) -> bool:
+        del settings
+        asked.append(spec.name)
+        return False
+
+    async def update_all(settings: Settings, *, only: list[str], force: bool) -> None:
+        del settings
+        installed.extend((name, force) for name in only)
+
+    monkeypatch.setattr(maintenance, "manual_update_due", nothing_newer)
+    monkeypatch.setattr(maintenance, "update_all", update_all)
+
+    same = await owner.client.post(f"{DBS}/geonames-admin1/update", headers=owner.headers())
+    assert same.status_code == 200, same.text
+    assert same.json() == {"name": "geonames-admin1", "status": "up_to_date"}
+    assert asked == ["geonames-admin1"] and installed == []
+
+    again = await owner.client.post(
+        f"{DBS}/geonames-admin1/update?force=true", headers=owner.headers()
+    )
+    assert again.status_code == 202, again.text
+    assert again.json()["status"] == "started"
+    await asyncio.gather(*list(ops_router._TASKS))
+    assert asked == ["geonames-admin1"], "Download again does not ask"
+    assert installed == [("geonames-admin1", True)]
+
+    details = await helpers.audit_details(owner.id, audit.Action.GEO_DB_UPDATE_REQUESTED)
+    outcomes = sorted((d["force"], d["outcome"]) for d in details)
+    assert outcomes == [(False, "up_to_date"), (True, "started")]

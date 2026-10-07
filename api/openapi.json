@@ -5972,6 +5972,7 @@
           },
           "status": {
             "default": "started",
+            "description": "started (202), or up_to_date (200): the vendor has nothing newer, so nothing was downloaded (SPEC section 11 row 26).",
             "title": "Status",
             "type": "string"
           }
@@ -11900,7 +11901,7 @@
     },
     "/api/v1/health/databases/{name}/update": {
       "post": {
-        "description": "F10.AC4. Downloads, verifies in a memory-capped subprocess and swaps atomically; a failure leaves the previous version serving and shows as `update_failed`. Works whatever `auto_update` says. `409 LIFECYCLE_JOB_RUNNING` while it is updating.",
+        "description": "F10.AC4, SPEC section 11 row 26. Asks the vendor first: nothing newer is `200 {status: up_to_date}` and no download. Otherwise downloads, verifies in a memory-capped subprocess and swaps atomically (`202`); a failure leaves the previous version serving. `force=true` is Download again: no check. Works whatever `auto_update` says. `409 LIFECYCLE_JOB_RUNNING` while it is updating.",
         "operationId": "update_database_api_v1_health_databases__name__update_post",
         "parameters": [
           {
@@ -11911,9 +11912,31 @@
               "title": "Name",
               "type": "string"
             }
+          },
+          {
+            "description": "Download again, without asking first.",
+            "in": "query",
+            "name": "force",
+            "required": false,
+            "schema": {
+              "default": false,
+              "description": "Download again, without asking first.",
+              "title": "Force",
+              "type": "boolean"
+            }
           }
         ],
         "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UpdateStarted"
+                }
+              }
+            },
+            "description": "Already up to date"
+          },
           "202": {
             "content": {
               "application/json": {

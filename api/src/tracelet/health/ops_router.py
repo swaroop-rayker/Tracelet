@@ -9,9 +9,9 @@ from __future__ import annotations
 
 import asyncio
 import datetime as dt
-from typing import Final
+from typing import Annotated, Final
 
-from fastapi import APIRouter, Request, status
+from fastapi import APIRouter, Query, Request, Response, status
 from pydantic import BaseModel, Field
 from sqlalchemy import func, select, text
 from sqlalchemy.dialects import postgresql as pg
@@ -352,7 +352,11 @@ async def change_database(
 
 class UpdateStarted(BaseModel):
     name: str
-    status: str = "started"
+    status: str = Field(
+        default="started",
+        description="started (202), or up_to_date (200): the vendor has nothing newer, so "
+        "nothing was downloaded (SPEC section 11 row 26).",
+    )
 
 
 @router.post(
@@ -361,19 +365,29 @@ class UpdateStarted(BaseModel):
     status_code=status.HTTP_202_ACCEPTED,
     summary="Update one geo database now (owner only)",
     description=(
-        "F10.AC4. Downloads, verifies in a memory-capped subprocess and swaps atomically; a "
-        "failure leaves the previous version serving and shows as `update_failed`. Works "
-        "whatever `auto_update` says. `409 LIFECYCLE_JOB_RUNNING` while it is updating."
+        "F10.AC4, SPEC section 11 row 26. Asks the vendor first: nothing newer is `200 "
+        "{status: up_to_date}` and no download. Otherwise downloads, verifies in a "
+        "memory-capped subprocess and swaps atomically (`202`); a failure leaves the previous "
+        "version serving. `force=true` is Download again: no check. Works whatever "
+        "`auto_update` says. `409 LIFECYCLE_JOB_RUNNING` while it is updating."
     ),
+    responses={200: {"model": UpdateStarted, "description": "Already up to date"}},
 )
 async def update_database(
-    name: str, request: Request, principal: OwnerPrincipal, db: DbSession, config: Config
+    name: str,
+    request: Request,
+    response: Response,
+    principal: OwnerPrincipal,
+    db: DbSession,
+    config: Config,
+    force: Annotated[bool, Query(description="Download again, without asking first.")] = False,
 ) -> UpdateStarted:
     if name not in BY_NAME:
         raise NotFound("No such geo database.")
     state = next(d for d in await databases.states(db, config) if d.name == name)
     if state.state == "updating":
         raise LifecycleJobRunning(f"{name} is already updating.")
+    download = force or await maintenance.manual_update_due(BY_NAME[name], config)
     await audit.record(
         db,
         action=audit.Action.GEO_DB_UPDATE_REQUESTED,
@@ -382,7 +396,11 @@ async def update_database(
         target_type="geo_database",
         target_id=name,
         trace_id=getattr(request.state, "trace_id", None),
+        detail={"force": force, "outcome": "started" if download else "up_to_date"},
     )
+    if not download:
+        response.status_code = status.HTTP_200_OK
+        return UpdateStarted(name=name, status="up_to_date")
     task: asyncio.Task[object] = asyncio.create_task(
         maintenance.update_all(config, only=[name], force=True), name=f"geodb:{name}"
     )

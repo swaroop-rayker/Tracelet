@@ -854,7 +854,7 @@ export interface paths {
         put?: never;
         /**
          * Update one geo database now (owner only)
-         * @description F10.AC4. Downloads, verifies in a memory-capped subprocess and swaps atomically; a failure leaves the previous version serving and shows as `update_failed`. Works whatever `auto_update` says. `409 LIFECYCLE_JOB_RUNNING` while it is updating.
+         * @description F10.AC4, SPEC section 11 row 26. Asks the vendor first: nothing newer is `200 {status: up_to_date}` and no download. Otherwise downloads, verifies in a memory-capped subprocess and swaps atomically (`202`); a failure leaves the previous version serving. `force=true` is Download again: no check. Works whatever `auto_update` says. `409 LIFECYCLE_JOB_RUNNING` while it is updating.
          */
         post: operations["update_database_api_v1_health_databases__name__update_post"];
         delete?: never;
@@ -3614,6 +3614,7 @@ export interface components {
             name: string;
             /**
              * Status
+             * @description started (202), or up_to_date (200): the vendor has nothing newer, so nothing was downloaded (SPEC section 11 row 26).
              * @default started
              */
             status: string;
@@ -5418,7 +5419,10 @@ export interface operations {
     };
     update_database_api_v1_health_databases__name__update_post: {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description Download again, without asking first. */
+                force?: boolean;
+            };
             header?: never;
             path: {
                 name: string;
@@ -5427,6 +5431,15 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
+            /** @description Already up to date */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UpdateStarted"];
+                };
+            };
             /** @description Successful Response */
             202: {
                 headers: {

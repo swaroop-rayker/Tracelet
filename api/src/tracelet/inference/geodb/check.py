@@ -89,25 +89,15 @@ async def check_one(
         )
 
 
-async def check_all(
-    settings: Settings | None = None, *, client: httpx.AsyncClient | None = None
-) -> list[Checked]:
-    """Check every database and store the results. Never raises."""
-    settings = settings or get_settings()
-    today = dt.datetime.now(dt.UTC).date()
-    owns = client is None
-    http = client or httpx.AsyncClient(
+def _client() -> httpx.AsyncClient:
+    return httpx.AsyncClient(
         timeout=httpx.Timeout(TIMEOUT_S, connect=10.0),
         follow_redirects=True,
         headers={"User-Agent": USER_AGENT},
     )
-    results: list[Checked] = []
-    try:
-        for spec in CATALOG:
-            results.append(await check_one(spec, settings, http, today))
-    finally:
-        if owns:
-            await http.aclose()
+
+
+async def _store(results: list[Checked]) -> None:
     now = dt.datetime.now(dt.UTC)
     async with session_scope() as db:
         for r in results:
@@ -122,9 +112,55 @@ async def check_all(
                 .values(name=r.name, **values)
                 .on_conflict_do_update(index_elements=[GeoDatabaseSettings.name], set_=values)
             )
+
+
+async def check_all(
+    settings: Settings | None = None, *, client: httpx.AsyncClient | None = None
+) -> list[Checked]:
+    """Check every database and store the results. Never raises."""
+    settings = settings or get_settings()
+    today = dt.datetime.now(dt.UTC).date()
+    http = client or _client()
+    results: list[Checked] = []
+    try:
+        for spec in CATALOG:
+            results.append(await check_one(spec, settings, http, today))
+    finally:
+        if client is None:
+            await http.aclose()
+    await _store(results)
     failed = [r.name for r in results if r.error and r.checked]
     log.info("geo_databases_checked", checked=sum(r.checked for r in results), failed=failed)
     return results
+
+
+async def check_and_store(
+    spec: DatabaseSpec, settings: Settings, *, client: httpx.AsyncClient | None = None
+) -> Checked:
+    """One database's check, stored: what the Update button asks before it downloads
+    (SPEC section 11 row 26)."""
+    http = client or _client()
+    try:
+        result = await check_one(spec, settings, http, dt.datetime.now(dt.UTC).date())
+    finally:
+        if client is None:
+            await http.aclose()
+    await _store([result])
+    return result
+
+
+def comparable(
+    installed_version: str | None,
+    installed_released_at: dt.datetime | None,
+    latest_version: str | None,
+    latest_released_at: dt.datetime | None,
+) -> bool:
+    """Whether a check's answer can be compared with the installed copy at all: the same
+    kind of version, or both dates. When not, "newer?" is unknown, and the caller falls back
+    to downloading (manual) or to the refresh period (scheduler) -- SPEC section 11 row 26."""
+    return (latest_version is not None and installed_version is not None) or (
+        latest_released_at is not None and installed_released_at is not None
+    )
 
 
 def newer_release(

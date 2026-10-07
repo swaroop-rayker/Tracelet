@@ -150,11 +150,15 @@ export function checkDatabases(
   });
 }
 
+/** Update asks the vendor first: `status` is `up_to_date` when nothing was downloaded.
+ *  `force` is Download again (SPEC §11 row 26). */
 export function updateDatabase(
   csrfToken: string,
   name: string,
+  force = false,
 ): Promise<ApiResult<z.infer<typeof started>>> {
-  return request(`${HEALTH}/databases/${encodeURIComponent(name)}/update`, {
+  const query = force ? '?force=true' : '';
+  return request(`${HEALTH}/databases/${encodeURIComponent(name)}/update${query}`, {
     method: 'POST',
     csrfToken,
     parse: parseWith(started),

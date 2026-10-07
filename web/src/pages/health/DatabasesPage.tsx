@@ -306,20 +306,24 @@ function ConfirmUpdate({
 }): React.JSX.Element {
   const { me } = useSession();
   const client = useQueryClient();
-  const [busy, setBusy] = useState(false);
+  const [busy, setBusy] = useState<'update' | 'again' | null>(null);
   const [error, setError] = useState<ApiError | null>(null);
 
-  async function start(): Promise<void> {
-    setBusy(true);
-    const result = await updateDatabase(me.csrf_token, database.name);
-    setBusy(false);
+  async function start(force: boolean): Promise<void> {
+    setBusy(force ? 'again' : 'update');
+    const result = await updateDatabase(me.csrf_token, database.name, force);
+    setBusy(null);
     if (!result.ok) {
       setError(result.error);
       return;
     }
-    onStarted();
     await client.invalidateQueries({ queryKey: [PATH] });
-    toast(`Updating ${database.name}. The State column follows it.`);
+    if (result.data.status === 'up_to_date') {
+      toast(`${database.name} is already up to date — nothing downloaded.`);
+    } else {
+      onStarted();
+      toast(`Updating ${database.name}. The State column follows it.`);
+    }
     onClose();
   }
 
@@ -332,21 +336,36 @@ function ConfirmUpdate({
       footer={
         <>
           <Button onClick={onClose}>Cancel</Button>
-          <Button variant="primary" busy={busy} busyLabel="Starting…" onClick={() => void start()}>
+          <Button
+            busy={busy === 'again'}
+            busyLabel="Starting…"
+            disabled={busy === 'update'}
+            onClick={() => void start(true)}
+          >
+            Download again
+          </Button>
+          <Button
+            variant="primary"
+            busy={busy === 'update'}
+            busyLabel="Checking…"
+            disabled={busy === 'again'}
+            onClick={() => void start(false)}
+          >
             Update
           </Button>
         </>
       }
     >
       <p>
-        Download the current release, check it in a memory-capped process, then switch to it. The
-        installed copy
+        <strong>Update</strong> asks the vendor first and downloads only if there is a newer
+        release. It is checked in a memory-capped process, then switched to; the installed copy
         {database.installed?.version ? ` (${database.installed.version})` : ''} keeps serving until
         the new one passes.
       </p>
-      {database.state === 'up_to_date' && (
-        <p className="small muted">It is up to date; this fetches it again anyway.</p>
-      )}
+      <p className="small muted">
+        <strong>Download again</strong> fetches the current release without asking — for a damaged
+        copy.
+      </p>
       {error !== null && <ErrorNotice error={error} />}
     </Dialog>
   );
