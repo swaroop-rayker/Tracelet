@@ -38,31 +38,17 @@ MARK = "itest-retention"
 
 @pytest.fixture(autouse=True)
 async def _policy_restored(db_app: object) -> AsyncIterator[None]:
+    """Each test starts at the defaults and the shared policy is put back afterwards --
+    through ``change_policy``, because a changed IP period re-dates every stored IP's expiry.
+    Restoring the row alone left the dev database's IPs dated by a test's 3- or 5-day period,
+    and the next purge cleared them (docs/ERRORS.md E69)."""
     del db_app
     async with session_scope() as db:
-        saved = (
-            await db.execute(
-                text("SELECT visit_days, ip_days, audit_days FROM retention_policy WHERE id = 1")
-            )
-        ).one_or_none()
-        await db.execute(text("DELETE FROM retention_policy"))
-        await db.execute(
-            text(
-                "INSERT INTO retention_policy (id, visit_days, ip_days, audit_days) "
-                "VALUES (1, 180, 30, 365)"
-            )
-        )
+        saved = await retention.current_policy(db)
+        await retention.change_policy(db, retention.Policy(**DEFAULT), actor=None)
     yield
     async with session_scope() as db:
-        await db.execute(text("DELETE FROM retention_policy"))
-        if saved is not None:
-            await db.execute(
-                text(
-                    "INSERT INTO retention_policy (id, visit_days, ip_days, audit_days) "
-                    "VALUES (1, :v, :i, :a)"
-                ),
-                {"v": saved[0], "i": saved[1], "a": saved[2]},
-            )
+        await retention.change_policy(db, saved, actor=None)
 
 
 async def _days_ago(visit_id: uuid.UUID, days: float) -> None:

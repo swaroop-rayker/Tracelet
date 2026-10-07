@@ -203,6 +203,16 @@ async def test_the_nightly_backup_runs_once_a_night(integration_settings: Settin
         pytest.skip("a scheduled backup already ran this hour in this database")
     assert await backups.run_scheduled_once(settings) == "backup"
     assert await backups.run_scheduled_once(settings) != "backup"
+    # Rotation may prune tonight's backup in favour of a newer one the same day; it still
+    # ran, so the night is done (ERRORS E70: it used to run again every 15 minutes).
+    async with session_scope() as db:
+        await db.execute(
+            text(
+                "UPDATE backups SET status = 'pruned' WHERE kind = 'scheduled' "
+                "AND started_at >= date_trunc('hour', now())"
+            )
+        )
+    assert await backups.run_scheduled_once(settings) != "backup"
 
 
 async def test_backup_writes_are_the_owners(

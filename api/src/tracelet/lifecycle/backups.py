@@ -497,6 +497,18 @@ def month_boundary(now: dt.datetime, hour: int, tz: str) -> dt.datetime:
     return first.astimezone(dt.UTC)
 
 
+def nightly_due(tonight: Sequence[BackupStatus]) -> bool:
+    """Whether tonight's backup still has to run, given tonight's scheduled attempts.
+
+    Done if one completed -- even if rotation has since pruned it in favour of a newer
+    backup the same day (ERRORS E70: it then ran again every 15 minutes) -- or one is
+    running; given up after ``NIGHTLY_ATTEMPTS`` failures.
+    """
+    done = {BackupStatus.OK, BackupStatus.PRUNED, BackupStatus.RUNNING}
+    failures = sum(1 for status in tonight if status is BackupStatus.FAILED)
+    return not done.intersection(tonight) and failures < NIGHTLY_ATTEMPTS
+
+
 async def run_scheduled_once(settings: Settings | None = None) -> str | None:
     """Every 15 minutes: the nightly backup if due, then the monthly restore check if due."""
     settings = settings or get_settings()
@@ -515,11 +527,7 @@ async def run_scheduled_once(settings: Settings | None = None) -> str | None:
                 )
             ).scalars()
         )
-    if (
-        BackupStatus.OK not in tonight
-        and BackupStatus.RUNNING not in tonight
-        and len(tonight) < NIGHTLY_ATTEMPTS
-    ):
+    if nightly_due(tonight):
         try:
             backup_id = await begin_backup(BackupKind.SCHEDULED, None)
         except LifecycleJobRunning:

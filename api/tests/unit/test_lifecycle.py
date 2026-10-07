@@ -6,6 +6,7 @@ import datetime as dt
 import uuid
 
 from tracelet.lifecycle import backups, retention
+from tracelet.lifecycle.models import BackupStatus as B
 
 IST = "Asia/Kolkata"
 
@@ -91,3 +92,13 @@ def test_the_restore_leaves_out_extensions_and_their_data() -> None:
     assert "220; 1259 16400 TABLE public links tracelet_migrate" in kept
     assert "4500; 0 16400 TABLE DATA public links tracelet_migrate" in kept
     assert not [line for line in kept if "EXTENSION" in line or "spatial_ref_sys" in line]
+
+
+def test_tonights_backup_is_due_until_one_completes() -> None:
+    assert backups.nightly_due([]) is True
+    assert backups.nightly_due([B.FAILED, B.FAILED]) is True  # retried
+    assert backups.nightly_due([B.FAILED] * backups.NIGHTLY_ATTEMPTS) is False  # given up
+    assert backups.nightly_due([B.RUNNING]) is False
+    assert backups.nightly_due([B.OK]) is False
+    # E70: rotation pruned it in favour of a newer backup the same day; it still ran.
+    assert backups.nightly_due([B.PRUNED]) is False
