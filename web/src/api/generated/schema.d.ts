@@ -725,6 +725,67 @@ export interface paths {
         patch: operations["update_geofence_api_v1_geofences__geofence_id__patch"];
         trace?: never;
     };
+    "/api/v1/health/backups": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Backups and restore checks */
+        get: operations["list_backups_api_v1_health_backups_get"];
+        put?: never;
+        /**
+         * Back up now (owner only)
+         * @description `409 LIFECYCLE_JOB_RUNNING` if a backup is running. The result is its row in `GET /backups`.
+         */
+        post: operations["start_backup_api_v1_health_backups_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/health/backups/{backup_id}/download": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Download a backup (owner only)
+         * @description The only copy that leaves this machine (F12.AC11). Audited.
+         */
+        get: operations["download_backup_api_v1_health_backups__backup_id__download_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/health/backups/{backup_id}/verify-restore": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Restore a backup into a scratch database and check it (owner only)
+         * @description F12.AC10, ADR-0022. `409 BACKUP_UNAVAILABLE` for a backup without a file, `409 LIFECYCLE_JOB_RUNNING` if a check is running. The result is in `GET /backups`.
+         */
+        post: operations["verify_restore_api_v1_health_backups__backup_id__verify_restore_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/health/inference": {
         parameters: {
             query?: never;
@@ -1204,6 +1265,66 @@ export interface components {
             /** Totp Enrolled */
             totp_enrolled: boolean;
         };
+        /**
+         * BackupKind
+         * @enum {string}
+         */
+        BackupKind: "scheduled" | "manual";
+        /** BackupOut */
+        BackupOut: {
+            /** Error */
+            error: string | null;
+            /** File Name */
+            file_name: string | null;
+            /** Finished At */
+            finished_at: string | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            kind: components["schemas"]["BackupKind"];
+            /** Last Downloaded At */
+            last_downloaded_at: string | null;
+            /** @description The newest restore check of this backup. A backup never restored is not yet a backup (F12.AC10). */
+            last_restore_check: components["schemas"]["RestoreCheckOut"] | null;
+            /**
+             * Rows
+             * @description Rows in the dump, from its own snapshot.
+             */
+            rows: number | null;
+            /** Sha256 */
+            sha256: string | null;
+            /** Size Bytes */
+            size_bytes: number | null;
+            /**
+             * Started At
+             * Format: date-time
+             */
+            started_at: string;
+            status: components["schemas"]["BackupStatus"];
+            /**
+             * Tables
+             * @description Tables in the dump.
+             */
+            tables: number | null;
+        };
+        /**
+         * BackupStatus
+         * @enum {string}
+         */
+        BackupStatus: "running" | "ok" | "failed" | "pruned";
+        /** BackupsOut */
+        BackupsOut: {
+            /** Backup Running */
+            backup_running: boolean;
+            /** Backups */
+            backups: components["schemas"]["BackupOut"][];
+            download: components["schemas"]["DownloadReminder"];
+            last_restore_check: components["schemas"]["RestoreCheckOut"] | null;
+            /** Restore Check Running */
+            restore_check_running: boolean;
+        };
         /** Breakdown */
         Breakdown: {
             dimension: components["schemas"]["BreakdownDimension"];
@@ -1568,6 +1689,18 @@ export interface components {
             key: string;
             /** Name */
             name: string;
+        };
+        /** DownloadReminder */
+        DownloadReminder: {
+            /** Last Downloaded At */
+            last_downloaded_at: string | null;
+            /**
+             * Overdue
+             * @description True when no backup has been downloaded within `reminder_days`: the download is the only copy off this machine (F12.AC11, RISKS R11).
+             */
+            overdue: boolean;
+            /** Reminder Days */
+            reminder_days: number;
         };
         /**
          * Drift
@@ -2579,6 +2712,36 @@ export interface components {
             /** Email */
             email: string;
         };
+        /** RestoreCheckOut */
+        RestoreCheckOut: {
+            /**
+             * Backup Id
+             * Format: uuid
+             */
+            backup_id: string;
+            /** Error */
+            error: string | null;
+            /** Finished At */
+            finished_at: string | null;
+            /** Id */
+            id: number;
+            kind: components["schemas"]["BackupKind"];
+            /** Mismatches */
+            mismatches: {
+                [key: string]: unknown;
+            } | null;
+            /**
+             * Started At
+             * Format: date-time
+             */
+            started_at: string;
+            status: components["schemas"]["RestoreStatus"];
+        };
+        /**
+         * RestoreStatus
+         * @enum {string}
+         */
+        RestoreStatus: "running" | "passed" | "failed";
         /** RetentionOut */
         RetentionOut: {
             /**
@@ -2725,6 +2888,16 @@ export interface components {
             server_only: number;
             /** Total */
             total: number;
+        };
+        /** Started */
+        Started: {
+            /** Id */
+            id: string;
+            /**
+             * Status
+             * @default started
+             */
+            status: string;
         };
         /** Summary */
         Summary: {
@@ -4432,6 +4605,108 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["GeofenceOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_backups_api_v1_health_backups_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BackupsOut"];
+                };
+            };
+        };
+    };
+    start_backup_api_v1_health_backups_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Started"];
+                };
+            };
+        };
+    };
+    download_backup_api_v1_health_backups__backup_id__download_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                backup_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/octet-stream": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    verify_restore_api_v1_health_backups__backup_id__verify_restore_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                backup_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Started"];
                 };
             };
             /** @description Validation Error */

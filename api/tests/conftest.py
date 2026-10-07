@@ -114,6 +114,12 @@ def integration_settings(ip_key_file: Path) -> Settings:
         pepper_rotating=SecretStr("integration-test-pepper-rotating-0123456789abcd"),
         pepper_fp=SecretStr("integration-test-pepper-fp-0123456789abcdef0123"),
         session_secret=SecretStr("integration-test-session-secret-0123456789abcd"),
+        # The maintenance role, for purges, backups and the restore check (ADR-0022).
+        maint_database_url=(
+            SecretStr(os.environ["TRACELET_MAINT_DATABASE_URL"])
+            if os.environ.get("TRACELET_MAINT_DATABASE_URL")
+            else None
+        ),
     )
 
 

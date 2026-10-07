@@ -143,6 +143,205 @@
         "title": "AdminSummary",
         "type": "object"
       },
+      "BackupKind": {
+        "enum": [
+          "scheduled",
+          "manual"
+        ],
+        "title": "BackupKind",
+        "type": "string"
+      },
+      "BackupOut": {
+        "properties": {
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          },
+          "file_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "File Name"
+          },
+          "finished_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Finished At"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/BackupKind"
+          },
+          "last_downloaded_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Downloaded At"
+          },
+          "last_restore_check": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RestoreCheckOut"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The newest restore check of this backup. A backup never restored is not yet a backup (F12.AC10)."
+          },
+          "rows": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Rows in the dump, from its own snapshot.",
+            "title": "Rows"
+          },
+          "sha256": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sha256"
+          },
+          "size_bytes": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Size Bytes"
+          },
+          "started_at": {
+            "format": "date-time",
+            "title": "Started At",
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/BackupStatus"
+          },
+          "tables": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Tables in the dump.",
+            "title": "Tables"
+          }
+        },
+        "required": [
+          "id",
+          "kind",
+          "status",
+          "file_name",
+          "size_bytes",
+          "sha256",
+          "tables",
+          "rows",
+          "error",
+          "started_at",
+          "finished_at",
+          "last_downloaded_at",
+          "last_restore_check"
+        ],
+        "title": "BackupOut",
+        "type": "object"
+      },
+      "BackupStatus": {
+        "enum": [
+          "running",
+          "ok",
+          "failed",
+          "pruned"
+        ],
+        "title": "BackupStatus",
+        "type": "string"
+      },
+      "BackupsOut": {
+        "properties": {
+          "backup_running": {
+            "title": "Backup Running",
+            "type": "boolean"
+          },
+          "backups": {
+            "items": {
+              "$ref": "#/components/schemas/BackupOut"
+            },
+            "title": "Backups",
+            "type": "array"
+          },
+          "download": {
+            "$ref": "#/components/schemas/DownloadReminder"
+          },
+          "last_restore_check": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RestoreCheckOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "restore_check_running": {
+            "title": "Restore Check Running",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "backups",
+          "last_restore_check",
+          "backup_running",
+          "restore_check_running",
+          "download"
+        ],
+        "title": "BackupsOut",
+        "type": "object"
+      },
       "Breakdown": {
         "properties": {
           "dimension": {
@@ -1099,6 +1298,38 @@
           "name"
         ],
         "title": "DivisionOut",
+        "type": "object"
+      },
+      "DownloadReminder": {
+        "properties": {
+          "last_downloaded_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Downloaded At"
+          },
+          "overdue": {
+            "description": "True when no backup has been downloaded within `reminder_days`: the download is the only copy off this machine (F12.AC11, RISKS R11).",
+            "title": "Overdue",
+            "type": "boolean"
+          },
+          "reminder_days": {
+            "title": "Reminder Days",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "last_downloaded_at",
+          "reminder_days",
+          "overdue"
+        ],
+        "title": "DownloadReminder",
         "type": "object"
       },
       "Drift": {
@@ -3777,6 +4008,86 @@
         "title": "ResetRequest",
         "type": "object"
       },
+      "RestoreCheckOut": {
+        "properties": {
+          "backup_id": {
+            "format": "uuid",
+            "title": "Backup Id",
+            "type": "string"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          },
+          "finished_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Finished At"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/BackupKind"
+          },
+          "mismatches": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mismatches"
+          },
+          "started_at": {
+            "format": "date-time",
+            "title": "Started At",
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/RestoreStatus"
+          }
+        },
+        "required": [
+          "id",
+          "backup_id",
+          "kind",
+          "status",
+          "mismatches",
+          "error",
+          "started_at",
+          "finished_at"
+        ],
+        "title": "RestoreCheckOut",
+        "type": "object"
+      },
+      "RestoreStatus": {
+        "enum": [
+          "running",
+          "passed",
+          "failed"
+        ],
+        "title": "RestoreStatus",
+        "type": "string"
+      },
       "RetentionOut": {
         "properties": {
           "delivered_alerts_days": {
@@ -4126,6 +4437,24 @@
           "rate_limited"
         ],
         "title": "StageMix",
+        "type": "object"
+      },
+      "Started": {
+        "properties": {
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "status": {
+            "default": "started",
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id"
+        ],
+        "title": "Started",
         "type": "object"
       },
       "Summary": {
@@ -10087,6 +10416,131 @@
         "summary": "Update a geofence",
         "tags": [
           "geofences"
+        ]
+      }
+    },
+    "/api/v1/health/backups": {
+      "get": {
+        "operationId": "list_backups_api_v1_health_backups_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BackupsOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Backups and restore checks",
+        "tags": [
+          "lifecycle"
+        ]
+      },
+      "post": {
+        "description": "`409 LIFECYCLE_JOB_RUNNING` if a backup is running. The result is its row in `GET /backups`.",
+        "operationId": "start_backup_api_v1_health_backups_post",
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Started"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Back up now (owner only)",
+        "tags": [
+          "lifecycle"
+        ]
+      }
+    },
+    "/api/v1/health/backups/{backup_id}/download": {
+      "get": {
+        "description": "The only copy that leaves this machine (F12.AC11). Audited.",
+        "operationId": "download_backup_api_v1_health_backups__backup_id__download_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "backup_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Backup Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/octet-stream": {}
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Download a backup (owner only)",
+        "tags": [
+          "lifecycle"
+        ]
+      }
+    },
+    "/api/v1/health/backups/{backup_id}/verify-restore": {
+      "post": {
+        "description": "F12.AC10, ADR-0022. `409 BACKUP_UNAVAILABLE` for a backup without a file, `409 LIFECYCLE_JOB_RUNNING` if a check is running. The result is in `GET /backups`.",
+        "operationId": "verify_restore_api_v1_health_backups__backup_id__verify_restore_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "backup_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Backup Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Started"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Restore a backup into a scratch database and check it (owner only)",
+        "tags": [
+          "lifecycle"
         ]
       }
     },

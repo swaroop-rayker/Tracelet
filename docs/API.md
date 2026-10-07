@@ -844,6 +844,38 @@ and `409 LIFECYCLE_JOB_RUNNING` if a purge holds the lock. Otherwise `202 {as_of
 backup, and the IP purge every 10 minutes -- may take some of the previewed rows first; the
 manual purge then reports the fewer it deleted.
 
+### Backups — as built in M7 (F10.AC11, F12.AC9–AC12, ADR-0022)
+
+`GET /backups` returns `{backups[], last_restore_check, backup_running,
+restore_check_running, download}`, newest first (up to 60). Each backup is `{id, kind:
+"scheduled"|"manual", status: "running"|"ok"|"failed"|"pruned", file_name, size_bytes, sha256,
+tables, rows, error, started_at, finished_at, last_downloaded_at, last_restore_check}`, where
+`tables` and `rows` come from the counts taken in the dump's own snapshot, and
+`last_restore_check` is that backup's newest check `{id, backup_id, kind, status:
+"running"|"passed"|"failed", mismatches, error, started_at, finished_at}`. `mismatches` maps a
+table to `{expected, restored}`. `download` is `{last_downloaded_at, reminder_days, overdue}`:
+overdue when nothing has been downloaded within `TRACELET_BACKUP_DOWNLOAD_REMINDER_DAYS`, the
+only off-machine copy being the download (RISKS R11).
+
+`POST /backups` (owner) is `202 {id, status: "started"}`, or `409 LIFECYCLE_JOB_RUNNING`;
+audited `backup.requested`. The dump is written as `.partial` and renamed only when complete
+and checksummed; then rotation keeps the newest of each of the last 7 local days and 4 ISO
+weeks, and always the newest, and marks the rest `pruned` (their files deleted, rows kept).
+
+`GET /backups/{id}/download` (owner) streams the file as `tracelet-<file_name>`, with the
+checksum in `X-Content-SHA256`; audited `backup.downloaded`. `409 BACKUP_UNAVAILABLE` for a
+backup without a file.
+
+`POST /backups/{id}/verify-restore` (owner) is `202 {id: <restore check id>}`: the backup is
+restored into the scratch database `tracelet_verify` and passes only if **every table's count
+equals** the backup's. Audited `backup.restore_check_requested`. `409 BACKUP_UNAVAILABLE` for a
+backup that is not `ok`, `409 LIFECYCLE_JOB_RUNNING` if a check is running. Without the
+one-time `tl db-setup`, the check fails with that step named in `error`.
+
+The scheduler runs the backup nightly at `TRACELET_BACKUP_HOUR` (local; 3 by default), retrying
+a failure up to three times that night, and the restore check monthly, on the 1st, an hour
+later, on the newest `ok` backup.
+
 ### `/api/v1/health/inference` — as shipped in M3
 
 `GET` returns `{engine_revision, active_version, inference_version, settings, versions[]}`,

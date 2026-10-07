@@ -3,8 +3,9 @@
 from __future__ import annotations
 
 import datetime as dt
+import uuid
 
-from tracelet.lifecycle import retention
+from tracelet.lifecycle import backups, retention
 
 IST = "Asia/Kolkata"
 
@@ -34,3 +35,59 @@ def test_cutoffs_follow_the_policy_and_the_fixed_alert_period() -> None:
     assert cut.ip == as_of  # an IP goes when its own stamped expiry has passed
     assert cut.audit == as_of - dt.timedelta(days=365)
     assert cut.outbox == as_of - dt.timedelta(days=retention.OUTBOX_DONE_DAYS)
+
+
+# --- backups ---------------------------------------------------------------------------
+
+
+def _kept(*stamps: dt.datetime) -> list[backups.Kept]:
+    return [backups.Kept(uuid.UUID(int=i + 1), s) for i, s in enumerate(stamps)]
+
+
+def test_rotation_keeps_the_newest_of_each_recent_day_and_week() -> None:
+    now = _utc(2026, 10, 7, 12, 0)
+    nightly = [now - dt.timedelta(days=d, hours=1) for d in range(40)]  # one a night
+    keep = backups.to_keep(_kept(*nightly), now=now, tz=IST, daily=7, weekly=4)
+    kept = sorted((nightly[i.int - 1] for i in keep), reverse=True)
+    # Seven nights, plus the newest of each of the four ISO weeks that reach further back.
+    assert kept[:7] == nightly[:7]
+    assert len(kept) <= 7 + 4
+    assert all(now - k < dt.timedelta(weeks=5) for k in kept)
+
+
+def test_rotation_keeps_only_the_newest_of_a_day_with_several() -> None:
+    now = _utc(2026, 10, 7, 12, 0)
+    morning, evening = now - dt.timedelta(hours=6), now - dt.timedelta(hours=1)
+    keep = backups.to_keep(_kept(morning, evening), now=now, tz=IST, daily=7, weekly=4)
+    assert keep == {uuid.UUID(int=2)}
+
+
+def test_rotation_always_keeps_the_newest_however_old() -> None:
+    now = _utc(2026, 10, 7, 12, 0)
+    ancient = now - dt.timedelta(days=400)
+    assert backups.to_keep(_kept(ancient), now=now, tz=IST, daily=7, weekly=4) == {uuid.UUID(int=1)}
+    assert backups.to_keep([], now=now, tz=IST, daily=7, weekly=4) == set()
+
+
+def test_the_monthly_check_is_due_from_the_first_of_the_month() -> None:
+    # 2026-10-07 is after 1 October 04:00 IST (30 September 22:30 UTC).
+    assert backups.month_boundary(_utc(2026, 10, 7, 12, 0), 4, IST) == _utc(2026, 9, 30, 22, 30)
+    # 1 October 03:00 IST is before 04:00: September's boundary still applies.
+    assert backups.month_boundary(_utc(2026, 9, 30, 21, 30), 4, IST) == _utc(2026, 8, 31, 22, 30)
+
+
+def test_the_restore_leaves_out_extensions_and_their_data() -> None:
+    listing = "\n".join(
+        [
+            ";",
+            "4; 3079 16385 EXTENSION - postgis",
+            "5; 0 0 COMMENT - EXTENSION postgis",
+            "220; 1259 16400 TABLE public links tracelet_migrate",
+            "4500; 0 16400 TABLE DATA public links tracelet_migrate",
+            "4501; 0 16390 TABLE DATA public spatial_ref_sys tracelet",
+        ]
+    )
+    kept = backups.restorable(listing, {"links"}).splitlines()
+    assert "220; 1259 16400 TABLE public links tracelet_migrate" in kept
+    assert "4500; 0 16400 TABLE DATA public links tracelet_migrate" in kept
+    assert not [line for line in kept if "EXTENSION" in line or "spatial_ref_sys" in line]

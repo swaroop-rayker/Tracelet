@@ -320,9 +320,11 @@ async def _run_locked(
         return counts
 
 
-async def _locked_connection() -> tuple[AsyncExitStack, AsyncConnection]:
+async def _locked_connection(
+    settings: Settings | None = None,
+) -> tuple[AsyncExitStack, AsyncConnection]:
     stack = AsyncExitStack()
-    conn = await stack.enter_async_context(maint_connection())
+    conn = await stack.enter_async_context(maint_connection(settings))
     if not await _lock(conn):
         await stack.aclose()
         raise LifecycleJobRunning("A purge is already running.")
@@ -342,11 +344,16 @@ _TASKS: set[asyncio.Task[Counts]] = set()
 
 
 async def start_manual_purge(
-    *, as_of: dt.datetime, policy: Policy, actor: uuid.UUID, trace_id: str | None
+    *,
+    as_of: dt.datetime,
+    policy: Policy,
+    actor: uuid.UUID,
+    trace_id: str | None,
+    settings: Settings | None = None,
 ) -> asyncio.Task[Counts]:
     """Take the lock now, so a second purge is refused in the request, then purge in the
     background (``202``): the counts land in the audit row ``retention.purged``."""
-    stack, conn = await _locked_connection()
+    stack, conn = await _locked_connection(settings)
     task = asyncio.create_task(
         _run_locked(
             stack,
