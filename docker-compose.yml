@@ -74,10 +74,17 @@ services:
       # of what .env says for host-side tooling.
       TRACELET_DATABASE_URL: postgresql+asyncpg://tracelet_app:${TRACELET_DB_APP_PASSWORD}@db:5432/${POSTGRES_DB:-tracelet}
       TRACELET_MIGRATE_DATABASE_URL: postgresql+psycopg://tracelet_migrate:${TRACELET_DB_MIGRATE_PASSWORD}@db:5432/${POSTGRES_DB:-tracelet}
+      # Purges, backups and the restore check (ADR-0022): the only role that may
+      # delete audit rows or create the scratch database.
+      TRACELET_MAINT_DATABASE_URL: postgresql+asyncpg://tracelet_maint:${TRACELET_DB_MAINT_PASSWORD}@db:5432/${POSTGRES_DB:-tracelet}
     depends_on:
       db:
         condition: service_healthy
     volumes:
+      # The host's own figures for System Health, read-only (F10.AC15). Without
+      # these, CPU, memory and uptime would be the container's, not the VM's.
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
       # The AES-256-GCM key for encrypted columns, read-only and OUTSIDE the
       # database volume (F12.AC3, ADR-0007). Loaded into process memory at boot,
       # never written to the database, never logged, never returned by an API.
@@ -142,6 +149,7 @@ services:
       TRACELET_ENV: development
       TRACELET_DATABASE_URL: postgresql+asyncpg://tracelet_app:${TRACELET_DB_APP_PASSWORD}@db:5432/${POSTGRES_DB:-tracelet}
       TRACELET_MIGRATE_DATABASE_URL: postgresql+psycopg://tracelet_migrate:${TRACELET_DB_MIGRATE_PASSWORD}@db:5432/${POSTGRES_DB:-tracelet}
+      TRACELET_MAINT_DATABASE_URL: postgresql+asyncpg://tracelet_maint:${TRACELET_DB_MAINT_PASSWORD}@db:5432/${POSTGRES_DB:-tracelet}
     working_dir: /app
     volumes:
       - ./api:/app:rw

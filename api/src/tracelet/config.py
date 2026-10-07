@@ -59,6 +59,9 @@ class Settings(BaseSettings):
     migrate_database_url: SecretStr = SecretStr(
         "postgresql+psycopg://tracelet_migrate:change-me-migrate@db:5432/tracelet"
     )
+    # tracelet_maint: retention purges, backups and the restore check (ADR-0022). Optional
+    # so an instance without it still serves; those jobs say what is missing.
+    maint_database_url: SecretStr | None = None
     db_pool_min: int = Field(default=5, ge=1, le=20)
     db_pool_max: int = Field(default=10, ge=1, le=20)
 
@@ -111,6 +114,8 @@ class Settings(BaseSettings):
     )
 
     # --- data lifecycle (F12.AC7) ------------------------------------------
+    # The retention_* values seed the retention_policy row the first time it is read;
+    # after that the dashboard edits the row (DATA_MODEL section 8.5).
     retention_visit_days: int = Field(default=180, ge=1)
     retention_ip_days: int = Field(default=30, ge=1)
     retention_audit_days: int = Field(default=365, ge=1)
@@ -118,6 +123,19 @@ class Settings(BaseSettings):
     backup_daily_keep: int = Field(default=7, ge=1)
     backup_weekly_keep: int = Field(default=4, ge=1)
     backup_download_reminder_days: int = Field(default=7, ge=1)
+    # Local hour (reporting_tz) for the nightly backup; the monthly restore check runs on
+    # the first day of the month, an hour later. Off-peak for an Indian audience.
+    backup_hour: int = Field(default=3, ge=0, le=23)
+
+    # --- system health (F10) -----------------------------------------------
+    # The host's /proc and /sys, mounted read-only (F10.AC15). Inside the container,
+    # /proc is the container's own view, which is not what System Health reports.
+    host_proc_path: Path = Path("/host/proc")
+    host_sys_path: Path = Path("/host/sys")
+    disk_warn_percent: int = Field(default=85, ge=50, le=99)
+    disk_critical_percent: int = Field(default=95, ge=50, le=99)
+    memory_warn_percent: int = Field(default=90, ge=50, le=99)
+    swap_warn_percent: int = Field(default=50, ge=5, le=99)
 
     # --- analytics (ADR-0016) ----------------------------------------------
     # Days and hours are bucketed in this zone. India is UTC+05:30, so UTC buckets

@@ -86,7 +86,9 @@ could not see it (docs/ERRORS.md E13).
 | `notify_priority` | `high`, `normal`, `silent` |
 | `outbox_kind` | `telegram.visit_alert`, `telegram.password_reset`, `telegram.health_alert`, `telegram.test` — `password_reset` is **unused**: reset links are sent synchronously, see the ADR-0009 amendment |
 | `outbox_status` | `pending`, `in_flight`, `done`, `failed`, `dead` |
-| `backup_kind` | `daily`, `weekly`, `manual` |
+| `backup_kind` | `scheduled`, `manual` — M7. Was planned as `daily`, `weekly`, `manual`; daily and weekly are rotation tiers computed when pruning, not stored (ADR-0022) |
+| `backup_status` | `running`, `ok`, `failed`, `pruned` — M7, section 8.8 |
+| `restore_status` | `running`, `passed`, `failed` — M7, section 8.8 |
 | `geo_db_status` | `installed`, `downloading`, `failed`, `stale` |
 | `shape_kind` | `polygon`, `circle`, `region` — `region` added in M6 (ADR-0020) |
 
@@ -809,6 +811,15 @@ Singleton (`CHECK (id = 1)`): `visit_days` default 180, `ip_days` default 30,
 `audit_days` default 365, `rollup_forever boolean` default true, `updated_by`,
 `updated_at`. *Quiet hours moved to `app_settings` in M6, which needs them before M7
 builds this table.*
+
+**As built in M7 (migration 0012).** The row is written the first time anything reads it,
+from `TRACELET_RETENTION_VISIT_DAYS`, `_IP_DAYS` and `_AUDIT_DAYS` (180, 30, 365); after
+that the dashboard edits it and the environment no longer matters. `CHECK`s: `ip_days
+BETWEEN 1 AND visit_days` (the encrypted IP cannot outlive its visit), `visit_days`
+between 8 and 3650 (rollups re-settle the last 7 days, so a visit inside that window must
+still exist), `audit_days` between 1 and 3650, and `rollup_forever` is always true -- rollups are never
+purged (ADR-0014), and the column records that rather than offering it. Every change is
+owner-only and writes `retention.changed` with the old and new values.
 
 ### 8.6 `app_settings`
 

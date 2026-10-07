@@ -75,7 +75,9 @@ month and checked. It left three things open, and got one wrong:
 used for what DATA_MODEL §12 gave it; a new VM gets the setup from `db/init/`.
 
 **Negative, accepted:**
-- **About 15 MB more in the API image** for the client, and a transient `pg_dump` or
+- **About 4 MB more in the API image**: only `pg_dump` and `pg_restore` are copied from a build
+  stage, linking the image's own `libpq5`. Installing the package whole adds ~120 MB, nearly
+  all Perl for its wrapper scripts (measured 2026-10-07). And a transient `pg_dump` or
   `pg_restore` process of roughly 40 MB inside the API's memory limit while a job runs
   (ARCHITECTURE §6.3), off-peak.
 - **The scratch database briefly doubles the database's disk use** during a check. The check
