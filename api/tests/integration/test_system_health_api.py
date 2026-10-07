@@ -89,8 +89,16 @@ async def test_the_geo_database_panel_lists_every_database(owner: SignedIn) -> N
     names = {d["name"] for d in body["databases"]}
     assert {"dbip-city-lite", "geolite2-city", "tor-exits"} <= names
     for d in body["databases"]:
-        assert d["verdict"] in ("up_to_date", "stale", "missing", "not_configured")
-        if d["verdict"] == "up_to_date":
+        assert d["state"] in (
+            "updating",
+            "update_failed",
+            "unable_to_update",
+            "not_installed",
+            "update_available",
+            "up_to_date",
+        )
+        assert isinstance(d["auto_update"], bool)
+        if d["state"] == "up_to_date":
             assert d["installed"]["sha256"] and d["installed"]["size_bytes"]
 
 

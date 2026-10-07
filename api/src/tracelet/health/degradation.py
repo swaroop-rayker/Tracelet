@@ -103,24 +103,48 @@ def _shedding(settings: Settings) -> list[Condition]:
     ]
 
 
+GEO_TITLES: Final = {
+    "update_failed": "could not be updated",
+    "unable_to_update": "cannot be updated",
+    "not_installed": "is not installed",
+}
+
+
 async def _geo(db: AsyncSession, settings: Settings) -> list[Condition]:
+    """A configured database that failed, cannot reach its vendor, is missing, or has grown
+    older than its threshold (SPEC section 11 row 24). Not configured is a choice, not a
+    fault, and an update available is not degraded."""
     out: list[Condition] = []
     for state in await databases.states(db, settings):
-        if state.verdict in ("stale", "missing") and state.configured:
-            out.append(
-                Condition(
-                    key=f"geodb:{state.name}",
-                    severity="warning",
-                    title=f"Geo database {state.name} is {state.verdict}",
-                    detail=(
-                        f"Last attempt: {state.last_attempt.status}"
-                        + (f" -- {state.last_attempt.error}" if state.last_attempt.error else "")
-                        if state.last_attempt
-                        else "It has never been installed."
-                    ),
-                    still_works="Location is inferred from the other sources.",
-                )
+        if not state.configured:
+            continue
+        if state.state in GEO_TITLES:
+            reason = (
+                state.last_attempt.error
+                if state.state == "update_failed" and state.last_attempt
+                else state.check_error
             )
+            title = f"Geo database {state.name} {GEO_TITLES[state.state]}"
+        elif state.stale:
+            reason, title = (
+                f"{state.age_days} days old; its threshold is {state.staleness_days}.",
+                f"Geo database {state.name} is stale",
+            )
+        else:
+            continue
+        out.append(
+            Condition(
+                key=f"geodb:{state.name}",
+                severity="warning",
+                title=title,
+                detail=reason or "See System health.",
+                still_works=(
+                    "The installed copy keeps serving."
+                    if state.installed is not None
+                    else "Location is inferred from the other sources."
+                ),
+            )
+        )
     return out
 
 

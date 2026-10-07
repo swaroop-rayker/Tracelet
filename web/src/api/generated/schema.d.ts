@@ -803,6 +803,46 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/health/databases/check": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Check every geo database for a newer release now (owner only)
+         * @description A HEAD request per vendor, no download (SPEC section 11 row 24); IP2Location is not asked, its URL being metered. The six-hourly update job runs the same check.
+         */
+        post: operations["check_databases_api_v1_health_databases_check_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/health/databases/{name}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Switch a geo database's automatic updates (owner only)
+         * @description Off: the scheduler leaves it alone; it keeps serving and Update still works. Audited `geodb.toggled` with the old and new value.
+         */
+        patch: operations["change_database_api_v1_health_databases__name__patch"];
+        trace?: never;
+    };
     "/api/v1/health/databases/{name}/update": {
         parameters: {
             query?: never;
@@ -814,7 +854,7 @@ export interface paths {
         put?: never;
         /**
          * Update one geo database now (owner only)
-         * @description F10.AC4. Downloads, verifies in a memory-capped subprocess and swaps atomically; a failure leaves the previous version serving and is shown as the last attempt. `409 LIFECYCLE_JOB_RUNNING` while that database is already updating.
+         * @description F10.AC4. Downloads, verifies in a memory-capped subprocess and swaps atomically; a failure leaves the previous version serving and shows as `update_failed`. Works whatever `auto_update` says. `409 LIFECYCLE_JOB_RUNNING` while it is updating.
          */
         post: operations["update_database_api_v1_health_databases__name__update_post"];
         delete?: never;
@@ -1782,12 +1822,26 @@ export interface components {
              */
             visits: string;
         };
+        /** DatabaseChange */
+        DatabaseChange: {
+            /** Auto Update */
+            auto_update: boolean;
+        };
         /** DatabaseOut */
         DatabaseOut: {
             /** Age Days */
             age_days: number | null;
             /** Attribution */
             attribution: string;
+            /**
+             * Auto Update
+             * @description Whether the scheduler updates it (SPEC 11 row 24).
+             */
+            auto_update: boolean;
+            /** Check Error */
+            check_error: string | null;
+            /** Checked At */
+            checked_at: string | null;
             /**
              * Configured
              * @description False when its vendor credentials are not set.
@@ -1802,17 +1856,23 @@ export interface components {
             /** Kind */
             kind: string;
             last_attempt: components["schemas"]["AttemptOut"] | null;
+            /** @description What the last release check found. */
+            latest: components["schemas"]["LatestOut"] | null;
             /** Name */
             name: string;
+            progress: components["schemas"]["ProgressOut"] | null;
+            /**
+             * Stale
+             * @description The installed copy is older than its staleness threshold.
+             */
+            stale: boolean;
             /** Staleness Days */
             staleness_days: number;
-            /** Updating */
-            updating: boolean;
             /**
-             * Verdict
-             * @description up_to_date, stale, missing or not_configured.
+             * State
+             * @description updating, update_failed, unable_to_update, not_installed, update_available or up_to_date (SPEC section 11 row 24).
              */
-            verdict: string;
+            state: string;
         };
         /** DatabasesOut */
         DatabasesOut: {
@@ -2470,6 +2530,13 @@ export interface components {
             /** Lng */
             lng: number;
         };
+        /** LatestOut */
+        LatestOut: {
+            /** Released At */
+            released_at: string | null;
+            /** Version */
+            version: string | null;
+        };
         /** LevelAccuracy */
         LevelAccuracy: {
             /** Coverage */
@@ -2981,6 +3048,19 @@ export interface components {
             counts: components["schemas"]["CountsModel"];
             cutoffs: components["schemas"]["CutoffsModel"];
             policy: components["schemas"]["PolicyModel"];
+        };
+        /** ProgressOut */
+        ProgressOut: {
+            /**
+             * Percent
+             * @description Overall, 0-100; null while downloading from a vendor that sends no length.
+             */
+            percent: number | null;
+            /**
+             * Phase
+             * @description downloading, verifying, unpacking, validating or installing.
+             */
+            phase: string;
         };
         /** PurgeAccepted */
         PurgeAccepted: {
@@ -5277,6 +5357,61 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["DatabasesOut"];
+                };
+            };
+        };
+    };
+    check_databases_api_v1_health_databases_check_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DatabasesOut"];
+                };
+            };
+        };
+    };
+    change_database_api_v1_health_databases__name__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                name: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DatabaseChange"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DatabaseOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

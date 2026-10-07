@@ -1119,6 +1119,19 @@
         "title": "CutoffsModel",
         "type": "object"
       },
+      "DatabaseChange": {
+        "properties": {
+          "auto_update": {
+            "title": "Auto Update",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "auto_update"
+        ],
+        "title": "DatabaseChange",
+        "type": "object"
+      },
       "DatabaseOut": {
         "properties": {
           "age_days": {
@@ -1135,6 +1148,34 @@
           "attribution": {
             "title": "Attribution",
             "type": "string"
+          },
+          "auto_update": {
+            "description": "Whether the scheduler updates it (SPEC 11 row 24).",
+            "title": "Auto Update",
+            "type": "boolean"
+          },
+          "check_error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Check Error"
+          },
+          "checked_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Checked At"
           },
           "configured": {
             "description": "False when its vendor credentials are not set.",
@@ -1177,21 +1218,43 @@
               }
             ]
           },
+          "latest": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/LatestOut"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "What the last release check found."
+          },
           "name": {
             "title": "Name",
             "type": "string"
+          },
+          "progress": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ProgressOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "stale": {
+            "description": "The installed copy is older than its staleness threshold.",
+            "title": "Stale",
+            "type": "boolean"
           },
           "staleness_days": {
             "title": "Staleness Days",
             "type": "integer"
           },
-          "updating": {
-            "title": "Updating",
-            "type": "boolean"
-          },
-          "verdict": {
-            "description": "up_to_date, stale, missing or not_configured.",
-            "title": "Verdict",
+          "state": {
+            "description": "updating, update_failed, unable_to_update, not_installed, update_available or up_to_date (SPEC section 11 row 24).",
+            "title": "State",
             "type": "string"
           }
         },
@@ -1201,12 +1264,17 @@
           "feeds",
           "attribution",
           "configured",
+          "auto_update",
           "staleness_days",
-          "verdict",
+          "stale",
+          "state",
+          "progress",
           "age_days",
           "installed",
+          "latest",
           "last_attempt",
-          "updating"
+          "check_error",
+          "checked_at"
         ],
         "title": "DatabaseOut",
         "type": "object"
@@ -3031,6 +3099,39 @@
         "title": "LatLng",
         "type": "object"
       },
+      "LatestOut": {
+        "properties": {
+          "released_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Released At"
+          },
+          "version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Version"
+          }
+        },
+        "required": [
+          "version",
+          "released_at"
+        ],
+        "title": "LatestOut",
+        "type": "object"
+      },
       "LevelAccuracy": {
         "properties": {
           "coverage": {
@@ -4468,6 +4569,33 @@
           "counts"
         ],
         "title": "PreviewOut",
+        "type": "object"
+      },
+      "ProgressOut": {
+        "properties": {
+          "percent": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Overall, 0-100; null while downloading from a vendor that sends no length.",
+            "title": "Percent"
+          },
+          "phase": {
+            "description": "downloading, verifying, unpacking, validating or installing.",
+            "title": "Phase",
+            "type": "string"
+          }
+        },
+        "required": [
+          "phase",
+          "percent"
+        ],
+        "title": "ProgressOut",
         "type": "object"
       },
       "PurgeAccepted": {
@@ -11695,9 +11823,84 @@
         ]
       }
     },
+    "/api/v1/health/databases/check": {
+      "post": {
+        "description": "A HEAD request per vendor, no download (SPEC section 11 row 24); IP2Location is not asked, its URL being metered. The six-hourly update job runs the same check.",
+        "operationId": "check_databases_api_v1_health_databases_check_post",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DatabasesOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Check every geo database for a newer release now (owner only)",
+        "tags": [
+          "system health"
+        ]
+      }
+    },
+    "/api/v1/health/databases/{name}": {
+      "patch": {
+        "description": "Off: the scheduler leaves it alone; it keeps serving and Update still works. Audited `geodb.toggled` with the old and new value.",
+        "operationId": "change_database_api_v1_health_databases__name__patch",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "title": "Name",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DatabaseChange"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DatabaseOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Switch a geo database's automatic updates (owner only)",
+        "tags": [
+          "system health"
+        ]
+      }
+    },
     "/api/v1/health/databases/{name}/update": {
       "post": {
-        "description": "F10.AC4. Downloads, verifies in a memory-capped subprocess and swaps atomically; a failure leaves the previous version serving and is shown as the last attempt. `409 LIFECYCLE_JOB_RUNNING` while that database is already updating.",
+        "description": "F10.AC4. Downloads, verifies in a memory-capped subprocess and swaps atomically; a failure leaves the previous version serving and shows as `update_failed`. Works whatever `auto_update` says. `409 LIFECYCLE_JOB_RUNNING` while it is updating.",
         "operationId": "update_database_api_v1_health_databases__name__update_post",
         "parameters": [
           {

@@ -26,8 +26,9 @@ from tracelet.auth.dependencies import (
 )
 from tracelet.errors import FieldError, LifecycleJobRunning, NotFound, ValidationFailed
 from tracelet.health import databases, degradation, system
-from tracelet.inference.geodb import maintenance
+from tracelet.inference.geodb import check, maintenance
 from tracelet.inference.geodb.catalog import BY_NAME
+from tracelet.inference.models import GeoDatabaseSettings
 from tracelet.net import prefix_of
 from tracelet.notify.settings import AppSetting
 from tracelet.ratelimit import gcra, registry
@@ -192,63 +193,161 @@ class AttemptOut(BaseModel):
     error: str | None
 
 
+class ProgressOut(BaseModel):
+    phase: str = Field(description="downloading, verifying, unpacking, validating or installing.")
+    percent: int | None = Field(
+        description="Overall, 0-100; null while downloading from a vendor that sends no length."
+    )
+
+
+class LatestOut(BaseModel):
+    version: str | None
+    released_at: dt.datetime | None
+
+
 class DatabaseOut(BaseModel):
     name: str
     kind: str
     feeds: str | None = Field(description="The inference source it feeds, if any.")
     attribution: str
     configured: bool = Field(description="False when its vendor credentials are not set.")
+    auto_update: bool = Field(description="Whether the scheduler updates it (SPEC 11 row 24).")
     staleness_days: int
-    verdict: str = Field(description="up_to_date, stale, missing or not_configured.")
+    stale: bool = Field(description="The installed copy is older than its staleness threshold.")
+    state: str = Field(
+        description="updating, update_failed, unable_to_update, not_installed, "
+        "update_available or up_to_date (SPEC section 11 row 24)."
+    )
+    progress: ProgressOut | None
     age_days: int | None
     installed: InstalledOut | None
+    latest: LatestOut | None = Field(description="What the last release check found.")
     last_attempt: AttemptOut | None
-    updating: bool
+    check_error: str | None
+    checked_at: dt.datetime | None
 
 
 class DatabasesOut(BaseModel):
     databases: list[DatabaseOut]
 
 
+def _db_out(d: databases.DatabaseState) -> DatabaseOut:
+    return DatabaseOut(
+        name=d.name,
+        kind=d.kind,
+        feeds=d.feeds,
+        attribution=d.attribution,
+        configured=d.configured,
+        auto_update=d.auto_update,
+        staleness_days=d.staleness_days,
+        stale=d.stale,
+        state=d.state,
+        progress=(
+            ProgressOut(phase=d.progress.phase, percent=d.progress.percent) if d.progress else None
+        ),
+        age_days=d.age_days,
+        installed=(
+            InstalledOut(
+                version=d.installed.version,
+                released_at=d.installed.released_at,
+                installed_at=d.installed.installed_at,
+                size_bytes=d.installed.size_bytes,
+                sha256=d.installed.sha256,
+            )
+            if d.installed
+            else None
+        ),
+        latest=LatestOut(version=d.latest.version, released_at=d.latest.released_at)
+        if d.latest
+        else None,
+        last_attempt=(
+            AttemptOut(
+                status=d.last_attempt.status, at=d.last_attempt.at, error=d.last_attempt.error
+            )
+            if d.last_attempt
+            else None
+        ),
+        check_error=d.check_error,
+        checked_at=d.checked_at,
+    )
+
+
+async def _databases_out(db: DbSession, config: Config) -> DatabasesOut:
+    return DatabasesOut(databases=[_db_out(d) for d in await databases.states(db, config)])
+
+
 @router.get("/databases", response_model=DatabasesOut, summary="Geo databases (F10.AC3)")
 async def get_databases(principal: CurrentPrincipal, db: DbSession, config: Config) -> DatabasesOut:
     del principal
-    return DatabasesOut(
-        databases=[
-            DatabaseOut(
-                name=d.name,
-                kind=d.kind,
-                feeds=d.feeds,
-                attribution=d.attribution,
-                configured=d.configured,
-                staleness_days=d.staleness_days,
-                verdict=d.verdict,
-                age_days=d.age_days,
-                installed=(
-                    InstalledOut(
-                        version=d.installed.version,
-                        released_at=d.installed.released_at,
-                        installed_at=d.installed.installed_at,
-                        size_bytes=d.installed.size_bytes,
-                        sha256=d.installed.sha256,
-                    )
-                    if d.installed
-                    else None
-                ),
-                last_attempt=(
-                    AttemptOut(
-                        status=d.last_attempt.status,
-                        at=d.last_attempt.at,
-                        error=d.last_attempt.error,
-                    )
-                    if d.last_attempt
-                    else None
-                ),
-                updating=d.updating,
-            )
-            for d in await databases.states(db, config)
-        ]
+    return await _databases_out(db, config)
+
+
+@router.post(
+    "/databases/check",
+    response_model=DatabasesOut,
+    summary="Check every geo database for a newer release now (owner only)",
+    description=(
+        "A HEAD request per vendor, no download (SPEC section 11 row 24); IP2Location is not "
+        "asked, its URL being metered. The six-hourly update job runs the same check."
+    ),
+)
+async def check_databases(principal: OwnerPrincipal, db: DbSession, config: Config) -> DatabasesOut:
+    del principal
+    await check.check_all(config)
+    return await _databases_out(db, config)
+
+
+class DatabaseChange(BaseModel):
+    auto_update: bool
+
+
+@router.patch(
+    "/databases/{name}",
+    response_model=DatabaseOut,
+    summary="Switch a geo database's automatic updates (owner only)",
+    description=(
+        "Off: the scheduler leaves it alone; it keeps serving and Update still works. Audited "
+        "`geodb.toggled` with the old and new value."
+    ),
+)
+async def change_database(
+    name: str,
+    body: DatabaseChange,
+    request: Request,
+    principal: OwnerPrincipal,
+    db: DbSession,
+    config: Config,
+) -> DatabaseOut:
+    if name not in BY_NAME:
+        raise NotFound("No such geo database.")
+    before = await db.get(GeoDatabaseSettings, name)
+    old = before.auto_update if before is not None else True
+    await db.execute(
+        pg.insert(GeoDatabaseSettings)
+        .values(name=name, auto_update=body.auto_update, updated_by=principal.admin.id)
+        .on_conflict_do_update(
+            index_elements=[GeoDatabaseSettings.name],
+            set_={
+                "auto_update": body.auto_update,
+                "updated_by": principal.admin.id,
+                "updated_at": func.now(),
+            },
+        )
     )
+    if old != body.auto_update:
+        await audit.record(
+            db,
+            action=audit.Action.GEO_DB_TOGGLED,
+            actor_admin_id=principal.admin.id,
+            actor_ip_prefix=prefix_of(client_ip(request, config)),
+            target_type="geo_database",
+            target_id=name,
+            trace_id=getattr(request.state, "trace_id", None),
+            detail={"auto_update": {"from": old, "to": body.auto_update}},
+        )
+    await db.flush()
+    db.expire_all()
+    return next(_db_out(d) for d in await databases.states(db, config) if d.name == name)
 
 
 class UpdateStarted(BaseModel):
@@ -263,8 +362,8 @@ class UpdateStarted(BaseModel):
     summary="Update one geo database now (owner only)",
     description=(
         "F10.AC4. Downloads, verifies in a memory-capped subprocess and swaps atomically; a "
-        "failure leaves the previous version serving and is shown as the last attempt. `409 "
-        "LIFECYCLE_JOB_RUNNING` while that database is already updating."
+        "failure leaves the previous version serving and shows as `update_failed`. Works "
+        "whatever `auto_update` says. `409 LIFECYCLE_JOB_RUNNING` while it is updating."
     ),
 )
 async def update_database(
@@ -273,7 +372,7 @@ async def update_database(
     if name not in BY_NAME:
         raise NotFound("No such geo database.")
     state = next(d for d in await databases.states(db, config) if d.name == name)
-    if state.updating:
+    if state.state == "updating":
         raise LifecycleJobRunning(f"{name} is already updating.")
     await audit.record(
         db,
