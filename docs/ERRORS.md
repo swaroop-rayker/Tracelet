@@ -2248,6 +2248,30 @@ walk now sizes its circle for the world view.
 
 **Related:** UI-14, F6.AC1.
 
+### E72 — CI saw a verified owner chat that no test in the run had set up for itself
+
+**Status:** Fixed. **Milestone:** M6. **Date:** 2026-10-07.
+
+**Symptom.** PR #8's CI failed one integration test twice running,
+`test_outbox.py::test_quiet_hours_are_set_by_an_owner_and_audited`: the settings reported
+`chat_verified: true` where the test expects `false`. The same suite passed locally.
+
+**Root cause.** Test isolation, not product code. After each test the suite deletes the
+`@example.test` admins -- except that the engine refuses to remove the last active owner, so
+when no real owner exists the test owners survive. CI's database is fresh and has no real
+owner; the developer's database has one, so locally every test admin was deleted and the leak
+never showed. A `test_auth_flow` test verifies chat 424242 on its owner; that owner survived,
+and `test_outbox` uses the same chat id as the configured owner chat, so it read as verified.
+
+**Fix.** When test owners have to survive, the cleanup clears their Telegram chat and its
+verification, so no test inherits another's verified chat.
+
+**Prevention.** A cleanup that has to keep a row must also reset the state later tests read
+from it. The integration suite behaves differently with and without a real owner in the
+database; CI is the run without one, so a CI-only failure there points at isolation first.
+
+**Related:** F7.AC8, F10.AC13.
+
 ---
 
 ### E66 — The restore check could not restore PostGIS's own table
