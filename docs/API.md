@@ -817,6 +817,33 @@ ISP, the classification with its bot score, and a link to the visit (F7.AC4).
 preview before purge**; the API does not enforce ordering, but the dashboard does and
 the audit log records both.
 
+### Retention — as built in M7 (F10.AC12, F12.AC7–AC8)
+
+`GET /retention` returns `{policy: {visit_days, ip_days, audit_days}, delivered_alerts_days:
+30, rollups: "kept forever", updated_at, purge_running, last_purge}`. `last_purge` is the
+newest `retention.purged` audit row: `{at, trigger: "manual"|"scheduled", counts, by}`.
+`purge_running` is read from PostgreSQL's lock table, so it is true whichever worker runs it.
+
+`PATCH /retention` takes **all three** periods: `visit_days` 8–3650 (rollups re-settle the
+last 7 days), `ip_days` 1–`visit_days`, `audit_days` 1–3650; anything else is `422`. A changed
+`ip_days` also re-dates the IP expiry of every visit still holding one. Audited
+`retention.changed` with `from` and `to`. Nothing is deleted by a `PATCH`.
+
+`POST /retention/preview` returns `{as_of, policy, cutoffs: {visits, ip, audit, outbox},
+counts: {visits, visit_candidates, ip_addresses, audit_rows, delivered_alerts}}` and deletes
+nothing; it is audited `retention.previewed` with the counts. `ip_addresses` counts only
+visits that are being kept -- a visit about to be deleted is counted once, as a visit.
+
+`POST /retention/purge` takes `{as_of, policy}` **exactly as the preview returned them**, and
+deletes against the cutoffs derived from them, so its counts equal the preview's. It is
+`409 RETENTION_PREVIEW_STALE` if `as_of` is over 15 minutes old or the policy has changed,
+and `409 LIFECYCLE_JOB_RUNNING` if a purge holds the lock. Otherwise `202 {as_of, status:
+"started"}`; the purge runs as `tracelet_maint` in batches of 1 000, and its result is the
+`retention.purged` audit row (`trigger`, `as_of`, `policy`, `cutoffs`, `counts`,
+`duration_ms`), shown as `last_purge`. The scheduled purges -- every night an hour before the
+backup, and the IP purge every 10 minutes -- may take some of the previewed rows first; the
+manual purge then reports the fewer it deleted.
+
 ### `/api/v1/health/inference` — as shipped in M3
 
 `GET` returns `{engine_revision, active_version, inference_version, settings, versions[]}`,
@@ -905,11 +932,15 @@ no SQL, no internal hostname (F15.AC3). The detail is written to the log under t
 | `GEOFENCE_UNKNOWN_REGION` | 422 | A region key `/geofences/regions` does not list (ADR-0020) |
 | `OUTBOX_NOT_DEAD` | 409 | Only a dead-lettered delivery is retried by hand (F7.AC6) |
 | `TELEGRAM_DELIVERY_FAILED` | 502 | The test message did not arrive; `detail` is Telegram's reason, without the token (F7.AC8) |
+| `RETENTION_PREVIEW_STALE` | 409 | A purge was sent with a preview over 15 minutes old, or the periods changed since it (F10.AC12). Preview again. **M7** |
+| `LIFECYCLE_JOB_RUNNING` | 409 | A purge, backup or restore check of that kind is already running. **M7** |
+| `BACKUP_UNAVAILABLE` | 409 | That backup has no file: it failed, is still running, or was rotated away. **M7** |
 | `PAYLOAD_TOO_LARGE` | 413 | Body above cap |
 | `RATE_LIMITED` | 429 | `Retry-After` set (F11.AC10) |
 | `GEO_DB_UNAVAILABLE` | 503 | A source is missing or corrupt; inference degraded, not failed |
 | `EXTERNAL_SOURCE_UNAVAILABLE` | 503 | Circuit breaker open. Informational |
 | `DEPENDENCY_UNAVAILABLE` | 503 | Database or another hard dependency down |
+| `MAINTENANCE_UNAVAILABLE` | 503 | The maintenance role is not configured or not set up (ADR-0022); `detail` names the missing step. **M7** |
 | `INTERNAL_ERROR` | 500 | Unexpected. `trace_id` only |
 
 ### 12.2 Errors on the capture path

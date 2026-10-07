@@ -800,6 +800,67 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/health/retention": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Retention periods, and the last purge */
+        get: operations["get_retention_api_v1_health_retention_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Change the retention periods (owner only)
+         * @description Takes all three periods. A shorter IP period also applies to visits already stored. Nothing is deleted here: the nightly purge, or a previewed purge, does that.
+         */
+        patch: operations["change_retention_api_v1_health_retention_patch"];
+        trace?: never;
+    };
+    "/api/v1/health/retention/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Dry run: exactly what a purge now would delete (owner only)
+         * @description Deletes nothing. Its `as_of` and `policy` are what the purge needs.
+         */
+        post: operations["preview_retention_api_v1_health_retention_preview_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/health/retention/purge": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Purge what a preview showed (owner only)
+         * @description Send the preview's `as_of` and `policy`. Refused with `409 RETENTION_PREVIEW_STALE` if the preview is over 15 minutes old or the periods have changed, and `409 LIFECYCLE_JOB_RUNNING` if a purge is running. Runs in the background; the counts deleted are in the audit row `retention.purged` and in `GET /retention` as `last_purge`.
+         */
+        post: operations["purge_retention_api_v1_health_retention_purge_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/health/telegram/test": {
         parameters: {
             query?: never;
@@ -1371,6 +1432,19 @@ export interface components {
             /** Key */
             key: string;
         };
+        /** CountsModel */
+        CountsModel: {
+            /** Audit Rows */
+            audit_rows: number;
+            /** Delivered Alerts */
+            delivered_alerts: number;
+            /** Ip Addresses */
+            ip_addresses: number;
+            /** Visit Candidates */
+            visit_candidates: number;
+            /** Visits */
+            visits: number;
+        };
         /** CreateAdminRequest */
         CreateAdminRequest: {
             /** Display Name */
@@ -1390,6 +1464,29 @@ export interface components {
             enrollment_expires_at: string;
             /** Enrollment Url */
             enrollment_url: string;
+        };
+        /** CutoffsModel */
+        CutoffsModel: {
+            /**
+             * Audit
+             * Format: date-time
+             */
+            audit: string;
+            /**
+             * Ip
+             * Format: date-time
+             */
+            ip: string;
+            /**
+             * Outbox
+             * Format: date-time
+             */
+            outbox: string;
+            /**
+             * Visits
+             * Format: date-time
+             */
+            visits: string;
         };
         /** DecryptedIp */
         DecryptedIp: {
@@ -1850,6 +1947,19 @@ export interface components {
             /** Value */
             value: number | null;
         };
+        /** LastPurgeOut */
+        LastPurgeOut: {
+            /**
+             * At
+             * Format: date-time
+             */
+            at: string;
+            /** By */
+            by: string | null;
+            counts: components["schemas"]["CountsModel"];
+            /** Trigger */
+            trigger: string;
+        };
         /** LatLng */
         LatLng: {
             /** Lat */
@@ -2241,6 +2351,24 @@ export interface components {
             /** Lng */
             lng: number;
         };
+        /** PolicyModel */
+        PolicyModel: {
+            /**
+             * Audit Days
+             * @description Audit rows older than this are deleted.
+             */
+            audit_days: number;
+            /**
+             * Ip Days
+             * @description The encrypted IP is cleared after this.
+             */
+            ip_days: number;
+            /**
+             * Visit Days
+             * @description Visits older than this are deleted. At least 8: rollups re-settle the last 7 days, so a visit inside that window must still exist.
+             */
+            visit_days: number;
+        };
         /** PolygonCreate */
         PolygonCreate: {
             /** Description */
@@ -2294,6 +2422,40 @@ export interface components {
             theme?: ("semi_dark" | "light" | "dark") | null;
             /** Timezone */
             timezone?: string | null;
+        };
+        /** PreviewOut */
+        PreviewOut: {
+            /**
+             * As Of
+             * Format: date-time
+             * @description Send this back, with the policy, to purge.
+             */
+            as_of: string;
+            counts: components["schemas"]["CountsModel"];
+            cutoffs: components["schemas"]["CutoffsModel"];
+            policy: components["schemas"]["PolicyModel"];
+        };
+        /** PurgeAccepted */
+        PurgeAccepted: {
+            /**
+             * As Of
+             * Format: date-time
+             */
+            as_of: string;
+            /**
+             * Status
+             * @default started
+             */
+            status: string;
+        };
+        /** PurgeIn */
+        PurgeIn: {
+            /**
+             * As Of
+             * Format: date-time
+             */
+            as_of: string;
+            policy: components["schemas"]["PolicyModel"];
         };
         /** QuietHoursIn */
         QuietHoursIn: {
@@ -2416,6 +2578,28 @@ export interface components {
         ResetRequest: {
             /** Email */
             email: string;
+        };
+        /** RetentionOut */
+        RetentionOut: {
+            /**
+             * Delivered Alerts Days
+             * @description Delivered alerts are kept this long; not configurable (ADR-0014).
+             */
+            delivered_alerts_days: number;
+            last_purge: components["schemas"]["LastPurgeOut"] | null;
+            policy: components["schemas"]["PolicyModel"];
+            /** Purge Running */
+            purge_running: boolean;
+            /**
+             * Rollups
+             * @description Always 'kept forever' (NFR5.AC4).
+             */
+            rollups: string;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
         };
         /** Series */
         Series: {
@@ -4396,6 +4580,112 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["DeliveryOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_retention_api_v1_health_retention_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RetentionOut"];
+                };
+            };
+        };
+    };
+    change_retention_api_v1_health_retention_patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PolicyModel"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RetentionOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    preview_retention_api_v1_health_retention_preview_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PreviewOut"];
+                };
+            };
+        };
+    };
+    purge_retention_api_v1_health_retention_purge_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PurgeIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PurgeAccepted"];
                 };
             };
             /** @description Validation Error */

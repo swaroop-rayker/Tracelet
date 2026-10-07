@@ -28,6 +28,7 @@ from tracelet.health.router import router as health_router
 from tracelet.inference import engine as inference_engine
 from tracelet.inference.geodb import readers as geodb_readers
 from tracelet.inference.router import router as inference_router
+from tracelet.lifecycle.router import router as lifecycle_router
 from tracelet.logging import configure_logging
 from tracelet.middleware import AccessLogMiddleware, TraceIdMiddleware
 from tracelet.notify.router import router as notifications_router
@@ -135,6 +136,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(visits_router)
     app.include_router(inference_router)
     app.include_router(analytics_router)
+    app.include_router(lifecycle_router)
 
     return app
 

@@ -30,7 +30,7 @@ from enum import StrEnum
 from typing import Any, Final
 
 import structlog
-from sqlalchemy import func, literal, select, text, update
+from sqlalchemy import func, literal, literal_column, select, text, update
 from sqlalchemy.dialects import postgresql as pg
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -224,7 +224,18 @@ def _ip_forms(settings: Settings, visit_id: uuid.UUID, ip: str | None) -> dict[s
     else:
         forms["ip_enc"] = sealed.payload
         forms["ip_key_version"] = sealed.key_version
-        forms["ip_purge_after"] = func.now() + dt.timedelta(days=settings.retention_ip_days)
+        # The IP period is the retention policy's (F12.AC7), read in the INSERT itself: a
+        # primary-key lookup, and no cache to go stale. The environment's value applies
+        # only before the policy row exists.
+        forms["ip_purge_after"] = func.now() + func.make_interval(
+            0,
+            0,
+            0,
+            func.coalesce(
+                literal_column("(SELECT ip_days FROM retention_policy WHERE id = 1)"),
+                settings.retention_ip_days,
+            ),
+        )
     return forms
 
 

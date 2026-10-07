@@ -704,6 +704,39 @@
         "title": "CountryOut",
         "type": "object"
       },
+      "CountsModel": {
+        "properties": {
+          "audit_rows": {
+            "title": "Audit Rows",
+            "type": "integer"
+          },
+          "delivered_alerts": {
+            "title": "Delivered Alerts",
+            "type": "integer"
+          },
+          "ip_addresses": {
+            "title": "Ip Addresses",
+            "type": "integer"
+          },
+          "visit_candidates": {
+            "title": "Visit Candidates",
+            "type": "integer"
+          },
+          "visits": {
+            "title": "Visits",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "visits",
+          "visit_candidates",
+          "ip_addresses",
+          "audit_rows",
+          "delivered_alerts"
+        ],
+        "title": "CountsModel",
+        "type": "object"
+      },
       "CreateAdminRequest": {
         "properties": {
           "display_name": {
@@ -752,6 +785,38 @@
           "enrollment_expires_at"
         ],
         "title": "CreateAdminResponse",
+        "type": "object"
+      },
+      "CutoffsModel": {
+        "properties": {
+          "audit": {
+            "format": "date-time",
+            "title": "Audit",
+            "type": "string"
+          },
+          "ip": {
+            "format": "date-time",
+            "title": "Ip",
+            "type": "string"
+          },
+          "outbox": {
+            "format": "date-time",
+            "title": "Outbox",
+            "type": "string"
+          },
+          "visits": {
+            "format": "date-time",
+            "title": "Visits",
+            "type": "string"
+          }
+        },
+        "required": [
+          "visits",
+          "ip",
+          "audit",
+          "outbox"
+        ],
+        "title": "CutoffsModel",
         "type": "object"
       },
       "DecryptedIp": {
@@ -2038,6 +2103,41 @@
         "title": "Kpi",
         "type": "object"
       },
+      "LastPurgeOut": {
+        "properties": {
+          "at": {
+            "format": "date-time",
+            "title": "At",
+            "type": "string"
+          },
+          "by": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "By"
+          },
+          "counts": {
+            "$ref": "#/components/schemas/CountsModel"
+          },
+          "trigger": {
+            "title": "Trigger",
+            "type": "string"
+          }
+        },
+        "required": [
+          "at",
+          "trigger",
+          "counts",
+          "by"
+        ],
+        "title": "LastPurgeOut",
+        "type": "object"
+      },
       "LatLng": {
         "properties": {
           "lat": {
@@ -3146,6 +3246,38 @@
         "title": "PointCluster",
         "type": "object"
       },
+      "PolicyModel": {
+        "properties": {
+          "audit_days": {
+            "description": "Audit rows older than this are deleted.",
+            "maximum": 3650.0,
+            "minimum": 1.0,
+            "title": "Audit Days",
+            "type": "integer"
+          },
+          "ip_days": {
+            "description": "The encrypted IP is cleared after this.",
+            "maximum": 3650.0,
+            "minimum": 1.0,
+            "title": "Ip Days",
+            "type": "integer"
+          },
+          "visit_days": {
+            "description": "Visits older than this are deleted. At least 8: rollups re-settle the last 7 days, so a visit inside that window must still exist.",
+            "maximum": 3650.0,
+            "minimum": 8.0,
+            "title": "Visit Days",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "visit_days",
+          "ip_days",
+          "audit_days"
+        ],
+        "title": "PolicyModel",
+        "type": "object"
+      },
       "PolygonCreate": {
         "properties": {
           "description": {
@@ -3290,6 +3422,70 @@
           }
         },
         "title": "PreferencesRequest",
+        "type": "object"
+      },
+      "PreviewOut": {
+        "properties": {
+          "as_of": {
+            "description": "Send this back, with the policy, to purge.",
+            "format": "date-time",
+            "title": "As Of",
+            "type": "string"
+          },
+          "counts": {
+            "$ref": "#/components/schemas/CountsModel"
+          },
+          "cutoffs": {
+            "$ref": "#/components/schemas/CutoffsModel"
+          },
+          "policy": {
+            "$ref": "#/components/schemas/PolicyModel"
+          }
+        },
+        "required": [
+          "as_of",
+          "policy",
+          "cutoffs",
+          "counts"
+        ],
+        "title": "PreviewOut",
+        "type": "object"
+      },
+      "PurgeAccepted": {
+        "properties": {
+          "as_of": {
+            "format": "date-time",
+            "title": "As Of",
+            "type": "string"
+          },
+          "status": {
+            "default": "started",
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "as_of"
+        ],
+        "title": "PurgeAccepted",
+        "type": "object"
+      },
+      "PurgeIn": {
+        "properties": {
+          "as_of": {
+            "format": "date-time",
+            "title": "As Of",
+            "type": "string"
+          },
+          "policy": {
+            "$ref": "#/components/schemas/PolicyModel"
+          }
+        },
+        "required": [
+          "as_of",
+          "policy"
+        ],
+        "title": "PurgeIn",
         "type": "object"
       },
       "QuietHoursIn": {
@@ -3579,6 +3775,52 @@
           "email"
         ],
         "title": "ResetRequest",
+        "type": "object"
+      },
+      "RetentionOut": {
+        "properties": {
+          "delivered_alerts_days": {
+            "description": "Delivered alerts are kept this long; not configurable (ADR-0014).",
+            "title": "Delivered Alerts Days",
+            "type": "integer"
+          },
+          "last_purge": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/LastPurgeOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "policy": {
+            "$ref": "#/components/schemas/PolicyModel"
+          },
+          "purge_running": {
+            "title": "Purge Running",
+            "type": "boolean"
+          },
+          "rollups": {
+            "description": "Always 'kept forever' (NFR5.AC4).",
+            "title": "Rollups",
+            "type": "string"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "policy",
+          "delivered_alerts_days",
+          "rollups",
+          "updated_at",
+          "purge_running",
+          "last_purge"
+        ],
+        "title": "RetentionOut",
         "type": "object"
       },
       "Series": {
@@ -10076,6 +10318,131 @@
         "summary": "Requeue a dead-lettered delivery",
         "tags": [
           "notifications"
+        ]
+      }
+    },
+    "/api/v1/health/retention": {
+      "get": {
+        "operationId": "get_retention_api_v1_health_retention_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RetentionOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Retention periods, and the last purge",
+        "tags": [
+          "lifecycle"
+        ]
+      },
+      "patch": {
+        "description": "Takes all three periods. A shorter IP period also applies to visits already stored. Nothing is deleted here: the nightly purge, or a previewed purge, does that.",
+        "operationId": "change_retention_api_v1_health_retention_patch",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PolicyModel"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RetentionOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Change the retention periods (owner only)",
+        "tags": [
+          "lifecycle"
+        ]
+      }
+    },
+    "/api/v1/health/retention/preview": {
+      "post": {
+        "description": "Deletes nothing. Its `as_of` and `policy` are what the purge needs.",
+        "operationId": "preview_retention_api_v1_health_retention_preview_post",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PreviewOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Dry run: exactly what a purge now would delete (owner only)",
+        "tags": [
+          "lifecycle"
+        ]
+      }
+    },
+    "/api/v1/health/retention/purge": {
+      "post": {
+        "description": "Send the preview's `as_of` and `policy`. Refused with `409 RETENTION_PREVIEW_STALE` if the preview is over 15 minutes old or the periods have changed, and `409 LIFECYCLE_JOB_RUNNING` if a purge is running. Runs in the background; the counts deleted are in the audit row `retention.purged` and in `GET /retention` as `last_purge`.",
+        "operationId": "purge_retention_api_v1_health_retention_purge_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PurgeIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PurgeAccepted"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Purge what a preview showed (owner only)",
+        "tags": [
+          "lifecycle"
         ]
       }
     },

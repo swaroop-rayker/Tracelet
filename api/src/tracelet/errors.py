@@ -230,6 +230,32 @@ class OutboxNotDead(TraceletError):
     title = "Only a dead-lettered delivery can be retried"
 
 
+class RetentionPreviewStale(TraceletError):
+    """A purge runs only against the preview it was shown (F10.AC12): that preview is too
+    old, or the policy has changed since, so its counts would no longer be exact."""
+
+    status = 409
+    code = "RETENTION_PREVIEW_STALE"
+    title = "Preview again before purging"
+
+
+class LifecycleJobRunning(TraceletError):
+    """A purge, backup or restore check of the same kind is already running."""
+
+    status = 409
+    code = "LIFECYCLE_JOB_RUNNING"
+    title = "Already running"
+
+
+class BackupUnavailable(TraceletError):
+    """The backup is not one that has a file: it failed, is still running, or was rotated
+    away."""
+
+    status = 409
+    code = "BACKUP_UNAVAILABLE"
+    title = "This backup has no file"
+
+
 class NonceInvalid(TraceletError):
     """Enrichment nonce expired, already consumed, or bound to another prefix."""
 
@@ -338,6 +364,15 @@ class DependencyUnavailable(TraceletError):
     status = 503
     code = "DEPENDENCY_UNAVAILABLE"
     title = "Dependency unavailable"
+
+
+class MaintenanceUnavailable(TraceletError):
+    """The maintenance role is not configured or not set up (ADR-0022). ``detail`` names
+    the missing step, because the owner can act on it."""
+
+    status = 503
+    code = "MAINTENANCE_UNAVAILABLE"
+    title = "Maintenance is not set up"
 
 
 class InternalError(TraceletError):

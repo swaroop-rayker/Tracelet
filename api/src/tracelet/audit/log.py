@@ -90,9 +90,18 @@ class Action:
     INFERENCE_SETTINGS_CHANGED: Final = "inference.settings_changed"
     INFERENCE_SETTINGS_ROLLED_BACK: Final = "inference.settings_rolled_back"
 
-    # reserved for later milestones, listed so the vocabulary is visible
-    RETENTION_PURGED: Final = "retention.purged"  # M7
-    SETTINGS_CHANGED: Final = "settings.changed"  # M6 (quiet hours), M7
+    # runtime settings without secrets (app_settings): quiet hours in M6, rate limits in M7
+    SETTINGS_CHANGED: Final = "settings.changed"
+
+    # data lifecycle and operations (M7, F10, F12) -- owner actions and the scheduled jobs
+    RETENTION_CHANGED: Final = "retention.changed"  # old and new periods
+    RETENTION_PREVIEWED: Final = "retention.previewed"  # the dry run's exact counts
+    RETENTION_PURGED: Final = "retention.purged"  # counts actually deleted, F12.AC8
+    BACKUP_REQUESTED: Final = "backup.requested"
+    BACKUP_DOWNLOADED: Final = "backup.downloaded"  # the only off-VM path, F12.AC11
+    RESTORE_CHECK_REQUESTED: Final = "backup.restore_check_requested"
+    GEO_DB_UPDATE_REQUESTED: Final = "geodb.update_requested"
+    GEO_DB_TOGGLED: Final = "geodb.toggled"
 
 
 async def record(
