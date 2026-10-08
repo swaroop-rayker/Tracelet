@@ -44,6 +44,8 @@ from tracelet.ratelimit import gcra
 log = structlog.get_logger(__name__)
 
 Theme = Literal["semi_dark", "light", "dark"]
+# F10.AC1: System Health's refresh interval, per admin (ck_admins_health_refresh_known).
+HealthRefresh = Literal[5, 15, 30, 60]
 
 router = APIRouter(prefix="/api/v1/auth", tags=["auth"])
 
@@ -86,6 +88,7 @@ class MeResponse(BaseModel):
     status: AdminStatus
     timezone: str
     theme: str
+    health_refresh_seconds: int
     totp_enrolled: bool
     telegram_verified: bool
     recovery_codes_remaining: int
@@ -333,6 +336,7 @@ async def me(principal: CurrentPrincipal, db: DbSession, settings: Config) -> Me
         status=admin.status,
         timezone=admin.timezone,
         theme=admin.theme,
+        health_refresh_seconds=admin.health_refresh_seconds,
         totp_enrolled=admin.totp_enrolled,
         telegram_verified=admin.telegram_verified_at is not None,
         recovery_codes_remaining=await recovery.remaining(db, admin.id),
@@ -350,6 +354,7 @@ class PreferencesRequest(BaseModel):
 
     theme: Theme | None = None
     timezone: str | None = Field(default=None, min_length=1, max_length=64)
+    health_refresh_seconds: HealthRefresh | None = None
 
     @field_validator("timezone")
     @classmethod
@@ -367,10 +372,11 @@ class PreferencesRequest(BaseModel):
 @router.patch(
     "/me/preferences",
     response_model=MeResponse,
-    summary="Change your own theme or display timezone",
+    summary="Change your own theme, display timezone or System Health refresh interval",
     description=(
         "Display only. The theme is semi-dark unless changed (F9.AC16); the timezone is "
-        "how timestamps are shown to you, not how analytics are bucketed (ADR-0016). "
+        "how timestamps are shown to you, not how analytics are bucketed (ADR-0016); the "
+        "refresh interval is how often System Health polls for you (F10.AC1). "
         "Not audited: it changes nothing anyone else sees."
     ),
 )
@@ -381,6 +387,8 @@ async def update_preferences(
         principal.admin.theme = payload.theme
     if payload.timezone is not None:
         principal.admin.timezone = payload.timezone
+    if payload.health_refresh_seconds is not None:
+        principal.admin.health_refresh_seconds = payload.health_refresh_seconds
     await db.flush()
     return await me(principal, db, settings)
 

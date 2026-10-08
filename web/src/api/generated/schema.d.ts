@@ -369,8 +369,8 @@ export interface paths {
         options?: never;
         head?: never;
         /**
-         * Change your own theme or display timezone
-         * @description Display only. The theme is semi-dark unless changed (F9.AC16); the timezone is how timestamps are shown to you, not how analytics are bucketed (ADR-0016). Not audited: it changes nothing anyone else sees.
+         * Change your own theme, display timezone or System Health refresh interval
+         * @description Display only. The theme is semi-dark unless changed (F9.AC16); the timezone is how timestamps are shown to you, not how analytics are bucketed (ADR-0016); the refresh interval is how often System Health polls for you (F10.AC1). Not audited: it changes nothing anyone else sees.
          */
         patch: operations["update_preferences_api_v1_auth_me_preferences_patch"];
         trace?: never;
@@ -2757,6 +2757,8 @@ export interface components {
             display_name: string;
             /** Email */
             email: string;
+            /** Health Refresh Seconds */
+            health_refresh_seconds: number;
             /** Id */
             id: string;
             /** Recovery Codes Remaining */
@@ -3032,6 +3034,8 @@ export interface components {
          * @description Display preferences: per admin, persisted, and harmless (F9.AC16).
          */
         PreferencesRequest: {
+            /** Health Refresh Seconds */
+            health_refresh_seconds?: (5 | 15 | 30 | 60) | null;
             /** Theme */
             theme?: ("semi_dark" | "light" | "dark") | null;
             /** Timezone */

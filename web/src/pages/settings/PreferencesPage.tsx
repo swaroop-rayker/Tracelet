@@ -1,6 +1,6 @@
 /**
- * Settings › Preferences (DESIGN §10.8): the theme, and the time zone times are *shown* in.
- * Both through `PATCH /auth/me/preferences`, which M5 shipped; only the theme had a control.
+ * Settings › Preferences (DESIGN §10.8): the theme, the time zone times are *shown* in, and
+ * how often System Health refreshes (F10.AC1). All through `PATCH /auth/me/preferences`.
  * The reporting zone -- where daily buckets are cut -- is the server's and is read-only here.
  */
 
@@ -36,6 +36,9 @@ const RENAMED: Readonly<Record<string, string>> = {
  * Every IANA zone the browser knows, under current names, plus the saved and the reporting
  * zone, so neither can go missing from the control. Ships no list of its own.
  */
+/** System Health's refresh choices (F10.AC1); the server accepts exactly these. */
+const REFRESH_SECONDS = [5, 15, 30, 60] as const;
+
 function zones(...always: readonly string[]): readonly string[] {
   const known =
     typeof Intl.supportedValuesOf === 'function' ? Intl.supportedValuesOf('timeZone') : [];
@@ -47,6 +50,20 @@ export default function PreferencesPage(): React.JSX.Element {
   const { switchTo, error: themeError } = useThemeSwitch();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<ApiError | null>(null);
+
+  const save = (change: Parameters<typeof updatePreferences>[1], message: string): void => {
+    setBusy(true);
+    setError(null);
+    void updatePreferences(me.csrf_token, change).then((result) => {
+      setBusy(false);
+      if (!result.ok) {
+        setError(result.error);
+        return;
+      }
+      setMe(result.data);
+      toast(message);
+    });
+  };
 
   return (
     <div className="stack">
@@ -79,17 +96,7 @@ export default function PreferencesPage(): React.JSX.Element {
             hideLabel
             value={me.timezone}
             onChange={(timezone) => {
-              setBusy(true);
-              setError(null);
-              void updatePreferences(me.csrf_token, { timezone }).then((result) => {
-                setBusy(false);
-                if (!result.ok) {
-                  setError(result.error);
-                  return;
-                }
-                setMe(result.data);
-                toast(`Times are now shown in ${timezone}`);
-              });
+              save({ timezone }, `Times are now shown in ${timezone}`);
             }}
             options={zones(me.timezone, me.reporting_tz).map((z) => ({
               value: z,
@@ -97,8 +104,6 @@ export default function PreferencesPage(): React.JSX.Element {
             }))}
           />
         </SettingRow>
-        {busy && <p className="t-meta m-0">Saving…</p>}
-        {error !== null && <ErrorNotice error={error} />}
         <SettingRow
           title="Reporting time zone"
           description="Charts, daily figures and the hour heatmap are cut in this zone. It is set on the server, so every admin sees the same days."
@@ -106,6 +111,29 @@ export default function PreferencesPage(): React.JSX.Element {
           <span className="t-mono">{me.reporting_tz}</span>
         </SettingRow>
       </Card>
+
+      <Card title="System health">
+        <SettingRow
+          title="Refresh every"
+          description="How often host figures and degraded conditions update while the page is open. Polling pauses while the tab is hidden."
+        >
+          <SegmentedControl
+            label="Refresh every"
+            value={String(me.health_refresh_seconds)}
+            onChange={(value) => {
+              const seconds = Number(value);
+              save(
+                { health_refresh_seconds: seconds },
+                `System health refreshes every ${String(seconds)} s`,
+              );
+            }}
+            options={REFRESH_SECONDS.map((s) => ({ value: String(s), label: `${String(s)} s` }))}
+          />
+        </SettingRow>
+      </Card>
+
+      {busy && <p className="t-meta m-0">Saving…</p>}
+      {error !== null && <ErrorNotice error={error} />}
     </div>
   );
 }

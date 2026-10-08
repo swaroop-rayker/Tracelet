@@ -116,6 +116,7 @@ could not see it (docs/ERRORS.md E13).
 | `telegram_verified_at` | `timestamptz` NULL | |
 | `timezone` | `text` | Default `Asia/Kolkata` |
 | `theme` | `text` | `semi_dark` default, `light`, `dark` |
+| `health_refresh_seconds` | `smallint` | How often System Health polls for this admin (F10.AC1): `5`, `15`, `30` or `60` (`CHECK`), default `15`. Added in M7 (migration 0014) |
 | `failed_login_count` | `integer` | |
 | `locked_until` | `timestamptz` NULL | |
 | `created_at`, `updated_at` | `timestamptz` | |

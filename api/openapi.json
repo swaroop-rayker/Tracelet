@@ -3803,6 +3803,10 @@
             "title": "Email",
             "type": "string"
           },
+          "health_refresh_seconds": {
+            "title": "Health Refresh Seconds",
+            "type": "integer"
+          },
           "id": {
             "title": "Id",
             "type": "string"
@@ -3855,6 +3859,7 @@
           "status",
           "timezone",
           "theme",
+          "health_refresh_seconds",
           "totp_enrolled",
           "telegram_verified",
           "recovery_codes_remaining",
@@ -4511,6 +4516,23 @@
         "additionalProperties": false,
         "description": "Display preferences: per admin, persisted, and harmless (F9.AC16).",
         "properties": {
+          "health_refresh_seconds": {
+            "anyOf": [
+              {
+                "enum": [
+                  5,
+                  15,
+                  30,
+                  60
+                ],
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Health Refresh Seconds"
+          },
           "theme": {
             "anyOf": [
               {
@@ -10880,7 +10902,7 @@
     },
     "/api/v1/auth/me/preferences": {
       "patch": {
-        "description": "Display only. The theme is semi-dark unless changed (F9.AC16); the timezone is how timestamps are shown to you, not how analytics are bucketed (ADR-0016). Not audited: it changes nothing anyone else sees.",
+        "description": "Display only. The theme is semi-dark unless changed (F9.AC16); the timezone is how timestamps are shown to you, not how analytics are bucketed (ADR-0016); the refresh interval is how often System Health polls for you (F10.AC1). Not audited: it changes nothing anyone else sees.",
         "operationId": "update_preferences_api_v1_auth_me_preferences_patch",
         "requestBody": {
           "content": {
@@ -10914,7 +10936,7 @@
             "description": "Validation Error"
           }
         },
-        "summary": "Change your own theme or display timezone",
+        "summary": "Change your own theme, display timezone or System Health refresh interval",
         "tags": [
           "auth"
         ]

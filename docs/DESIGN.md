@@ -1023,7 +1023,7 @@ the page stays a calm summary. Plan: `docs/plans/SETTINGS-REDESIGN-PLAN.md`.
 | Page | Rows | Calls (all existing) |
 |---|---|---|
 | Profile | Initials, name, email; role and status as Badges; this session's expiry, relative | `GET /auth/me` |
-| Preferences | Theme as a SegmentedControl; display time zone as a Select of the browser's IANA zones; the reporting zone, read-only | `PATCH /auth/me/preferences` |
+| Preferences | Theme as a SegmentedControl; display time zone as a Select of the browser's IANA zones; the reporting zone, read-only; System Health's refresh interval as a SegmentedControl, 5 / 15 / 30 / 60 s (F10.AC1, M7) | `PATCH /auth/me/preferences` |
 | Security | Password (Dialog: show/hide, a live 12-character checklist); two-factor status; recovery codes (count, 10-step meter, Regenerate with confirmation); Telegram (two-step Dialog) | `/auth/password`, `/auth/totp/regenerate-codes`, `/auth/telegram/verify/*` |
 | Sessions | A DataTable: this device, IP prefix, started, last seen, expires; Revoke per row; Sign out all other sessions | `/auth/sessions`, one `DELETE` per session |
 | Team (owner) | A DataTable of admins; Invite; per row a menu: change role, disable or enable, new setup link, delete | `/admins`, `/admins/{id}/enrollment-token` |
@@ -1424,7 +1424,8 @@ The server, its data and its safety nets.
   warning `warn`, notice `info`), each with what still works and a link to where it is fixed;
   "Nothing is degraded" when empty. Then the host Stats with threshold Badges **and** words,
   the line of smaller facts, readiness (taken over from Settings › System, which now points
-  here), and the F10.AC6 links. Polls every 15 s. `scope: container` shows a `warn` Callout:
+  here), and the F10.AC6 links. Polls at the admin's own interval, 15 s unless changed in
+  Settings › Preferences (F10.AC1). `scope: container` shows a `warn` Callout:
   "These figures are the container's — the host's /proc is not mounted."
 - **Geo databases** (`/health/databases`): a DataTable — name and what it feeds, version
   and age, **state**, file, **Auto-update** Switch, and Update. *Amended for SPEC §11 row 24:*

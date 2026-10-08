@@ -24,7 +24,7 @@ then open the PR (CLAUDE.md section 2).
 | M5.5 | Design system and UI polish (owner-directed 2026-10-02, approved 2026-10-03; docs/DESIGN.md) | L | **[x] done** — 11 of 11 items; CSP 0 in Chromium, Firefox and WebKit; 72-image matrix; bugs E41–E47; hand keyboard walkthrough by the owner 2026-10-07 |
 | M5.6 | Dashboard enhancements and the Settings redesign, UI only (owner-approved 2026-10-06; docs/plans/ENHANCEMENTS-PLAN.md Phase A, SETTINGS-REDESIGN-PLAN.md) | M | **[x] built** — dashboard 6/6, Settings 6/6; CSP 0 in three engines; no server change; bugs E48–E50 |
 | M6 | Geofencing and Telegram notifications | M | **[x] done** — 11 of 11; both Telegram alerts received on the owner's phone 2026-10-07 (inside: high, as the same-day upgrade); bugs E52–E65 |
-| M7 | System health and operations | L | **built** — 10 of 10 items, plus the owner's additions (SPEC §11 rows 24–25); CSP 0 in three engines; ADR-0022; bugs E66–E71 (E69 cleared 164 dev IP ciphertexts) |
+| M7 | System health and operations | L | **built** — 10 of 10 items, plus the owner's additions (SPEC §11 rows 24–25) and F10.AC1's per-admin refresh interval; CSP 0 in three engines; ADR-0022; bugs E66–E71 (E69 cleared 164 dev IP ciphertexts) |
 | M8 | Accuracy hardening and ground truth | M | [ ] |
 | M9 | Production hardening and deploy | M | [ ] |
 
@@ -865,6 +865,13 @@ F9.AC6, F9.AC16–F9.AC18, NFR7. No new requirement: every item reads an existin
   after a preview and the slug typed -- archived links too -- integration tests and the full
   cycle in the browser. *This is what makes F10.AC6 true: until now the Links page only read,
   so the M7 tick above leaned on a page that could not create or edit a link.*
+
+**Closing F10.AC1, 2026-10-08 (owner's choice)**
+- [x] "Polled, with configurable interval": each admin picks System Health's refresh interval
+  (5, 15, 30 or 60 s; default 15, the old fixed value) in Settings › Preferences. It drives the
+  host figures and the degraded conditions on the Overview; readiness stays at a fixed minute,
+  and the progress pollers (updates, purges, backups) keep their own fast and slow pace.
+  `admins.health_refresh_seconds` (migration 0014), integration test
 
 ---
 

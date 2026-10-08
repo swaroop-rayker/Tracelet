@@ -6,7 +6,6 @@ import type { LimitValue, Severity } from '@/api/system';
 import type { Tone } from '@/components/ui';
 
 export const OWNER_ONLY = 'Only the owner can change this.';
-export const POLL_MS = 15_000;
 
 const UNITS = ['B', 'KB', 'MB', 'GB', 'TB'] as const;
 

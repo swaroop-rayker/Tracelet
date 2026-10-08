@@ -28,6 +28,8 @@ export interface Me {
   readonly status: AdminStatus;
   readonly timezone: string;
   readonly theme: string;
+  /** How often System Health polls for this admin (F10.AC1): 5, 15, 30 or 60. */
+  readonly health_refresh_seconds: number;
   readonly totp_enrolled: boolean;
   readonly telegram_verified: boolean;
   readonly recovery_codes_remaining: number;
@@ -95,6 +97,7 @@ function parseMe(value: unknown): Me | null {
     status,
     timezone,
     theme,
+    health_refresh_seconds,
     totp_enrolled,
     telegram_verified,
     recovery_codes_remaining,
@@ -108,6 +111,7 @@ function parseMe(value: unknown): Me | null {
   if (status !== 'pending_enrollment' && status !== 'active' && status !== 'disabled') return null;
   if (typeof totp_enrolled !== 'boolean' || typeof telegram_verified !== 'boolean') return null;
   if (typeof recovery_codes_remaining !== 'number') return null;
+  if (typeof health_refresh_seconds !== 'number') return null;
   if (!str(csrf_token) || !str(session_id) || !str(session_expires_at)) return null;
   if (!str(reporting_tz)) return null;
   return {
@@ -118,6 +122,7 @@ function parseMe(value: unknown): Me | null {
     status,
     timezone,
     theme,
+    health_refresh_seconds,
     totp_enrolled,
     telegram_verified,
     recovery_codes_remaining,
@@ -429,10 +434,14 @@ export function confirmTelegramVerification(
   });
 }
 
-/** Persist a display preference (F9.AC16). Returns the refreshed `/me`. */
+/** Persist a display preference (F9.AC16, F10.AC1). Returns the refreshed `/me`. */
 export function updatePreferences(
   csrfToken: string,
-  preferences: { readonly theme?: string; readonly timezone?: string },
+  preferences: {
+    readonly theme?: string;
+    readonly timezone?: string;
+    readonly health_refresh_seconds?: number;
+  },
 ): Promise<ApiResult<Me>> {
   return request(`${AUTH}/me/preferences`, {
     method: 'PATCH',

@@ -23,7 +23,7 @@ import { Panel } from '@/components/Panel';
 import { Freshness } from '@/components/shell/Freshness';
 import { Alert, Badge, Card, KeyValue, Stat, Stats } from '@/components/ui';
 import { pct } from '@/format';
-import { POLL_MS, bytes, duration, severityTone, stateTone } from '@/pages/health/health-format';
+import { bytes, duration, severityTone, stateTone } from '@/pages/health/health-format';
 import { useSession } from '@/session';
 
 /** Where each condition is put right. */
@@ -66,7 +66,7 @@ export default function OverviewPage(): React.JSX.Element {
 function Conditions(): React.JSX.Element {
   const { me } = useSession();
   const query = useApi(`${HEALTH}/degradation`, null, degradationSchema, {
-    refetchInterval: POLL_MS,
+    refetchInterval: me.health_refresh_seconds * 1000,
   });
   return (
     <Panel
@@ -120,7 +120,11 @@ function usageNote(u: Usage, unit: (n: number) => string): React.JSX.Element {
 }
 
 function HostFigures(): React.JSX.Element {
-  const query = useApi(`${HEALTH}/system`, null, systemSchema, { refetchInterval: POLL_MS });
+  const { me } = useSession();
+  // F10.AC1: the admin's own interval, from Settings › Preferences.
+  const query = useApi(`${HEALTH}/system`, null, systemSchema, {
+    refetchInterval: me.health_refresh_seconds * 1000,
+  });
   return (
     <Panel
       query={query}
@@ -185,6 +189,9 @@ function HostBody({ s }: { readonly s: SystemSample }): React.JSX.Element {
   );
 }
 
+/** `/readyz` is a cheap liveness probe, not a host metric: a fixed minute is enough. */
+const READINESS_MS = 60_000;
+
 function ReadinessCard(): React.JSX.Element {
   const [result, setResult] = useState<ApiResult<Readiness> | null>(null);
   useEffect(() => {
@@ -194,7 +201,7 @@ function ReadinessCard(): React.JSX.Element {
       if (live) setResult(r);
     };
     void check();
-    const timer = window.setInterval(() => void check(), POLL_MS * 4);
+    const timer = window.setInterval(() => void check(), READINESS_MS);
     return () => {
       live = false;
       window.clearInterval(timer);

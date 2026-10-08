@@ -190,7 +190,7 @@ generated TypeScript client are regenerated from it and checked for drift by CI 
 | `POST` | `/api/v1/auth/recovery-code` | — | `{email, code}` → `204` + session + `X-Recovery-Remaining` |
 | `POST` | `/api/v1/auth/logout` | any | `204`, revokes the current session |
 | `GET` | `/api/v1/auth/me` | any | Current admin, role, TOTP state, `recovery_codes_remaining`, `csrf_token`, theme, timezone, and (M5) `reporting_tz`, the zone analytics buckets are cut in |
-| `PATCH` | `/api/v1/auth/me/preferences` | any | `{theme?, timezone?}` → the `/me` body. Theme `semi_dark` (default), `light` or `dark`; timezone an IANA name. **Added in M5** (F9.AC16). Display only, so not audited |
+| `PATCH` | `/api/v1/auth/me/preferences` | any | `{theme?, timezone?, health_refresh_seconds?}` → the `/me` body. Theme `semi_dark` (default), `light` or `dark`; timezone an IANA name. **Added in M5** (F9.AC16). `health_refresh_seconds` `5`, `15` (default), `30` or `60`: how often System Health polls for this admin, also on `/me` (F10.AC1, **added in M7**). Display only, so not audited |
 | `POST` | `/api/v1/auth/reset/request` | — | `{email}` → **always `202`**. Telegram-delivered link |
 | `POST` | `/api/v1/auth/reset/confirm` | — | `{token, new_password}` → `204`, revokes every session |
 | `POST` | `/api/v1/auth/password` | any | `{current_password, new_password}` → `204`, revokes every **other** session |

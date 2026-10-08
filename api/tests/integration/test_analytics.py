@@ -477,7 +477,7 @@ async def test_the_ndjson_export_is_one_visit_per_line(
 
 
 # ---------------------------------------------------------------------------
-# Preferences (F9.AC16)
+# Preferences (F9.AC16, F10.AC1)
 # ---------------------------------------------------------------------------
 
 
@@ -491,8 +491,28 @@ async def test_the_theme_is_persisted_per_admin(owner: SignedIn) -> None:
     assert (await owner.client.get("/api/v1/auth/me")).json()["theme"] == "light"
 
 
+async def test_the_health_refresh_interval_is_persisted_per_admin(owner: SignedIn) -> None:
+    """F10.AC1: System Health polls at the admin's own interval, 15 s until changed."""
+    before = (await owner.client.get("/api/v1/auth/me")).json()
+    assert before["health_refresh_seconds"] == 15
+    changed = await owner.client.patch(
+        "/api/v1/auth/me/preferences",
+        json={"health_refresh_seconds": 60},
+        headers=owner.headers(),
+    )
+    assert changed.status_code == 200
+    assert changed.json()["health_refresh_seconds"] == 60
+    assert (await owner.client.get("/api/v1/auth/me")).json()["health_refresh_seconds"] == 60
+
+
 async def test_preferences_refuse_unknown_values(owner: SignedIn) -> None:
-    for payload in ({"theme": "neon"}, {"timezone": "Mars/Olympus"}, {"role": "owner"}):
+    for payload in (
+        {"theme": "neon"},
+        {"timezone": "Mars/Olympus"},
+        {"role": "owner"},
+        {"health_refresh_seconds": 7},
+        {"health_refresh_seconds": 0},
+    ):
         response = await owner.client.patch(
             "/api/v1/auth/me/preferences", json=payload, headers=owner.headers()
         )
