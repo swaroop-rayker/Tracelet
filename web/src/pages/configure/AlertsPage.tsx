@@ -639,6 +639,7 @@ function DeliveryLog(): React.JSX.Element {
                 {
                   key: 'geofence',
                   header: 'Geofence',
+                  className: 'delivery-geofence',
                   render: (d) =>
                     d.geofence_name ??
                     (d.geofence_state === 'undetermined' ? (

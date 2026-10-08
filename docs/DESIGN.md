@@ -1531,6 +1531,8 @@ Delivery log:  Queued · What · Visit · Link · Geofence · Priority · Status
 - Analysts see the switches and Fields disabled and the Save disabled with "Only the owner
   can change alerts." (UI-17).
 - A digest row in the log has no visit and no link: "—" in both, as a test message has.
+- Below 768 px the log drops its Geofence column (as the live feed drops Device): "What" is
+  worth more on a phone, and the visit's own page names the geofence.
 
 ### M8 — Accuracy hardening and ground truth
 
