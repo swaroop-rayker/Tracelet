@@ -499,7 +499,12 @@ migration 0009).
 
 **Referral**
 
-`referer text NULL`, `utm jsonb NULL`.
+`referer text NULL`, `utm jsonb NULL`. **Since M7.6 (SPEC §11 row 28, migration 0016):**
+`referer` is the Referer's **origin only** -- `https://l.instagram.com`,
+`android-app://com.google.android.gm` -- never its path or query, and `request_headers` keeps the
+same cut value under `referer`; 0016 cut every stored row. `utm` holds only the `utm_source`,
+`utm_medium`, `utm_campaign`, `utm_term` and `utm_content` keys that arrived, each at most 256
+characters, and is SQL `NULL` (not JSON `null`) when none did (ERRORS E74).
 
 ### 5.2 Indexes on `visits`
 
@@ -979,6 +984,15 @@ so a new breakdown is a new `dimension` name, not a migration.
 | `conf_country`, `conf_admin1`, `conf_admin2`, `conf_city` | decile `0`..`9`; `''` when unscored (F9.AC9) |
 | `signal` | `category\|rule_id`, one row per fired rule of category bot, spoof, spam or network (F9.AC11) |
 | `source_flow` | `source>level`: each source that proposed a candidate, by the deepest strict level emitted; `none>none` for a visit no source spoke for (F9.AC7). Inferred visits only |
+| `referrer_host` | M7.6 (F9.AC21): the referrer's host, lower-cased (`l.instagram.com`); for a non-web scheme the whole origin (`android-app://com.google.android.gm`); `''` with no referrer |
+| `utm_source`, `utm_medium`, `utm_campaign` | M7.6 (F9.AC21): the tag as sent, trimmed; `''` when absent |
+| `network_state` | M7.6 (F9.AC23): `country\|admin1\|asn\|connection_class`, the best-guess state with its network, any part `''` when unknown. The carrier family is applied when read, from `asn_classes.json`, so correcting the list needs no rebuild |
+| `capture` | M7.6 (F9.AC24): `app_medium\|stage\|consented` -- `instagram\|server_only\|0` |
+
+**Added in M7.6** (migration 0016): the six dimensions above. 0016 forgets every built day that
+still has raw visits (`rollup_state`), as 0008 did, so the read path answers them from raw rows
+at once and the settle job rebuilds them with the new dimensions. A day already past raw
+retention has none of them; none existed in production, which is not yet deployed.
 
 Rate-limited visits are excluded: they carry no client columns and no inference
 (invariant 8). They are counted in the cell tables' stage mix and the funnel.

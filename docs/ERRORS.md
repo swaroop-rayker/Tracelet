@@ -2446,6 +2446,31 @@ database test, compare the schemas and extensions first:
 
 ---
 
+### E74 — Every visit without UTM tags stored JSON `null`, not SQL `NULL`
+
+**Status:** Fixed in M7.6 (migration 0016). **Milestone:** M7.6. **Date:** 2026-10-08.
+
+**Symptom.** Planning Sources (SPEC F9.AC21), a count of `visits.utm IS NOT NULL` on the dev
+database returned all 227 visits, although none had a UTM tag: every row held the JSON value
+`null`. A rollup reading `utm->>'utm_source'` would still have got `NULL`, but any query using
+`IS NULL` to mean "no tags" -- the obvious one -- counted every visit as tagged.
+
+**Root cause.** SQLAlchemy's `JSONB` type writes Python `None` as the JSON literal `null`
+unless the column is declared with `none_as_null=True`. Capture builds every visit with
+`utm=None` when the request has no tags, so the ORM wrote JSON `null`. `client_probes` never
+showed it only because capture leaves it out of the insert rather than passing `None`.
+
+**Fix.** `visits.utm`, `request_headers` and `client_probes` are declared
+`JSONB(none_as_null=True)`; migration 0016 turns stored JSON `null` into SQL `NULL`.
+
+**Prevention.** An integration test captures an untagged visit and asserts
+`utm IS NULL` in SQL, not just `visit.utm is None` in Python (which cannot tell the two
+apart). A new nullable `JSONB` column takes `none_as_null=True`.
+
+**Related:** F3.AC1, F9.AC21, SPEC §11 row 28.
+
+---
+
 Add entries here as bugs are found and fixed. Use the next available `E<n>` identifier and
 the same structure: symptom, root cause, fix, **prevention**.
 

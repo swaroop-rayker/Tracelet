@@ -1166,6 +1166,10 @@ uses only existing routes, URL keys and endpoints; nothing new on the server.
 | E26 | **Toast** primitive in a polite live region (§5.6) | UI-only | **Approved 2026-10-06 (M5.6)** |
 | E27 | **Team management** for the owner: invite, change role, disable or enable, new setup link, delete | UI on existing `/admins` routes | **Approved 2026-10-06 (M5.6)** |
 | E28 | **Sign-in polish**: step indicators, show/hide, password checklist, grouped secret; no QR code | UI-only | **Approved 2026-10-06 (M5.6)** |
+| E30 | **Sources page** (`/sources`, `g s`): ranked lists of referrer site, UTM source, medium and campaign, and in-app browser, with **None** as a row; a row filters (E3) (§16 M7.6) | API (four `/breakdown` dimensions, four filter keys), SPEC F9.AC21 | **Approved 2026-10-08 (M7.6)** |
+| E31 | **Returning page** (`/returning`, `g r`): new vs returning per day, the weekly cohort grid, time to return; says from which day it can know (§16 M7.6) | API (`/analytics/returning`), SPEC F9.AC22 | **Approved 2026-10-08 (M7.6)** |
+| E32 | **Mobile networks by state** on Geography: a table of the busiest best-guess states, carrier shares and mobile vs broadband, each state with its confidence (§16 M7.6) | API (`/analytics/carriers`), SPEC F9.AC23 | **Approved 2026-10-08 (M7.6)** |
+| E33 | **Capture quality** page under System health (`/health/capture`): stages by app, and the enriched share per day (§16 M7.6) | API (`/analytics/capture-quality`), SPEC F9.AC24 | **Approved 2026-10-08 (M7.6)** |
 | E29 | **Alert types card** on Alerts: four switches with their settings (digest time; spike floor and *k*; returning days), owner-only; and a "What" column in the delivery log naming each kind (§16 M7.5) | API (`alert_types` on `/notifications/settings`), SPEC F7.AC10–F7.AC15 | **Approved 2026-10-08 (M7.5)** |
 
 ---
@@ -1533,6 +1537,82 @@ Delivery log:  Queued · What · Visit · Link · Geofence · Priority · Status
 - A digest row in the log has no visit and no link: "—" in both, as a test message has.
 - Below 768 px the log drops its Geofence column (as the live feed drops Device): "What" is
   worth more on a phone, and the visit's own page names the geofence.
+
+### M7.6 — Sources, returning visitors, carriers, capture quality (SPEC F9.AC21–F9.AC24, §12 E30–E33)
+
+Two new analytics pages, one new panel and one new System health page. No new primitive:
+Panel, RankedList, DataTable, EChart (line and bar), StatStrip, and the existing filter bar.
+
+**Sources** (`/sources`, Analytics, after Breakdowns; `g s`):
+
+```
+Sources                                                    [period ▾] [filters]
+Where visits came from: the site that linked here, the campaign tags on the
+link, and the app it was opened in. No referrer is common in apps: it is None.
+
+┌ Referrer site ────────────────┐ ┌ In-app browser ───────────────┐
+│ None              ████████ 61 │ │ instagram         ███████  48 │
+│ l.instagram.com   ███      22 │ │ browser           ████     30 │
+│ google.com        █         5 │ │ whatsapp          █         6 │
+└ provenance ───────────────────┘ └ provenance ───────────────────┘
+┌ UTM source ──────┐ ┌ UTM medium ──────┐ ┌ UTM campaign ────┐
+│ None   ███████ 70│ │ None   ███████ 70│ │ None   ███████ 70│
+│ ig     ██      18│ │ social ██      18│ │ diwali ██      18│
+└──────────────────┘ └──────────────────┘ └──────────────────┘
+```
+
+- A row applies its filter (E3): `referrer_host`, `utm_*`, or `webview_host` for an app.
+  **None** is shown, last-but-counted, and does not filter (there is no "absent" filter).
+- Each panel's empty state: "No visits in this period with these filters."
+
+**Returning** (`/returning`, Analytics, after Sources; `g r`):
+
+```
+Returning visitors                                         [period ▾] [filters]
+Who came back to a link. Known from 1 Sep (the oldest visit kept); 12 visits
+without a visitor id are not counted.
+
+┌ New and returning, per day ───────────────────────────── Data · CSV ┐
+│ stacked bars: New (accent) · Returning (neutral)                      │
+└────────────────────────────────────────────────────────────────────────┘
+┌ Weekly cohorts ─────────────────────┐ ┌ Time to come back ────────────┐
+│ First week  People  +1   +2   +3 …  │ │ Under an hour      ██      4  │
+│ 1 Sep       40      25%  10%  5%    │ │ An hour to a day   ████   11  │
+│ 8 Sep       32      19%  6%   —     │ │ A day to a week    ███     8  │
+│ (cells shaded by share; — = not yet)│ │ A week to a month  █       2  │
+└─────────────────────────────────────┘ └────────────────────────────────┘
+```
+
+- The cohort grid is a DataTable whose cells carry a share and a sequential tint (§6.3, via a
+  CSS custom property, UI-3); the number is always printed, so colour is never the only cue.
+- "Known from" comes from `since`; it is the page's provenance, not a footnote (UI-8).
+
+**Mobile networks by state** (Geography, under the map):
+
+```
+┌ Mobile networks by state (best guess) ───────────────────────────────────┐
+│ State           Visits  Jio   Airtel  Vi   BSNL  Other  Mobile  Broadband │
+│ Karnataka · 71%    42   45%   30%     10%  2%    13%    80%     20%       │
+└────────────────────────────────────────────────────────────────────────────┘
+```
+
+- The state's confidence beside its name (§7.3); the title says best guess. Shares, with the
+  count in each cell's accessible name. At 390 px the table scrolls inside its card.
+
+**Capture quality** (`/health/capture`, the sixth System health page):
+
+```
+┌ By app ─────────────────────────────────────────────────────────────────┐
+│ App        Captured  Enriched  Server only  Pending  Consented           │
+│ instagram     48       30 (63%)   18           0        2               │
+│ browser       30       29 (97%)    1           0        5               │
+└──────────────────────────────────────────────────────────────────────────┘
+┌ Enriched share per day ─────────────────────────────── Data · CSV ┐
+│ one line per busiest app (≤ 5), 0–100 %                              │
+└──────────────────────────────────────────────────────────────────────┘
+```
+
+- It reads the filters' period only (System health has no filter bar): the last 30 days.
 
 ### M8 — Accuracy hardening and ground truth
 

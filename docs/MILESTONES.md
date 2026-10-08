@@ -26,7 +26,7 @@ then open the PR (CLAUDE.md section 2).
 | M6 | Geofencing and Telegram notifications | M | **[x] done** — 11 of 11; both Telegram alerts received on the owner's phone 2026-10-07 (inside: high, as the same-day upgrade); bugs E52–E65 |
 | M7 | System health and operations | L | **built** — 10 of 10 items, plus the owner's additions (SPEC §11 rows 24–25) and F10.AC1's per-admin refresh interval; CSP 0 in three engines; ADR-0022; bugs E66–E71 (E69 cleared 164 dev IP ciphertexts) |
 | M7.5 | Alert types (owner-approved 2026-10-08; ENHANCEMENTS-PLAN Phase B, SPEC §11 row 27) | S | **[x] built** — 8 of 8 items; 4 types, all off by default; CSP 0 in three engines; no new dependency |
-| M7.6 | Sources, returning visitors, carriers, capture quality (owner-approved 2026-10-08; Phase C without C2) | M | [ ] |
+| M7.6 | Sources, returning visitors, carriers, capture quality (owner-approved 2026-10-08; Phase C without C2; SPEC §11 row 28) | M | [ ] in progress |
 | M7.7 | Annotations, saved views, compare, link builder (owner-approved 2026-10-08; Phase D) | M | [ ] |
 | M8 | Accuracy hardening and ground truth | M | [ ] |
 | M9 | Production hardening and deploy | M | [ ] |
@@ -920,6 +920,39 @@ with F7.AC1, F7.AC5, F7.AC9 holding for each. Branch `feat/m7.5-alert-types`, st
       420 MiB limit with two workers (ARCHITECTURE's line says ~230 MB; that gap is not from
       M7.5 and is for M9's measurement on the e2-micro)*
 - [x] Docs: SPEC F7, DATA_MODEL §2, §7, §8.6, §11, API §9a, ADR-0009 amendment, DESIGN E29
+
+---
+
+## M7.6 — Sources, returning visitors, carriers, capture quality · size M
+
+**Goal:** answer "where did they come from, do they come back, on which network, and what
+does each app let us see".
+**Approved:** 2026-10-08 by the owner, as Phase C of `docs/plans/ENHANCEMENTS-PLAN.md`,
+**without C2** (automatic insights). **Design:** DESIGN §12 E30–E33 and §16 M7.6.
+**F/AC-IDs:** F9.AC21–F9.AC24, F3.AC1 (amended), SPEC §11 row 28. Branch
+`feat/m7.6-analytics`, stacked on M7.5.
+
+**Scope**
+- Referrers cut to their origin at capture and in every stored row; `utm` SQL `NULL` when
+  absent (E74); six new rollup dimensions, and the retained days rebuilt (migration 0016)
+- C1 Sources: four `/breakdown` dimensions and four filter keys; the Sources page
+- C3 `/analytics/returning` and the Returning page
+- C4 carrier families in `asn_classes.json`; `/analytics/carriers`; the Geography panel
+- C5 `/analytics/capture-quality`; the System health page
+
+**Done checklist**
+- [ ] No stored referrer keeps a path or query, new or old; an untagged visit's `utm` is SQL
+      `NULL` -- tests against the real database
+- [ ] Each new dimension: rollup and raw give identical figures (the ADR-0016 parity test)
+- [ ] Returning: new vs returning, cohorts and return bands checked against hand-built
+      visits; `since` and `unidentified` stated
+- [ ] Carriers: a state's shares from known ASNs; the state is labelled best guess with its
+      confidence
+- [ ] Capture quality: stage counts per app equal the funnel's for the same window
+- [ ] New screens: four states, 3 themes × 3 widths, zero CSP violations in three engines
+- [ ] Expected RSS stated: no new process, cache or dependency
+- [ ] Docs: SPEC F3, F9, §11 row 28; DATA_MODEL §5.1, §9.2a; API §7, §8; DESIGN E30–E33;
+      ERRORS E74
 
 ---
 

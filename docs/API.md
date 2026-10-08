@@ -428,7 +428,9 @@ Filters, all optional and composable (F9.AC13):
 `city`, `asn`, `device_class`, `connection_class`, `consent_state`, `geofence_id`,
 `visitor_id`, `stage`, `min_confidence_admin1`, `min_confidence_city`, `has_gps`,
 `is_proxy_suspected`, `include_automated` (**default `false`**), `webview_host`,
-`search`, `limit`, `cursor`, `sort`.
+`search`, `limit`, `cursor`, `sort`; and since M7.6 (F9.AC21) `referrer_host`, `utm_source`,
+`utm_medium`, `utm_campaign` -- each an exact match on the value Sources shows, answered from
+raw rows (`computed_from: "raw"`).
 
 `include_automated` defaults to `false` so bots and crawlers do not pollute the default
 view; the flag makes their exclusion explicit rather than hidden.
@@ -574,6 +576,9 @@ mislead when enrichment coverage shifts (F9.AC20).
 | `GET` | `/api/v1/analytics/signals` | Bot-signal firing frequency, ranked (F9.AC11) |
 | `GET` | `/api/v1/analytics/accuracy` | Current precision and coverage per level, **with `label_count`** (F9.AC10) |
 | `GET` | `/api/v1/analytics/visitor/{visitor_id}` | Every visit for one visitor, with location drift (F9.AC12) |
+| `GET` | `/api/v1/analytics/returning` | New and returning visitors per day, weekly cohorts, time to return (F9.AC22) — M7.6 |
+| `GET` | `/api/v1/analytics/carriers` | Carrier families and mobile vs broadband per best-guess state (F9.AC23) — M7.6 |
+| `GET` | `/api/v1/analytics/capture-quality` | Enriched, server-only and consented by app medium, and the enriched share per day (F9.AC24) — M7.6 |
 
 `/analytics/accuracy` always returns `label_count` alongside every metric. A precision
 figure computed over 30 labels is not the same claim as one computed over 3000, and the
@@ -613,7 +618,7 @@ measure strict: what the engine was willing to state. A figure the system cannot
 |---|---|---|
 | `/summary` | — | `kpis[]`: `{key, unit: count\|ratio, value, previous, change, reason}` for `visits`, `unique_visitors`, `human_share`, `bot_share`, `consent_grant_rate`, `geofence_hit_rate`, `enrichment_completion_rate`; `previous_start`. The previous period is the equal-length window before. `change` is relative for counts, percentage points for ratios. Shares are over every classification whatever the filter. `unique_visitors` is raw and `null` (`past_visit_retention`) beyond retention |
 | `/timeseries` | `bucket=day\|hour`, `split_by=none\|classification\|device_class\|connection_class\|country\|admin1\|link`, `metric=visits\|consented` | `buckets[]` (local bucket starts, zero-filled), `series[]` `{key, label, values[]}`; at most 7 keys plus `other`. Hourly windows ≤ 31 days |
-| `/breakdown` | `dimension=country\|admin1\|city\|asn\|isp\|device_class\|browser\|app_medium\|os\|screen\|connection_class\|classification`, `limit` 1–100 (20) | `total`, `rows[]` `{key, count, share}`, `unknown`, `other`. `admin1`/`city` keys are qualified (`IN\|Karnataka`) |
+| `/breakdown` | `dimension=country\|admin1\|city\|asn\|isp\|device_class\|browser\|app_medium\|os\|screen\|connection_class\|classification`, and since M7.6 `referrer_host\|utm_source\|utm_medium\|utm_campaign`, `limit` 1–100 (20) | `total`, `rows[]` `{key, count, share}`, `unknown`, `other`. `admin1`/`city` keys are qualified (`IN\|Karnataka`). For the four source dimensions `unknown` is the visits with no referrer or no tag, which the page shows as **None** |
 | `/geo` | `cell_degrees` 0.01–10 (0.25) | `countries[]`, `admin1[]`, `abstained`, `points[]` `{lat, lng, count}` clustered on a grid server-side, `points_computed_from: "raw"`, `points_truncated` (over 2000 clusters) |
 | `/calendar` | — | `days[]` `{day, count}`, every day in the window |
 | `/source-flow` | — | `sources[]`, `levels[]`, `links[]` `{source, target, value}`; `visits` = inferred visits in scope |
@@ -621,6 +626,9 @@ measure strict: what the engine was willing to state. A figure the system cannot
 | `/confidence` | — | `levels[]` `{level, bins[10], unscored}` |
 | `/signals` | — | `visits`, `rows[]` `{rule_id, category, count, share}`; categories bot, spoof, spam, network |
 | `/accuracy` | — | `inferred`, `levels[]` `{level, label_count, precision, coverage, emission_rate, reason}`. **Until M8 builds the ground-truth set, `label_count` is 0 and precision and coverage are `null` with reason `no_ground_truth_labels`.** `emission_rate` is how often strict answered, explicitly not accuracy |
+| `/returning` | `weeks` 1–12 (8) | Raw only. `since` (the oldest visit kept: nothing earlier can be known), `unidentified` (visits in scope with no `visitor_id`), `days[]` `{day, new, returning}` (visitors per local day; *new* = first visit to that link among the visits kept), `cohorts[]` `{week, size, returned[]}` (`week` the local Monday of the first visit, `returned[k]` how many of the cohort visited again in week *k* after, `null` for a week not yet reached), `return_after[]` `{band, count}` with bands `under_1h`, `1h_1d`, `1d_7d`, `7d_30d`, `over_30d` (time from a visitor's first visit to their second, per link) |
+| `/carriers` | `limit` 1–50 (20) | `states[]` `{key, visits, confidence, families: {jio, airtel, vi, bsnl, other}, mobile, broadband, other_network}`, busiest first; `key` qualified (`IN\|Karnataka`) and the **best guess** (ADR-0018), `confidence` the mean of its state confidence; `unplaced` (visits with no best-guess state). Families from `asn_classes.json` `families` |
+| `/capture-quality` | — | `apps[]` `{key, captured, enriched, server_only, pending, consented}`, busiest first (`key` the webview host app, or `browser`); `buckets[]` (local days) and `series[]` `{key, enriched_share[]}` for the five busiest, a share `null` on a day with no visit from that app |
 | `/visitor/{visitor_id}` | — | `visit_count`, `first_seen`, `last_seen`, `visits[]` (summary shape, oldest first, at most 500, `truncated`), `drift[]` `{at, from_visit, to_visit, location_changed[], distance_km, device_changed[], network_changed}`. Drift compares advisory location, labelled as such |
 
 ---
