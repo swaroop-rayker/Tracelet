@@ -2471,6 +2471,32 @@ apart). A new nullable `JSONB` column takes `none_as_null=True`.
 
 ---
 
+### E75 — The nightly-backup test failed for half an hour after a real backup
+
+**Status:** Fixed in M7.6. **Milestone:** M7.6. **Date:** 2026-10-08.
+
+**Symptom.** `tl verify` failed `test_the_nightly_backup_runs_once_a_night` with
+`run_scheduled_once` returning `None` instead of `"backup"`. It had passed in every earlier run.
+
+**Root cause.** The test sets the backup hour to the current local hour and skips itself if a
+scheduled backup already ran "this hour" -- but counted from `date_trunc('hour', now())`, the
+top of the **UTC** hour, while the code counts from the top of the **local** hour. India is
+UTC+05:30, so for the half hour after each local hour starts the two disagree. The dev API had
+run its own scheduled backup at 12:36 UTC (18:06 IST) when it started: after the local hour
+began, before the UTC one. The test did not see it and expected a backup; the code saw it and,
+correctly, ran none. A test bug only, and only on a database whose live scheduler had run.
+
+**Fix.** The test takes its boundary from the code (`backups.local_boundary`) for both its
+guard and its clean-up.
+
+**Prevention.** A test that reasons about "tonight" or "this hour" asks the code for the
+boundary instead of re-deriving it in SQL: the reporting zone is not UTC, and its hours and
+days start 30 minutes off UTC's (SPEC section 11 row 17 cuts days the same way).
+
+**Related:** F12.AC9, E70, E72.
+
+---
+
 Add entries here as bugs are found and fixed. Use the next available `E<n>` identifier and
 the same structure: symptom, root cause, fix, **prevention**.
 

@@ -163,7 +163,7 @@ CELL_MEASURES: tuple[str, ...] = (
 class Dimension(enum.StrEnum):
     """Every dimension the long-format rollup holds.
 
-    The first twelve are F9.AC4's breakdowns. ``admin1`` and ``city`` values are
+    The first twelve are F9.AC4's breakdowns; M7.6 adds four more (Sources, F9.AC21). ``admin1`` and ``city`` values are
     qualified (``IN|Karnataka``, ``IN|Karnataka|Bengaluru``) because names repeat
     across countries -- Punjab is a state of India and a province of Pakistan.
     """
@@ -188,6 +188,14 @@ class Dimension(enum.StrEnum):
     CONF_CITY = "conf_city"
     SIGNAL = "signal"
     SOURCE_FLOW = "source_flow"
+    # M7.6: Sources (F9.AC21) -- the last four breakdowns -- and the two compound
+    # dimensions behind carriers by state (F9.AC23) and capture quality (F9.AC24).
+    REFERRER_HOST = "referrer_host"
+    UTM_SOURCE = "utm_source"
+    UTM_MEDIUM = "utm_medium"
+    UTM_CAMPAIGN = "utm_campaign"
+    NETWORK_STATE = "network_state"
+    CAPTURE = "capture"
 
 
 BREAKDOWNS: tuple[Dimension, ...] = (
@@ -203,7 +211,18 @@ BREAKDOWNS: tuple[Dimension, ...] = (
     Dimension.SCREEN,
     Dimension.CONNECTION_CLASS,
     Dimension.CLASSIFICATION,
+    Dimension.REFERRER_HOST,
+    Dimension.UTM_SOURCE,
+    Dimension.UTM_MEDIUM,
+    Dimension.UTM_CAMPAIGN,
 )
+
+# The UTM keys Sources ranks, by dimension (utm_term and utm_content are kept, not ranked).
+UTM_DIMENSIONS: dict[Dimension, str] = {
+    Dimension.UTM_SOURCE: "utm_source",
+    Dimension.UTM_MEDIUM: "utm_medium",
+    Dimension.UTM_CAMPAIGN: "utm_campaign",
+}
 
 # Fired-rule categories counted by the signal-frequency chart. Absences
 # (``category: "absence"``) and inference bookkeeping are reasons, not detections.
@@ -222,6 +241,32 @@ def _decile(value: Expr) -> ColumnElement[str]:
     return case(
         (value.is_(None), ""),
         else_=cast(func.least(cast(func.floor(value * 10), Integer), 9), Text()),
+    )
+
+
+def referrer_host() -> ColumnElement[str]:
+    """The referrer's host, lower-cased, without a port: ``l.instagram.com``. A non-web
+    origin (``android-app://com.google.android.gm``) is kept whole. ``''`` with none. The
+    filter key ``referrer_host`` matches this same expression (filters.py)."""
+    return case(
+        (
+            Visit.referer.op("~*")("^https?://"),
+            func.lower(func.regexp_replace(Visit.referer, "^https?://([^/:?#]+).*$", r"\1", "i")),
+        ),
+        else_=func.lower(_empty(Visit.referer)),
+    )
+
+
+def utm_value(key: str) -> ColumnElement[str]:
+    """One UTM tag as sent, trimmed; ``''`` when absent. The filter keys match this."""
+    return func.btrim(_empty(Visit.utm[key].astext))
+
+
+def app_medium() -> ColumnElement[str]:
+    """In-app webviews by host app; everything else is a browser."""
+    return case(
+        (Visit.is_inapp_webview, func.coalesce(Visit.webview_host, "webview")),
+        else_="browser",
     )
 
 
@@ -255,11 +300,7 @@ def _single(dimension: Dimension) -> ColumnElement[str]:
         case Dimension.BROWSER:
             return _empty(Visit.ua_family)
         case Dimension.APP_MEDIUM:
-            # In-app webviews by host app; everything else is a browser.
-            return case(
-                (Visit.is_inapp_webview, func.coalesce(Visit.webview_host, "webview")),
-                else_="browser",
-            )
+            return app_medium()
         case Dimension.OS:
             return _empty(Visit.os_family)
         case Dimension.SCREEN:
@@ -282,6 +323,27 @@ def _single(dimension: Dimension) -> ColumnElement[str]:
             return _decile(Visit.confidence_admin2)
         case Dimension.CONF_CITY:
             return _decile(Visit.confidence_city)
+        case Dimension.REFERRER_HOST:
+            return referrer_host()
+        case Dimension.UTM_SOURCE | Dimension.UTM_MEDIUM | Dimension.UTM_CAMPAIGN:
+            return utm_value(UTM_DIMENSIONS[dimension])
+        case Dimension.NETWORK_STATE:
+            # country|admin1|asn|connection_class: the best-guess state with its network.
+            return func.concat_ws(
+                "|",
+                _empty(Visit.advisory_country_code),
+                _empty(Visit.advisory_admin1),
+                _empty(cast(Visit.asn, Text())),
+                cast(Visit.connection_class, Text()),
+            )
+        case Dimension.CAPTURE:
+            # app_medium|stage|consented: the funnel per app.
+            return func.concat_ws(
+                "|",
+                app_medium(),
+                cast(Visit.stage, Text()),
+                case((Visit.consent_state == ConsentState.GRANTED, "1"), else_="0"),
+            )
         case Dimension.SIGNAL | Dimension.SOURCE_FLOW:
             msg = f"{dimension} is multi-valued"
             raise ValueError(msg)

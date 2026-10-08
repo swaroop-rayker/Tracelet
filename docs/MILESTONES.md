@@ -26,7 +26,7 @@ then open the PR (CLAUDE.md section 2).
 | M6 | Geofencing and Telegram notifications | M | **[x] done** — 11 of 11; both Telegram alerts received on the owner's phone 2026-10-07 (inside: high, as the same-day upgrade); bugs E52–E65 |
 | M7 | System health and operations | L | **built** — 10 of 10 items, plus the owner's additions (SPEC §11 rows 24–25) and F10.AC1's per-admin refresh interval; CSP 0 in three engines; ADR-0022; bugs E66–E71 (E69 cleared 164 dev IP ciphertexts) |
 | M7.5 | Alert types (owner-approved 2026-10-08; ENHANCEMENTS-PLAN Phase B, SPEC §11 row 27) | S | **[x] built** — 8 of 8 items; 4 types, all off by default; CSP 0 in three engines; no new dependency |
-| M7.6 | Sources, returning visitors, carriers, capture quality (owner-approved 2026-10-08; Phase C without C2; SPEC §11 row 28) | M | [ ] in progress |
+| M7.6 | Sources, returning visitors, carriers, capture quality (owner-approved 2026-10-08; Phase C without C2; SPEC §11 row 28) | M | **[x] built** — 8 of 8 items; referrers cut to their origin (stored rows too); CSP 0 in three engines; bugs E74–E75 |
 | M7.7 | Annotations, saved views, compare, link builder (owner-approved 2026-10-08; Phase D) | M | [ ] |
 | M8 | Accuracy hardening and ground truth | M | [ ] |
 | M9 | Production hardening and deploy | M | [ ] |
@@ -941,18 +941,30 @@ does each app let us see".
 - C5 `/analytics/capture-quality`; the System health page
 
 **Done checklist**
-- [ ] No stored referrer keeps a path or query, new or old; an untagged visit's `utm` is SQL
-      `NULL` -- tests against the real database
-- [ ] Each new dimension: rollup and raw give identical figures (the ADR-0016 parity test)
-- [ ] Returning: new vs returning, cohorts and return bands checked against hand-built
-      visits; `since` and `unidentified` stated
-- [ ] Carriers: a state's shares from known ASNs; the state is labelled best guess with its
-      confidence
-- [ ] Capture quality: stage counts per app equal the funnel's for the same window
-- [ ] New screens: four states, 3 themes × 3 widths, zero CSP violations in three engines
-- [ ] Expected RSS stated: no new process, cache or dependency
-- [ ] Docs: SPEC F3, F9, §11 row 28; DATA_MODEL §5.1, §9.2a; API §7, §8; DESIGN E30–E33;
-      ERRORS E74
+- [x] No stored referrer keeps a path or query, new or old; an untagged visit's `utm` is SQL
+      `NULL` -- tests against the real database: capture keeps the origin in both places, a
+      Google search query never reaches the row, and the migration's SQL cuts nine sample
+      referrers exactly as capture's Python does. On the dev database 0016 left no referrer
+      with a path and no JSON `null`
+- [x] Each new dimension: rollup and raw give identical figures (the ADR-0016 parity test) --
+      `referrer_host`, `utm_source`, `utm_campaign`, `/carriers` and `/capture-quality` added to
+      it; the dev rollups rebuilt over 181 days with `tracelet analytics rebuild`
+- [x] Returning: new vs returning, cohorts and return bands checked against hand-built
+      visits; `since` and `unidentified` stated -- and a bot visit is not counted
+- [x] Carriers: a state's shares from known ASNs; the state is labelled best guess with its
+      confidence -- Jio, Airtel (mobile and broadband ASNs), an unlisted ASN as Other, and the
+      mean state confidence
+- [x] Capture quality: stage counts per app equal the funnel's for the same window
+- [x] New screens: four states, 3 themes × 3 widths, zero CSP violations in three engines --
+      *Sources, Returning, Geography's carriers panel and Capture quality walked in Chromium,
+      Firefox and WebKit with 0 violations (a positive control caught in each); 36 matrix
+      screenshots with no overflow; empty states under a filter nothing matches; the analyst
+      sees all four*
+- [x] Expected RSS stated: no new process, cache or dependency -- *six more dimension rows per
+      day in the rollup (a few hundred rows a day at design load), and three endpoints that
+      read rollups or indexed raw rows per request*
+- [x] Docs: SPEC F3, F9, §11 row 28; DATA_MODEL §5.1, §9.2a; API §7, §8; DESIGN E30–E33;
+      ERRORS E74 (and E75, a test bug found by this milestone's verify run)
 
 ---
 

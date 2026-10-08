@@ -121,6 +121,8 @@ async def dataset(db_client: AsyncClient) -> dict[str, Any]:
         screen_w=1080,
         screen_h=2400,
         signals=[],
+        referer="https://l.instagram.com",
+        utm={"utm_source": "ig", "utm_medium": "social", "utm_campaign": "diwali"},
     )
     v2 = await _visit(
         db_client,
@@ -203,6 +205,9 @@ ENDPOINTS: list[tuple[str, dict[str, str]]] = [
     ("/timeseries", {"bucket": "day", "split_by": "admin1"}),
     ("/calendar", {}),
     *[("/breakdown", {"dimension": d}) for d in ("country", "admin1", "city", "isp", "screen")],
+    *[("/breakdown", {"dimension": d}) for d in ("referrer_host", "utm_source", "utm_campaign")],
+    ("/carriers", {}),
+    ("/capture-quality", {}),
     ("/signals", {}),
     ("/confidence", {}),
     ("/source-flow", {}),

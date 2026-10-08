@@ -43,6 +43,11 @@ export const SCALAR_KEYS = [
   'is_proxy_suspected',
   'include_automated',
   'search',
+  // Sources (F9.AC21, M7.6)
+  'referrer_host',
+  'utm_source',
+  'utm_medium',
+  'utm_campaign',
 ] as const;
 export type ScalarKey = (typeof SCALAR_KEYS)[number];
 

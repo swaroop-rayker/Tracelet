@@ -124,6 +124,46 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/analytics/capture-quality": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Enriched, server-only and consented by app medium (F9.AC24)
+         * @description The funnel per in-app browser: how much each app lets the page see (RISKS R5). The share series covers the 5 busiest apps.
+         */
+        get: operations["capture_quality_api_v1_analytics_capture_quality_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/analytics/carriers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Carriers and mobile vs broadband per best-guess state (F9.AC23)
+         * @description States are the best guess (ADR-0018), each with its mean confidence. The carrier comes from the ASN through asn_classes.json; an unlisted ASN is 'other'.
+         */
+        get: operations["carriers_api_v1_analytics_carriers_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/analytics/confidence": {
         parameters: {
             query?: never;
@@ -173,6 +213,26 @@ export interface paths {
          * @description Strict location only. Points are consented GPS where it exists, otherwise the strict coordinates, which exist only with a strict city (DATA_MODEL 5.3 invariant 11). They are clustered on a grid of `cell_degrees`, server-side.
          */
         get: operations["geo_api_v1_analytics_geo_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/analytics/returning": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * New and returning visitors, weekly cohorts, time to return (F9.AC22)
+         * @description Per link and visitor_id: a visit is new if it is the visitor's first on that link among the visits kept. Raw rows only, so limited to visit retention (`since`). Visits with no visitor_id are counted in `unidentified`, never guessed.
+         */
+        get: operations["returning_api_v1_analytics_returning_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1447,6 +1507,21 @@ export interface components {
             returning: components["schemas"]["ReturningIn"];
             spike: components["schemas"]["SpikeIn"];
         };
+        /** AppCapture */
+        AppCapture: {
+            /** Captured */
+            captured: number;
+            /** Consented */
+            consented: number;
+            /** Enriched */
+            enriched: number;
+            /** Key */
+            key: string;
+            /** Pending */
+            pending: number;
+            /** Server Only */
+            server_only: number;
+        };
         /** AttemptOut */
         AttemptOut: {
             /**
@@ -1536,7 +1611,7 @@ export interface components {
          * BreakdownDimension
          * @enum {string}
          */
-        BreakdownDimension: "country" | "admin1" | "city" | "asn" | "isp" | "device_class" | "browser" | "app_medium" | "os" | "screen" | "connection_class" | "classification";
+        BreakdownDimension: "country" | "admin1" | "city" | "asn" | "isp" | "device_class" | "browser" | "app_medium" | "os" | "screen" | "connection_class" | "classification" | "referrer_host" | "utm_source" | "utm_medium" | "utm_campaign";
         /** BreakdownRow */
         BreakdownRow: {
             /** Count */
@@ -1599,6 +1674,43 @@ export interface components {
             suppressed_reason: string | null;
             /** Weight */
             weight: number;
+        };
+        /** CaptureQuality */
+        CaptureQuality: {
+            /** Apps */
+            apps: components["schemas"]["AppCapture"][];
+            /** Buckets */
+            buckets: string[];
+            meta: components["schemas"]["Meta"];
+            /** Series */
+            series: components["schemas"]["ShareSeries"][];
+        };
+        /** CarrierState */
+        CarrierState: {
+            /** Broadband */
+            broadband: number;
+            /** Confidence */
+            confidence: number | null;
+            /** Families */
+            families: {
+                [key: string]: number;
+            };
+            /** Key */
+            key: string;
+            /** Mobile */
+            mobile: number;
+            /** Other Network */
+            other_network: number;
+            /** Visits */
+            visits: number;
+        };
+        /** Carriers */
+        Carriers: {
+            meta: components["schemas"]["Meta"];
+            /** States */
+            states: components["schemas"]["CarrierState"][];
+            /** Unplaced */
+            unplaced: number;
         };
         /** ChangePasswordRequest */
         ChangePasswordRequest: {
@@ -1718,6 +1830,18 @@ export interface components {
             weights?: {
                 [key: string]: number;
             };
+        };
+        /** Cohort */
+        Cohort: {
+            /** Returned */
+            returned: (number | null)[];
+            /** Size */
+            size: number;
+            /**
+             * Week
+             * Format: date
+             */
+            week: string;
         };
         /** ConditionOut */
         ConditionOut: {
@@ -3315,6 +3439,42 @@ export interface components {
              */
             updated_at: string;
         };
+        /** ReturnBand */
+        ReturnBand: {
+            /**
+             * Band
+             * @enum {string}
+             */
+            band: "under_1h" | "1h_1d" | "1d_7d" | "7d_30d" | "over_30d";
+            /** Count */
+            count: number;
+        };
+        /** Returning */
+        Returning: {
+            /** Cohorts */
+            cohorts: components["schemas"]["Cohort"][];
+            /** Days */
+            days: components["schemas"]["ReturningDay"][];
+            meta: components["schemas"]["Meta"];
+            /** Return After */
+            return_after: components["schemas"]["ReturnBand"][];
+            /** Since */
+            since: string | null;
+            /** Unidentified */
+            unidentified: number;
+        };
+        /** ReturningDay */
+        ReturningDay: {
+            /**
+             * Day
+             * Format: date
+             */
+            day: string;
+            /** New */
+            new: number;
+            /** Returning */
+            returning: number;
+        };
         /**
          * ReturningIn
          * @description F7.AC13: back on a link more than ``after_days`` after the last human visit.
@@ -3405,6 +3565,13 @@ export interface components {
          * @enum {string}
          */
         ShapeKind: "polygon" | "circle" | "region";
+        /** ShareSeries */
+        ShareSeries: {
+            /** Enriched Share */
+            enriched_share: (number | null)[];
+            /** Key */
+            key: string;
+        };
         /** SignalRow */
         SignalRow: {
             /** Category */
@@ -4032,6 +4199,10 @@ export interface operations {
                 is_proxy_suspected?: boolean | null;
                 webview_host?: string | null;
                 search?: string | null;
+                referrer_host?: string | null;
+                utm_source?: string | null;
+                utm_medium?: string | null;
+                utm_campaign?: string | null;
             };
             header?: never;
             path?: never;
@@ -4085,6 +4256,10 @@ export interface operations {
                 is_proxy_suspected?: boolean | null;
                 webview_host?: string | null;
                 search?: string | null;
+                referrer_host?: string | null;
+                utm_source?: string | null;
+                utm_medium?: string | null;
+                utm_campaign?: string | null;
             };
             header?: never;
             path?: never;
@@ -4136,6 +4311,10 @@ export interface operations {
                 is_proxy_suspected?: boolean | null;
                 webview_host?: string | null;
                 search?: string | null;
+                referrer_host?: string | null;
+                utm_source?: string | null;
+                utm_medium?: string | null;
+                utm_campaign?: string | null;
             };
             header?: never;
             path?: never;
@@ -4150,6 +4329,117 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Calendar"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    capture_quality_api_v1_analytics_capture_quality_get: {
+        parameters: {
+            query?: {
+                from?: string | null;
+                to?: string | null;
+                link_id?: string | null;
+                stage?: components["schemas"]["VisitStage"][] | null;
+                classification?: components["schemas"]["Classification"][] | null;
+                include_automated?: boolean;
+                country_code?: string | null;
+                admin1?: string | null;
+                city?: string | null;
+                asn?: number | null;
+                device_class?: components["schemas"]["DeviceClass"][] | null;
+                connection_class?: components["schemas"]["ConnectionClass"][] | null;
+                consent_state?: components["schemas"]["ConsentState"] | null;
+                geofence_id?: string | null;
+                visitor_id?: string | null;
+                min_confidence_admin1?: number | null;
+                min_confidence_city?: number | null;
+                has_gps?: boolean | null;
+                is_proxy_suspected?: boolean | null;
+                webview_host?: string | null;
+                search?: string | null;
+                referrer_host?: string | null;
+                utm_source?: string | null;
+                utm_medium?: string | null;
+                utm_campaign?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CaptureQuality"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    carriers_api_v1_analytics_carriers_get: {
+        parameters: {
+            query?: {
+                limit?: number;
+                from?: string | null;
+                to?: string | null;
+                link_id?: string | null;
+                stage?: components["schemas"]["VisitStage"][] | null;
+                classification?: components["schemas"]["Classification"][] | null;
+                include_automated?: boolean;
+                country_code?: string | null;
+                admin1?: string | null;
+                city?: string | null;
+                asn?: number | null;
+                device_class?: components["schemas"]["DeviceClass"][] | null;
+                connection_class?: components["schemas"]["ConnectionClass"][] | null;
+                consent_state?: components["schemas"]["ConsentState"] | null;
+                geofence_id?: string | null;
+                visitor_id?: string | null;
+                min_confidence_admin1?: number | null;
+                min_confidence_city?: number | null;
+                has_gps?: boolean | null;
+                is_proxy_suspected?: boolean | null;
+                webview_host?: string | null;
+                search?: string | null;
+                referrer_host?: string | null;
+                utm_source?: string | null;
+                utm_medium?: string | null;
+                utm_campaign?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Carriers"];
                 };
             };
             /** @description Validation Error */
@@ -4187,6 +4477,10 @@ export interface operations {
                 is_proxy_suspected?: boolean | null;
                 webview_host?: string | null;
                 search?: string | null;
+                referrer_host?: string | null;
+                utm_source?: string | null;
+                utm_medium?: string | null;
+                utm_campaign?: string | null;
             };
             header?: never;
             path?: never;
@@ -4238,6 +4532,10 @@ export interface operations {
                 is_proxy_suspected?: boolean | null;
                 webview_host?: string | null;
                 search?: string | null;
+                referrer_host?: string | null;
+                utm_source?: string | null;
+                utm_medium?: string | null;
+                utm_campaign?: string | null;
             };
             header?: never;
             path?: never;
@@ -4290,6 +4588,10 @@ export interface operations {
                 is_proxy_suspected?: boolean | null;
                 webview_host?: string | null;
                 search?: string | null;
+                referrer_host?: string | null;
+                utm_source?: string | null;
+                utm_medium?: string | null;
+                utm_campaign?: string | null;
             };
             header?: never;
             path?: never;
@@ -4304,6 +4606,62 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Geo"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    returning_api_v1_analytics_returning_get: {
+        parameters: {
+            query?: {
+                weeks?: number;
+                from?: string | null;
+                to?: string | null;
+                link_id?: string | null;
+                stage?: components["schemas"]["VisitStage"][] | null;
+                classification?: components["schemas"]["Classification"][] | null;
+                include_automated?: boolean;
+                country_code?: string | null;
+                admin1?: string | null;
+                city?: string | null;
+                asn?: number | null;
+                device_class?: components["schemas"]["DeviceClass"][] | null;
+                connection_class?: components["schemas"]["ConnectionClass"][] | null;
+                consent_state?: components["schemas"]["ConsentState"] | null;
+                geofence_id?: string | null;
+                visitor_id?: string | null;
+                min_confidence_admin1?: number | null;
+                min_confidence_city?: number | null;
+                has_gps?: boolean | null;
+                is_proxy_suspected?: boolean | null;
+                webview_host?: string | null;
+                search?: string | null;
+                referrer_host?: string | null;
+                utm_source?: string | null;
+                utm_medium?: string | null;
+                utm_campaign?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Returning"];
                 };
             };
             /** @description Validation Error */
@@ -4341,6 +4699,10 @@ export interface operations {
                 is_proxy_suspected?: boolean | null;
                 webview_host?: string | null;
                 search?: string | null;
+                referrer_host?: string | null;
+                utm_source?: string | null;
+                utm_medium?: string | null;
+                utm_campaign?: string | null;
             };
             header?: never;
             path?: never;
@@ -4392,6 +4754,10 @@ export interface operations {
                 is_proxy_suspected?: boolean | null;
                 webview_host?: string | null;
                 search?: string | null;
+                referrer_host?: string | null;
+                utm_source?: string | null;
+                utm_medium?: string | null;
+                utm_campaign?: string | null;
             };
             header?: never;
             path?: never;
@@ -4443,6 +4809,10 @@ export interface operations {
                 is_proxy_suspected?: boolean | null;
                 webview_host?: string | null;
                 search?: string | null;
+                referrer_host?: string | null;
+                utm_source?: string | null;
+                utm_medium?: string | null;
+                utm_campaign?: string | null;
             };
             header?: never;
             path?: never;
@@ -4497,6 +4867,10 @@ export interface operations {
                 is_proxy_suspected?: boolean | null;
                 webview_host?: string | null;
                 search?: string | null;
+                referrer_host?: string | null;
+                utm_source?: string | null;
+                utm_medium?: string | null;
+                utm_campaign?: string | null;
             };
             header?: never;
             path?: never;
@@ -6322,6 +6696,10 @@ export interface operations {
                 is_proxy_suspected?: boolean | null;
                 webview_host?: string | null;
                 search?: string | null;
+                referrer_host?: string | null;
+                utm_source?: string | null;
+                utm_medium?: string | null;
+                utm_campaign?: string | null;
             };
             header?: never;
             path?: never;
@@ -6375,6 +6753,10 @@ export interface operations {
                 is_proxy_suspected?: boolean | null;
                 webview_host?: string | null;
                 search?: string | null;
+                referrer_host?: string | null;
+                utm_source?: string | null;
+                utm_medium?: string | null;
+                utm_campaign?: string | null;
             };
             header?: never;
             path?: never;

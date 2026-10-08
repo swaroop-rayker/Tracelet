@@ -32,6 +32,8 @@ class AsnClasses:
     hosting: dict[int, str]
     hosting_keywords: tuple[str, ...]
     mobile_keywords: tuple[str, ...]
+    # Carrier brand per ASN, for analytics only (F9.AC23); inference never reads it.
+    families: dict[int, str]
 
 
 @cache
@@ -45,6 +47,7 @@ def classes() -> AsnClasses:
         hosting={int(k): v for k, v in raw["hosting"].items()},
         hosting_keywords=tuple(raw["hosting_org_keywords"]),
         mobile_keywords=tuple(raw["mobile_org_keywords"]),
+        families={int(k): v for k, v in raw.get("families", {}).items()},
     )
 
 

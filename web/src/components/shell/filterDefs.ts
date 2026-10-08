@@ -152,6 +152,36 @@ export const FILTER_DEFS: readonly FilterDef[] = [
     inputMode: 'decimal',
     hint: 'Between 0 and 1.',
   },
+  // Sources (F9.AC21, M7.6): exact values, as the Sources page shows them.
+  {
+    kind: 'text',
+    id: 'referrer',
+    key: 'referrer_host',
+    label: 'Referrer site',
+    placeholder: 'l.instagram.com',
+    normalise: (v) => v.trim().toLowerCase(),
+  },
+  {
+    kind: 'text',
+    id: 'utm-source',
+    key: 'utm_source',
+    label: 'UTM source',
+    placeholder: 'ig',
+  },
+  {
+    kind: 'text',
+    id: 'utm-medium',
+    key: 'utm_medium',
+    label: 'UTM medium',
+    placeholder: 'social',
+  },
+  {
+    kind: 'text',
+    id: 'utm-campaign',
+    key: 'utm_campaign',
+    label: 'UTM campaign',
+    placeholder: 'diwali',
+  },
   {
     kind: 'text',
     id: 'search',
@@ -217,7 +247,7 @@ const AUTOMATED = new Set(['bot', 'crawler', 'datacenter', 'spam', 'spoofed']);
 
 /**
  * The filter a clicked breakdown row stands for (DESIGN 12 E3), or null where the dimension
- * has no filter key (ISP, browser, OS, screen, app). Location keys are qualified
+ * has no filter key (ISP, browser, OS, screen, app). A source's None row has no key to set. Location keys are qualified
  * ("IN|Karnataka|Bengaluru"), so a state or city sets its country as well.
  */
 export function filterForBreakdown(
@@ -239,6 +269,11 @@ export function filterForBreakdown(
       );
     case 'asn':
       return setScalar(filters, 'asn', key);
+    case 'referrer_host':
+    case 'utm_source':
+    case 'utm_medium':
+    case 'utm_campaign':
+      return setScalar(filters, dimension, key);
     case 'device_class':
       return { ...filters, lists: { ...filters.lists, device_class: [key] } };
     case 'connection_class':
@@ -254,6 +289,10 @@ export function filterForBreakdown(
 }
 
 const FILTERABLE = new Set([
+  'referrer_host',
+  'utm_source',
+  'utm_medium',
+  'utm_campaign',
   'country',
   'admin1',
   'city',

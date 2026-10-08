@@ -17,9 +17,11 @@ import {
 } from '@/components/chartkit';
 import type {
   Breakdown,
+  CaptureQuality,
   Calendar,
   Confidence,
   Funnel,
+  Returning,
   Signals,
   SourceFlow,
   TimeSeries,
@@ -549,5 +551,131 @@ export function sourceFlowChart(data: SourceFlow): Chart {
       ]),
     },
     decals: false,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// F9.AC22 -- new and returning visitors (M7.6)
+// ---------------------------------------------------------------------------
+
+function dayLabel(day: string): string {
+  // A local date, YYYY-MM-DD: read it as such, never through a timezone.
+  const [y = 0, m = 1, d = 1] = day.split('-').map(Number);
+  return new Date(Date.UTC(y, m - 1, d)).toLocaleDateString('en-IN', {
+    timeZone: 'UTC',
+    month: 'short',
+    day: 'numeric',
+  });
+}
+
+/** New and returning visitors per day, stacked, with the same figures as a table. */
+export function returningChart(data: Returning): Chart {
+  const labels = data.days.map((d) => dayLabel(d.day));
+  const series = [
+    { name: 'New', values: data.days.map((d) => d.new) },
+    { name: 'Returning', values: data.days.map((d) => d.returning) },
+  ];
+  return {
+    option: (p: Palette): EChartsCoreOption => ({
+      grid: { left: 8, right: 8, top: 40, bottom: 4, containLabel: true },
+      legend: {
+        top: 0,
+        right: 0,
+        icon: 'roundRect',
+        itemWidth: 10,
+        itemHeight: 10,
+        textStyle: { color: p.muted },
+      },
+      tooltip: { trigger: 'axis', formatter: axisTooltip },
+      xAxis: { type: 'category', data: labels, ...categoryAxis(p) },
+      yAxis: { type: 'value', minInterval: 1, ...valueAxis(p) },
+      series: series.map((s) => ({
+        name: s.name,
+        type: 'bar',
+        stack: 'visitors',
+        data: s.values,
+        barMaxWidth: 28,
+      })),
+    }),
+    table: {
+      columns: ['Day', 'New', 'Returning'],
+      rows: data.days.map((d, i) => [labels[i] ?? d.day, d.new, d.returning]),
+    },
+    decals: true,
+  };
+}
+
+export const RETURN_BAND_LABEL: Readonly<Record<string, string>> = {
+  under_1h: 'Under an hour',
+  '1h_1d': 'An hour to a day',
+  '1d_7d': 'A day to a week',
+  '7d_30d': 'A week to a month',
+  over_30d: 'Over a month',
+};
+
+/** Time to a second visit, as ranked rows in band order (not by count: the bands are a scale). */
+export function returnBandRows(data: Returning): readonly RankedRow[] {
+  const total = data.return_after.reduce((n, b) => n + b.count, 0);
+  return data.return_after.map((b) => ({
+    key: b.band,
+    label: RETURN_BAND_LABEL[b.band] ?? b.band,
+    count: b.count,
+    share: total > 0 ? b.count / total : null,
+  }));
+}
+
+// ---------------------------------------------------------------------------
+// F9.AC24 -- capture quality by platform (M7.6)
+// ---------------------------------------------------------------------------
+
+/** The enriched share per day for the busiest apps: one line each, 0-100 %. */
+export function enrichedShareChart(data: CaptureQuality, zone: string): Chart {
+  const labels = data.buckets.map((b) => bucketLabel(b, 'day', zone));
+  const name = (key: string): string => (key === 'browser' ? 'Browsers' : label(key));
+  return {
+    option: (p: Palette): EChartsCoreOption => ({
+      grid: { left: 8, right: 8, top: 40, bottom: 4, containLabel: true },
+      legend: {
+        top: 0,
+        right: 0,
+        icon: 'roundRect',
+        itemWidth: 10,
+        itemHeight: 10,
+        textStyle: { color: p.muted },
+      },
+      tooltip: {
+        trigger: 'axis',
+        valueFormatter: (v: unknown) => (typeof v === 'number' ? pct(v, 0) : '—'),
+      },
+      xAxis: { type: 'category', data: labels, ...categoryAxis(p) },
+      yAxis: {
+        type: 'value',
+        min: 0,
+        max: 1,
+        ...valueAxis(p),
+        axisLabel: { color: p.subtle, fontSize: 11, formatter: (v: number) => pct(v, 0) },
+      },
+      series: data.series.map((s) => ({
+        name: name(s.key),
+        type: 'line',
+        data: s.enriched_share,
+        connectNulls: false,
+        showSymbol: true,
+        symbolSize: 5,
+        lineStyle: { width: 1.75 },
+        emphasis: { focus: 'series' },
+      })),
+    }),
+    table: {
+      columns: ['Day', ...data.series.map((s) => name(s.key))],
+      rows: labels.map((l, i) => [
+        l,
+        ...data.series.map((s) => {
+          const v = s.enriched_share[i];
+          return v === null || v === undefined ? '—' : pct(v, 0);
+        }),
+      ]),
+    },
+    decals: data.series.length > 1,
   };
 }

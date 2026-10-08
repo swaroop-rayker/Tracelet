@@ -188,8 +188,39 @@ def test_no_utm_parameters_is_none_not_empty() -> None:
 
 
 def test_an_address_in_a_referer_is_masked() -> None:
-    assert clean_referer(f"https://{CLIENT}/page", client_ip=CLIENT) == f"https://{IP_MASK}/page"
+    assert clean_referer(f"https://{CLIENT}/page", client_ip=CLIENT) == f"https://{IP_MASK}"
     assert clean_referer(None, client_ip=CLIENT) is None
+
+
+@pytest.mark.parametrize(
+    ("referer", "origin"),
+    [
+        # Path, query and fragment never kept (SPEC section 11 row 28): they can carry
+        # a search, a profile or a token.
+        ("https://www.google.com/search?q=my+name", "https://www.google.com"),
+        ("https://L.Instagram.com/?u=https%3A%2F%2Fx&e=AT0token#frag", "https://l.instagram.com"),
+        ("http://example.org:8080/a/b", "http://example.org:8080"),
+        ("android-app://com.google.android.gm/", "android-app://com.google.android.gm"),
+        ("https://user:secret@example.org/x", "https://example.org"),
+        ("  https://example.org", "https://example.org"),
+        # Not an absolute URL: nothing worth keeping.
+        ("/relative/path", None),
+        ("example.org/page", None),
+        ("https:///no-host", None),
+        ("", None),
+    ],
+)
+def test_only_the_referers_origin_is_kept(referer: str, origin: str | None) -> None:
+    assert clean_referer(referer, client_ip=CLIENT) == origin
+
+
+def test_the_stored_header_set_keeps_the_same_origin_or_drops_the_referer() -> None:
+    kept = sanitise_headers(
+        [("Referer", "https://l.instagram.com/?e=token"), ("Accept", "*/*")], client_ip=CLIENT
+    )
+    assert kept["referer"] == "https://l.instagram.com"
+    gone = sanitise_headers([("Referer", "not a url")], client_ip=CLIENT)
+    assert "referer" not in gone
 
 
 # ---------------------------------------------------------------------------

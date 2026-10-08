@@ -1561,8 +1561,11 @@ link, and the app it was opened in. No referrer is common in apps: it is None.
 └──────────────────┘ └──────────────────┘ └──────────────────┘
 ```
 
-- A row applies its filter (E3): `referrer_host`, `utm_*`, or `webview_host` for an app.
-  **None** is shown, last-but-counted, and does not filter (there is no "absent" filter).
+- The five panels sit in one `grid-3` (two columns below 1600 px, one on phones), referrer
+  site first.
+- A row applies its filter (E3): `referrer_host` or `utm_*`. The in-app browser list does not
+  filter (as on Breakdowns). **None** is shown, last but counted, and does not filter (there
+  is no "absent" filter).
 - Each panel's empty state: "No visits in this period with these filters."
 
 **Returning** (`/returning`, Analytics, after Sources; `g r`):
@@ -1676,3 +1679,5 @@ TriangleAlert · `Error` CircleX · `Up` ArrowUp · `Down` ArrowDown · `Calenda
 · `Link` Link2 · `Theme` SunMoon · `SignOut` LogOut · `Locate` Crosshair
 
 The lucide names are confirmed against the installed version in Phase 0.
+
+Added in M7.6: `Sources` Share2 · `Returning` Repeat2 · `Capture` Funnel.

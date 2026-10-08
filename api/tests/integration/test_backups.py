@@ -28,6 +28,7 @@ from tracelet.config import Settings
 from tracelet.db.engine import session_scope
 from tracelet.lifecycle import backups
 from tracelet.lifecycle.models import BackupKind
+from tracelet.lifecycle.retention import local_boundary
 
 pytestmark = pytest.mark.integration
 
@@ -186,17 +187,20 @@ async def test_a_failed_backup_has_no_file_to_download(owner: SignedIn) -> None:
 
 
 async def test_the_nightly_backup_runs_once_a_night(integration_settings: Settings) -> None:
-    # "Tonight" starts at the top of the current hour, so the shared database's own
-    # scheduled backups (all earlier) do not count -- and are not touched.
-    hour = dt.datetime.now(zoneinfo.ZoneInfo(integration_settings.reporting_tz)).hour
+    # "Tonight" starts at the top of the current *local* hour, so the shared database's own
+    # scheduled backups (all earlier) do not count -- and are not touched. The boundary is
+    # the code's own: the top of the UTC hour is 30 minutes off in IST (ERRORS E75).
+    zone = integration_settings.reporting_tz
+    hour = dt.datetime.now(zoneinfo.ZoneInfo(zone)).hour
     settings = integration_settings.model_copy(update={"backup_hour": hour})
+    night = local_boundary(dt.datetime.now(dt.UTC), hour, zone)
     async with session_scope() as db:
         this_hour = (
             await db.execute(
                 text(
-                    "SELECT count(*) FROM backups WHERE kind = 'scheduled' "
-                    "AND started_at >= date_trunc('hour', now())"
-                )
+                    "SELECT count(*) FROM backups WHERE kind = 'scheduled' AND started_at >= :night"
+                ),
+                {"night": night},
             )
         ).scalar_one()
     if this_hour:
@@ -209,8 +213,9 @@ async def test_the_nightly_backup_runs_once_a_night(integration_settings: Settin
         await db.execute(
             text(
                 "UPDATE backups SET status = 'pruned' WHERE kind = 'scheduled' "
-                "AND started_at >= date_trunc('hour', now())"
-            )
+                "AND started_at >= :night"
+            ),
+            {"night": night},
         )
     assert await backups.run_scheduled_once(settings) != "backup"
 

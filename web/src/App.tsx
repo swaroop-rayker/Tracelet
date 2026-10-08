@@ -36,6 +36,8 @@ const VisitDetailPage = lazy(() => import('@/pages/dashboard/VisitDetailPage'));
 const VisitorPage = lazy(() => import('@/pages/dashboard/VisitorPage'));
 const GeographyPage = lazy(() => import('@/pages/dashboard/GeographyPage'));
 const BreakdownsPage = lazy(() => import('@/pages/dashboard/BreakdownsPage'));
+const SourcesPage = lazy(() => import('@/pages/dashboard/SourcesPage'));
+const ReturningPage = lazy(() => import('@/pages/dashboard/ReturningPage'));
 const LinksPage = lazy(() => import('@/pages/dashboard/LinksPage'));
 const LinkDetailPage = lazy(() => import('@/pages/dashboard/LinkDetailPage'));
 const InferencePage = lazy(() => import('@/pages/dashboard/InferencePage'));
@@ -56,6 +58,7 @@ const HealthDatabasesPage = lazy(() => import('@/pages/health/DatabasesPage'));
 const HealthInferencePage = lazy(() => import('@/pages/health/InferencePage'));
 const HealthDataPage = lazy(() => import('@/pages/health/DataPage'));
 const HealthLimitsPage = lazy(() => import('@/pages/health/LimitsPage'));
+const HealthCapturePage = lazy(() => import('@/pages/health/CapturePage'));
 // The component gallery exists only in development builds (DESIGN §11): Vite replaces
 // import.meta.env.DEV with false in production, and the import is dropped with it.
 const DesignGallery = import.meta.env.DEV ? lazy(() => import('@/pages/dev/DesignGallery')) : null;
@@ -210,6 +213,8 @@ export default function App(): React.JSX.Element {
           <Route path="visitors/:visitorId" element={<Page component={VisitorPage} />} />
           <Route path="geography" element={<Page component={GeographyPage} />} />
           <Route path="breakdowns" element={<Page component={BreakdownsPage} />} />
+          <Route path="sources" element={<Page component={SourcesPage} />} />
+          <Route path="returning" element={<Page component={ReturningPage} />} />
           <Route path="links" element={<Page component={LinksPage} />} />
           <Route path="links/:slug" element={<Page component={LinkDetailPage} />} />
           <Route path="inference" element={<Page component={InferencePage} />} />
@@ -224,6 +229,7 @@ export default function App(): React.JSX.Element {
             <Route path="inference" element={<Page component={HealthInferencePage} />} />
             <Route path="data" element={<Page component={HealthDataPage} />} />
             <Route path="limits" element={<Page component={HealthLimitsPage} />} />
+            <Route path="capture" element={<Page component={HealthCapturePage} />} />
           </Route>
           <Route path="settings" element={<Page component={SettingsLayout} />}>
             <Route index element={<Navigate to="profile" replace />} />
