@@ -74,6 +74,58 @@ function bucketLabel(iso: string, bucket: 'day' | 'hour', zone: string): string 
 }
 
 // ---------------------------------------------------------------------------
+// F9.AC25 -- notes on time charts (M7.7)
+// ---------------------------------------------------------------------------
+
+/** What a time chart needs of an annotation. */
+export interface ChartNote {
+  readonly at: string;
+  readonly text: string;
+}
+
+/** A moment's local day (`YYYY-MM-DD`) or local hour (`YYYY-MM-DD, 14`) in `zone`. */
+export function localKey(iso: string, grain: 'day' | 'hour', zone: string): string {
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: zone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    ...(grain === 'hour' ? { hour: '2-digit', hourCycle: 'h23' as const } : {}),
+  }).format(new Date(iso));
+}
+
+/** Each bucket's notes, in time order; a note outside every bucket is left off. */
+export function notesPerBucket(
+  keys: readonly string[],
+  notes: readonly ChartNote[],
+  keyOf: (note: ChartNote) => string,
+): readonly (readonly string[])[] {
+  const index = new Map(keys.map((k, i) => [k, i]));
+  const per: string[][] = keys.map(() => []);
+  for (const note of notes) {
+    const i = index.get(keyOf(note));
+    if (i !== undefined) per[i]?.push(note.text);
+  }
+  return per;
+}
+
+/** A dashed marker at each bucket with notes, flagged ✎; the text is in the tooltip. */
+function noteMarkLine(p: Palette, per: readonly (readonly string[])[]): Record<string, unknown> {
+  const data = per.flatMap((texts, i) =>
+    texts.length > 0 ? [{ xAxis: i, name: texts.join(' · ') }] : [],
+  );
+  return {
+    symbol: ['none', 'none'],
+    silent: false,
+    animation: false,
+    lineStyle: { type: [3, 3], color: p.muted, width: 1 },
+    label: { show: true, position: 'end', formatter: '✎', color: p.muted },
+    tooltip: { formatter: (x: { name?: string }) => tooltipText('Note', [x.name ?? '']) },
+    data,
+  };
+}
+
+// ---------------------------------------------------------------------------
 // F9.AC3 -- time series
 // ---------------------------------------------------------------------------
 
@@ -82,8 +134,19 @@ function bucketLabel(iso: string, bucket: 'day' | 'hour', zone: string): string 
  * from the period just before, DESIGN 12 E6), a single series gains a dashed neutral line for
  * comparison, and the table a column for it.
  */
-export function timeSeriesChart(data: TimeSeries, zone: string, previous?: TimeSeries): Chart {
+export function timeSeriesChart(
+  data: TimeSeries,
+  zone: string,
+  previous?: TimeSeries,
+  notes: readonly ChartNote[] = [],
+): Chart {
   const labels = data.buckets.map((b) => bucketLabel(b, data.bucket, zone));
+  const perBucket = notesPerBucket(
+    data.buckets.map((b) => localKey(b, data.bucket, zone)),
+    notes,
+    (n) => localKey(n.at, data.bucket, zone),
+  );
+  const noted = perBucket.some((t) => t.length > 0);
   const stacked = data.series.length > 1;
   // The unsplit series' key is the API's "all"; people read it as visits.
   const nameOf = (s: TimeSeries['series'][number]): string =>
@@ -116,8 +179,8 @@ export function timeSeriesChart(data: TimeSeries, zone: string, previous?: TimeS
       xAxis: { type: 'category', data: labels, boundaryGap: stacked, ...categoryAxis(p) },
       yAxis: { type: 'value', minInterval: 1, ...valueAxis(p) },
       series: [
-        ...data.series.map((s) =>
-          stacked
+        ...data.series.map((s, i) => ({
+          ...(stacked
             ? { name: nameOf(s), type: 'bar', stack: 'total', data: s.values, barMaxWidth: 28 }
             : {
                 name: nameOf(s),
@@ -129,8 +192,9 @@ export function timeSeriesChart(data: TimeSeries, zone: string, previous?: TimeS
                 lineStyle: { width: 1.75 },
                 areaStyle: primaryArea(p),
                 emphasis: { focus: 'none' },
-              },
-        ),
+              }),
+          ...(noted && i === 0 ? { markLine: noteMarkLine(p, perBucket) } : {}),
+        })),
         ...(prior === undefined
           ? []
           : [
@@ -154,11 +218,13 @@ export function timeSeriesChart(data: TimeSeries, zone: string, previous?: TimeS
         'Bucket',
         ...data.series.map(nameOf),
         ...(prior === undefined ? [] : ['Previous period']),
+        ...(noted ? ['Notes'] : []),
       ],
       rows: labels.map((l, i) => [
         l,
         ...data.series.map((s) => s.values[i] ?? 0),
         ...(prior === undefined ? [] : [prior[i] ?? 0]),
+        ...(noted ? [(perBucket[i] ?? []).join(' · ')] : []),
       ]),
     },
     decals: stacked,
@@ -569,8 +635,18 @@ function dayLabel(day: string): string {
 }
 
 /** New and returning visitors per day, stacked, with the same figures as a table. */
-export function returningChart(data: Returning): Chart {
+export function returningChart(
+  data: Returning,
+  zone: string,
+  notes: readonly ChartNote[] = [],
+): Chart {
   const labels = data.days.map((d) => dayLabel(d.day));
+  const perBucket = notesPerBucket(
+    data.days.map((d) => d.day),
+    notes,
+    (n) => localKey(n.at, 'day', zone),
+  );
+  const noted = perBucket.some((t) => t.length > 0);
   const series = [
     { name: 'New', values: data.days.map((d) => d.new) },
     { name: 'Returning', values: data.days.map((d) => d.returning) },
@@ -589,17 +665,23 @@ export function returningChart(data: Returning): Chart {
       tooltip: { trigger: 'axis', formatter: axisTooltip },
       xAxis: { type: 'category', data: labels, ...categoryAxis(p) },
       yAxis: { type: 'value', minInterval: 1, ...valueAxis(p) },
-      series: series.map((s) => ({
+      series: series.map((s, i) => ({
         name: s.name,
         type: 'bar',
         stack: 'visitors',
         data: s.values,
         barMaxWidth: 28,
+        ...(noted && i === 0 ? { markLine: noteMarkLine(p, perBucket) } : {}),
       })),
     }),
     table: {
-      columns: ['Day', 'New', 'Returning'],
-      rows: data.days.map((d, i) => [labels[i] ?? d.day, d.new, d.returning]),
+      columns: ['Day', 'New', 'Returning', ...(noted ? ['Notes'] : [])],
+      rows: data.days.map((d, i) => [
+        labels[i] ?? d.day,
+        d.new,
+        d.returning,
+        ...(noted ? [(perBucket[i] ?? []).join(' · ')] : []),
+      ]),
     },
     decals: true,
   };
@@ -677,5 +759,79 @@ export function enrichedShareChart(data: CaptureQuality, zone: string): Chart {
       ]),
     },
     decals: data.series.length > 1,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// F9.AC27 -- compare two sides on one chart (M7.7)
+// ---------------------------------------------------------------------------
+
+function total(data: TimeSeries): number[] {
+  return data.buckets.map((_, i) => data.series.reduce((n, s) => n + (s.values[i] ?? 0), 0));
+}
+
+/**
+ * Visits over time for two sides: A solid with its area, B dashed. Two links share their
+ * buckets and are labelled by date; two periods are aligned by day number ("Day 1"), which
+ * the caller says in the panel's description.
+ */
+export function compareChart(
+  a: TimeSeries,
+  b: TimeSeries,
+  names: { readonly a: string; readonly b: string },
+  byDayNumber: boolean,
+  zone: string,
+): Chart {
+  const valuesA = total(a);
+  const valuesB = total(b);
+  const length = Math.max(valuesA.length, valuesB.length);
+  const labels = Array.from({ length }, (_, i) => {
+    if (byDayNumber) return `Day ${String(i + 1)}`;
+    const iso = a.buckets[i] ?? b.buckets[i];
+    return iso === undefined ? '' : bucketLabel(iso, a.bucket, zone);
+  });
+  return {
+    option: (p: Palette): EChartsCoreOption => ({
+      grid: { left: 8, right: 8, top: 40, bottom: 4, containLabel: true },
+      legend: {
+        top: 0,
+        right: 0,
+        icon: 'roundRect',
+        itemWidth: 10,
+        itemHeight: 10,
+        textStyle: { color: p.muted },
+      },
+      tooltip: { trigger: 'axis', formatter: axisTooltip },
+      xAxis: { type: 'category', data: labels, boundaryGap: false, ...categoryAxis(p) },
+      yAxis: { type: 'value', minInterval: 1, ...valueAxis(p) },
+      series: [
+        {
+          name: names.a,
+          type: 'line',
+          data: labels.map((_, i) => valuesA[i] ?? null),
+          smooth: 0.25,
+          showSymbol: false,
+          lineStyle: { width: 1.75 },
+          areaStyle: primaryArea(p),
+          emphasis: { focus: 'none' },
+        },
+        {
+          name: names.b,
+          type: 'line',
+          data: labels.map((_, i) => valuesB[i] ?? null),
+          smooth: 0.25,
+          showSymbol: false,
+          lineStyle: { width: 1.5, type: [5, 4], color: p.series[5] },
+          itemStyle: { color: p.series[5] },
+          emphasis: { focus: 'none' },
+        },
+      ],
+    }),
+    table: {
+      columns: [byDayNumber ? 'Day' : 'Bucket', names.a, names.b],
+      rows: labels.map((l, i) => [l, valuesA[i] ?? '—', valuesB[i] ?? '—']),
+    },
+    // The two lines differ in dash and fill as well as colour.
+    decals: false,
   };
 }

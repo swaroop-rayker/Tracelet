@@ -5,7 +5,8 @@ import reactHooks from 'eslint-plugin-react-hooks';
 import reactRefresh from 'eslint-plugin-react-refresh';
 
 export default tseslint.config(
-  { ignores: ['dist', 'src/api/generated'] },
+  // src/vendor: third-party code kept verbatim (ADR-0023); it is wrapped and tested, not linted.
+  { ignores: ['dist', 'src/api/generated', 'src/vendor'] },
   {
     extends: [js.configs.recommended, ...tseslint.configs.strictTypeChecked],
     files: ['**/*.{ts,tsx}'],

@@ -83,6 +83,9 @@ class Action:
     OUTBOX_RETRIED: Final = "outbox.retried"  # a dead letter requeued by hand, F7.AC6
     TELEGRAM_TEST_SENT: Final = "telegram.test_sent"  # F7.AC8
 
+    # annotations (M7.7, F9.AC25): a delete -- the author's or an owner's -- keeps the text
+    ANNOTATION_DELETED: Final = "annotation.deleted"
+
     # visits (M2)
     IP_DECRYPTED: Final = "visit.ip_decrypted"  # F12.AC4
 

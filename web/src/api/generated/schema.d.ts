@@ -341,6 +341,45 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/annotations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Notes in a window (F9.AC25)
+         * @description With `link_id`: that link's notes and every-link notes. Default window: the last 30 local days. At most 500, oldest first.
+         */
+        get: operations["list_annotations_api_v1_annotations_get"];
+        put?: never;
+        /** Add a note (any admin) */
+        post: operations["create_annotation_api_v1_annotations_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/annotations/{annotation_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Delete a note: your own, or any as an owner (audited) */
+        delete: operations["delete_annotation_api_v1_annotations__annotation_id__delete"];
+        options?: never;
+        head?: never;
+        /** Change your own note */
+        patch: operations["update_annotation_api_v1_annotations__annotation_id__patch"];
+        trace?: never;
+    };
     "/api/v1/auth/enroll": {
         parameters: {
             query?: never;
@@ -1321,6 +1360,42 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/saved-views": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Your saved views, by name */
+        get: operations["list_saved_views_api_v1_saved_views_get"];
+        put?: never;
+        /** Save the current page and its filters under a name */
+        post: operations["create_saved_view_api_v1_saved_views_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/saved-views/{view_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Delete a saved view */
+        delete: operations["delete_saved_view_api_v1_saved_views__view_id__delete"];
+        options?: never;
+        head?: never;
+        /** Rename a saved view, or replace its filters */
+        patch: operations["update_saved_view_api_v1_saved_views__view_id__patch"];
+        trace?: never;
+    };
     "/api/v1/visits": {
         parameters: {
             query?: never;
@@ -1507,6 +1582,61 @@ export interface components {
             returning: components["schemas"]["ReturningIn"];
             spike: components["schemas"]["SpikeIn"];
         };
+        /** AnnotationIn */
+        AnnotationIn: {
+            /**
+             * At
+             * Format: date-time
+             */
+            at: string;
+            /** Link Id */
+            link_id?: string | null;
+            /** Text */
+            text: string;
+        };
+        /** AnnotationList */
+        AnnotationList: {
+            /** Items */
+            items: components["schemas"]["AnnotationOut"][];
+        };
+        /** AnnotationOut */
+        AnnotationOut: {
+            /**
+             * At
+             * Format: date-time
+             */
+            at: string;
+            author: components["schemas"]["AuthorOut"] | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Id */
+            id: string;
+            /** Link Id */
+            link_id: string | null;
+            /** Link Label */
+            link_label: string | null;
+            /** Mine */
+            mine: boolean;
+            /** Text */
+            text: string;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+        };
+        /** AnnotationPatch */
+        AnnotationPatch: {
+            /** At */
+            at?: string | null;
+            /** Link Id */
+            link_id?: string | null;
+            /** Text */
+            text?: string | null;
+        };
         /** AppCapture */
         AppCapture: {
             /** Captured */
@@ -1533,6 +1663,13 @@ export interface components {
             error: string | null;
             /** Status */
             status: string;
+        };
+        /** AuthorOut */
+        AuthorOut: {
+            /** Id */
+            id: string;
+            /** Name */
+            name: string;
         };
         /**
          * BackupKind
@@ -3511,6 +3648,46 @@ export interface components {
             /** Visit Id */
             visit_id: string;
         };
+        /** SavedViewIn */
+        SavedViewIn: {
+            /** Name */
+            name: string;
+            /** Path */
+            path: string;
+            /**
+             * Query
+             * @default
+             */
+            query: string;
+        };
+        /** SavedViewOut */
+        SavedViewOut: {
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Id */
+            id: string;
+            /** Name */
+            name: string;
+            /** Path */
+            path: string;
+            /** Query */
+            query: string;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+        };
+        /** SavedViewPatch */
+        SavedViewPatch: {
+            /** Name */
+            name?: string | null;
+            /** Query */
+            query?: string | null;
+        };
         /** Series */
         Series: {
             /** Key */
@@ -4916,6 +5093,136 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["VisitorView"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_annotations_api_v1_annotations_get: {
+        parameters: {
+            query?: {
+                from?: string | null;
+                to?: string | null;
+                link_id?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AnnotationList"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_annotation_api_v1_annotations_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AnnotationIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AnnotationOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_annotation_api_v1_annotations__annotation_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                annotation_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_annotation_api_v1_annotations__annotation_id__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                annotation_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AnnotationPatch"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AnnotationOut"];
                 };
             };
             /** @description Validation Error */
@@ -6657,6 +6964,123 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_saved_views_api_v1_saved_views_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SavedViewOut"][];
+                };
+            };
+        };
+    };
+    create_saved_view_api_v1_saved_views_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SavedViewIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SavedViewOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_saved_view_api_v1_saved_views__view_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                view_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_saved_view_api_v1_saved_views__view_id__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                view_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SavedViewPatch"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SavedViewOut"];
+                };
             };
             /** @description Validation Error */
             422: {

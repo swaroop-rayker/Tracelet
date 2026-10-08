@@ -10,6 +10,8 @@
 import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate, useSearchParams } from 'react-router';
 import { logout } from '@/api/auth';
+import { useApi } from '@/api/query';
+import { VIEWS, savedViewListSchema, viewHref } from '@/api/workflow';
 import { Icon, type IconName } from '@/components/icons';
 import { clearAll, setScalar } from '@/components/shell/filterDefs';
 import { ALL_ITEMS, SETTINGS_SECTIONS } from '@/components/shell/nav';
@@ -22,7 +24,7 @@ import { THEMES } from '@/theme';
 
 interface Command {
   readonly id: string;
-  readonly group: 'Go to' | 'Find' | 'Actions';
+  readonly group: 'Go to' | 'Saved views' | 'Find' | 'Actions';
   readonly label: string;
   readonly hint?: string;
   readonly icon: IconName;
@@ -170,6 +172,7 @@ function useCommands(query: string, close: () => void): readonly Command[] {
   const { switchTo } = useThemeSwitch();
   const filters = parseFilters(search);
   const q = query.trim();
+  const views = useApi(VIEWS, null, savedViewListSchema).data;
 
   return useMemo(() => {
     const go = (path: string, filtered: boolean): void => {
@@ -213,6 +216,21 @@ function useCommands(query: string, close: () => void): readonly Command[] {
           icon: section.icon,
           run: () => {
             go(`/settings/${section.path}`, false);
+          },
+        });
+      }
+    }
+    // Saved views (F9.AC26): each opens its page with its filters, exactly as saved.
+    for (const view of views ?? []) {
+      if (matches(`saved view ${view.name}`, q)) {
+        list.push({
+          id: `view-${view.id}`,
+          group: 'Saved views',
+          label: view.name,
+          icon: 'SaveView',
+          run: () => {
+            close();
+            void navigate(viewHref(view));
           },
         });
       }
@@ -323,5 +341,6 @@ function useCommands(query: string, close: () => void): readonly Command[] {
     me.csrf_token,
     me.role,
     onSignedOut,
+    views,
   ]);
 }

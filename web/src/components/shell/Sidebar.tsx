@@ -7,8 +7,10 @@
  */
 
 import { useState } from 'react';
-import { NavLink, useLocation, useNavigate } from 'react-router';
+import { Link, NavLink, useLocation, useNavigate } from 'react-router';
 import { logout } from '@/api/auth';
+import { useApi } from '@/api/query';
+import { VIEWS, savedViewListSchema, viewHref } from '@/api/workflow';
 import { Icon } from '@/components/icons';
 import { BrandMark } from '@/components/shell/BrandMark';
 import { ACCOUNT_ITEM, NAV_GROUPS, type NavItem } from '@/components/shell/nav';
@@ -66,11 +68,53 @@ export function Sidebar({
             </ul>
           </div>
         ))}
+        {!collapsed && <SavedViewsGroup onNavigate={onNavigate} />}
       </nav>
       <div className="sidebar__foot">
         <NavEntry item={ACCOUNT_ITEM} collapsed={collapsed} search="" onNavigate={onNavigate} />
         <UserMenu collapsed={collapsed} onShowShortcuts={onShowShortcuts} />
       </div>
+    </div>
+  );
+}
+
+const SHOWN_VIEWS = 8;
+
+/** The admin's saved views (F9.AC26, DESIGN §12 E12), each a plain link; past eight, "Show all". */
+function SavedViewsGroup({
+  onNavigate,
+}: {
+  readonly onNavigate?: (() => void) | undefined;
+}): React.JSX.Element | null {
+  const views = useApi(VIEWS, null, savedViewListSchema).data ?? [];
+  const [all, setAll] = useState(false);
+  if (views.length === 0) return null;
+  const shown = all ? views : views.slice(0, SHOWN_VIEWS);
+  const Glyph = Icon.SaveView;
+  return (
+    <div className="nav-group">
+      <p className="nav-group__label">Saved views</p>
+      <ul className="plain">
+        {shown.map((view) => (
+          <li key={view.id}>
+            <Link className="nav-link" to={viewHref(view)} onClick={onNavigate} title={view.name}>
+              <Glyph size={18} strokeWidth={1.75} aria-hidden="true" />
+              <span className="nav-link__text">{view.name}</span>
+            </Link>
+          </li>
+        ))}
+      </ul>
+      {views.length > SHOWN_VIEWS && (
+        <button
+          type="button"
+          className="nav-more"
+          onClick={() => {
+            setAll(!all);
+          }}
+        >
+          {all ? 'Show fewer' : `Show all ${String(views.length)}`}
+        </button>
+      )}
     </div>
   );
 }

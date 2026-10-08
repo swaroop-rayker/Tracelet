@@ -20,7 +20,8 @@ import { PageHeader } from '@/components/shell/PageHeader';
 import { DataTable, RankedList, cssVars } from '@/components/ui';
 import { count, pct } from '@/format';
 import { withParams } from '@/filters';
-import { useFilters } from '@/session';
+import { useFilters, useSession } from '@/session';
+import { useNotes } from '@/notes';
 
 const WEEKS = 8;
 
@@ -58,12 +59,17 @@ function shortDay(day: string): string {
 
 export default function ReturningPage(): React.JSX.Element {
   const { params } = useFilters();
+  const { me } = useSession();
   const query = useApi(
     '/api/v1/analytics/returning',
     withParams(params, { weeks: String(WEEKS) }),
     returningSchema,
   );
-  const chart = useMemo(() => (query.data ? returningChart(query.data) : null), [query.data]);
+  const notes = useNotes(params);
+  const chart = useMemo(
+    () => (query.data ? returningChart(query.data, me.reporting_tz, notes) : null),
+    [query.data, me.reporting_tz, notes],
+  );
   return (
     <div className="page">
       <PageHeader

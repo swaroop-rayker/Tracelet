@@ -1670,7 +1670,7 @@ A [demo-ig ▾]                 vs          B [bio-link ▾]
 - Differences are words and numbers, never colour alone; the larger side is named.
 - Everything is in the URL: `mode`, `a`, `b`, `b_from`, `b_to` (UI-9).
 
-**Link builder** (a link's page, a Card under the header):
+**Link builder** (a link's page, a Card after the panels: the figures come first):
 
 ```
 ┌ Share this link ───────────────────────────────────────────────────────┐

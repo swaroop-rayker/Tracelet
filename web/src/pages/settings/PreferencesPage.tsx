@@ -1,6 +1,7 @@
 /**
  * Settings › Preferences (DESIGN §10.8): the theme, the time zone times are *shown* in, and
  * how often System Health refreshes (F10.AC1). All through `PATCH /auth/me/preferences`.
+ * Since M7.7 also your saved views (F9.AC26), through `/saved-views`.
  * The reporting zone -- where daily buckets are cut -- is the server's and is read-only here.
  */
 
@@ -17,6 +18,7 @@ import {
   SettingRow,
   toast,
 } from '@/components/ui';
+import { SavedViewsCard } from '@/pages/settings/SavedViewsCard';
 import { useSession } from '@/session';
 import { THEMES, asTheme } from '@/theme';
 
@@ -131,6 +133,8 @@ export default function PreferencesPage(): React.JSX.Element {
           />
         </SettingRow>
       </Card>
+
+      <SavedViewsCard />
 
       {busy && <p className="t-meta m-0">Saving…</p>}
       {error !== null && <ErrorNotice error={error} />}

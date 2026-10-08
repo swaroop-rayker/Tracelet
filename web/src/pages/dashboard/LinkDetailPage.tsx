@@ -5,6 +5,7 @@
  * empty dashboard that looks like "no visits".
  */
 
+import { Suspense, lazy } from 'react';
 import { Link, useLocation, useParams } from 'react-router';
 import { useApi } from '@/api/query';
 import { linksSchema } from '@/api/schemas';
@@ -20,6 +21,9 @@ import { EmptyState, ErrorNotice, Loading } from '@/components/ui';
 import { withParams } from '@/filters';
 import { LinkStatus } from '@/pages/dashboard/LinksPage';
 import { useFilters } from '@/session';
+
+// Its own chunk, with the QR encoder (ADR-0023, UI-24).
+const LinkBuilder = lazy(() => import('@/pages/dashboard/LinkBuilder'));
 
 export default function LinkDetailPage(): React.JSX.Element {
   const { slug = '' } = useParams();
@@ -91,6 +95,9 @@ export default function LinkDetailPage(): React.JSX.Element {
         <LiveFeedPanel params={own} zone={zone} />
         <FunnelPanel params={own} />
       </div>
+      <Suspense fallback={<Loading kind="text" label="Loading the link builder…" />}>
+        <LinkBuilder captureUrl={link.capture_url} slug={link.slug} />
+      </Suspense>
     </div>
   );
 }

@@ -44,7 +44,9 @@ Three constraints shape the choice:
   allows), downloadable as `.svg` through a `Blob`. Loaded in its own lazy chunk, only when a
   link's page shows the builder.
 
-**Size:** see the ARCHITECTURE §8 ledger row, measured from the production build.
+**Size:** measured from the production build (M7.7): the link builder's lazy chunk, encoder
+included, is **14.3 KB, 5.5 KB gzipped** -- inside UI-24's +10 KB per lazy route. The
+ARCHITECTURE §8 ledger records it.
 
 ## Alternatives considered
 

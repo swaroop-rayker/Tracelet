@@ -256,6 +256,27 @@ class BackupUnavailable(TraceletError):
     title = "This backup has no file"
 
 
+class NotAuthor(TraceletError):
+    """Only its author changes a note, and only its author or an owner deletes it (F9.AC25,
+    F8.AC12 as amended by SPEC section 11 row 29)."""
+
+    status = 403
+    code = "NOT_AUTHOR"
+    title = "Only its author can do this"
+
+
+class SavedViewExists(TraceletError):
+    status = 409
+    code = "SAVED_VIEW_EXISTS"
+    title = "You already have a saved view with this name"
+
+
+class SavedViewLimit(TraceletError):
+    status = 409
+    code = "SAVED_VIEW_LIMIT"
+    title = "You have 50 saved views; delete one first"
+
+
 class NonceInvalid(TraceletError):
     """Enrichment nonce expired, already consumed, or bound to another prefix."""
 

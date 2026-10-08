@@ -79,6 +79,14 @@ export const NAV_GROUPS: readonly NavGroup[] = [
         hint: 'New and returning visitors, weekly cohorts',
       },
       {
+        to: '/compare',
+        label: 'Compare',
+        icon: 'Compare',
+        filtered: true,
+        key: 'c',
+        hint: 'Two links or two periods, side by side',
+      },
+      {
         to: '/links',
         label: 'Links',
         icon: 'Link',

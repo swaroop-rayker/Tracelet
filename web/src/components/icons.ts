@@ -84,11 +84,16 @@ import {
   X,
   type LucideIcon,
   Database,
+  Bookmark,
   Funnel,
   Gauge,
+  GitCompareArrows,
   HardDrive,
+  Pencil,
+  QrCode,
   Repeat2,
   Share2,
+  StickyNote,
 } from 'lucide-react';
 
 export const Icon = {
@@ -182,6 +187,12 @@ export const Icon = {
   Sources: Share2,
   Returning: Repeat2,
   Capture: Funnel,
+  // M7.7: Compare, annotations, saved views, the link builder
+  Compare: GitCompareArrows,
+  Note: StickyNote,
+  Edit: Pencil,
+  SaveView: Bookmark,
+  QrCode,
 } as const satisfies Record<string, LucideIcon>;
 
 export type IconName = keyof typeof Icon;

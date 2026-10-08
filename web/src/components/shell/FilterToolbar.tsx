@@ -8,6 +8,7 @@
 
 import { useState } from 'react';
 import { useSearchParams } from 'react-router';
+import { SaveViewButton } from '@/components/shell/SaveView';
 import { useApi } from '@/api/query';
 import { linkChoicesSchema } from '@/api/schemas';
 import { Icon } from '@/components/icons';
@@ -82,6 +83,7 @@ export function FilterToolbar({
         </Button>
       )}
       <span className="toolbar__end">
+        <SaveViewButton />
         <CopyButton value={window.location.href} label="Copy link to this view" />
       </span>
     </div>
