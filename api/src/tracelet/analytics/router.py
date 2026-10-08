@@ -29,7 +29,21 @@ from typing import Annotated, Literal
 
 from fastapi import APIRouter, Depends, Path, Query
 from pydantic import BaseModel
-from sqlalchemy import ColumnElement, func, or_, select
+from sqlalchemy import (
+    ColumnElement,
+    Date,
+    Integer,
+    Text,
+    and_,
+    cast,
+    distinct,
+    func,
+    literal,
+    or_,
+    select,
+    tuple_,
+    type_coerce,
+)
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from tracelet.analytics.filters import (
@@ -54,6 +68,7 @@ from tracelet.capture.visits_router import VisitSummary, is_returning_column, su
 from tracelet.classify.identity import DIGEST_BYTES
 from tracelet.config import Settings
 from tracelet.errors import ValidationFailed
+from tracelet.inference.sources import asn_org
 
 router = APIRouter(prefix="/api/v1/analytics", tags=["analytics"])
 
@@ -503,6 +518,11 @@ class BreakdownDimension(enum.StrEnum):
     SCREEN = "screen"
     CONNECTION_CLASS = "connection_class"
     CLASSIFICATION = "classification"
+    # Sources (M7.6, F9.AC21): ``unknown`` is "None" -- no referrer, or no tag.
+    REFERRER_HOST = "referrer_host"
+    UTM_SOURCE = "utm_source"
+    UTM_MEDIUM = "utm_medium"
+    UTM_CAMPAIGN = "utm_campaign"
 
 
 assert {d.value for d in BreakdownDimension} == {d.value for d in BREAKDOWNS}
@@ -1084,4 +1104,403 @@ async def visitor(
         truncated=len(rows) > MAX_VISITOR_VISITS,
         visits=[summarize(v, link, is_returning=returning) for v, link, returning in page],
         drift=[_drift(a, b) for a, b in itertools.pairwise(visits)],
+    )
+
+
+# ---------------------------------------------------------------------------
+# New and returning visitors (F9.AC22, M7.6)
+# ---------------------------------------------------------------------------
+
+ReturnBandName = Literal["under_1h", "1h_1d", "1d_7d", "7d_30d", "over_30d"]
+# Upper bounds, in seconds; the last band is open.
+RETURN_BANDS: tuple[tuple[ReturnBandName, float], ...] = (
+    ("under_1h", 3600.0),
+    ("1h_1d", 86400.0),
+    ("1d_7d", 7 * 86400.0),
+    ("7d_30d", 30 * 86400.0),
+    ("over_30d", math.inf),
+)
+MAX_COHORT_WEEKS = 12
+
+
+class ReturningDay(BaseModel):
+    day: dt.date
+    # Visitors (per link) whose first visit among those kept is this day...
+    new: int
+    # ...and those who had come before.
+    returning: int
+
+
+class Cohort(BaseModel):
+    # The local Monday of the week of the first visit.
+    week: dt.date
+    size: int
+    # returned[k]: how many came back k weeks after their first week (0 = later the same
+    # week); null for a week that has not begun.
+    returned: list[int | None]
+
+
+class ReturnBand(BaseModel):
+    band: ReturnBandName
+    count: int
+
+
+class Returning(BaseModel):
+    meta: Meta
+    # The oldest visit kept: nothing earlier can be known (visit retention).
+    since: dt.date | None
+    # Visits in scope with no visitor_id: they cannot be followed, and are not guessed.
+    unidentified: int
+    days: list[ReturningDay]
+    cohorts: list[Cohort]
+    return_after: list[ReturnBand]
+
+
+def _local_day(moment: Expr, zone: str) -> ColumnElement[dt.date]:
+    return cast(func.timezone(literal(zone, Text), moment), Date())
+
+
+def _raw_meta(window: Window, mix: StageMix) -> Meta:
+    return Meta(
+        start=window.start,
+        end=window.end,
+        reporting_tz=window.zone_name,
+        computed_from="raw",
+        refreshed_at=dt.datetime.now(dt.UTC),
+        stage_mix=mix,
+    )
+
+
+@router.get(
+    "/returning",
+    response_model=Returning,
+    summary="New and returning visitors, weekly cohorts, time to return (F9.AC22)",
+    description=(
+        "Per link and visitor_id: a visit is new if it is the visitor's first on that link "
+        "among the visits kept. Raw rows only, so limited to visit retention (`since`). "
+        "Visits with no visitor_id are counted in `unidentified`, never guessed."
+    ),
+)
+async def returning(
+    principal: CurrentPrincipal,
+    db: DbSession,
+    settings: Config,
+    f: Filter,
+    weeks: Annotated[int, Query(ge=1, le=MAX_COHORT_WEEKS)] = 8,
+) -> Returning:
+    del principal
+    zone = settings.reporting_tz
+    window = resolve_window(f, zone)
+    cells = await cell_source(db, f, window, Grain.DAY)
+    live = Visit.stage != VisitStage.RATE_LIMITED
+    followed = [Visit.visitor_id.is_not(None), live, *visit_clauses(f)]
+    pair = tuple_(Visit.visitor_id, Visit.link_id)
+
+    # First and second visit of every (visitor, link) among the visits kept.
+    order = func.row_number().over(
+        partition_by=(Visit.visitor_id, Visit.link_id), order_by=(Visit.occurred_at, Visit.id)
+    )
+    ranked = (
+        select(
+            Visit.visitor_id.label("visitor_id"),
+            Visit.link_id.label("link_id"),
+            Visit.occurred_at.label("at"),
+            order.label("n"),
+        )
+        .where(*followed)
+        .subquery("ranked")
+    )
+    pairs = (
+        select(
+            ranked.c.visitor_id,
+            ranked.c.link_id,
+            func.min(ranked.c.at).label("first_at"),
+            func.min(ranked.c.at).filter(ranked.c.n == 2).label("second_at"),
+        )
+        .group_by(ranked.c.visitor_id, ranked.c.link_id)
+        .subquery("pairs")
+    )
+    joined = and_(pairs.c.visitor_id == Visit.visitor_id, pairs.c.link_id == Visit.link_id)
+
+    # New vs returning per local day.
+    day = _local_day(Visit.occurred_at, zone)
+    first_day = _local_day(pairs.c.first_at, zone)
+    per_day = (
+        await db.execute(
+            select(
+                day,
+                func.count(distinct(pair)).filter(first_day == day),
+                func.count(distinct(pair)).filter(first_day != day),
+            )
+            .select_from(Visit)
+            .join(pairs, joined)
+            .where(*followed, window.range_clause())
+            .group_by(day)
+        )
+    ).all()
+    counted = {row[0]: (_int(row[1]), _int(row[2])) for row in per_day}
+    days = [
+        ReturningDay(day=d, new=counted.get(d, (0, 0))[0], returning=counted.get(d, (0, 0))[1])
+        for d in window.days()
+    ]
+
+    # Weekly cohorts: first visits inside the window, by the local week they fell in.
+    week = cast(
+        func.date_trunc("week", func.timezone(literal(zone, Text), pairs.c.first_at)), Date()
+    )
+    in_window = and_(pairs.c.first_at >= window.start, pairs.c.first_at < window.end)
+    sizes: dict[dt.date, int] = {
+        row[0]: int(row[1])
+        for row in await db.execute(
+            select(week, func.count()).select_from(pairs).where(in_window).group_by(week)
+        )
+    }
+    # Whole weeks after the first week: (local day - cohort Monday) / 7, integer division.
+    after = type_coerce((day - week).self_group(), Integer).op("/", return_type=Integer)(7)
+    came_back = (
+        await db.execute(
+            select(week, after, func.count(distinct(pair)))
+            .select_from(pairs)
+            .join(Visit, and_(joined, Visit.occurred_at > pairs.c.first_at))
+            .where(in_window, *followed)
+            .group_by(week, after)
+        )
+    ).all()
+    back: dict[tuple[dt.date, int], int] = {(r[0], int(r[1])): _int(r[2]) for r in came_back}
+    last_day = window.end.astimezone(window.tz).date() - dt.timedelta(days=1)
+    cohorts = [
+        Cohort(
+            week=start,
+            size=size,
+            returned=[
+                back.get((start, k), 0) if start + dt.timedelta(weeks=k) <= last_day else None
+                for k in range(weeks + 1)
+            ],
+        )
+        for start, size in sorted(sizes.items())[-MAX_COHORT_WEEKS:]
+    ]
+
+    # Time from a first visit (inside the window) to the second.
+    gaps = (
+        await db.execute(
+            select(func.extract("epoch", pairs.c.second_at - pairs.c.first_at)).where(
+                in_window, pairs.c.second_at.is_not(None)
+            )
+        )
+    ).scalars()
+    bands = dict.fromkeys((name for name, _ in RETURN_BANDS), 0)
+    for gap in gaps:
+        seconds = float(gap)
+        bands[next(name for name, upper in RETURN_BANDS if seconds < upper)] += 1
+
+    oldest = (await db.execute(select(func.min(Visit.occurred_at)))).scalar_one_or_none()
+    unidentified = (
+        await db.execute(
+            select(func.count()).where(
+                Visit.visitor_id.is_(None), live, window.range_clause(), *visit_clauses(f)
+            )
+        )
+    ).scalar_one()
+    return Returning(
+        meta=_raw_meta(window, await _stage_mix(db, cells)),
+        since=oldest.astimezone(window.tz).date() if oldest is not None else None,
+        unidentified=int(unidentified),
+        days=days,
+        cohorts=cohorts,
+        return_after=[ReturnBand(band=name, count=bands[name]) for name, _ in RETURN_BANDS],
+    )
+
+
+# ---------------------------------------------------------------------------
+# Mobile networks by state (F9.AC23, M7.6)
+# ---------------------------------------------------------------------------
+
+CarrierFamily = Literal["jio", "airtel", "vi", "bsnl", "other"]
+FAMILIES: tuple[CarrierFamily, ...] = ("jio", "airtel", "vi", "bsnl", "other")
+
+
+class CarrierState(BaseModel):
+    # The best-guess state, qualified (IN|Karnataka) -- a best guess, never a statement
+    # (ADR-0018) -- with the mean confidence of the visits placed there.
+    key: str
+    visits: int
+    confidence: float | None
+    families: dict[CarrierFamily, int]
+    mobile: int
+    broadband: int
+    other_network: int
+
+
+class Carriers(BaseModel):
+    meta: Meta
+    states: list[CarrierState]
+    # Visits no source could place in a state.
+    unplaced: int
+
+
+def _family(asn: str) -> CarrierFamily:
+    name = asn_org.classes().families.get(int(asn)) if asn.isdigit() else None
+    for family in FAMILIES:
+        if family == name:
+            return family
+    return "other"
+
+
+@router.get(
+    "/carriers",
+    response_model=Carriers,
+    summary="Carriers and mobile vs broadband per best-guess state (F9.AC23)",
+    description=(
+        "States are the best guess (ADR-0018), each with its mean confidence. The carrier "
+        "comes from the ASN through asn_classes.json; an unlisted ASN is 'other'."
+    ),
+)
+async def carriers(
+    principal: CurrentPrincipal,
+    db: DbSession,
+    settings: Config,
+    f: Filter,
+    limit: Annotated[int, Query(ge=1, le=50)] = 20,
+) -> Carriers:
+    del principal
+    window = resolve_window(f, settings.reporting_tz)
+    dims = await dim_source(db, f, window, Dimension.NETWORK_STATE)
+    cells = await cell_source(db, f, window, Grain.DAY)
+    states: dict[str, CarrierState] = {}
+    unplaced = 0
+    for value, count in await _dim_counts(db, dims):
+        country, admin1, asn, connection = [*value.split("|"), "", "", "", ""][:4]
+        if not country or not admin1:
+            unplaced += count
+            continue
+        key = f"{country}|{admin1}"
+        state = states.setdefault(
+            key,
+            CarrierState(
+                key=key,
+                visits=0,
+                confidence=None,
+                families=dict.fromkeys(FAMILIES, 0),
+                mobile=0,
+                broadband=0,
+                other_network=0,
+            ),
+        )
+        state.visits += count
+        state.families[_family(asn)] += count
+        if connection == "mobile":
+            state.mobile += count
+        elif connection == "broadband":
+            state.broadband += count
+        else:
+            state.other_network += count
+    rel = cells.rel
+    confidence = (
+        await db.execute(
+            select(
+                rel.c.country_code,
+                rel.c.admin1,
+                func.sum(rel.c.conf_admin1_sum),
+                func.sum(rel.c.conf_admin1_n),
+            )
+            .where(_live(rel.c.stage))
+            .group_by(rel.c.country_code, rel.c.admin1)
+        )
+    ).all()
+    for country, admin1, total, n in confidence:
+        placed = states.get(f"{country}|{admin1}")
+        if placed is not None and n:
+            placed.confidence = round(float(total) / int(n), 3)
+    ranked = sorted(states.values(), key=lambda s: (-s.visits, s.key))
+    return Carriers(
+        meta=await _meta(db, window, cells, dims), states=ranked[:limit], unplaced=unplaced
+    )
+
+
+# ---------------------------------------------------------------------------
+# Capture quality by platform (F9.AC24, M7.6)
+# ---------------------------------------------------------------------------
+
+MAX_APP_SERIES = 5
+
+
+class AppCapture(BaseModel):
+    # The in-app browser's host app, or "browser".
+    key: str
+    captured: int
+    enriched: int
+    server_only: int
+    # Still awaiting enrichment or the 90 s sweeper.
+    pending: int
+    consented: int
+
+
+class ShareSeries(BaseModel):
+    key: str
+    # Enriched over captured, per day; null on a day with no visit from this app.
+    enriched_share: list[float | None]
+
+
+class CaptureQuality(BaseModel):
+    meta: Meta
+    apps: list[AppCapture]
+    buckets: list[dt.datetime]
+    series: list[ShareSeries]
+
+
+@router.get(
+    "/capture-quality",
+    response_model=CaptureQuality,
+    summary="Enriched, server-only and consented by app medium (F9.AC24)",
+    description=(
+        "The funnel per in-app browser: how much each app lets the page see (RISKS R5). "
+        f"The share series covers the {MAX_APP_SERIES} busiest apps."
+    ),
+)
+async def capture_quality(
+    principal: CurrentPrincipal, db: DbSession, settings: Config, f: Filter
+) -> CaptureQuality:
+    del principal
+    window = resolve_window(f, settings.reporting_tz)
+    dims = await dim_source(db, f, window, Dimension.CAPTURE)
+    cells = await cell_source(db, f, window, Grain.DAY)
+    rel = dims.rel
+    rows = (
+        await db.execute(
+            select(rel.c.bucket, rel.c.value, func.sum(rel.c.visit_count)).group_by(
+                rel.c.bucket, rel.c.value
+            )
+        )
+    ).all()
+    apps: dict[str, AppCapture] = {}
+    starts = _buckets(window, Grain.DAY)
+    index = {b.date(): i for i, b in enumerate(starts)}
+    daily: dict[str, list[list[int]]] = defaultdict(lambda: [[0, 0] for _ in starts])
+    for bucket, value, total in rows:
+        app, stage, consented = [*str(value).split("|"), "", "", "0"][:3]
+        count = _int(total)
+        enriched = count if stage == VisitStage.ENRICHED else 0
+        row = apps.setdefault(
+            app,
+            AppCapture(key=app, captured=0, enriched=0, server_only=0, pending=0, consented=0),
+        )
+        row.captured += count
+        row.enriched += enriched
+        row.server_only += count if stage == VisitStage.SERVER_ONLY else 0
+        row.pending += count if stage == VisitStage.SERVER else 0
+        row.consented += count if consented == "1" else 0
+        position = index.get(_bucket_key(bucket))
+        if position is not None:
+            daily[app][position][0] += enriched
+            daily[app][position][1] += count
+    ranked = sorted(apps.values(), key=lambda a: (-a.captured, a.key))
+    series = [
+        ShareSeries(
+            key=a.key,
+            enriched_share=[round(e / n, 4) if n else None for e, n in daily[a.key]],
+        )
+        for a in ranked[:MAX_APP_SERIES]
+    ]
+    return CaptureQuality(
+        meta=await _meta(db, window, cells, dims), apps=ranked, buckets=starts, series=series
     )

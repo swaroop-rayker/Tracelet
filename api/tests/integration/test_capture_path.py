@@ -277,11 +277,41 @@ async def test_server_signals_are_recorded(db_client: AsyncClient) -> None:
     assert stored.device_class is DeviceClass.MOBILE
     assert (stored.os_family, stored.os_version) == ("Android", "14")
     assert stored.utm == {"utm_source": "ig", "utm_campaign": "bio"}
-    assert stored.referer == "https://l.instagram.com/"
+    # The origin only (SPEC section 11 row 28): never a path or query.
+    assert stored.referer == "https://l.instagram.com"
     assert stored.request_headers is not None
+    assert stored.request_headers["referer"] == "https://l.instagram.com"
     assert stored.request_headers["accept-language"] == "en-IN,en;q=0.9"
     assert stored.classification is Classification.UNKNOWN
     assert stored.classifier_version == service.CLASSIFIER_VERSION
+
+
+async def test_a_referers_path_and_query_are_never_stored(db_client: AsyncClient) -> None:
+    link = await ch.create_link()
+    secret = "q=priya+sharma+mumbai&token=AT0abc"
+    await ch.visit(
+        db_client,
+        link.slug,
+        headers={"Referer": f"https://www.google.com/search?{secret}"},
+    )
+    stored = await ch.latest_visit(link.id)
+    assert stored.referer == "https://www.google.com"
+    assert "priya" not in await ch.row_as_text(stored.id)
+
+
+async def test_an_untagged_visit_stores_sql_null_not_json_null(db_client: AsyncClient) -> None:
+    """ERRORS E74: in Python both read as None; only SQL can tell them apart."""
+    link = await ch.create_link()
+    await ch.visit(db_client, link.slug)
+    stored = await ch.latest_visit(link.id)
+    async with session_scope() as db:
+        untagged = (
+            await db.execute(
+                text("SELECT utm IS NULL, referer IS NULL FROM visits WHERE id = :id"),
+                {"id": stored.id},
+            )
+        ).one()
+    assert tuple(untagged) == (True, True)
 
 
 async def test_a_preview_fetcher_is_recorded_as_a_crawler(db_client: AsyncClient) -> None:

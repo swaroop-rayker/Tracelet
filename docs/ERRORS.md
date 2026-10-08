@@ -2446,6 +2446,57 @@ database test, compare the schemas and extensions first:
 
 ---
 
+### E74 — Every visit without UTM tags stored JSON `null`, not SQL `NULL`
+
+**Status:** Fixed in M7.6 (migration 0016). **Milestone:** M7.6. **Date:** 2026-10-08.
+
+**Symptom.** Planning Sources (SPEC F9.AC21), a count of `visits.utm IS NOT NULL` on the dev
+database returned all 227 visits, although none had a UTM tag: every row held the JSON value
+`null`. A rollup reading `utm->>'utm_source'` would still have got `NULL`, but any query using
+`IS NULL` to mean "no tags" -- the obvious one -- counted every visit as tagged.
+
+**Root cause.** SQLAlchemy's `JSONB` type writes Python `None` as the JSON literal `null`
+unless the column is declared with `none_as_null=True`. Capture builds every visit with
+`utm=None` when the request has no tags, so the ORM wrote JSON `null`. `client_probes` never
+showed it only because capture leaves it out of the insert rather than passing `None`.
+
+**Fix.** `visits.utm`, `request_headers` and `client_probes` are declared
+`JSONB(none_as_null=True)`; migration 0016 turns stored JSON `null` into SQL `NULL`.
+
+**Prevention.** An integration test captures an untagged visit and asserts
+`utm IS NULL` in SQL, not just `visit.utm is None` in Python (which cannot tell the two
+apart). A new nullable `JSONB` column takes `none_as_null=True`.
+
+**Related:** F3.AC1, F9.AC21, SPEC §11 row 28.
+
+---
+
+### E75 — The nightly-backup test failed for half an hour after a real backup
+
+**Status:** Fixed in M7.6. **Milestone:** M7.6. **Date:** 2026-10-08.
+
+**Symptom.** `tl verify` failed `test_the_nightly_backup_runs_once_a_night` with
+`run_scheduled_once` returning `None` instead of `"backup"`. It had passed in every earlier run.
+
+**Root cause.** The test sets the backup hour to the current local hour and skips itself if a
+scheduled backup already ran "this hour" -- but counted from `date_trunc('hour', now())`, the
+top of the **UTC** hour, while the code counts from the top of the **local** hour. India is
+UTC+05:30, so for the half hour after each local hour starts the two disagree. The dev API had
+run its own scheduled backup at 12:36 UTC (18:06 IST) when it started: after the local hour
+began, before the UTC one. The test did not see it and expected a backup; the code saw it and,
+correctly, ran none. A test bug only, and only on a database whose live scheduler had run.
+
+**Fix.** The test takes its boundary from the code (`backups.local_boundary`) for both its
+guard and its clean-up.
+
+**Prevention.** A test that reasons about "tonight" or "this hour" asks the code for the
+boundary instead of re-deriving it in SQL: the reporting zone is not UTC, and its hours and
+days start 30 minutes off UTC's (SPEC section 11 row 17 cuts days the same way).
+
+**Related:** F12.AC9, E70, E72.
+
+---
+
 Add entries here as bugs are found and fixed. Use the next available `E<n>` identifier and
 the same structure: symptom, root cause, fix, **prevention**.
 

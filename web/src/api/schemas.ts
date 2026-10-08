@@ -94,9 +94,17 @@ export const breakdownDimensions = [
   'classification',
 ] as const satisfies readonly S['BreakdownDimension'][];
 
+/** Sources (F9.AC21, M7.6): on their own page, not on Breakdowns. `unknown` reads None. */
+export const sourceDimensions = [
+  'referrer_host',
+  'utm_source',
+  'utm_medium',
+  'utm_campaign',
+] as const satisfies readonly S['BreakdownDimension'][];
+
 export const breakdownSchema: z.ZodType<S['Breakdown']> = z.object({
   meta: metaSchema,
-  dimension: z.enum(breakdownDimensions),
+  dimension: z.enum([...breakdownDimensions, ...sourceDimensions]),
   total: z.number(),
   rows: z.array(z.object({ key: z.string(), count: z.number(), share: z.number() })),
   unknown: z.number(),
@@ -314,6 +322,62 @@ export const linksSchema: z.ZodType<LinkSummary[]> = z.array(
   }),
 );
 
+// ---------------------------------------------------------------------------
+// M7.6 (F9.AC22-F9.AC24)
+// ---------------------------------------------------------------------------
+
+export const returningSchema: z.ZodType<S['Returning']> = z.object({
+  meta: metaSchema,
+  since: z.string().nullable(),
+  unidentified: z.number(),
+  days: z.array(z.object({ day: z.string(), new: z.number(), returning: z.number() })),
+  cohorts: z.array(
+    z.object({ week: z.string(), size: z.number(), returned: z.array(z.number().nullable()) }),
+  ),
+  return_after: z.array(
+    z.object({
+      band: z.enum(['under_1h', '1h_1d', '1d_7d', '7d_30d', 'over_30d']),
+      count: z.number(),
+    }),
+  ),
+});
+
+export const carriersSchema: z.ZodType<S['Carriers']> = z.object({
+  meta: metaSchema,
+  states: z.array(
+    z.object({
+      key: z.string(),
+      visits: z.number(),
+      confidence: z.number().nullable(),
+      families: z.record(z.string(), z.number()),
+      mobile: z.number(),
+      broadband: z.number(),
+      other_network: z.number(),
+    }),
+  ),
+  unplaced: z.number(),
+});
+
+export const captureQualitySchema: z.ZodType<S['CaptureQuality']> = z.object({
+  meta: metaSchema,
+  apps: z.array(
+    z.object({
+      key: z.string(),
+      captured: z.number(),
+      enriched: z.number(),
+      server_only: z.number(),
+      pending: z.number(),
+      consented: z.number(),
+    }),
+  ),
+  buckets: z.array(z.string()),
+  series: z.array(z.object({ key: z.string(), enriched_share: z.array(z.number().nullable()) })),
+});
+
+export type Returning = S['Returning'];
+export type Carriers = S['Carriers'];
+export type CaptureQuality = S['CaptureQuality'];
+export type SourceDimension = (typeof sourceDimensions)[number];
 export type Meta = S['Meta'];
 export type Summary = S['Summary'];
 export type Kpi = S['Kpi'];

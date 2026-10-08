@@ -4,10 +4,13 @@ One definition, three consumers. If the list, the export and the charts each par
 their own filters, "visits from Karnataka" would sooner or later mean three slightly
 different things, and a chart would disagree with the table under it.
 
-**Location filters match the strict fields**, never the advisory ones. A filter is an
-assertion ("show me Karnataka"), and CLAUDE.md invariant 5 forbids acting on a location
-we do not believe. Advisory guesses stay visible on each visit; they do not decide
-what is counted.
+**Location filters match the best-guess (advisory) fields**, as the breakdowns count them
+(ADR-0018, SPEC section 11 row 14): clicking a state in a chart selects exactly the visits
+it counted. Strict fields still decide geofences and alerts, never a filter.
+
+**Source filters** (M7.6, F9.AC21) match the same expressions the Sources dimensions are
+built from (``projection.referrer_host``, ``projection.utm_value``), so a clicked row and
+the filter it applies cannot disagree.
 
 A filter renders two ways: as clauses over raw ``visits`` rows, and -- when every
 field it sets is a rollup dimension -- as clauses over the rollup tables (ADR-0016).
@@ -27,6 +30,7 @@ from typing import Annotated
 from fastapi import Query
 from sqlalchemy import ColumnElement, and_, any_, or_, select
 
+from tracelet.analytics import projection
 from tracelet.capture.models import (
     Classification,
     ConnectionClass,
@@ -82,6 +86,11 @@ class VisitFilter:
     is_proxy_suspected: bool | None = None
     webview_host: str | None = None
     search: str | None = None
+    # M7.6, F9.AC21. Raw-only: no rollup table is keyed on them.
+    referrer_host: str | None = None
+    utm_source: str | None = None
+    utm_medium: str | None = None
+    utm_campaign: str | None = None
 
     # ------------------------------------------------------------------
     # Which fields are set, and can the rollups answer them?
@@ -173,6 +182,15 @@ def visit_clauses(f: VisitFilter) -> list[ColumnElement[bool]]:
         clauses.append(Visit.is_proxy_suspected.is_(f.is_proxy_suspected))
     if f.webview_host is not None:
         clauses.append(Visit.webview_host == f.webview_host)
+    if f.referrer_host is not None:
+        clauses.append(projection.referrer_host() == f.referrer_host.lower())
+    for key, value in (
+        ("utm_source", f.utm_source),
+        ("utm_medium", f.utm_medium),
+        ("utm_campaign", f.utm_campaign),
+    ):
+        if value is not None:
+            clauses.append(projection.utm_value(key) == value)
     if f.search:
         pattern = _like(f.search)
         links = select(Link.id).where(or_(Link.slug.ilike(pattern), Link.label.ilike(pattern)))
@@ -301,6 +319,10 @@ def visit_filter(
     is_proxy_suspected: Annotated[bool | None, Query()] = None,
     webview_host: Annotated[str | None, Query(max_length=32)] = None,
     search: Annotated[str | None, Query(min_length=1, max_length=100)] = None,
+    referrer_host: Annotated[str | None, Query(min_length=1, max_length=255)] = None,
+    utm_source: Annotated[str | None, Query(min_length=1, max_length=256)] = None,
+    utm_medium: Annotated[str | None, Query(min_length=1, max_length=256)] = None,
+    utm_campaign: Annotated[str | None, Query(min_length=1, max_length=256)] = None,
 ) -> VisitFilter:
     """Parse the F9.AC13 query parameters. Every one is optional and they compose."""
     return VisitFilter(
@@ -325,4 +347,8 @@ def visit_filter(
         is_proxy_suspected=is_proxy_suspected,
         webview_host=webview_host,
         search=search.strip() or None if search else None,
+        referrer_host=referrer_host,
+        utm_source=utm_source,
+        utm_medium=utm_medium,
+        utm_campaign=utm_campaign,
     )

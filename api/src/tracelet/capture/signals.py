@@ -156,7 +156,13 @@ def sanitise_headers(raw: Iterable[tuple[str, str]], *, client_ip: str | None) -
             continue
         if key not in kept and len(kept) >= MAX_HEADERS:
             continue
-        if key in _VERSION_BEARING:
+        if key == "referer":
+            # The same cut as visits.referer: its origin, never path or query (row 28).
+            origin = clean_referer(value, client_ip=client_ip)
+            if origin is None:
+                continue
+            cleaned = origin
+        elif key in _VERSION_BEARING:
             cleaned = mask_client(value[:MAX_VALUE_LEN], client_ip)
         else:
             cleaned = _clean(value, client_ip)
@@ -184,8 +190,28 @@ def utm_from(query: Mapping[str, str], *, client_ip: str | None) -> dict[str, st
     return found or None
 
 
+# scheme "://" authority -- the rest (path, query, fragment) is never kept.
+_ORIGIN: Final = re.compile(r"^\s*([A-Za-z][A-Za-z0-9+.\-]*)://([^/?#\s]+)")
+MAX_ORIGIN_LEN: Final = 255
+
+
+def referrer_origin(value: str) -> str | None:
+    """The Referer's origin -- ``https://l.instagram.com``, ``android-app://com.google.android.gm``
+    -- lower-cased, without any user info. ``None`` for a value with no scheme and host.
+
+    A referrer's path and query can carry personal data (a search, a profile, a token), so
+    only the origin is kept (SPEC section 11 row 28, F3.AC1)."""
+    match = _ORIGIN.match(value)
+    if match is None:
+        return None
+    host = match.group(2).rsplit("@", 1)[-1].lower()
+    return f"{match.group(1).lower()}://{host}"[:MAX_ORIGIN_LEN] if host else None
+
+
 def clean_referer(value: str | None, *, client_ip: str | None) -> str | None:
-    return _clean(value, client_ip, 1024) if value else None
+    """The origin of the Referer, with any address in it masked (layers 1 and 3)."""
+    origin = referrer_origin(value) if value else None
+    return _clean(origin, client_ip, MAX_ORIGIN_LEN) if origin else None
 
 
 def clean_user_agent(value: str | None, *, client_ip: str | None) -> str | None:

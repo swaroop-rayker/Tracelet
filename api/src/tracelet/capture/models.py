@@ -300,9 +300,10 @@ class Visit(Base):
     tls_version: Mapped[str | None] = mapped_column(Text)
     classifier_version: Mapped[str | None] = mapped_column(Text)
     signals: Mapped[list[dict[str, Any]]] = mapped_column(pg.JSONB, nullable=False, default=list)
-    request_headers: Mapped[dict[str, str] | None] = mapped_column(pg.JSONB)
+    # none_as_null: Python None is SQL NULL, not the JSON literal null (ERRORS E74).
+    request_headers: Mapped[dict[str, str] | None] = mapped_column(pg.JSONB(none_as_null=True))
     # M4: the capture page's headless-browser probes, as reported (migration 0006).
-    client_probes: Mapped[dict[str, Any] | None] = mapped_column(pg.JSONB)
+    client_probes: Mapped[dict[str, Any] | None] = mapped_column(pg.JSONB(none_as_null=True))
 
     # --- location (M3) ------------------------------------------------------
     consent_state: Mapped[ConsentState] = mapped_column(
@@ -351,7 +352,7 @@ class Visit(Base):
 
     # --- referral -----------------------------------------------------------
     referer: Mapped[str | None] = mapped_column(Text)
-    utm: Mapped[dict[str, str] | None] = mapped_column(pg.JSONB)
+    utm: Mapped[dict[str, str] | None] = mapped_column(pg.JSONB(none_as_null=True))
 
     def __repr__(self) -> str:
         # Never the ciphertext, never a header, never the user agent.

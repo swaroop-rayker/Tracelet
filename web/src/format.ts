@@ -78,11 +78,18 @@ export const DIMENSION_LABEL: Readonly<Record<string, string>> = {
   screen: 'Screen resolution',
   connection_class: 'Connection',
   classification: 'Classification',
+  referrer_host: 'Referrer site',
+  utm_source: 'UTM source',
+  utm_medium: 'UTM medium',
+  utm_campaign: 'UTM campaign',
 };
+
+/** Sources (F9.AC21): a visit with no referrer or no tag is "None", not "Unknown". */
+const SOURCE_DIMENSIONS = new Set(['referrer_host', 'utm_source', 'utm_medium', 'utm_campaign']);
 
 /** A breakdown row's label: qualified location keys become readable. */
 export function dimensionValue(dimension: string, key: string): string {
-  if (key === '') return 'Unknown';
+  if (key === '') return SOURCE_DIMENSIONS.has(dimension) ? 'None' : 'Unknown';
   if (dimension === 'country') return countryName(key);
   if (dimension === 'admin1' || dimension === 'city') {
     const [country = '', ...rest] = key.split('|');

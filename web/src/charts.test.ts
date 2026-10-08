@@ -4,15 +4,27 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import type { Breakdown, Calendar, Funnel, Meta, SourceFlow, TimeSeries } from '@/api/schemas';
+import type {
+  Breakdown,
+  Calendar,
+  CaptureQuality,
+  Funnel,
+  Meta,
+  Returning,
+  SourceFlow,
+  TimeSeries,
+} from '@/api/schemas';
 import { chartTheme } from '@/components/chartkit';
 import { filterForBreakdown } from '@/components/shell/filterDefs';
 import {
   calendarChart,
+  enrichedShareChart,
   foldHourWeekday,
   funnelChart,
   hourWeekdayChart,
   rankedRows,
+  returnBandRows,
+  returningChart,
   sourceFlowChart,
 } from '@/charts';
 import { parseFilters, serializeFilters } from '@/filters';
@@ -212,5 +224,65 @@ describe('M5.6 charts (DESIGN 12 E19, E21, E22)', () => {
         rows: [{ key: 'IN|Goa', count: 3, share: 1 }],
       })[0]?.icon,
     ).toBeUndefined();
+  });
+});
+
+describe('M7.6 analytics (DESIGN 12 E30, E31, E33)', () => {
+  it('a source with no referrer or tag reads None, and None does not filter', () => {
+    const data: Breakdown = {
+      meta: META,
+      dimension: 'referrer_host',
+      total: 4,
+      rows: [{ key: 'l.instagram.com', count: 1, share: 0.25 }],
+      unknown: 3,
+      other: 0,
+    };
+    const rows = rankedRows(data);
+    expect(rows.map((r) => r.label)).toEqual(['l.instagram.com', 'None']);
+    expect(rows[1]?.muted).toBe(true);
+    const next = filterForBreakdown('utm_campaign', 'diwali', parseFilters(new URLSearchParams()));
+    expect(next === null ? null : serializeFilters(next).get('utm_campaign')).toBe('diwali');
+  });
+
+  it('new and returning visitors chart has its table, and the bands keep their order', () => {
+    const data: Returning = {
+      meta: META,
+      since: '2026-09-01',
+      unidentified: 2,
+      days: [
+        { day: '2026-10-01', new: 3, returning: 1 },
+        { day: '2026-10-02', new: 0, returning: 2 },
+      ],
+      cohorts: [],
+      return_after: [
+        { band: 'under_1h', count: 0 },
+        { band: '1h_1d', count: 3 },
+        { band: '1d_7d', count: 1 },
+        { band: '7d_30d', count: 0 },
+        { band: 'over_30d', count: 0 },
+      ],
+    };
+    const chart = returningChart(data);
+    expect(chart.table.columns).toEqual(['Day', 'New', 'Returning']);
+    expect(chart.table.rows[1]?.slice(1)).toEqual([0, 2]);
+    expect(returnBandRows(data).map((r) => r.key)).toEqual([
+      'under_1h',
+      '1h_1d',
+      '1d_7d',
+      '7d_30d',
+      'over_30d',
+    ]);
+    expect(returnBandRows(data)[1]?.share).toBe(0.75);
+  });
+
+  it('a day with no visit from an app is a gap, not 0 %', () => {
+    const data: CaptureQuality = {
+      meta: META,
+      apps: [],
+      buckets: ['2026-10-01T00:00:00+05:30', '2026-10-02T00:00:00+05:30'],
+      series: [{ key: 'instagram', enriched_share: [0.5, null] }],
+    };
+    const chart = enrichedShareChart(data, 'Asia/Kolkata');
+    expect(chart.table.rows.map((r) => r[1])).toEqual(['50%', '—']);
   });
 });

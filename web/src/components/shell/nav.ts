@@ -63,6 +63,22 @@ export const NAV_GROUPS: readonly NavGroup[] = [
         hint: 'Location, network, device',
       },
       {
+        to: '/sources',
+        label: 'Sources',
+        icon: 'Sources',
+        filtered: true,
+        key: 's',
+        hint: 'Referrer sites, campaign tags, in-app browsers',
+      },
+      {
+        to: '/returning',
+        label: 'Returning',
+        icon: 'Returning',
+        filtered: true,
+        key: 'r',
+        hint: 'New and returning visitors, weekly cohorts',
+      },
+      {
         to: '/links',
         label: 'Links',
         icon: 'Link',
@@ -230,6 +246,12 @@ export const HEALTH_SECTIONS: readonly HealthSection[] = [
     label: 'Rate limits',
     icon: 'Limits',
     description: 'How fast visitors, sign-ins and outbound lookups may go.',
+  },
+  {
+    path: 'capture',
+    label: 'Capture quality',
+    icon: 'Capture',
+    description: 'How much each app and browser lets the capture page see (RISKS R5).',
   },
 ];
 
