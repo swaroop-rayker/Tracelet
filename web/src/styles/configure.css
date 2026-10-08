@@ -214,6 +214,25 @@
   align-items: start;
 }
 
+/* On a phone the delivery log keeps what, when, link, priority and status (DESIGN §16 M7.5). */
+@media (max-width: 767px) {
+  .delivery-geofence {
+    display: none;
+  }
+}
+
+/* An alert type's settings beside its switch (DESIGN §16 M7.5); stacks under the text on phones. */
+.alert-type__fields {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--space-3);
+}
+
+.alert-type__fields .field {
+  width: 120px;
+}
+
 @media (max-width: 1023px) {
   .geofence-editor__body {
     grid-template-columns: auto minmax(0, 1fr);

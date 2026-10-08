@@ -13,12 +13,18 @@ outside alert whose day is held by a normal "Location not confirmed" is queued u
 day key plus ``CONFIRMED``, unless the upgrade has gone out -- a normal alert never
 follows a high one.
 
+Since M7.5 (row 27) a visit's alert can carry notes -- a new place, a returning visitor --
+decided here too (``notes.py``). When the visit's alert is the day's duplicate, each note is
+queued alone under its own key instead. The digest and the spike are not visit-bound: their
+jobs (``digest.py``, ``spike.py``) insert their own rows.
+
 The worker side -- claim, complete, fail, recover, retry -- is here too, so every state
 change of a row is in one file. ``notify/worker.py`` drives it.
 """
 
 from __future__ import annotations
 
+import dataclasses
 import datetime as dt
 import enum
 import uuid
@@ -37,7 +43,8 @@ from tracelet.capture.models import Classification, GeofenceState, Link, Visit, 
 from tracelet.db.base import Base
 from tracelet.geofence.models import NotifyPriority
 from tracelet.geofence.store import Evaluation
-from tracelet.notify import alerts
+from tracelet.notify import alerts, notes
+from tracelet.notify import settings as notify_settings
 
 # An in-flight row older than this was abandoned by a crashed worker (invariant 7).
 STALE_LOCK: Final = dt.timedelta(minutes=5)
@@ -53,6 +60,11 @@ class OutboxKind(enum.StrEnum):
     PASSWORD_RESET = "telegram.password_reset"  # noqa: S105 -- an outbox kind, not a secret
     HEALTH_ALERT = "telegram.health_alert"
     TEST = "telegram.test"
+    # M7.5, SPEC section 11 row 27 (migration 0015).
+    DIGEST = "telegram.digest"
+    SPIKE = "telegram.spike"
+    NEW_PLACE = "telegram.new_place"
+    RETURNING = "telegram.returning"
 
 
 class OutboxStatus(enum.StrEnum):
@@ -153,6 +165,10 @@ class Enqueued:
     queued: bool
     reason: str
     priority: NotifyPriority | None = None
+    # A new place or a returning visitor (row 27): on the alert when it was queued...
+    notes: tuple[str, ...] = ()
+    # ...or queued alone, by kind, when it was the day's duplicate.
+    alone: tuple[str, ...] = ()
 
 
 async def enqueue_visit_alert(
@@ -163,8 +179,9 @@ async def enqueue_visit_alert(
     reporting_tz: str,
     base_url: str,
 ) -> Enqueued:
-    """Queue the visit's alert, if it is owed one. Call after the visit's location,
-    classification and geofence state are written, in the same savepoint."""
+    """Queue the visit's alert, if it is owed one, with its notes (a new place, a returning
+    visitor). Call after the visit's location, classification and geofence state are
+    written, in the same savepoint."""
     visit = (
         await db.execute(
             select(Visit).where(Visit.id == visit_id).execution_options(populate_existing=True)
@@ -174,6 +191,8 @@ async def enqueue_visit_alert(
     # policy says (ck_links_automated_silent holds the policy side).
     if visit.classification is not Classification.HUMAN:
         return Enqueued(queued=False, reason="not_human")
+    # Places are recorded for every human visit, silent or not (F7.AC12).
+    note_list = await notes.visit_notes(db, visit, await notify_settings.alert_types(db))
     link = (await db.execute(select(Link).where(Link.id == visit.link_id))).scalar_one()
     deciding = evaluation.deciding
     priority = alerts.resolve_priority(
@@ -181,6 +200,51 @@ async def enqueue_visit_alert(
     )
     if priority is NotifyPriority.SILENT:
         return Enqueued(queued=False, reason="silent", priority=priority)
+    payload = visit_payload(visit, link, evaluation, reporting_tz=reporting_tz, base_url=base_url)
+    kinds = tuple(str(n["kind"]) for n in note_list)
+    if note_list:
+        payload["notes"] = note_list
+    result = await _queue_visit_alert(db, visit, evaluation, priority, payload, reporting_tz)
+    if result.queued:
+        return dataclasses.replace(result, notes=kinds)
+    # The day's alert has already gone out (F7.AC14): each note is a message of its own,
+    # normal priority, once by its own key, outside F7.AC2's limits.
+    payload.pop("notes", None)
+    alone: list[str] = []
+    for note in note_list:
+        kind = str(note["kind"])
+        if await _insert(
+            db,
+            _note_key(note, visit, reporting_tz),
+            NotifyPriority.NORMAL,
+            payload | {"note": note},
+            kind=_NOTE_KINDS[kind],
+        ):
+            alone.append(kind)
+    return dataclasses.replace(result, alone=tuple(alone))
+
+
+_NOTE_KINDS: Final = {"new_place": OutboxKind.NEW_PLACE, "returning": OutboxKind.RETURNING}
+
+
+def _note_key(note: dict[str, Any], visit: Visit, reporting_tz: str) -> str:
+    """``newplace:{link}:{region}``, ``return:{link}:{visitor}:{local date}`` (row 27)."""
+    if note["kind"] == "new_place":
+        return f"newplace:{visit.link_id}:{note['region_key']}"
+    day = visit.occurred_at.astimezone(zoneinfo.ZoneInfo(reporting_tz)).date().isoformat()
+    who = visit.visitor_id.hex() if visit.visitor_id else "unknown"
+    return f"return:{visit.link_id}:{who}:{day}"
+
+
+async def _queue_visit_alert(
+    db: AsyncSession,
+    visit: Visit,
+    evaluation: Evaluation,
+    priority: NotifyPriority,
+    payload: dict[str, Any],
+    reporting_tz: str,
+) -> Enqueued:
+    """F7.AC2 with its upgrade (row 20) and its confirmation (row 21)."""
     key = alerts.dedup_key(
         link_id=visit.link_id,
         visitor_id=visit.visitor_id,
@@ -188,7 +252,6 @@ async def enqueue_visit_alert(
         occurred_at=visit.occurred_at,
         reporting_tz=reporting_tz,
     )
-    payload = visit_payload(visit, link, evaluation, reporting_tz=reporting_tz, base_url=base_url)
     if await _insert(db, key, priority, payload):
         return Enqueued(queued=True, reason="queued", priority=priority)
     holder = await _holder(db, key)
@@ -211,14 +274,19 @@ async def enqueue_visit_alert(
 
 
 async def _insert(
-    db: AsyncSession, key: str, priority: NotifyPriority, payload: dict[str, Any]
+    db: AsyncSession,
+    key: str,
+    priority: NotifyPriority,
+    payload: dict[str, Any],
+    *,
+    kind: OutboxKind = OutboxKind.VISIT_ALERT,
 ) -> bool:
     """Queue under ``key`` unless a row already holds it; the database decides a race."""
     inserted = (
         await db.execute(
             pg.insert(Outbox)
             .values(
-                kind=OutboxKind.VISIT_ALERT,
+                kind=kind,
                 dedup_key=key,
                 priority=priority,
                 payload=payload,

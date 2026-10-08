@@ -33,6 +33,7 @@ from tracelet.db.engine import session_scope
 from tracelet.inference import engine as inference
 from tracelet.inference.geodb import maintenance as geodb
 from tracelet.lifecycle import backups, retention
+from tracelet.notify import digest, spike
 from tracelet.notify import worker as notify
 
 log = structlog.get_logger(__name__)
@@ -105,6 +106,11 @@ JOBS: tuple[Job, ...] = (
     # Telegram alerts from the outbox (ADR-0009, F7.AC6). Five seconds on top of the
     # two of inference: an alert arrives within seconds of the visit ending.
     Job(name="outbox", every_seconds=5, run=notify.run_job_once),
+    # The M7.5 alert types (F7.AC10, F7.AC11): each does nothing while switched off. The
+    # digest is due once a day and its dedup_key makes it exactly once; the spike looks at
+    # the last 60 minutes, at most one alert per link per hour.
+    Job(name="digest", every_seconds=300, run=digest.run_job_once),
+    Job(name="spike", every_seconds=300, run=spike.run_job_once),
     # Retention (F12.AC8): checked every 15 minutes, purges once a night, an hour before
     # the backup. Every job also runs when a worker starts, and workers recycle, so the
     # nightly ones decide for themselves whether they are due.

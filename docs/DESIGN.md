@@ -1166,6 +1166,7 @@ uses only existing routes, URL keys and endpoints; nothing new on the server.
 | E26 | **Toast** primitive in a polite live region (§5.6) | UI-only | **Approved 2026-10-06 (M5.6)** |
 | E27 | **Team management** for the owner: invite, change role, disable or enable, new setup link, delete | UI on existing `/admins` routes | **Approved 2026-10-06 (M5.6)** |
 | E28 | **Sign-in polish**: step indicators, show/hide, password checklist, grouped secret; no QR code | UI-only | **Approved 2026-10-06 (M5.6)** |
+| E29 | **Alert types card** on Alerts: four switches with their settings (digest time; spike floor and *k*; returning days), owner-only; and a "What" column in the delivery log naming each kind (§16 M7.5) | API (`alert_types` on `/notifications/settings`), SPEC F7.AC10–F7.AC15 | **Approved 2026-10-08 (M7.5)** |
 
 ---
 
@@ -1490,6 +1491,48 @@ geolite2-asn      —                ● Unable to update · no key    —      
   health. Notices stay on the Overview. Analysts see it too; it is information.
 - **Analysts** see every page; every write (Save, Update, Purge, Back up, Verify, Edit,
   Download) is disabled with "Only the owner can …" (UI-17).
+
+### M7.5 — Alert types (SPEC F7.AC10–F7.AC15, §12 E29)
+
+One new Card on Alerts, between Quiet hours and the Delivery log, and one new column in the
+log. No new page and no new primitive: Switch, Field, SettingRow, Card, Button.
+
+```
+┌ Alert types ──────────────────────────────────────────────────────────────┐
+│ More kinds of message. Each is off until you switch it on, and counts      │
+│ people only, never bots.                                                   │
+│                                                                            │
+│ [■] Daily digest                                         At [09:00]        │
+│     Yesterday's visits, human share, top states (best guess)   Asia/Kolkata│
+│     and links, and any dead letters. Held by quiet hours.                  │
+│ ────────────────────────────────────────────────────────────────────────── │
+│ [ ] Volume spike                   At least [10] visits in 60 minutes      │
+│     A link far busier than usual for this time of day.  and over [3] × the │
+│                                                         7-day usual        │
+│ ────────────────────────────────────────────────────────────────────────── │
+│ [ ] First visit from a new place                                           │
+│     A country or state confirmed for the first time on a link. Added to    │
+│     the visit's alert; sent alone only if that alert already went today.   │
+│ ────────────────────────────────────────────────────────────────────────── │
+│ [ ] Returning visitor                    Away more than [7] days           │
+│     Someone back on a link after a while. Added to the visit's alert,      │
+│     as above. Only visits still kept (retention) are remembered.           │
+│                                                                            │
+│                                                       [ Save alert types ] │
+└────────────────────────────────────────────────────────────────────────────┘
+
+Delivery log:  Queued · What · Visit · Link · Geofence · Priority · Status · ⋯
+               "What" = Visit alert | Daily digest | Volume spike | New place | Returning | Test
+```
+
+- One form, one Save (like Quiet hours): the Save is disabled until something changed, and
+  validation is inline on each Field (`HH:MM`; whole numbers; *k* 1.5–20).
+- At 390 px each row stacks: switch and title, the description, then its Fields.
+- Analysts see the switches and Fields disabled and the Save disabled with "Only the owner
+  can change alerts." (UI-17).
+- A digest row in the log has no visit and no link: "—" in both, as a test message has.
+- Below 768 px the log drops its Geofence column (as the live feed drops Device): "What" is
+  worth more on a phone, and the visit's own page names the geofence.
 
 ### M8 — Accuracy hardening and ground truth
 

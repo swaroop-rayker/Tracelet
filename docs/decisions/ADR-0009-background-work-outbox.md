@@ -193,3 +193,26 @@ true:
    latency or event-loop concern. At a handful of resets in the system's lifetime it is not.
 
 **Related:** docs/MILESTONES.md M1 deviations, F8.AC7, RISKS R18.
+
+---
+
+## Amendment: four more alert kinds on the same outbox — 2026-10-08, M7.5
+
+SPEC §11 row 27 adds a daily digest, a volume spike, a first visit from a new place and a
+returning visitor (F7.AC10–F7.AC15). No new mechanism: each is an `outbox_kind` value, each is
+exactly-once by a `UNIQUE` `dedup_key` (`digest:{date}`, `spike:{link}:{hour}`,
+`newplace:{link}:{region}`, `return:{link}:{visitor}:{date}`), and the worker renders each
+by its kind at send time.
+
+- **The digest and the spike are scheduled jobs** under the scheduler's advisory lock. They
+  summarise many visits, so nothing is atomic with one visit; if both workers did run one,
+  the second insert would meet the unique key and stop.
+- **A new place and a returning visitor are decided in the inference savepoint**, as the visit
+  alert is (NFR5.AC2). They ride in the visit alert's payload when it is queued, and are
+  queued alone only when it was refused as the day's duplicate.
+- **One thing the outbox key cannot hold:** "this link has seen Karnataka before" must outlive
+  the 30-day purge of delivered rows, so it lives in `link_places` (DATA_MODEL §7.2), a
+  primary key that races to one row the same way.
+
+The enum values are added with `ALTER TYPE … ADD VALUE` outside the migration's transaction,
+because a value added inside one cannot be used until it commits.

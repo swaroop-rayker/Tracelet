@@ -1,9 +1,10 @@
 # Tracelet — Analytics and UI enhancement plan
 
 **Status:** Proposed (2026-10-03). **Phase A approved 2026-10-06** and moved into DESIGN §12
-E16–E22 and MILESTONES M5.6, which now govern it. Phases B, C and D are still proposals: they
-bind nothing until the owner approves them and they are written into SPEC, DESIGN or
-MILESTONES (see "Decisions needed").
+E16–E22 and MILESTONES M5.6, which now govern it. **Phases B, C and D approved 2026-10-08**
+(C without C2, see "Decisions needed"). Each is written into SPEC, DESIGN and MILESTONES
+(M7.5, M7.6, M7.7) as its branch starts, and from then on those documents govern it, not this
+plan.
 **Author:** repository owner, with Claude
 **Shared copy:** https://claude.ai/code/artifact/ce6a722c-e3b0-4386-9d3a-28e63a19e972
 
@@ -136,10 +137,19 @@ Every item above has to keep these, and its review checks them.
 The owner ticks what goes ahead; anything unticked stays a proposal.
 
 - [x] **Phase A:** approve A1 to A7, or strike the ones not wanted — *all seven, 2026-10-06*
-- [ ] **Phase B:** pick the alert types, and confirm the defaults (digest at 09:00 IST,
-      returning after 7 days)
-- [ ] **Phase C:** confirm the order (C1 Sources first, then C2 Insights)
-- [ ] **Phase D:** pick the features, and say whether a QR-code library is acceptable
+- [x] **Phase B:** pick the alert types, and confirm the defaults (digest at 09:00 IST,
+      returning after 7 days) — *all four, 2026-10-08, with those defaults and a spike floor
+      of 10 human visits in 60 minutes and k = 3; every type ships switched off. B3 and B4 add
+      a line to the visit's own alert, and send a message of their own only when the visit's
+      alert was already sent that day (SPEC §11 row 27). MILESTONES M7.5*
+- [x] **Phase C:** confirm the order (C1 Sources first, then C2 Insights) — *C1, C3, C4 and
+      C5, in that order, 2026-10-08; **C2 not approved**. For C1, stored referrers are cut to
+      the host, existing rows included. MILESTONES M7.6*
+- [x] **Phase D:** pick the features, and say whether a QR-code library is acceptable —
+      *all four, 2026-10-08; the QR code uses a small library (Nayuki's QR Code generator)
+      under ADR-0023. MILESTONES M7.7*
+- [x] **Shipping B, C and D:** three branches and pull requests, B stacked on M7 while PR #9
+      is open, C on B, D on C — *2026-10-08*
 - [x] **Shipping Phase A:** as its own small PR (M5.6) before M6, or folded into PR #6 —
       *its own branch, `feat/m5.6-ui-enhancements`, stacked on M5.5*
 
@@ -150,4 +160,4 @@ What each approval writes into the repository, in the same change as the code:
 | Phase A item | DESIGN §12 (E16 onwards), and MILESTONES (a scope line, or an M5.6 row) |
 | Phase B alert | SPEC F7.AC10 onwards and §11 row 17, MILESTONES, and API §9 for its settings |
 | Phase C feature | New SPEC F9 acceptance criteria, DATA_MODEL §9 and a migration for new dimensions, API §8, and MILESTONES M7 |
-| Phase D feature | DATA_MODEL plus a migration for each new table, API, an ADR for the QR library (next free: ADR-0021), and the ARCHITECTURE dependency ledger |
+| Phase D feature | DATA_MODEL plus a migration for each new table, API, an ADR for the QR library (ADR-0023; 0021 and 0022 went to M6 and M7), and the ARCHITECTURE dependency ledger |

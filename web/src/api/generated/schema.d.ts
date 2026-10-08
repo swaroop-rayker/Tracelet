@@ -1235,8 +1235,8 @@ export interface paths {
         options?: never;
         head?: never;
         /**
-         * Change quiet hours
-         * @description Quiet hours hold normal-priority alerts until the window closes (F7.AC9).
+         * Change quiet hours or the alert types
+         * @description Quiet hours hold normal-priority alerts until the window closes (F7.AC9). The alert types switch the digest, the spike, new places and returning visitors on or off, with their settings (F7.AC10-F7.AC15). Each key changed writes its own audit row.
          */
         patch: operations["update_settings_api_v1_notifications_settings_patch"];
         trace?: never;
@@ -1436,6 +1436,16 @@ export interface components {
             telegram_verified: boolean;
             /** Totp Enrolled */
             totp_enrolled: boolean;
+        };
+        /**
+         * AlertTypesIO
+         * @description F7.AC10-F7.AC15. Each type is given whole; every one is off by default.
+         */
+        AlertTypesIO: {
+            digest: components["schemas"]["DigestIn"];
+            new_place: components["schemas"]["NewPlaceIn"];
+            returning: components["schemas"]["ReturningIn"];
+            spike: components["schemas"]["SpikeIn"];
         };
         /** AttemptOut */
         AttemptOut: {
@@ -1987,6 +1997,19 @@ export interface components {
          * @enum {string}
          */
         DeviceClass: "mobile" | "tablet" | "desktop" | "tv" | "server" | "bot" | "unknown";
+        /**
+         * DigestIn
+         * @description F7.AC10: once a day at ``at``, in the reporting timezone, about the day before.
+         */
+        DigestIn: {
+            /**
+             * At
+             * @example 09:00
+             */
+            at: string;
+            /** Enabled */
+            enabled: boolean;
+        };
         /** DiskOut */
         DiskOut: {
             /** Path */
@@ -2851,12 +2874,22 @@ export interface components {
             /** Is Vpn Suspected */
             is_vpn_suspected: boolean | null;
         };
+        /**
+         * NewPlaceIn
+         * @description F7.AC12: a strict country or state seen on a link for the first time.
+         */
+        NewPlaceIn: {
+            /** Enabled */
+            enabled: boolean;
+        };
         /** NotificationSettingsIn */
         NotificationSettingsIn: {
-            quiet_hours: components["schemas"]["QuietHoursIn"];
+            alert_types?: components["schemas"]["AlertTypesIO"] | null;
+            quiet_hours?: components["schemas"]["QuietHoursIn"] | null;
         };
         /** NotificationSettingsOut */
         NotificationSettingsOut: {
+            alert_types: components["schemas"]["AlertTypesIO"];
             quiet_hours: components["schemas"]["QuietHoursOut"];
             telegram: components["schemas"]["TelegramOut"];
         };
@@ -2916,7 +2949,7 @@ export interface components {
          * OutboxKind
          * @enum {string}
          */
-        OutboxKind: "telegram.visit_alert" | "telegram.password_reset" | "telegram.health_alert" | "telegram.test";
+        OutboxKind: "telegram.visit_alert" | "telegram.password_reset" | "telegram.health_alert" | "telegram.test" | "telegram.digest" | "telegram.spike" | "telegram.new_place" | "telegram.returning";
         /** OutboxOut */
         OutboxOut: {
             counts: components["schemas"]["OutboxCounts"];
@@ -3282,6 +3315,16 @@ export interface components {
              */
             updated_at: string;
         };
+        /**
+         * ReturningIn
+         * @description F7.AC13: back on a link more than ``after_days`` after the last human visit.
+         */
+        ReturningIn: {
+            /** After Days */
+            after_days: number;
+            /** Enabled */
+            enabled: boolean;
+        };
         /** SampleOut */
         SampleOut: {
             /** Alert */
@@ -3425,6 +3468,18 @@ export interface components {
              * @default 800
              */
             timeout_ms: number;
+        };
+        /**
+         * SpikeIn
+         * @description F7.AC11: at least ``floor`` human visits in 60 minutes and over ``k`` x the usual.
+         */
+        SpikeIn: {
+            /** Enabled */
+            enabled: boolean;
+            /** Floor */
+            floor: number;
+            /** K */
+            k: number;
         };
         /**
          * SplitBy

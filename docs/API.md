@@ -758,21 +758,29 @@ Editing a geofence does not re-evaluate past visits; `matches_7d` counts what wa
 
 | Method | Path | Role | Purpose |
 |---|---|---|---|
-| `GET` | `/api/v1/notifications/settings` | any | Whether Telegram is configured, and quiet hours |
-| `PATCH` | `/api/v1/notifications/settings` | owner | Change quiet hours (F7.AC9). Audited as `settings.changed`, old and new |
+| `GET` | `/api/v1/notifications/settings` | any | Whether Telegram is configured, quiet hours, and (M7.5) the alert types |
+| `PATCH` | `/api/v1/notifications/settings` | owner | Change quiet hours (F7.AC9) and/or the alert types (F7.AC15). Each key changed is audited as `settings.changed`, old and new |
 
 ```json
 {
   "telegram": { "bot_token_set": true, "chat_id_set": true, "chat_verified": true },
-  "quiet_hours": { "enabled": true, "start": "23:00", "end": "07:00", "timezone": "Asia/Kolkata", "active_now": false }
+  "quiet_hours": { "enabled": true, "start": "23:00", "end": "07:00", "timezone": "Asia/Kolkata", "active_now": false },
+  "alert_types": {
+    "digest": { "enabled": false, "at": "09:00" },
+    "spike": { "enabled": false, "floor": 10, "k": 3.0 },
+    "new_place": { "enabled": false },
+    "returning": { "enabled": false, "after_days": 7 }
+  }
 }
 ```
 
 The bot token and the owner chat id are secrets and deployment facts: they stay in the
 environment (`TRACELET_TELEGRAM_BOT_TOKEN`, `TRACELET_TELEGRAM_OWNER_CHAT_ID`; F12.AC3), and
 this API says only whether they are set. `chat_verified` is whether an admin has verified
-that chat through the bot (F8.AC7). `PATCH` takes `{quiet_hours: {enabled, start, end,
-timezone}}`: times `HH:MM`, a window whose end is before its start crosses midnight, the
+that chat through the bot (F8.AC7). `PATCH` takes `{quiet_hours?: {enabled, start, end,
+timezone}, alert_types?: {digest, spike, new_place, returning}}`, at least one of the two; each
+alert type is given whole. `at` is `HH:MM` in the reporting timezone, `floor` 1–1000, `k`
+1.5–20, `after_days` 1–90; anything else is a 422. For quiet hours: times `HH:MM`, a window whose end is before its start crosses midnight, the
 timezone an IANA name. Quiet hours hold `normal` alerts until the window closes; `high`
 alerts are never held.
 
@@ -797,6 +805,18 @@ confirmation: if that alert was a `normal` "Location not confirmed", a later vis
 The message lists the time, the link, the strict location with its confidence (or the best
 guess, marked so, where strict abstained), device and browser, connection class, ASN and
 ISP, the classification with its bot score, and a link to the visit (F7.AC4).
+
+**The M7.5 alert types** (SPEC F7.AC10–F7.AC15, row 27), each off until an owner switches it on:
+
+| Type | Kind | When | Message |
+|---|---|---|---|
+| Daily digest | `telegram.digest` | Once a local day at `at`, about the day before | "Yesterday on Tracelet": visits, human visits and share, top three states (*best guess*) and links by human visits, dead letters now |
+| Volume spike | `telegram.spike` | Checked every 5 min; at most once per link per local hour | "Busy link": the link, human visits in the last 60 min, and the 7-day median for those 60 minutes |
+| New place | `telegram.new_place` | Inference, human visit, strict country or state new to the link | A line on the visit's alert -- "First visit from Karnataka on this link" -- or, if the day's alert had already gone out, a message of its own |
+| Returning visitor | `telegram.returning` | Inference, human visit, the visitor's last human visit to the link more than `after_days` ago | A line on the visit's alert -- "Back after 12 days" -- or, as above, a message of its own |
+
+The delivery log (`GET /health/outbox`) lists them with their `kind`; `visit_id` and
+`link_label` are `null` for a digest.
 
 
 ---

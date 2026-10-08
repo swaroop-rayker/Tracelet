@@ -157,7 +157,8 @@ export const SETTINGS_SECTIONS: readonly SettingsSection[] = [
     path: 'preferences',
     label: 'Preferences',
     icon: 'Theme',
-    description: 'How the dashboard looks and which time zone it shows times in.',
+    description:
+      'How the dashboard looks, which time zone it shows times in, and how often System health refreshes.',
     ownerOnly: false,
   },
   {

@@ -37,6 +37,7 @@ could not see it (docs/ERRORS.md E13).
             └──< ground_truth_labels  (labeled_by)
 
    links ───┬──< visits
+            ├──< link_places          (strict places a link has seen; M7.5)
             └──< (geofences.link_ids[] — optional soft scoping)
 
    visits ──┬──< visit_candidates     (evidence trail, one row per candidate)
@@ -84,7 +85,7 @@ could not see it (docs/ERRORS.md E13).
 | `geofence_state` | `inside`, `outside`, `undetermined` |
 | `inference_source` | `gps`, `geolite2`, `ip2location`, `ipinfo`, `dbip`, `rdns`, `asn_org`, `cf_colo`, `external_api`, `latency`, `timezone` — `latency` (S10) is **unused since M3** (SPEC §11 row 12); kept because dropping a PostgreSQL enum value rewrites every table using the type |
 | `notify_priority` | `high`, `normal`, `silent` |
-| `outbox_kind` | `telegram.visit_alert`, `telegram.password_reset`, `telegram.health_alert`, `telegram.test` — `password_reset` is **unused**: reset links are sent synchronously, see the ADR-0009 amendment |
+| `outbox_kind` | `telegram.visit_alert`, `telegram.password_reset`, `telegram.health_alert`, `telegram.test`, and since M7.5 (migration 0015, SPEC §11 row 27) `telegram.digest`, `telegram.spike`, `telegram.new_place`, `telegram.returning` — `password_reset` is **unused**: reset links are sent synchronously, see the ADR-0009 amendment; `health_alert` is unused so far |
 | `outbox_status` | `pending`, `in_flight`, `done`, `failed`, `dead` |
 | `backup_kind` | `scheduled`, `manual` — M7. Was planned as `daily`, `weekly`, `manual`; daily and weekly are rotation tiers computed when pruning, not stored (ADR-0022) |
 | `backup_status` | `running`, `ok`, `failed`, `pruned` — M7, section 8.8 |
@@ -675,7 +676,7 @@ when none applied (section 5.3 invariant 5).
 |---|---|---|
 | `id` | `bigserial` PK | |
 | `kind` | `outbox_kind` | |
-| `dedup_key` | `text` UNIQUE NULL | `visit_alert:{link_id}:{visitor_id}:{local_date}`, the visit's arrival date in the reporting timezone (SPEC §11 row 17). A visit with no `visitor_id` is keyed by its `ip_hmac` instead (`…:ip:{hex}:…`), so it still alerts once per network per day rather than on every request |
+| `dedup_key` | `text` UNIQUE NULL | `visit_alert:{link_id}:{visitor_id}:{local_date}`, the visit's arrival date in the reporting timezone (SPEC §11 row 17). A visit with no `visitor_id` is keyed by its `ip_hmac` instead (`…:ip:{hex}:…`), so it still alerts once per network per day rather than on every request. Since M7.5 (row 27): `digest:{local_date}` (the day summarised), `spike:{link_id}:{local hour, YYYY-MM-DDTHH}`, `newplace:{link_id}:{region key}` and `return:{link_id}:{visitor_id}:{local_date}` |
 | `priority` | `notify_priority` | `high` or `normal`, resolved at enqueue (SPEC §11 row 18). **Never `silent`**: a silent alert is not enqueued. Quiet hours hold `normal` (F7.AC9). Added in M6 |
 | `payload` | `jsonb` | Self-contained: the message's facts, rendered at send time; references a visit by id with **no FK** |
 | `status` | `outbox_status` | `pending` → `in_flight` → `done`; on failure `failed` (retried) or `dead` |
@@ -718,6 +719,34 @@ IS NOT NULL)`; `(status IN ('done','dead')) = (completed_at IS NOT NULL)`; `atte
    and returns to `failed`. Delivery is therefore **at least once**: a crash between
    Telegram accepting a message and the row being marked `done` can repeat one alert, which
    is preferred to losing it (F7.AC5).
+8. **The M7.5 kinds** (SPEC F7.AC10–F7.AC14). `digest` and `spike` are queued by scheduled
+   jobs under the advisory lock, never from a visit; their payloads hold figures only.
+   `new_place` and `returning` are queued from the inference savepoint, and only when the
+   visit's own `visit_alert` was refused as a duplicate of the day's; when it was queued, the
+   same facts travel in its payload as `notes[]` instead (row 27). All four are `normal`, so
+   quiet hours hold them, and none names a place other than a strict one or a best guess
+   marked as such.
+
+### 7.2 `link_places` -- added in M7.5 (migration 0015)
+
+The strict places each link has seen, for F7.AC12 ("first visit from a new place").
+
+| Column | Type | Notes |
+|---|---|---|
+| `link_id` | `uuid` | FK `links` `ON DELETE CASCADE`. PK part 1 |
+| `region_key` | `text` | PK part 2. The geofence region format (ADR-0020): `IN` for a country, `IN\|Karnataka` for a state |
+| `first_visit_id` | `uuid` | The human visit that first placed it there. **No FK**: retention purges visits, the place stays seen |
+| `first_seen_at` | `timestamptz` | That visit's `occurred_at` |
+
+**Invariants**
+1. Written for **every human visit with a strict country**, in the inference savepoint,
+   whether the alert type is on or off, with `INSERT … ON CONFLICT DO NOTHING`: the row that
+   inserts is the first, and concurrent visits race to one. So switching the alert on later
+   never announces a place already seen.
+2. Strict fields only (invariant 5): an advisory guess never records a place.
+3. Seeded by migration 0015 from every stored human visit, earliest first.
+4. Not purged with visits: the outbox's 30-day purge of delivered rows is exactly why this is
+   a table and not a `dedup_key` (row 27). It is small -- at most a few hundred rows a link.
 
 ---
 
@@ -842,6 +871,7 @@ files only — F12.AC3, F14.AC5. Created in M6 (migration 0010). Keys:
 | Key | Value | Default when absent |
 |---|---|---|
 | `notifications.quiet_hours` | `{enabled, start: "HH:MM", end: "HH:MM", timezone: IANA}` — F7.AC9. A window whose end is before its start crosses midnight | `{enabled: false, start: "23:00", end: "07:00", timezone: "Asia/Kolkata"}` |
+| `notifications.alert_types` | `{digest: {enabled, at: "HH:MM"}, spike: {enabled, floor, k}, new_place: {enabled}, returning: {enabled, after_days}}` -- F7.AC10–F7.AC15, M7.5. `at` is in the reporting timezone; `floor` 1–1000, `k` 1.5–20, `after_days` 1–90. Read leniently, like quiet hours: a missing or damaged field takes its default | every type `enabled: false`; `at: "09:00"`, `floor: 10`, `k: 3`, `after_days: 7` |
 | `ratelimits` | `{<limit name>: {per_period, period_seconds, burst}}` — F11.AC9, M7. Only the limits an owner changed; each worker re-reads it at most every 30 s, so a change applies without a restart. Names come from `ratelimit/registry.py`; an outbound limit may not exceed its third party's terms | absent: every limit at its default in code |
 
 Every change is owner-only and writes `settings.changed` with the old and new value
@@ -1007,6 +1037,7 @@ Tracelet reports about itself must be read with the sample size visible (RISKS R
 | `geo_cache` | TTL | Cleaned on expiry |
 | `rollup_*` | **Indefinite** | Never purged; small and the long-term history |
 | `outbox` `done` rows | 30 days | Nightly. `dead` rows retained until retried |
+| `link_places` | **Indefinite** | Never purged; goes with its link (cascade) |
 | `backups`, `restore_checks` | Indefinite (rows) | Rows are the history and are never deleted; a backup's **file** is rotated -- the newest of each of 7 days and 4 weeks kept -- and its row becomes `pruned` (section 8.8) |
 | Reference and config (section 8) | **Indefinite** | Never purged, always backed up |
 

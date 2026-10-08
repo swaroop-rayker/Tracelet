@@ -25,6 +25,9 @@ then open the PR (CLAUDE.md section 2).
 | M5.6 | Dashboard enhancements and the Settings redesign, UI only (owner-approved 2026-10-06; docs/plans/ENHANCEMENTS-PLAN.md Phase A, SETTINGS-REDESIGN-PLAN.md) | M | **[x] built** — dashboard 6/6, Settings 6/6; CSP 0 in three engines; no server change; bugs E48–E50 |
 | M6 | Geofencing and Telegram notifications | M | **[x] done** — 11 of 11; both Telegram alerts received on the owner's phone 2026-10-07 (inside: high, as the same-day upgrade); bugs E52–E65 |
 | M7 | System health and operations | L | **built** — 10 of 10 items, plus the owner's additions (SPEC §11 rows 24–25) and F10.AC1's per-admin refresh interval; CSP 0 in three engines; ADR-0022; bugs E66–E71 (E69 cleared 164 dev IP ciphertexts) |
+| M7.5 | Alert types (owner-approved 2026-10-08; ENHANCEMENTS-PLAN Phase B, SPEC §11 row 27) | S | **[x] built** — 8 of 8 items; 4 types, all off by default; CSP 0 in three engines; no new dependency |
+| M7.6 | Sources, returning visitors, carriers, capture quality (owner-approved 2026-10-08; Phase C without C2) | M | [ ] |
+| M7.7 | Annotations, saved views, compare, link builder (owner-approved 2026-10-08; Phase D) | M | [ ] |
 | M8 | Accuracy hardening and ground truth | M | [ ] |
 | M9 | Production hardening and deploy | M | [ ] |
 
@@ -872,6 +875,51 @@ F9.AC6, F9.AC16–F9.AC18, NFR7. No new requirement: every item reads an existin
   host figures and the degraded conditions on the Overview; readiness stays at a fixed minute,
   and the progress pollers (updates, purges, backups) keep their own fast and slow pace.
   `admins.health_refresh_seconds` (migration 0014), integration test
+
+---
+
+## M7.5 — Alert types · size S
+
+**Goal:** Telegram says more than "a person visited": a morning summary, a busy link, a new
+place, a returning visitor.
+**Approved:** 2026-10-08 by the owner, as Phase B of `docs/plans/ENHANCEMENTS-PLAN.md`.
+**Design:** DESIGN §12 E29 and §16 M7.5. **F/AC-IDs:** F7.AC10–F7.AC15 (SPEC §11 row 27),
+with F7.AC1, F7.AC5, F7.AC9 holding for each. Branch `feat/m7.5-alert-types`, stacked on M7.
+
+**Scope**
+- Four `outbox_kind` values and `link_places`, seeded from stored visits (migration 0015)
+- The digest and spike jobs under the scheduler's advisory lock
+- New place and returning visitor in the inference savepoint: a line on the visit's alert, or
+  a message of its own when that alert was the day's duplicate
+- `alert_types` on `/notifications/settings`, owner-only and audited; the Alerts page card and
+  the delivery log's "What" column
+
+**Done checklist**
+- [x] Each type exactly once by its `dedup_key`, including under a race, against the real
+      database -- *`test_alert_types.py` (24 cases): digest twice in an hour queues one; a spike
+      once an hour; a new place alone by `newplace:` and a return alone by `return:`; two
+      concurrent visits race to one first place (`link_places` primary key)*
+- [x] Humans only: a bot visit records no place, says nothing and is not counted by the
+      digest or the spike -- *a bot's Goa visit is left out of the digest's states, and a bot
+      in the spike window out of its count*
+- [x] New place and returning visitor ride on the visit's alert; alone only after the day's
+      duplicate; a silent link stays silent; switching new place on announces no old place
+      -- *tests for each; migration 0015 seeded 22 places on 5 dev links from 152 visits*
+- [x] Every type off by default; switching and settings owner-only, audited, refused for an
+      analyst -- *API tests (defaults, audit `from`/`to`, seven 422 cases, analyst 403) and the
+      browser: the analyst sees every switch, Field and Save disabled*
+- [x] No test reaches Telegram: every send is intercepted, every queued row removed (E56) --
+      *the worker test captures the send; the queue was inspected before the live API started
+      (empty), and the browser round trip used the spike at floor 1000 so nothing could fire*
+- [x] Alerts page: four states, 3 themes × 3 widths, zero CSP violations in three engines --
+      *Playwright against Caddy: Alerts and Preferences walked in Chromium, Firefox and
+      WebKit, 0 violations, with a positive control (an injected style) caught in each; 18
+      screenshots, none wider than the screen. On phones the log drops its Geofence column*
+- [x] Expected RSS stated: no new process, cache or dependency -- *two jobs every 5 minutes in
+      the existing scheduler, a few indexed queries each; the API measured 265.7 MiB of its
+      420 MiB limit with two workers (ARCHITECTURE's line says ~230 MB; that gap is not from
+      M7.5 and is for M9's measurement on the e2-micro)*
+- [x] Docs: SPEC F7, DATA_MODEL §2, §7, §8.6, §11, API §9a, ADR-0009 amendment, DESIGN E29
 
 ---
 
