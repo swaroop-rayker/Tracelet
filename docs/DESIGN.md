@@ -1169,6 +1169,9 @@ uses only existing routes, URL keys and endpoints; nothing new on the server.
 | E34 | **Annotations**: markers on Visits over time and New and returning; a Notes panel on Overview to add, edit and delete; Add note from the chart's actions (§16 M7.7) | API (`/annotations`), SPEC F9.AC25 | **Approved 2026-10-08 (M7.7)** |
 | E35 | **Compare page** (`/compare`, `g c`): two links or two periods side by side (§16 M7.7) | UI-only: the existing endpoints twice, SPEC F9.AC27 | **Approved 2026-10-08 (M7.7)** |
 | E36 | **Link builder** on a link's page: UTM fields, the share URL to copy, and its QR code to download as SVG (§16 M7.7) | UI-only; a vendored encoder (ADR-0023), SPEC F1.AC12 | **Approved 2026-10-08 (M7.7)** |
+| E37 | **Ground truth page** (`/ground-truth`, Engine, `g t`): accuracy per level as Stats with interval, sample and target; tabs for the labelling queue, labels, sources, coverage matrix and runs; a settings-version picker to score any version (§16 M8) | API (`/ground-truth/*`), SPEC F4.AC15, F4.AC17, F9.AC10, ADR-0024 | **Approved 2026-10-08 (M8)** |
+| E38 | **Ground truth on a visit:** the visit page shows its label beside the engine's answer, and **Label this visit** for an owner (the queue's form in a Dialog) (§16 M8) | API (`/ground-truth`, `ground_truth_label` on the visit), SPEC F4.AC15 | **Approved 2026-10-08 (M8)** |
+| E39 | **Inference page accuracy with real figures:** the card shows network-only precision, coverage and best-guess accuracy per level with sample and interval, and links to Ground truth (§16 M8, replaces §10.7's M8 EmptyState once labels exist) | API (`/analytics/accuracy` as extended), SPEC F9.AC10 | **Approved 2026-10-08 (M8)** |
 | E30 | **Sources page** (`/sources`, `g s`): ranked lists of referrer site, UTM source, medium and campaign, and in-app browser, with **None** as a row; a row filters (E3) (§16 M7.6) | API (four `/breakdown` dimensions, four filter keys), SPEC F9.AC21 | **Approved 2026-10-08 (M7.6)** |
 | E31 | **Returning page** (`/returning`, `g r`): new vs returning per day, the weekly cohort grid, time to return; says from which day it can know (§16 M7.6) | API (`/analytics/returning`), SPEC F9.AC22 | **Approved 2026-10-08 (M7.6)** |
 | E32 | **Mobile networks by state** on Geography: a table of the busiest best-guess states, carrier shares and mobile vs broadband, each state with its confidence (§16 M7.6) | API (`/analytics/carriers`), SPEC F9.AC23 | **Approved 2026-10-08 (M7.6)** |
@@ -1685,14 +1688,92 @@ A [demo-ig ▾]                 vs          B [bio-link ▾]
 - The encoder is loaded only when this card renders (its own lazy chunk, UI-24).
 - Empty fields add nothing; values are URL-encoded; no other key can be added (invariant 7).
 
-### M8 — Accuracy hardening and ground truth
+### M8 — Accuracy hardening and ground truth (SPEC F4.AC15, F4.AC17, F9.AC10, §11 row 30, §12 E37–E39, ADR-0024)
 
-- **Labelling queue:** one visit at a time in a focused layout. The derivation is on the left;
-  the label form (country, state and city pickers, "Skip", "Can't tell") is on the right.
-  Keyboard: `j`/`k` next and previous, `Enter` save, `s` skip. Progress reads "12 of 40
-  labelled".
-- **Accuracy dashboards** use the Inference page's cards. Precision and coverage are shown as
-  Stats with the target as text ("≥ 95 % · target met ✓").
+No new primitive: PageHeader, Stat, Tabs, SegmentedControl, Select, DataTable, Card, Field,
+Dialog, Alert, EmptyState, Badge, Kbd. One new icon (`GroundTruth`, lucide's `Target`, from the
+library already in use). Every figure carries its sample beside it (RISKS R9): never a bare
+percentage.
+
+**Ground truth** (`/ground-truth`, Engine group, `g t`; any admin, owner-only actions
+disabled-with-reason for analysts, UI-17):
+
+```
+Ground truth                                           [Record this measurement]
+How often the engine was right about visits whose true location you know.
+Population (•) Network only ( ) Consented ( ) Not consented ( ) All
+Scored under [v3 · active ▾]   m3.4+s3 · 41 labels · 2 can't tell
+┌ Country ──────────┐ ┌ State ────────────┐ ┌ District ─────────┐ ┌ City ──────────────┐
+│ Precision 100 %   │ │ Precision 100 %   │ │ Precision —       │ │ Precision —        │
+│ 41 of 41          │ │ 31 of 31          │ │ never stated      │ │ never stated       │
+│ 95 %: 91–100 %    │ │ 95 %: 89–100 %    │ │                   │ │ ≥ 95 % · unmeasured│
+│ ≥ 99.5 % · met ✓  │ │ ≥ 99 % · met ✓    │ │ Coverage 0 % (0/12)│ │ Coverage 0 % (0/38)│
+│ Coverage 100 %    │ │ Coverage 79 % … ✗ │ │ Best guess 58 % … │ │ Best guess 71 % ✓  │
+└───────────────────┘ └───────────────────┘ └───────────────────┘ └────────────────────┘
+[Queue] [Labels] [Sources] [Coverage] [Runs]          (tab in the URL: ?tab=queue)
+```
+
+- A level card is three Stats: strict precision, strict coverage, best-guess accuracy. Each
+  shows `k of n`, the 95 % interval, and the target as text with ✓ / ✗ / "unmeasured" in
+  words (colour is never the only cue). An ungated target reads "reported, no target yet".
+- The page header's summary Alert: `passed` in words ("Every gated target met", "2 gated
+  targets missed", "Nothing gated could be measured yet").
+- Population and settings version are URL keys (`population`, `settings_version`, UI-9).
+  Scoring a version other than the active one says so in an info Alert: "Scored under v2,
+  which is not active: a replay only, nothing on the live engine changes."
+
+**Queue tab:** one visit at a time.
+
+```
+Order (•) Most disagreement ( ) Newest     Link [All ▾]           12 of 40 labelled
+┌ Derivation ─────────────────────────────┐ ┌ Where was this visit really? ──────────┐
+│ 7 Oct, 19:31 · demo-ig · Jio · mobile   │ │ Country [India ▾]                       │
+│ Engine: Karnataka (strict) · Bengaluru  │ │ State   [Karnataka ▾]                   │
+│ (best guess 0.62) · conflict 0.41       │ │ District [ ]   City [Bengaluru     ]    │
+│ Source     Claim               Weight ✓ │ │ ☐ Use this visit's GPS fix              │
+│ geolite2   Bengaluru, KA        0.32  ✓ │ │ Connection (•) Mobile data ( ) Wi-Fi …  │
+│ dbip       Mumbai, MH           0.27  ✗ │ │ VPN ( ) On (•) Off   Network [Jio ▾]    │
+│ …                         [Open visit ↗]│ │ Notes [                              ]  │
+└─────────────────────────────────────────┘ │ [Save ⏎]  [Can't tell]  [Skip s]        │
+                                            │ k previous · j next                     │
+                                            └─────────────────────────────────────────┘
+```
+
+- `j` / `k` move, `s` skips (this session only; nothing is stored), `Enter` in the form saves
+  and moves on, and "Can't tell" stores a can't-tell label. Shortcuts are inert while typing
+  in a text field, except `Enter`.
+- The form pre-fills from the visit's GPS candidate when the visit was consented ("Pre-filled
+  from this visit's GPS fix -- check it"), and from the previous label's connection, VPN and
+  network, since a test session runs on one network.
+- State and city pickers read `/geofences/regions` and `/geofences/places` (the spelling the
+  engine uses); the city field accepts a town the list lacks.
+- At ≥ 1024 px, two columns; below it the form stacks under the derivation. Analysts see the
+  queue read-only with "Only an owner can label visits".
+- Empty: "Nothing left to label. Open a link on another network to add a test visit."
+
+**Labels tab:** DataTable: When, Link, Truth, Engine said (recorded strict, else best guess,
+marked), Network, Connection, VPN, By, and Edit / Delete for an owner. Delete is a danger
+confirm naming the visit (UI-16; audited).
+
+**Sources tab** (F4.AC17): per source and level, Claims, Accepted, Correct (`k of n`, the
+interval). The table, not a chart: these are small counts and their intervals are the point.
+
+**Coverage tab:** the M8 checklist's matrix. Rows network (Airtel, Jio, Vi, BSNL, ACT,
+Other), columns Wi-Fi / Mobile data / Ethernet × VPN off / on, cells the label count, `0` cells
+marked "none yet" in words. City strict precision and coverage per path (Cloudflare, direct)
+sit beside it.
+
+**Runs tab:** DataTable: When, Origin, Version, Labels, Passed, Note, By. A row opens the run's
+report in a Dialog, rendered by the same level cards.
+
+**Visit page (E38):** a "Ground truth" Card under "Location, per level": the label's truth
+beside the engine's recorded strict and best guess, with ✓ / ✗ per level in words; owner
+actions Edit and Delete. Unlabelled: "No label. [Label this visit]" (owner), the queue's
+form in a Dialog.
+
+**Inference page (E39):** the accuracy card keeps its table, with Labels, Precision (interval),
+Coverage (interval), Best guess (interval), Strict answered. The M8 EmptyState stays for a
+scope with no labels, now with "Label visits on Ground truth →".
 
 ### M9 — Production hardening
 

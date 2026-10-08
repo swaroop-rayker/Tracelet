@@ -308,6 +308,34 @@ stays in process.
 versioned settings stops Nominatim alone. S10 was dropped (SPEC section 11 row 12, RISKS
 R23). A registry-artifact city collapses to the country, not admin1 (row 11, R22).
 
+### 3.2 Accuracy measurement — added in M8 (ADR-0024)
+
+```
+ground_truth_labels ──┐
+visits (asn, asn_org, is_tor, tz_iana, consent_state, cf_colo) ──┼─► replay ─► score ─► targets
+visit_candidates ─────┘    asn_profiles (now) ─┘     consensus.decide()   Wilson    F4.AC13
+                                                     under version N
+```
+
+`tracelet/accuracy/` holds three pure modules, `replay` (cases to decisions), `metrics`
+(proportions, Wilson intervals, populations, per source, per path, the matrix) and `targets`
+(F4.AC13 as data), plus `fixture`, the allow-listed export and import. Only `store` and the
+router touch the database. The same code serves four callers: `/ground-truth/metrics`,
+`/analytics/accuracy`, `tracelet accuracy run|report` and the database-free
+`tracelet accuracy check` that CI runs.
+
+- **Nothing is decrypted and nothing is looked up.** Replay reads stored candidates, and
+  rebuilds the network facts exactly as the engine does: `asn_org.classify` over the
+  visit's ASN and organisation, the current `asn_profiles` overlay, and the visit's `is_tor`.
+  An integration test holds replay to the engine's own answer under the same version.
+- **Labels never write to `visits`.** The inference job and the replay are independent:
+  re-inferring a visit leaves its label alone, and labelling leaves its inference alone.
+- **Memory.** A report over a few hundred labels is a few thousand small objects for the
+  length of one request: no cache, no new process, no measurable RSS (§6).
+- **CI** runs `check` against the committed synthetic fixture always, and against the real
+  fixture when the `ACCURACY_FIXTURE` secret is present (the repository is public, so the real
+  one is never committed).
+
 ---
 
 ## 4. Classification pipeline

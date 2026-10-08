@@ -1024,7 +1024,11 @@ F8.AC12 (amended), SPEC §11 row 29, ADR-0023. Branch `feat/m7.7-workflow`, stac
 - Dashboard accuracy panel with **`label_count` beside every figure**
 - Threshold tuning against real labels; lexicon expansion from observed PTR records
 - ~~Measure S10 latency triangulation~~ — S10 was dropped in M3 (SPEC §11 row 12)
-- Re-run inference on retained ciphertext IPs to validate tuning (the ADR-0007 payoff)
+- ~~Re-run inference on retained ciphertext IPs to validate tuning (the ADR-0007 payoff)~~ —
+  replaced by **replaying the consensus over stored candidates**, which validates tuning
+  without decrypting anything and for visits of any age (SPEC §11 row 30, ADR-0024)
+- Real fixture as an Actions secret, committed synthetic fixture (row 30: the repository is
+  public)
 
 **Done checklist**
 - [ ] 30+ labels collected across Airtel, Jio, ACT, BSNL, Vi; Wi-Fi and mobile data;

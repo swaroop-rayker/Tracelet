@@ -65,8 +65,10 @@ could not see it (docs/ERRORS.md E13).
    ├ rollup_visit_hourly     cells per local hour, 14 days
    ├ rollup_visit_dim_daily  one row per dimension value per day
    ├ rollup_state            which days are built, in which zone
-   ├ geo_cache
-   └ accuracy_runs
+   └ geo_cache
+
+   MEASUREMENT (M8; history, never rebuilt)
+   └ accuracy_runs       one row per recorded accuracy measurement
 ```
 
 ---
@@ -1055,24 +1057,63 @@ display preference, as the theme is (F8.AC12 as amended).
 
 ## 10. Accuracy measurement
 
+**Created in M8** (migration 0018, ADR-0024, SPEC §11 row 30).
+
+**How a label is used.** A label is the truth *beside* a visit. It never changes the
+visit's inference (`strict_*`, `advisory_*`, `visit_candidates` are untouched). Accuracy is
+measured by **replaying** `consensus.decide()` over the visit's stored candidates under a
+chosen settings version and comparing the result with the label (ADR-0024). Place names
+match after `normalise_place`, and a level is right only when every shallower level is right
+too: a correct city name in the wrong state is wrong.
+
 ### 10.1 `ground_truth_labels`
 
-`id`, `visit_id uuid` **UNIQUE** FK cascade, `true_country_code char(2)`,
-`true_admin1`, `true_admin2`, `true_city` `text`, `true_lat`, `true_lng`
-`numeric(9,6) NULL`, `connection_kind text` (`wifi`, `mobile_data`, `ethernet`, `vpn`),
-`vpn_used boolean`, `labeled_by uuid` FK, `labeled_at`, `notes text`.
+| Column | Type | Notes |
+|---|---|---|
+| `id` | `uuid` PK | UUIDv7 |
+| `visit_id` | `uuid` **UNIQUE** FK cascade | One label per visit; deleted with its visit (retention, or a link's permanent delete) |
+| `cant_tell` | `boolean` | "Can't tell": the owner does not know where this visit came from. Recorded so the queue stops offering it; never scored |
+| `true_country_code` | `char(2)` NULL | NULL exactly when `cant_tell` |
+| `true_admin1`, `true_admin2`, `true_city` | `text` NULL | GeoNames names, as the engine names places (the state and city pickers read the same tables). The truth may stop at any level; a level is scored only on labels that reach it |
+| `true_lat`, `true_lng` | `numeric(9,6)` NULL | Both or neither. Only from the visit's own consented GPS (the form's pre-fill), never typed. **Never exported** |
+| `connection_kind` | `text` NULL | `wifi`, `mobile_data`, `ethernet`. A VPN is `vpn_used`, not a kind: the network underneath still is one of these |
+| `vpn_used` | `boolean` NULL | |
+| `network` | `text` NULL | The network underneath: `airtel`, `jio`, `vi`, `bsnl`, `act`, `other`. With a VPN on, the ASN names the VPN, so the owner states it. The M8 checklist's matrix is counted from this |
+| `notes` | `text` NULL | At most 500 characters. **Never exported** |
+| `labeled_by` | `uuid` NULL FK `admins` SET NULL | |
+| `labeled_at`, `updated_at` | `timestamptz` | |
 
-One label per visit. Populated by the owner through the labelling UI and CLI — F4.AC15.
+**CHECKs:** `cant_tell = (true_country_code IS NULL)`; `true_admin1` needs a country,
+`true_admin2` and `true_city` need `true_admin1`; coordinates both or neither and in range;
+the three value lists above; `notes` length.
+
+**Who writes it:** the owner only, through the API or the CLI. Every create, change and
+delete writes an `audit_log` row naming the visit and the truth (never the coordinates)
+(CLAUDE.md invariant 9, F4.AC15).
 
 ### 10.2 `accuracy_runs`
 
-`id`, `run_at`, `inference_version`, `classifier_version`, `git_sha`,
-`label_count integer`, `metrics jsonb` (precision and coverage per level, split by
-consented and non-consented), `passed boolean`.
+| Column | Type | Notes |
+|---|---|---|
+| `id` | `uuid` PK | UUIDv7 |
+| `run_at` | `timestamptz` | |
+| `origin` | `text` | `cli` (`tracelet accuracy run`) or `dashboard` (an owner's "Record this measurement") |
+| `settings_version` | `integer` | The `inference_settings` version replayed |
+| `inference_version`, `classifier_version` | `text` | What was measured (CLAUDE.md invariant 10), e.g. `m3.4+s3` |
+| `git_sha` | `text` NULL | The CLI's `--git-sha`, or `GITHUB_SHA` when set |
+| `label_count` | `integer` | Labels scored (not "Can't tell") |
+| `metrics` | `jsonb` | The full report: per population (`all`, `consented`, `non_consented`, `network_only`), per level strict precision and coverage and advisory accuracy, each `{n, k, value, ci95}`; city per path; per source; the network × connection × VPN matrix; the target checks (API §11) |
+| `passed` | `boolean` NULL | Every gated F4.AC13 target met. NULL when no gated figure could be measured (no labels at that level) |
+| `recorded_by` | `uuid` NULL FK `admins` SET NULL | NULL from the CLI |
+| `note` | `text` NULL | At most 200 characters |
 
-Written by the CI accuracy job — F14.AC12. **`label_count` is stored beside every
-metric on purpose:** 30 to 60 labels give wide confidence intervals, and any figure
-Tracelet reports about itself must be read with the sample size visible (RISKS R9).
+**Append-only:** `tracelet_app` holds `SELECT` and `INSERT` only (migration 0018, the
+`audit_log` pattern): a run is history, and history is not edited. CI writes no row: CI has
+no persistent database, and its result is the job's status (F14.AC12).
+
+**`label_count` is stored beside every metric on purpose:** 30 to 60 labels give wide
+confidence intervals, and any figure Tracelet reports about itself must be read with the
+sample size visible (RISKS R9). Every proportion inside `metrics` also carries its own `n`.
 
 ---
 
@@ -1094,12 +1135,14 @@ Tracelet reports about itself must be read with the sample size visible (RISKS R
 | `link_places` | **Indefinite** | Never purged; goes with its link (cascade) |
 | `annotations` | **Indefinite** | Deleted only by its author or an owner; goes with its link (cascade) |
 | `saved_views` | **Indefinite** | Deleted by its admin; goes with the admin (cascade) |
+| `ground_truth_labels` | With its visit | Deleted with the visit (cascade). The exported fixture (ADR-0024) is the durable copy |
+| `accuracy_runs` | **Indefinite** | Never purged; append-only |
 | `backups`, `restore_checks` | Indefinite (rows) | Rows are the history and are never deleted; a backup's **file** is rotated -- the newest of each of 7 days and 4 weeks kept -- and its row becomes `pruned` (section 8.8) |
 | Reference and config (section 8) | **Indefinite** | Never purged, always backed up |
 
 **Must never be lost** (F12.AC12, NFR5.AC3): `admins`, `admin_recovery_codes`, `links`,
 `geofences`, `inference_settings`, `retention_policy`, `app_settings`, `audit_log`,
-`rollup_*`, and since M7.7 `annotations` and `saved_views`. All small, all slow-changing, all in every backup.
+`rollup_*`, since M7.7 `annotations` and `saved_views`, and since M8 `accuracy_runs`. All small, all slow-changing, all in every backup.
 
 **Purge rules:** transactional, batched to avoid long locks, dry-runnable with exact
 counts before execution, and audit-logged with the counts actually deleted —
@@ -1114,7 +1157,7 @@ the counts.
 
 | Role | Grants | Why |
 |---|---|---|
-| `tracelet_app` | `SELECT`, `INSERT`, `UPDATE`, `DELETE` on data tables; **`INSERT` and `SELECT` only on `audit_log`** | Makes the audit log append-only at the engine level, not by convention — NFR5.AC5 |
+| `tracelet_app` | `SELECT`, `INSERT`, `UPDATE`, `DELETE` on data tables; **`INSERT` and `SELECT` only on `audit_log`**, and since M8 on `accuracy_runs` | Makes the audit log append-only at the engine level, not by convention — NFR5.AC5 |
 | `tracelet_maint` | Additionally `DELETE` on `audit_log`; `VACUUM`; **`CREATEDB`** (M7, for the scratch database `tracelet_verify`, made from the template `tracelet_verify_template` -- ADR-0022); used by purge, backup and restore-verify, through `TRACELET_MAINT_DATABASE_URL` | Separates routine traffic from destructive maintenance |
 | `tracelet_migrate` | DDL | Used only by Alembic, never by the running application |
 

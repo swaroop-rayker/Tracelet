@@ -625,7 +625,7 @@ measure strict: what the engine was willing to state. A figure the system cannot
 | `/funnel` | — | `steps[]` `{step, count, reason}`: requests, captured, enriched, consented, notified. **`notified` is `null`, reason `notifications_not_built`, until M6** |
 | `/confidence` | — | `levels[]` `{level, bins[10], unscored}` |
 | `/signals` | — | `visits`, `rows[]` `{rule_id, category, count, share}`; categories bot, spoof, spam, network |
-| `/accuracy` | — | `inferred`, `levels[]` `{level, label_count, precision, coverage, emission_rate, reason}`. **Until M8 builds the ground-truth set, `label_count` is 0 and precision and coverage are `null` with reason `no_ground_truth_labels`.** `emission_rate` is how often strict answered, explicitly not accuracy |
+| `/accuracy` | — | `inferred`, `settings_version`, `inference_version`, `population` (`network_only`), `levels[]` `{level, label_count, precision, precision_ci95, coverage, coverage_ci95, advisory_accuracy, advisory_ci95, emission_rate, reason}`. **Since M8** a replay over the labelled visits in scope (section 11); with no label at a level, `label_count` is 0 and the figures `null` with reason `no_ground_truth_labels`. `emission_rate` is how often strict answered over every inferred visit in scope, explicitly not accuracy |
 | `/returning` | `weeks` 1–12 (8) | Raw only. `since` (the oldest visit kept: nothing earlier can be known), `unidentified` (visits in scope with no `visitor_id`), `days[]` `{day, new, returning}` (visitors per local day; *new* = first visit to that link among the visits kept), `cohorts[]` `{week, size, returned[]}` (`week` the local Monday of the first visit, `returned[k]` how many of the cohort visited again in week *k* after, `null` for a week not yet reached), `return_after[]` `{band, count}` with bands `under_1h`, `1h_1d`, `1d_7d`, `7d_30d`, `over_30d` (time from a visitor's first visit to their second, per link) |
 | `/carriers` | `limit` 1–50 (20) | `states[]` `{key, visits, confidence, families: {jio, airtel, vi, bsnl, other}, mobile, broadband, other_network}`, busiest first; `key` qualified (`IN\|Karnataka`) and the **best guess** (ADR-0018), `confidence` the mean of its state confidence; `unplaced` (visits with no best-guess state). Families from `asn_classes.json` `families` |
 | `/capture-quality` | — | `apps[]` `{key, captured, enriched, server_only, pending, consented}`, busiest first (`key` the webview host app, or `browser`); `buckets[]` (local days) and `series[]` `{key, enriched_share[]}` for the five busiest, a share `null` on a day with no visit from that app |
@@ -1050,17 +1050,125 @@ existing analytics requests once per side; the builder appends `utm_*` keys to
 
 ## 11. Ground truth and accuracy
 
+**Built in M8** (ADR-0024, SPEC §11 row 30, F4.AC13, F4.AC15, F4.AC17, F9.AC10). A label is
+truth beside a visit; it never changes the visit's inference. Accuracy is a **replay** of the
+consensus over each labelled visit's stored candidates, so any retained settings version can
+be scored -- not only the one each visit was inferred under.
+
 | Method | Path | Role | Purpose |
 |---|---|---|---|
-| `GET` | `/api/v1/ground-truth` | any | List labels with the engine prediction beside each |
-| `POST` | `/api/v1/ground-truth` | owner | Label a visit (F4.AC15) |
-| `PATCH`/`DELETE` | `/api/v1/ground-truth/{id}` | owner | |
-| `GET` | `/api/v1/ground-truth/candidates` | any | Visits worth labelling, prioritised by disagreement — highest information gain first |
-| `GET` | `/api/v1/ground-truth/metrics` | any | Precision and coverage per level, per source, with `label_count` |
+| `GET` | `/api/v1/ground-truth` | any | Every label, newest first (at most 1000), each with the engine's **recorded** answer beside it |
+| `POST` | `/api/v1/ground-truth` | owner | Label a visit (F4.AC15). Audited `ground_truth.labelled` |
+| `PATCH` | `/api/v1/ground-truth/{id}` | owner | Change a label. Audited `ground_truth.updated`, old and new |
+| `DELETE` | `/api/v1/ground-truth/{id}` | owner | `204`. Audited `ground_truth.deleted`, with the truth it held |
+| `GET` | `/api/v1/ground-truth/queue` | any | Visits worth labelling: `order=conflict` (default) or `recent`, `link_id`, `limit` 1–100 (20) |
+| `GET` | `/api/v1/ground-truth/metrics` | any | The full report, replayed under `settings_version` (default: the active one) |
+| `GET` | `/api/v1/ground-truth/runs` | any | Recorded measurements, newest first (at most 200), without `metrics` |
+| `GET` | `/api/v1/ground-truth/runs/{id}` | any | One run, with its `metrics` |
+| `POST` | `/api/v1/ground-truth/runs` | owner | `{note?}` → `201`: score the active version now and record it (`origin: dashboard`) |
 
-`/ground-truth/candidates` ranks by `conflict_score` descending: labelling the visits
-where sources disagreed most teaches the tuning process more per label than labelling
-easy ones. With only 30 to 60 labels available, which ones you spend effort on matters.
+**A label** (`POST` body; `PATCH` takes any subset except `visit_id`):
+
+```json
+{
+  "visit_id": "0192…", "cant_tell": false,
+  "country_code": "IN", "admin1": "Karnataka", "admin2": null, "city": "Bengaluru",
+  "use_gps": false,
+  "connection_kind": "mobile_data", "vpn_used": false, "network": "jio",
+  "notes": "Phone, Indiranagar"
+}
+```
+
+- `cant_tell: true` takes no place. Otherwise `country_code` is required, and the truth may
+  stop at any level: `admin1` needs a country, `admin2` and `city` need `admin1`.
+  `country_code|admin1` must be a key `/geofences/regions` lists (the GeoNames spelling the
+  engine uses). `admin2` and `city` are free text up to 100 characters; the form offers
+  GeoNames places.
+- `use_gps: true` copies the visit's own consented GPS fix into the label's coordinates.
+  Coordinates are never typed. Without a fix it is `422`.
+- `connection_kind` is `wifi`, `mobile_data` or `ethernet`; `network` is `airtel`, `jio`,
+  `vi`, `bsnl`, `act` or `other`; `notes` at most 500 characters.
+- Errors: unknown visit `404`; a second label for one visit `409 GROUND_TRUTH_EXISTS`.
+
+**A listed label:** `{id, visit_id, occurred_at, link: {id, slug, label}, consent_state,
+cant_tell, truth: {country_code, admin1, admin2, city}, has_coordinates, connection_kind,
+vpn_used, network, notes, labeled_by: {id, name} | null, labeled_at, updated_at, recorded:
+{inference_version, strict: {…}, advisory: {…}}}`. `recorded` is what the visit holds, from
+the version it was inferred under, not a replay.
+
+**The queue:** `{items[], labelled, remaining}`. `items` are visits with no label, inferred,
+not rate-limited and not classified `bot`, each `{id, occurred_at, link, consent_state,
+conflict_score, agreement_score, strict, advisory, asn_org, connection_class, has_gps}`.
+`order=conflict` ranks by `conflict_score` descending, then newest: the visits where sources
+disagreed most teach tuning more per label than easy ones, and with 30 to 60 labels which
+ones you spend effort on matters. `order=recent` is newest first, for labelling the test
+visit you have just made. `labelled` and `remaining` drive "12 of 40 labelled".
+
+**The report** (`/metrics`, and `metrics` in a run):
+
+```json
+{
+  "settings_version": 3, "inference_version": "m3.4+s3", "classifier_version": "m4.2+s3",
+  "label_count": 41, "cant_tell": 2, "pending": 0,
+  "populations": [
+    { "population": "network_only", "label_count": 41,
+      "levels": [
+        { "level": "admin1", "label_count": 39,
+          "strict_precision":  { "k": 31, "n": 31, "value": 1.0,   "ci95": [0.890, 1.0] },
+          "strict_coverage":   { "k": 31, "n": 39, "value": 0.795, "ci95": [0.645, 0.892] },
+          "advisory_accuracy": { "k": 36, "n": 39, "value": 0.923, "ci95": [0.797, 0.973] } } ] } ],
+  "paths": [ { "path": "direct", "label_count": 41, "city_strict_precision": {…}, "city_strict_coverage": {…} } ],
+  "sources": [ { "source": "geolite2", "levels": [ { "level": "city", "claims": 30, "accepted": 4, "correct": {…} } ] } ],
+  "matrix": [ { "network": "jio", "connection_kind": "mobile_data", "vpn_used": false, "count": 6 } ],
+  "targets": [ { "id": "admin1.strict_precision", "population": "network_only", "level": "admin1",
+                 "metric": "strict_precision", "target": 0.99, "value": 1.0, "n": 31,
+                 "gated": true, "status": "met" } ],
+  "passed": true
+}
+```
+
+- **Populations.** `all` is every label as recorded (consented visits with their GPS).
+  `consented` and `non_consented` split it by `consent_state = 'granted'`. `network_only` is
+  every label with any GPS candidate removed before the replay: what the network alone says,
+  and the population F4.AC13's network targets are gated on.
+- **Per level.** `strict_precision` is right answers over strict emissions; `strict_coverage`
+  is strict emissions over labels whose truth reaches that level; `advisory_accuracy` is right
+  best guesses over the same labels. A level is right only when every shallower level is too.
+  Every proportion is `{k, n, value, ci95}`, with a 95 % Wilson interval; `value` and `ci95`
+  are `null` when `n` is 0.
+- **`paths`** split city strict precision and coverage, on `network_only`, between
+  `cloudflare` (a verified `cf_colo`) and `direct` (F4.AC13).
+- **`sources`** (F4.AC17): for each source and level, `claims` (labels where it proposed a
+  value at that level), `accepted` (of those, accepted in the replay) and `correct` (right
+  claims over `claims`). This is the evidence for down-weighting a source.
+- **`targets`** are F4.AC13. `gated: false` is reported only ("near-100-percent coverage", "≈
+  100 percent"). `status`: `met`, `missed`, `unmeasured` (`n` is 0) or `reported`.
+  `passed` is `null` when no gated target was measurable, `false` when any was missed.
+- `pending` counts labelled visits not inferred yet; they are not scored.
+- An unknown `settings_version` is `404`.
+
+**A run:** `{id, run_at, origin, settings_version, inference_version, classifier_version,
+git_sha, label_count, passed, note, recorded_by: {id, name} | null}`, plus `metrics` from
+`/runs/{id}`. Runs are append-only. Recording one is not a configuration change, so it is
+owner-only but not audited.
+
+**`/analytics/accuracy`** (section 8.1) reads the same replay, under the active version, over
+the labelled visits the filters select. It reports the `network_only` population, so its
+`label_count`, `precision`, `coverage`, `advisory_accuracy` and the three `*_ci95` are the
+network path's. `reason` is `no_ground_truth_labels` when no label in scope reaches that
+level, and `no_strict_emissions` on a `null` precision where strict never answered.
+
+**The CLI** (`tracelet accuracy …`, in the api container; ADR-0024):
+
+| Command | Does |
+|---|---|
+| `label VISIT_ID (--country CC [--admin1 …] [--admin2 …] [--city …] [--use-gps] \| --cant-tell) [--connection …] [--vpn \| --no-vpn] [--network …] [--notes …]` | As `POST` (or as `PATCH`, when the visit is already labelled), audited with no actor |
+| `unlabel VISIT_ID` | As `DELETE` |
+| `labels` · `queue [--order conflict\|recent] [--limit N]` | As the `GET`s, as text |
+| `report [--settings-version N \| --config-file F] [--json]` | Score a retained version, or a proposed one **without saving it** |
+| `run [--note …] [--git-sha …]` | Score the active version and record a run (`origin: cli`) |
+| `export --out F` | The anonymised fixture, gzipped (ADR-0024 lists what it keeps) |
+| `check --fixture F [--config-file F]` | **No database.** Replay the fixture and exit `1` if a gated target is missed. What CI runs (F14.AC12) |
 
 ---
 
@@ -1123,6 +1231,7 @@ no SQL, no internal hostname (F15.AC3). The detail is written to the log under t
 | `NOT_AUTHOR` | 403 | Only the author may change this note, and only its author or an owner delete it. **M7.7** |
 | `SAVED_VIEW_EXISTS` | 409 | You already have a saved view with this name. **M7.7** |
 | `SAVED_VIEW_LIMIT` | 409 | You have 50 saved views; delete one first. **M7.7** |
+| `GROUND_TRUTH_EXISTS` | 409 | This visit already has a label; change that one instead. **M8** |
 | `PAYLOAD_TOO_LARGE` | 413 | Body above cap |
 | `RATE_LIMITED` | 429 | `Retry-After` set (F11.AC10) |
 | `GEO_DB_UNAVAILABLE` | 503 | A source is missing or corrupt; inference degraded, not failed |
