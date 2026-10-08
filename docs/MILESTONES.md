@@ -27,7 +27,7 @@ then open the PR (CLAUDE.md section 2).
 | M7 | System health and operations | L | **built** — 10 of 10 items, plus the owner's additions (SPEC §11 rows 24–25) and F10.AC1's per-admin refresh interval; CSP 0 in three engines; ADR-0022; bugs E66–E71 (E69 cleared 164 dev IP ciphertexts) |
 | M7.5 | Alert types (owner-approved 2026-10-08; ENHANCEMENTS-PLAN Phase B, SPEC §11 row 27) | S | **[x] built** — 8 of 8 items; 4 types, all off by default; CSP 0 in three engines; no new dependency |
 | M7.6 | Sources, returning visitors, carriers, capture quality (owner-approved 2026-10-08; Phase C without C2; SPEC §11 row 28) | M | **[x] built** — 8 of 8 items; referrers cut to their origin (stored rows too); CSP 0 in three engines; bugs E74–E75 |
-| M7.7 | Annotations, saved views, compare, link builder (owner-approved 2026-10-08; Phase D) | M | [ ] |
+| M7.7 | Annotations, saved views, compare, link builder (owner-approved 2026-10-08; Phase D; SPEC §11 row 29, ADR-0023) | M | **built** — 7 of 8 items; the QR code's phone scan is the owner's check; CSP 0 in three engines |
 | M8 | Accuracy hardening and ground truth | M | [ ] |
 | M9 | Production hardening and deploy | M | [ ] |
 
@@ -965,6 +965,48 @@ does each app let us see".
       read rollups or indexed raw rows per request*
 - [x] Docs: SPEC F3, F9, §11 row 28; DATA_MODEL §5.1, §9.2a; API §7, §8; DESIGN E30–E33;
       ERRORS E74 (and E75, a test bug found by this milestone's verify run)
+
+---
+
+## M7.7 — Annotations, saved views, compare, link builder · size M
+
+**Goal:** help the owner explain what the charts show, come back to it, and share a link.
+**Approved:** 2026-10-08 by the owner, as Phase D of `docs/plans/ENHANCEMENTS-PLAN.md`.
+**Design:** DESIGN §12 E12, E34–E36 and §16 M7.7. **F/AC-IDs:** F9.AC25–F9.AC27, F1.AC12,
+F8.AC12 (amended), SPEC §11 row 29, ADR-0023. Branch `feat/m7.7-workflow`, stacked on M7.6.
+
+**Scope**
+- `annotations` and `saved_views` (migration 0017), their endpoints, and the TS client
+- Annotation markers on the time charts and a Notes panel; any admin adds, the author edits
+  or deletes, the owner deletes anyone's (audited)
+- Saved views: Save view from the filter bar, listed in the sidebar and the command palette,
+  renamed and deleted in Settings
+- Compare page: two links or two periods
+- Link builder with a QR code on a link's page; Nayuki's encoder vendored (ADR-0023)
+
+**Done checklist**
+- [x] Annotations: an analyst adds one and edits their own, cannot edit or delete another's;
+      the owner deletes anyone's and it is audited -- against the real database
+      (`test_workflow.py`); in the browser the analyst sees another's Edit and Delete disabled
+- [x] Saved views: private per admin, 50 at most, names unique per admin; a view reopens the
+      same page and filters -- API tests (another admin's view is a 404, the owner's
+      included), and in the browser a view saved on Sources reopened from the sidebar
+- [x] Compare: both sides are the existing endpoints; the URL reproduces the comparison --
+      two links and two periods walked in three engines; "Choose two links" when unset
+- [ ] Link builder: only `utm_*` keys; the QR code encodes exactly the URL shown; the SVG
+      download opens in a scanner -- *the keys, the URL and the QR's own text are tested
+      (vitest and the browser: the image's text is the URL shown), and the SVG downloads; a
+      phone scan of the printed code is the owner's check, not yet done*
+- [x] The vendored file's licence, origin and commit recorded; gzipped size stated; loaded
+      only on a link's page -- ADR-0023, ledger; 5.5 KB gzipped in its own lazy chunk
+- [x] New screens: four states, 3 themes × 3 widths, zero CSP violations in three engines --
+      *Overview (notes), Compare, a link's page (builder) and Preferences (saved views) in
+      Chromium, Firefox and WebKit, 0 violations with a positive control in each; 36 matrix
+      screenshots, no overflow*
+- [x] Expected RSS stated: two small tables and eight endpoints, no process, cache or
+      dependency; the QR code is drawn in the browser
+- [x] Docs: SPEC F1, F8, F9, §11 row 29; DATA_MODEL; API; ADR-0023; ARCHITECTURE ledger;
+      DESIGN E12, E34–E36
 
 ---
 

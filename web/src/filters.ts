@@ -48,6 +48,13 @@ export const SCALAR_KEYS = [
   'utm_source',
   'utm_medium',
   'utm_campaign',
+  // Compare (F9.AC27, M7.7): kept here so a filter change keeps the comparison. The API
+  // ignores them.
+  'cmp_mode',
+  'cmp_a',
+  'cmp_b',
+  'cmp_from',
+  'cmp_to',
 ] as const;
 export type ScalarKey = (typeof SCALAR_KEYS)[number];
 

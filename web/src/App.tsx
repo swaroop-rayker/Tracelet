@@ -38,6 +38,7 @@ const GeographyPage = lazy(() => import('@/pages/dashboard/GeographyPage'));
 const BreakdownsPage = lazy(() => import('@/pages/dashboard/BreakdownsPage'));
 const SourcesPage = lazy(() => import('@/pages/dashboard/SourcesPage'));
 const ReturningPage = lazy(() => import('@/pages/dashboard/ReturningPage'));
+const ComparePage = lazy(() => import('@/pages/dashboard/ComparePage'));
 const LinksPage = lazy(() => import('@/pages/dashboard/LinksPage'));
 const LinkDetailPage = lazy(() => import('@/pages/dashboard/LinkDetailPage'));
 const InferencePage = lazy(() => import('@/pages/dashboard/InferencePage'));
@@ -215,6 +216,7 @@ export default function App(): React.JSX.Element {
           <Route path="breakdowns" element={<Page component={BreakdownsPage} />} />
           <Route path="sources" element={<Page component={SourcesPage} />} />
           <Route path="returning" element={<Page component={ReturningPage} />} />
+          <Route path="compare" element={<Page component={ComparePage} />} />
           <Route path="links" element={<Page component={LinksPage} />} />
           <Route path="links/:slug" element={<Page component={LinkDetailPage} />} />
           <Route path="inference" element={<Page component={InferencePage} />} />

@@ -1149,7 +1149,7 @@ uses only existing routes, URL keys and endpoints; nothing new on the server.
 | E9 | **Per-chart CSV** of the chart's own data table, generated client-side | UI-only | **Approved 2026-10-03** |
 | E10 | **Recovery codes as a downloadable .txt** | UI-only (a `Blob` download, no server change) | **Approved 2026-10-03** |
 | E11 | **Relative timestamps** with absolute-time tooltips | UI-only | **Do in M5.5** |
-| E12 | **Saved views** (named filter sets) | **Needs an API and a table** | Defer to M7 or later; not in M5.5 |
+| E12 | **Saved views** (named filter sets): Save view in the filter bar, a Saved views group in the sidebar and the command palette, rename and delete in Settings › Preferences (§16 M7.7) | **Needs an API and a table** -- SPEC F9.AC26 | **Approved 2026-10-08 (M7.7)** |
 | E13 | **Density toggle** (comfortable or compact rows) | UI-only, `localStorage` | Defer until someone asks |
 | E14 | **Print stylesheet** for visit detail (evidence for a report) | UI-only | Cheap; do in Phase 5 if time allows |
 | E15 | **Visual regression tests** (Playwright screenshots in CI) | a dev dependency plus browsers in `web-tools` (hundreds of MB) | Defer to M9; screenshots are manual in M5.5 |
@@ -1166,6 +1166,9 @@ uses only existing routes, URL keys and endpoints; nothing new on the server.
 | E26 | **Toast** primitive in a polite live region (§5.6) | UI-only | **Approved 2026-10-06 (M5.6)** |
 | E27 | **Team management** for the owner: invite, change role, disable or enable, new setup link, delete | UI on existing `/admins` routes | **Approved 2026-10-06 (M5.6)** |
 | E28 | **Sign-in polish**: step indicators, show/hide, password checklist, grouped secret; no QR code | UI-only | **Approved 2026-10-06 (M5.6)** |
+| E34 | **Annotations**: markers on Visits over time and New and returning; a Notes panel on Overview to add, edit and delete; Add note from the chart's actions (§16 M7.7) | API (`/annotations`), SPEC F9.AC25 | **Approved 2026-10-08 (M7.7)** |
+| E35 | **Compare page** (`/compare`, `g c`): two links or two periods side by side (§16 M7.7) | UI-only: the existing endpoints twice, SPEC F9.AC27 | **Approved 2026-10-08 (M7.7)** |
+| E36 | **Link builder** on a link's page: UTM fields, the share URL to copy, and its QR code to download as SVG (§16 M7.7) | UI-only; a vendored encoder (ADR-0023), SPEC F1.AC12 | **Approved 2026-10-08 (M7.7)** |
 | E30 | **Sources page** (`/sources`, `g s`): ranked lists of referrer site, UTM source, medium and campaign, and in-app browser, with **None** as a row; a row filters (E3) (§16 M7.6) | API (four `/breakdown` dimensions, four filter keys), SPEC F9.AC21 | **Approved 2026-10-08 (M7.6)** |
 | E31 | **Returning page** (`/returning`, `g r`): new vs returning per day, the weekly cohort grid, time to return; says from which day it can know (§16 M7.6) | API (`/analytics/returning`), SPEC F9.AC22 | **Approved 2026-10-08 (M7.6)** |
 | E32 | **Mobile networks by state** on Geography: a table of the busiest best-guess states, carrier shares and mobile vs broadband, each state with its confidence (§16 M7.6) | API (`/analytics/carriers`), SPEC F9.AC23 | **Approved 2026-10-08 (M7.6)** |
@@ -1617,6 +1620,71 @@ without a visitor id are not counted.
 
 - It reads the filters' period only (System health has no filter bar): the last 30 days.
 
+### M7.7 — Annotations, saved views, compare, link builder (SPEC F9.AC25–F9.AC27, F1.AC12, §12 E12, E34–E36)
+
+No new primitive: Dialog, Field, Select, Button, DataTable, Card, the filter bar and the
+command palette. The QR code is an `<img>` of an SVG (`img-src data:` already allows it), so
+it is black on white in every theme, as a scanner needs.
+
+**Annotations.** Overview's Visits over time gains **Add note** in its actions; a link's page
+the same. A note is a vertical dashed marker at its bucket with a small flag, its text in the
+tooltip and a "Notes" column in the chart's data table (colour is never the only cue).
+
+```
+┌ Notes ──────────────────────────────────────────────────── [＋ Add note] ┐
+│ When              Note                      Link          By              │
+│ 6 Oct, 19:30      Posted the reel           demo-ig       Swaroop    ✎ 🗑 │
+│ 2 Oct, 09:00      Diwali campaign starts    All links     QA Analyst  ✎ 🗑 │
+└───────────────────────────────────────────────────────────────────────────┘
+Add note (Dialog): When [2026-10-06 19:30] · Note [______] (200) · Link [All links ▾] [Add]
+```
+
+- Edit is shown on your own notes only; Delete on your own, and an owner's on all (UI-17:
+  someone else's are disabled with "Only its author or an owner can delete this").
+  Deleting is a danger confirm naming the note (UI-16; it is audited, not typed).
+
+**Saved views.** The filter bar gets **Save view** (bookmark icon) beside the copy-link button:
+a Dialog asks a name and saves the current page and its query. The sidebar shows a **Saved
+views** group under Analytics (collapsed past 8, "Show all"), each a plain link; the command
+palette lists them under "Saved views". Settings › Preferences gets a **Saved views** card: a
+DataTable of name, page and Rename / Delete. A view whose link no longer exists still opens:
+the page explains the missing link, as an unknown slug does.
+
+**Compare** (`/compare`, Analytics; `g c`):
+
+```
+Compare                                   (•) Two links  ( ) Two periods   [period ▾]
+A [demo-ig ▾]                 vs          B [bio-link ▾]
+┌ Summary ────────────────────────────────────────────────────────────────┐
+│              A          B          Difference                            │
+│ Visits       412        168        A +245 (+146 %)                       │
+│ Human share  71 %       64 %       A +7 pp                               │
+└──────────────────────────────────────────────────────────────────────────┘
+┌ Visits over time: A solid, B dashed (two series, one chart) ──────────────┐
+┌ Top states · A ───────────┐ ┌ Top states · B ───────────┐
+┌ Referrer sites · A ───────┐ ┌ Referrer sites · B ───────┐
+```
+
+- Two periods: A is the filter bar's period, B a date range (default: the period before).
+  The chart aligns them by day number ("Day 1 … Day 30"), and says so.
+- Differences are words and numbers, never colour alone; the larger side is named.
+- Everything is in the URL: `mode`, `a`, `b`, `b_from`, `b_to` (UI-9).
+
+**Link builder** (a link's page, a Card after the panels: the figures come first):
+
+```
+┌ Share this link ───────────────────────────────────────────────────────┐
+│ Source [instagram]  Medium [social]  Campaign [diwali]  (Term, Content)│
+│ https://tracelet.example/r/demo-ig?utm_source=instagram&utm_…  [Copy] │
+│ ┌──────────┐                                                          │
+│ │ QR code  │  Scans to exactly the URL above.   [Download SVG]        │
+│ └──────────┘                                                          │
+└────────────────────────────────────────────────────────────────────────┘
+```
+
+- The encoder is loaded only when this card renders (its own lazy chunk, UI-24).
+- Empty fields add nothing; values are URL-encoded; no other key can be added (invariant 7).
+
 ### M8 — Accuracy hardening and ground truth
 
 - **Labelling queue:** one visit at a time in a focused layout. The derivation is on the left;
@@ -1681,3 +1749,5 @@ TriangleAlert · `Error` CircleX · `Up` ArrowUp · `Down` ArrowDown · `Calenda
 The lucide names are confirmed against the installed version in Phase 0.
 
 Added in M7.6: `Sources` Share2 · `Returning` Repeat2 · `Capture` Funnel.
+
+Added in M7.7: `Compare` GitCompareArrows · `Note` StickyNote · `SaveView` Bookmark · `Edit` Pencil · `QrCode` QrCode.

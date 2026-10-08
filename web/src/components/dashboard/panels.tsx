@@ -9,6 +9,8 @@
  * stage funnel (F9.AC8).
  */
 
+import { AddNoteButton } from '@/components/dashboard/notes';
+import { useNotes } from '@/notes';
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate, useSearchParams } from 'react-router';
 import { useApi } from '@/api/query';
@@ -362,10 +364,13 @@ export function TimeSeriesPanel({
   const prior = useApi('/api/v1/analytics/timeseries', priorParams, timeSeriesSchema, {
     enabled: comparing,
   });
+  const notes = useNotes(params);
   const chart = useMemo(
     () =>
-      query.data ? timeSeriesChart(query.data, zone, comparing ? prior.data : undefined) : null,
-    [query.data, prior.data, comparing, zone],
+      query.data
+        ? timeSeriesChart(query.data, zone, comparing ? prior.data : undefined, notes)
+        : null,
+    [query.data, prior.data, comparing, zone, notes],
   );
   return (
     <Panel
@@ -378,6 +383,7 @@ export function TimeSeriesPanel({
       meta={(d) => d.meta}
       actions={
         <>
+          <AddNoteButton linkId={params.get('link_id')} />
           {split === 'none' && (
             <Switch label="Previous period" checked={compare} onChange={setCompare} />
           )}

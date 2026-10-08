@@ -34,10 +34,13 @@ could not see it (docs/ERRORS.md E13).
             ├──< audit_log            (actor, nullable: NULL = system)
             ├──< links                (created_by)
             ├──< geofences            (created_by)
+            ├──< annotations          (created_by; M7.7)
+            ├──< saved_views          (admin_id; M7.7)
             └──< ground_truth_labels  (labeled_by)
 
    links ───┬──< visits
             ├──< link_places          (strict places a link has seen; M7.5)
+            ├──< annotations          (optional: a note for one link; M7.7)
             └──< (geofences.link_ids[] — optional soft scoping)
 
    visits ──┬──< visit_candidates     (evidence trail, one row per candidate)
@@ -1013,6 +1016,43 @@ improvement.
 
 ---
 
+## 9a. Admin-entered workflow data -- added in M7.7 (migration 0017)
+
+Both tables hold what admins type, never anything about visitors (SPEC §11 row 29).
+
+### 9a.1 `annotations` (F9.AC25)
+
+| Column | Type | Notes |
+|---|---|---|
+| `id` | `uuid` PK | UUIDv7 |
+| `at` | `timestamptz` | The moment the note is pinned to |
+| `text` | `text` | 1–200 characters after trimming (`CHECK`) |
+| `link_id` | `uuid` NULL | FK `links` `ON DELETE CASCADE`. NULL: the note is for every link |
+| `created_by` | `uuid` NULL | FK `admins` `ON DELETE SET NULL`: the note outlives its author, shown as "a former admin" |
+| `created_at`, `updated_at` | `timestamptz` | |
+
+**Index:** `(at)`. **Invariants:** any admin may insert; only the author may update; the
+author or an owner may delete, and every delete writes `annotation.deleted` with the text
+(F8.AC12 as amended, invariant 9). In the must-never-be-lost set: small, and the owner's own
+record of what happened.
+
+### 9a.2 `saved_views` (F9.AC26, DESIGN E12)
+
+| Column | Type | Notes |
+|---|---|---|
+| `id` | `uuid` PK | UUIDv7 |
+| `admin_id` | `uuid` | FK `admins` `ON DELETE CASCADE`: a view is its admin's alone |
+| `name` | `text` | 1–60 characters (`CHECK`); `UNIQUE(admin_id, name)` |
+| `path` | `text` | A dashboard page: `/`, `/visits`, `/geography`, `/breakdowns`, `/sources`, `/returning`, `/compare`, `/links` or `/links/{slug}` (`CHECK`) |
+| `query` | `text` | The page's URL search string without `?`, at most 2000 characters -- exactly the filter state the page already keeps in its URL (F9.AC13) |
+| `created_at`, `updated_at` | `timestamptz` | |
+
+**Invariants:** at most 50 per admin (checked on insert, under the row lock of the admin);
+read and written only by their admin, never another, owner included. Not audited: a view is a
+display preference, as the theme is (F8.AC12 as amended).
+
+---
+
 ## 10. Accuracy measurement
 
 ### 10.1 `ground_truth_labels`
@@ -1052,12 +1092,14 @@ Tracelet reports about itself must be read with the sample size visible (RISKS R
 | `rollup_*` | **Indefinite** | Never purged; small and the long-term history |
 | `outbox` `done` rows | 30 days | Nightly. `dead` rows retained until retried |
 | `link_places` | **Indefinite** | Never purged; goes with its link (cascade) |
+| `annotations` | **Indefinite** | Deleted only by its author or an owner; goes with its link (cascade) |
+| `saved_views` | **Indefinite** | Deleted by its admin; goes with the admin (cascade) |
 | `backups`, `restore_checks` | Indefinite (rows) | Rows are the history and are never deleted; a backup's **file** is rotated -- the newest of each of 7 days and 4 weeks kept -- and its row becomes `pruned` (section 8.8) |
 | Reference and config (section 8) | **Indefinite** | Never purged, always backed up |
 
 **Must never be lost** (F12.AC12, NFR5.AC3): `admins`, `admin_recovery_codes`, `links`,
 `geofences`, `inference_settings`, `retention_policy`, `app_settings`, `audit_log`,
-`rollup_*`. All small, all slow-changing, all in every backup.
+`rollup_*`, and since M7.7 `annotations` and `saved_views`. All small, all slow-changing, all in every backup.
 
 **Purge rules:** transactional, batched to avoid long locks, dry-runnable with exact
 counts before execution, and audit-logged with the counts actually deleted —

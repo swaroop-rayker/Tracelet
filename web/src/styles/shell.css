@@ -161,6 +161,28 @@
   color: var(--text);
 }
 
+/* A saved view's name (DESIGN §16 M7.7): one line, cut with an ellipsis; the full name is its title. */
+.nav-link__text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.nav-more {
+  justify-self: start;
+  padding: var(--space-1) var(--space-3);
+  border: 0;
+  background: none;
+  color: var(--text-subtle);
+  font: inherit;
+  font-size: var(--fs-meta);
+  cursor: pointer;
+}
+
+.nav-more:hover {
+  color: var(--text);
+}
+
 .nav-link.is-active {
   background: var(--accent-bg);
   color: var(--text);
@@ -833,4 +855,51 @@
   width: 48px;
   height: 48px;
   font-size: var(--fs-body);
+}
+
+/* Compare's choices (DESIGN §16 M7.7): the mode, then side A and B; stacks on phones. */
+.compare__controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--space-3);
+}
+
+.compare__controls .field,
+.compare__controls .select-field {
+  min-width: 200px;
+}
+
+/* The link builder (DESIGN §16 M7.7): five tag fields, the URL to copy, and the QR code. */
+.link-builder__fields {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: var(--space-3);
+}
+
+.link-builder__url {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.link-builder__text {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.link-builder__qr {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-4);
+}
+
+/* Black on white in every theme: a scanner needs the contrast. */
+.qr {
+  width: 160px;
+  height: 160px;
+  border-radius: var(--radius-sm);
+  image-rendering: pixelated;
 }

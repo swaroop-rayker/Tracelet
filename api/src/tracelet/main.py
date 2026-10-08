@@ -34,6 +34,7 @@ from tracelet.logging import configure_logging
 from tracelet.middleware import AccessLogMiddleware, TraceIdMiddleware
 from tracelet.notify.router import router as notifications_router
 from tracelet.worker.scheduler import Scheduler
+from tracelet.workflow.router import router as workflow_router
 
 log = structlog.get_logger(__name__)
 
@@ -139,6 +140,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(analytics_router)
     app.include_router(lifecycle_router)
     app.include_router(system_health_router)
+    app.include_router(workflow_router)
 
     return app
 

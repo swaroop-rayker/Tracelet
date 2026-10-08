@@ -262,7 +262,7 @@ describe('M7.6 analytics (DESIGN 12 E30, E31, E33)', () => {
         { band: 'over_30d', count: 0 },
       ],
     };
-    const chart = returningChart(data);
+    const chart = returningChart(data, 'Asia/Kolkata');
     expect(chart.table.columns).toEqual(['Day', 'New', 'Returning']);
     expect(chart.table.rows[1]?.slice(1)).toEqual([0, 2]);
     expect(returnBandRows(data).map((r) => r.key)).toEqual([
