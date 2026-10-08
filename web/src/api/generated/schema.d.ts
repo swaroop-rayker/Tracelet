@@ -369,8 +369,8 @@ export interface paths {
         options?: never;
         head?: never;
         /**
-         * Change your own theme or display timezone
-         * @description Display only. The theme is semi-dark unless changed (F9.AC16); the timezone is how timestamps are shown to you, not how analytics are bucketed (ADR-0016). Not audited: it changes nothing anyone else sees.
+         * Change your own theme, display timezone or System Health refresh interval
+         * @description Display only. The theme is semi-dark unless changed (F9.AC16); the timezone is how timestamps are shown to you, not how analytics are bucketed (ADR-0016); the refresh interval is how often System Health polls for you (F10.AC1). Not audited: it changes nothing anyone else sees.
          */
         patch: operations["update_preferences_api_v1_auth_me_preferences_patch"];
         trace?: never;
@@ -725,6 +725,161 @@ export interface paths {
         patch: operations["update_geofence_api_v1_geofences__geofence_id__patch"];
         trace?: never;
     };
+    "/api/v1/health/backups": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Backups and restore checks */
+        get: operations["list_backups_api_v1_health_backups_get"];
+        put?: never;
+        /**
+         * Back up now (owner only)
+         * @description `409 LIFECYCLE_JOB_RUNNING` if a backup is running. The result is its row in `GET /backups`.
+         */
+        post: operations["start_backup_api_v1_health_backups_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/health/backups/{backup_id}/download": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Download a backup (owner only)
+         * @description The only copy that leaves this machine (F12.AC11). Audited.
+         */
+        get: operations["download_backup_api_v1_health_backups__backup_id__download_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/health/backups/{backup_id}/verify-restore": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Restore a backup into a scratch database and check it (owner only)
+         * @description F12.AC10, ADR-0022. `409 BACKUP_UNAVAILABLE` for a backup without a file, `409 LIFECYCLE_JOB_RUNNING` if a check is running. The result is in `GET /backups`.
+         */
+        post: operations["verify_restore_api_v1_health_backups__backup_id__verify_restore_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/health/databases": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Geo databases (F10.AC3) */
+        get: operations["get_databases_api_v1_health_databases_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/health/databases/check": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Check every geo database for a newer release now (owner only)
+         * @description A HEAD request per vendor, no download (SPEC section 11 row 24); IP2Location is not asked, its URL being metered. The six-hourly update job runs the same check.
+         */
+        post: operations["check_databases_api_v1_health_databases_check_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/health/databases/{name}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Switch a geo database's automatic updates (owner only)
+         * @description Off: the scheduler leaves it alone; it keeps serving and Update still works. Audited `geodb.toggled` with the old and new value.
+         */
+        patch: operations["change_database_api_v1_health_databases__name__patch"];
+        trace?: never;
+    };
+    "/api/v1/health/databases/{name}/update": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Update one geo database now (owner only)
+         * @description F10.AC4, SPEC section 11 row 26. Asks the vendor first: nothing newer is `200 {status: up_to_date}` and no download. Otherwise downloads, verifies in a memory-capped subprocess and swaps atomically (`202`); a failure leaves the previous version serving. `force=true` is Download again: no check. Works whatever `auto_update` says. `409 LIFECYCLE_JOB_RUNNING` while it is updating.
+         */
+        post: operations["update_database_api_v1_health_databases__name__update_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/health/degradation": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** What is degraded now, for the banner (F10.AC14) */
+        get: operations["get_degradation_api_v1_health_degradation_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/health/inference": {
         parameters: {
             query?: never;
@@ -744,6 +899,26 @@ export interface paths {
          * @description Never edits a version in place: the submitted settings become the next version, and every earlier one stays available for rollback (F4.AC14). Visits inferred from now on carry the new `inference_version`; visits already inferred keep theirs.
          */
         patch: operations["change_settings_api_v1_health_inference_patch"];
+        trace?: never;
+    };
+    "/api/v1/health/inference/flow": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The inference flow diagram's model (F10.AC8)
+         * @description The source levels in order and which are enabled, under the active settings. With `sample_visit_id`, what inference recorded for that visit: which sources fired, which were suppressed and why, which did not answer, and each level's outcome.
+         */
+        get: operations["get_flow_api_v1_health_inference_flow_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
     "/api/v1/health/inference/rollback/{version}": {
@@ -794,6 +969,105 @@ export interface paths {
          * @description Starts it again with fresh attempts (F7.AC6). Only a dead letter.
          */
         post: operations["retry_outbox_api_v1_health_outbox__outbox_id__retry_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/health/ratelimits": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Rate limits in force */
+        get: operations["get_ratelimits_api_v1_health_ratelimits_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Change rate limits (owner only)
+         * @description F11.AC9: no redeploy; every worker applies the change within `applies_within_seconds`. Audited `settings.changed` with the old and new values. An outbound limit may not exceed its third party's own terms.
+         */
+        patch: operations["change_ratelimits_api_v1_health_ratelimits_patch"];
+        trace?: never;
+    };
+    "/api/v1/health/retention": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Retention periods, and the last purge */
+        get: operations["get_retention_api_v1_health_retention_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Change the retention periods (owner only)
+         * @description Takes all three periods. A shorter IP period also applies to visits already stored. Nothing is deleted here: the nightly purge, or a previewed purge, does that.
+         */
+        patch: operations["change_retention_api_v1_health_retention_patch"];
+        trace?: never;
+    };
+    "/api/v1/health/retention/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Dry run: exactly what a purge now would delete (owner only)
+         * @description Deletes nothing. Its `as_of` and `policy` are what the purge needs.
+         */
+        post: operations["preview_retention_api_v1_health_retention_preview_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/health/retention/purge": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Purge what a preview showed (owner only)
+         * @description Send the preview's `as_of` and `policy`. Refused with `409 RETENTION_PREVIEW_STALE` if the preview is over 15 minutes old or the periods have changed, and `409 LIFECYCLE_JOB_RUNNING` if a purge is running. Runs in the background; the counts deleted are in the audit row `retention.purged` and in `GET /retention` as `last_purge`.
+         */
+        post: operations["purge_retention_api_v1_health_retention_purge_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/health/system": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Host metrics (F10.AC1, F10.AC2) */
+        get: operations["get_system_api_v1_health_system_get"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -854,7 +1128,7 @@ export interface paths {
         post?: never;
         /**
          * Delete a link
-         * @description Refused while any visit references it (409 LINK_HAS_VISITS) -- archive it instead. Historical data is never orphaned (F1.AC10), and the foreign key enforces that even if this check were bypassed.
+         * @description Without `with_visits`, refused while any visit references it (409 LINK_HAS_VISITS) -- archive it instead (F1.AC10). With `with_visits=true`, a **permanent** delete of the link, its visits and their candidates, and its rollups, in one transaction; it is removed from geofences scoped to it, and one scoped to it alone is switched off (SPEC section 11 row 25). Works on archived links too.
          */
         delete: operations["delete_link_api_v1_links__link_id__delete"];
         options?: never;
@@ -920,6 +1194,26 @@ export interface paths {
          * @description Clears the previous default in the same transaction (F1.AC3).
          */
         post: operations["make_default_api_v1_links__link_id__default_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/links/{link_id}/delete-preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * What a permanent delete would remove (owner only)
+         * @description Deletes nothing (SPEC section 11 row 25).
+         */
+        get: operations["delete_preview_api_v1_links__link_id__delete_preview_get"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -1143,6 +1437,78 @@ export interface components {
             /** Totp Enrolled */
             totp_enrolled: boolean;
         };
+        /** AttemptOut */
+        AttemptOut: {
+            /**
+             * At
+             * Format: date-time
+             */
+            at: string;
+            /** Error */
+            error: string | null;
+            /** Status */
+            status: string;
+        };
+        /**
+         * BackupKind
+         * @enum {string}
+         */
+        BackupKind: "scheduled" | "manual";
+        /** BackupOut */
+        BackupOut: {
+            /** Error */
+            error: string | null;
+            /** File Name */
+            file_name: string | null;
+            /** Finished At */
+            finished_at: string | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            kind: components["schemas"]["BackupKind"];
+            /** Last Downloaded At */
+            last_downloaded_at: string | null;
+            /** @description The newest restore check of this backup. A backup never restored is not yet a backup (F12.AC10). */
+            last_restore_check: components["schemas"]["RestoreCheckOut"] | null;
+            /**
+             * Rows
+             * @description Rows in the dump, from its own snapshot.
+             */
+            rows: number | null;
+            /** Sha256 */
+            sha256: string | null;
+            /** Size Bytes */
+            size_bytes: number | null;
+            /**
+             * Started At
+             * Format: date-time
+             */
+            started_at: string;
+            status: components["schemas"]["BackupStatus"];
+            /**
+             * Tables
+             * @description Tables in the dump.
+             */
+            tables: number | null;
+        };
+        /**
+         * BackupStatus
+         * @enum {string}
+         */
+        BackupStatus: "running" | "ok" | "failed" | "pruned";
+        /** BackupsOut */
+        BackupsOut: {
+            /** Backup Running */
+            backup_running: boolean;
+            /** Backups */
+            backups: components["schemas"]["BackupOut"][];
+            download: components["schemas"]["DownloadReminder"];
+            last_restore_check: components["schemas"]["RestoreCheckOut"] | null;
+            /** Restore Check Running */
+            restore_check_running: boolean;
+        };
         /** Breakdown */
         Breakdown: {
             dimension: components["schemas"]["BreakdownDimension"];
@@ -1343,6 +1709,22 @@ export interface components {
                 [key: string]: number;
             };
         };
+        /** ConditionOut */
+        ConditionOut: {
+            /** Detail */
+            detail: string;
+            /** Key */
+            key: string;
+            /**
+             * Severity
+             * @description critical, warning or notice.
+             */
+            severity: string;
+            /** Still Works */
+            still_works: string;
+            /** Title */
+            title: string;
+        };
         /** Confidence */
         Confidence: {
             /** Levels */
@@ -1371,6 +1753,32 @@ export interface components {
             /** Key */
             key: string;
         };
+        /** CountsModel */
+        CountsModel: {
+            /** Audit Rows */
+            audit_rows: number;
+            /** Delivered Alerts */
+            delivered_alerts: number;
+            /** Ip Addresses */
+            ip_addresses: number;
+            /** Visit Candidates */
+            visit_candidates: number;
+            /** Visits */
+            visits: number;
+        };
+        /** CpuOut */
+        CpuOut: {
+            /** Count */
+            count: number;
+            /** Load */
+            load: [
+                number,
+                number,
+                number
+            ];
+            /** Percent */
+            percent: number;
+        };
         /** CreateAdminRequest */
         CreateAdminRequest: {
             /** Display Name */
@@ -1391,6 +1799,86 @@ export interface components {
             /** Enrollment Url */
             enrollment_url: string;
         };
+        /** CutoffsModel */
+        CutoffsModel: {
+            /**
+             * Audit
+             * Format: date-time
+             */
+            audit: string;
+            /**
+             * Ip
+             * Format: date-time
+             */
+            ip: string;
+            /**
+             * Outbox
+             * Format: date-time
+             */
+            outbox: string;
+            /**
+             * Visits
+             * Format: date-time
+             */
+            visits: string;
+        };
+        /** DatabaseChange */
+        DatabaseChange: {
+            /** Auto Update */
+            auto_update: boolean;
+        };
+        /** DatabaseOut */
+        DatabaseOut: {
+            /** Age Days */
+            age_days: number | null;
+            /** Attribution */
+            attribution: string;
+            /**
+             * Auto Update
+             * @description Whether the scheduler updates it (SPEC 11 row 24).
+             */
+            auto_update: boolean;
+            /** Check Error */
+            check_error: string | null;
+            /** Checked At */
+            checked_at: string | null;
+            /**
+             * Configured
+             * @description False when its vendor credentials are not set.
+             */
+            configured: boolean;
+            /**
+             * Feeds
+             * @description The inference source it feeds, if any.
+             */
+            feeds: string | null;
+            installed: components["schemas"]["InstalledOut"] | null;
+            /** Kind */
+            kind: string;
+            last_attempt: components["schemas"]["AttemptOut"] | null;
+            /** @description What the last release check found. */
+            latest: components["schemas"]["LatestOut"] | null;
+            /** Name */
+            name: string;
+            progress: components["schemas"]["ProgressOut"] | null;
+            /**
+             * Stale
+             * @description The installed copy is older than its staleness threshold.
+             */
+            stale: boolean;
+            /** Staleness Days */
+            staleness_days: number;
+            /**
+             * State
+             * @description updating, update_failed, unable_to_update, not_installed, update_available or up_to_date (SPEC section 11 row 24).
+             */
+            state: string;
+        };
+        /** DatabasesOut */
+        DatabasesOut: {
+            /** Databases */
+            databases: components["schemas"]["DatabaseOut"][];
+        };
         /** DecryptedIp */
         DecryptedIp: {
             /**
@@ -1400,6 +1888,44 @@ export interface components {
             decrypted_at: string;
             /** Ip */
             ip: string;
+        };
+        /** DegradationOut */
+        DegradationOut: {
+            /**
+             * Checked At
+             * Format: date-time
+             */
+            checked_at: string;
+            /** Conditions */
+            conditions: components["schemas"]["ConditionOut"][];
+        };
+        /** DeletePreview */
+        DeletePreview: {
+            /** Archived */
+            archived: boolean;
+            /**
+             * Geofences Deactivated
+             * @description Geofences scoped to this link alone: switched off.
+             */
+            geofences_deactivated: components["schemas"]["GeofenceRef"][];
+            /**
+             * Geofences Updated
+             * @description Geofences scoped to this link among others: this link is removed from them.
+             */
+            geofences_updated: components["schemas"]["GeofenceRef"][];
+            /** Is Default */
+            is_default: boolean;
+            /**
+             * Rollup Rows
+             * @description The link's daily and hourly figures (rollups).
+             */
+            rollup_rows: number;
+            /** Slug */
+            slug: string;
+            /** Visit Candidates */
+            visit_candidates: number;
+            /** Visits */
+            visits: number;
         };
         /** DeliveryOut */
         DeliveryOut: {
@@ -1461,6 +1987,24 @@ export interface components {
          * @enum {string}
          */
         DeviceClass: "mobile" | "tablet" | "desktop" | "tv" | "server" | "bot" | "unknown";
+        /** DiskOut */
+        DiskOut: {
+            /** Path */
+            path: string;
+            /** Percent */
+            percent: number;
+            /**
+             * State
+             * @description ok, warn or critical against the thresholds.
+             */
+            state: string;
+            /** Total */
+            total: number;
+            /** Used */
+            used: number;
+            /** Warn Percent */
+            warn_percent: number;
+        };
         /** DivisionOut */
         DivisionOut: {
             /** Code */
@@ -1471,6 +2015,18 @@ export interface components {
             key: string;
             /** Name */
             name: string;
+        };
+        /** DownloadReminder */
+        DownloadReminder: {
+            /** Last Downloaded At */
+            last_downloaded_at: string | null;
+            /**
+             * Overdue
+             * @description True when no backup has been downloaded within `reminder_days`: the download is the only copy off this machine (F12.AC11, RISKS R11).
+             */
+            overdue: boolean;
+            /** Reminder Days */
+            reminder_days: number;
         };
         /**
          * Drift
@@ -1559,6 +2115,38 @@ export interface components {
              */
             type: "Feature";
         };
+        /** FiredOut */
+        FiredOut: {
+            /** Accepted */
+            accepted: boolean;
+            /** Effective Weight */
+            effective_weight: number;
+            /** Level */
+            level: string;
+            /** Suppressed Reason */
+            suppressed_reason: string | null;
+            /** Value */
+            value: string;
+        };
+        /** FlowFamilyOut */
+        FlowFamilyOut: {
+            /** Family */
+            family: string;
+            /** Label */
+            label: string;
+            /** Sources */
+            sources: string[];
+        };
+        /** FlowLevelOut */
+        FlowLevelOut: {
+            /** Level */
+            level: string;
+            /**
+             * Threshold
+             * @description Minimum confidence for the strict value (F4.AC10).
+             */
+            threshold: number;
+        };
         /** FlowLink */
         FlowLink: {
             /** Source */
@@ -1567,6 +2155,58 @@ export interface components {
             target: string;
             /** Value */
             value: number;
+        };
+        /** FlowOut */
+        FlowOut: {
+            /** Families */
+            families: components["schemas"]["FlowFamilyOut"][];
+            /** Inference Version */
+            inference_version: string;
+            /** Levels */
+            levels: components["schemas"]["FlowLevelOut"][];
+            /** Rules */
+            rules: components["schemas"]["FlowRuleOut"][];
+            sample: components["schemas"]["SampleOut"] | null;
+            /** Sources */
+            sources: components["schemas"]["FlowSourceOut"][];
+            /**
+             * Stages
+             * @description The pipeline, in order, from capture to alert.
+             */
+            stages: string[];
+        };
+        /** FlowRuleOut */
+        FlowRuleOut: {
+            /** Description */
+            description: string;
+            /** Label */
+            label: string;
+            /** Rule */
+            rule: string;
+        };
+        /** FlowSourceOut */
+        FlowSourceOut: {
+            /**
+             * Code
+             * @description S1-S11, as SPEC F4 numbers them.
+             */
+            code: string;
+            /** Enabled */
+            enabled: boolean;
+            /** Family */
+            family: string;
+            /** Label */
+            label: string;
+            /** Order */
+            order: number;
+            /** Priors */
+            priors: {
+                [key: string]: number;
+            };
+            /** Source */
+            source: string;
+            /** Timeout Ms */
+            timeout_ms: number;
         };
         /** Funnel */
         Funnel: {
@@ -1654,6 +2294,13 @@ export interface components {
              * Format: date-time
              */
             updated_at: string;
+        };
+        /** GeofenceRef */
+        GeofenceRef: {
+            /** Id */
+            id: string;
+            /** Name */
+            name: string;
         };
         /**
          * GeofenceState
@@ -1832,6 +2479,19 @@ export interface components {
          * @enum {string}
          */
         InferenceSource: "gps" | "geolite2" | "ip2location" | "ipinfo" | "dbip" | "rdns" | "asn_org" | "cf_colo" | "external_api" | "latency" | "timezone";
+        /** InstalledOut */
+        InstalledOut: {
+            /** Installed At */
+            installed_at: string | null;
+            /** Released At */
+            released_at: string | null;
+            /** Sha256 */
+            sha256: string | null;
+            /** Size Bytes */
+            size_bytes: number | null;
+            /** Version */
+            version: string | null;
+        };
         /** Kpi */
         Kpi: {
             /** Change */
@@ -1850,12 +2510,32 @@ export interface components {
             /** Value */
             value: number | null;
         };
+        /** LastPurgeOut */
+        LastPurgeOut: {
+            /**
+             * At
+             * Format: date-time
+             */
+            at: string;
+            /** By */
+            by: string | null;
+            counts: components["schemas"]["CountsModel"];
+            /** Trigger */
+            trigger: string;
+        };
         /** LatLng */
         LatLng: {
             /** Lat */
             lat: number;
             /** Lng */
             lng: number;
+        };
+        /** LatestOut */
+        LatestOut: {
+            /** Released At */
+            released_at: string | null;
+            /** Version */
+            version: string | null;
         };
         /** LevelAccuracy */
         LevelAccuracy: {
@@ -1875,6 +2555,19 @@ export interface components {
             /** Reason */
             reason: string | null;
         };
+        /** LevelOutcomeOut */
+        LevelOutcomeOut: {
+            /** Abstain Reason */
+            abstain_reason: string | null;
+            /** Advisory */
+            advisory: string | null;
+            /** Confidence */
+            confidence: number | null;
+            /** Level */
+            level: string;
+            /** Strict */
+            strict: string | null;
+        };
         /**
          * LevelPriors
          * @description How far a source is trusted at each level, 0..1.
@@ -1891,6 +2584,37 @@ export interface components {
             city: number;
             /** Country */
             country: number;
+        };
+        /** LimitOut */
+        LimitOut: {
+            /** Burst */
+            burst: number;
+            /** Ceiling Per Second */
+            ceiling_per_second: number | null;
+            default: components["schemas"]["LimitValue"];
+            /** Description */
+            description: string;
+            /** Group */
+            group: string;
+            /** Label */
+            label: string;
+            /** Name */
+            name: string;
+            /** Overridden */
+            overridden: boolean;
+            /** Per Period */
+            per_period: number;
+            /** Period Seconds */
+            period_seconds: number;
+        };
+        /** LimitValue */
+        LimitValue: {
+            /** Burst */
+            burst: number;
+            /** Per Period */
+            per_period: number;
+            /** Period Seconds */
+            period_seconds: number;
         };
         /** LinkClone */
         LinkClone: {
@@ -2033,6 +2757,8 @@ export interface components {
             display_name: string;
             /** Email */
             email: string;
+            /** Health Refresh Seconds */
+            health_refresh_seconds: number;
             /** Id */
             id: string;
             /** Recovery Codes Remaining */
@@ -2241,6 +2967,24 @@ export interface components {
             /** Lng */
             lng: number;
         };
+        /** PolicyModel */
+        PolicyModel: {
+            /**
+             * Audit Days
+             * @description Audit rows older than this are deleted.
+             */
+            audit_days: number;
+            /**
+             * Ip Days
+             * @description The encrypted IP is cleared after this.
+             */
+            ip_days: number;
+            /**
+             * Visit Days
+             * @description Visits older than this are deleted. At least 8: rollups re-settle the last 7 days, so a visit inside that window must still exist.
+             */
+            visit_days: number;
+        };
         /** PolygonCreate */
         PolygonCreate: {
             /** Description */
@@ -2290,10 +3034,59 @@ export interface components {
          * @description Display preferences: per admin, persisted, and harmless (F9.AC16).
          */
         PreferencesRequest: {
+            /** Health Refresh Seconds */
+            health_refresh_seconds?: (5 | 15 | 30 | 60) | null;
             /** Theme */
             theme?: ("semi_dark" | "light" | "dark") | null;
             /** Timezone */
             timezone?: string | null;
+        };
+        /** PreviewOut */
+        PreviewOut: {
+            /**
+             * As Of
+             * Format: date-time
+             * @description Send this back, with the policy, to purge.
+             */
+            as_of: string;
+            counts: components["schemas"]["CountsModel"];
+            cutoffs: components["schemas"]["CutoffsModel"];
+            policy: components["schemas"]["PolicyModel"];
+        };
+        /** ProgressOut */
+        ProgressOut: {
+            /**
+             * Percent
+             * @description Overall, 0-100; null while downloading from a vendor that sends no length.
+             */
+            percent: number | null;
+            /**
+             * Phase
+             * @description downloading, verifying, unpacking, validating or installing.
+             */
+            phase: string;
+        };
+        /** PurgeAccepted */
+        PurgeAccepted: {
+            /**
+             * As Of
+             * Format: date-time
+             */
+            as_of: string;
+            /**
+             * Status
+             * @default started
+             */
+            status: string;
+        };
+        /** PurgeIn */
+        PurgeIn: {
+            /**
+             * As Of
+             * Format: date-time
+             */
+            as_of: string;
+            policy: components["schemas"]["PolicyModel"];
         };
         /** QuietHoursIn */
         QuietHoursIn: {
@@ -2336,6 +3129,26 @@ export interface components {
              * @example Asia/Kolkata
              */
             timezone: string;
+        };
+        /** RateLimitsChange */
+        RateLimitsChange: {
+            /**
+             * Limits
+             * @description By name: the new value, or null to go back to the default. Names left out are unchanged.
+             */
+            limits: {
+                [key: string]: components["schemas"]["LimitValue"] | null;
+            };
+        };
+        /** RateLimitsOut */
+        RateLimitsOut: {
+            /**
+             * Applies Within Seconds
+             * @description Each worker re-reads the limits this often.
+             */
+            applies_within_seconds: number;
+            /** Limits */
+            limits: components["schemas"]["LimitOut"][];
         };
         /** ReadinessResponse */
         ReadinessResponse: {
@@ -2416,6 +3229,84 @@ export interface components {
         ResetRequest: {
             /** Email */
             email: string;
+        };
+        /** RestoreCheckOut */
+        RestoreCheckOut: {
+            /**
+             * Backup Id
+             * Format: uuid
+             */
+            backup_id: string;
+            /** Error */
+            error: string | null;
+            /** Finished At */
+            finished_at: string | null;
+            /** Id */
+            id: number;
+            kind: components["schemas"]["BackupKind"];
+            /** Mismatches */
+            mismatches: {
+                [key: string]: unknown;
+            } | null;
+            /**
+             * Started At
+             * Format: date-time
+             */
+            started_at: string;
+            status: components["schemas"]["RestoreStatus"];
+        };
+        /**
+         * RestoreStatus
+         * @enum {string}
+         */
+        RestoreStatus: "running" | "passed" | "failed";
+        /** RetentionOut */
+        RetentionOut: {
+            /**
+             * Delivered Alerts Days
+             * @description Delivered alerts are kept this long; not configurable (ADR-0014).
+             */
+            delivered_alerts_days: number;
+            last_purge: components["schemas"]["LastPurgeOut"] | null;
+            policy: components["schemas"]["PolicyModel"];
+            /** Purge Running */
+            purge_running: boolean;
+            /**
+             * Rollups
+             * @description Always 'kept forever' (NFR5.AC4).
+             */
+            rollups: string;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+        };
+        /** SampleOut */
+        SampleOut: {
+            /** Alert */
+            alert: {
+                [key: string]: unknown;
+            } | null;
+            /** Classification */
+            classification: string;
+            /** Geo Source Primary */
+            geo_source_primary: string | null;
+            /** Geofence State */
+            geofence_state: string | null;
+            /**
+             * Inference Version
+             * @description The settings it was inferred under, which may not be the active ones.
+             */
+            inference_version: string | null;
+            /** Levels */
+            levels: components["schemas"]["LevelOutcomeOut"][];
+            /** Rules Fired */
+            rules_fired: string[];
+            /** Sources */
+            sources: components["schemas"]["SourceOutcomeOut"][];
+            /** Visit Id */
+            visit_id: string;
         };
         /** Series */
         Series: {
@@ -2507,6 +3398,20 @@ export interface components {
             /** Visits */
             visits: number;
         };
+        /** SourceOutcomeOut */
+        SourceOutcomeOut: {
+            /** Candidates */
+            candidates: components["schemas"]["FiredOut"][];
+            /** Reason */
+            reason: string | null;
+            /** Source */
+            source: string;
+            /**
+             * Status
+             * @description fired, suppressed, disabled, unavailable, empty or silent.
+             */
+            status: string;
+        };
         /** SourceSettings */
         SourceSettings: {
             /**
@@ -2542,6 +3447,16 @@ export interface components {
             /** Total */
             total: number;
         };
+        /** Started */
+        Started: {
+            /** Id */
+            id: string;
+            /**
+             * Status
+             * @default started
+             */
+            status: string;
+        };
         /** Summary */
         Summary: {
             /** Kpis */
@@ -2552,6 +3467,35 @@ export interface components {
              * Format: date-time
              */
             previous_start: string;
+        };
+        /** SystemOut */
+        SystemOut: {
+            cpu: components["schemas"]["CpuOut"];
+            /** Database Bytes */
+            database_bytes: number;
+            disk: components["schemas"]["DiskOut"];
+            memory: components["schemas"]["UsageOut"];
+            /**
+             * Poll Seconds
+             * @description How often the dashboard should ask again.
+             */
+            poll_seconds: number;
+            /**
+             * Sampled At
+             * Format: date-time
+             */
+            sampled_at: string;
+            /**
+             * Scope
+             * @description host, or container when the host's /proc is not mounted.
+             */
+            scope: string;
+            /** Scope Reason */
+            scope_reason: string | null;
+            swap: components["schemas"]["UsageOut"];
+            temperature: components["schemas"]["TemperatureOut"];
+            /** Uptime Seconds */
+            uptime_seconds: number;
         };
         /** TelegramOut */
         TelegramOut: {
@@ -2571,6 +3515,18 @@ export interface components {
         TelegramVerifyStart: {
             /** Chat Id */
             chat_id: number;
+        };
+        /** TemperatureOut */
+        TemperatureOut: {
+            /** Celsius */
+            celsius: number | null;
+            /**
+             * Reason
+             * @description Why there is no reading, when there is none (RW-5).
+             */
+            reason: string | null;
+            /** Sensor */
+            sensor: string | null;
         };
         /** TestOut */
         TestOut: {
@@ -2655,6 +3611,33 @@ export interface components {
             display_name?: string | null;
             role?: components["schemas"]["AdminRole"] | null;
             status?: components["schemas"]["AdminStatus"] | null;
+        };
+        /** UpdateStarted */
+        UpdateStarted: {
+            /** Name */
+            name: string;
+            /**
+             * Status
+             * @description started (202), or up_to_date (200): the vendor has nothing newer, so nothing was downloaded (SPEC section 11 row 26).
+             * @default started
+             */
+            status: string;
+        };
+        /** UsageOut */
+        UsageOut: {
+            /** Percent */
+            percent: number;
+            /**
+             * State
+             * @description ok, warn or critical against the thresholds.
+             */
+            state: string;
+            /** Total */
+            total: number;
+            /** Used */
+            used: number;
+            /** Warn Percent */
+            warn_percent: number;
         };
         /** ValidationError */
         ValidationError: {
@@ -4261,6 +5244,246 @@ export interface operations {
             };
         };
     };
+    list_backups_api_v1_health_backups_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BackupsOut"];
+                };
+            };
+        };
+    };
+    start_backup_api_v1_health_backups_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Started"];
+                };
+            };
+        };
+    };
+    download_backup_api_v1_health_backups__backup_id__download_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                backup_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/octet-stream": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    verify_restore_api_v1_health_backups__backup_id__verify_restore_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                backup_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Started"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_databases_api_v1_health_databases_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DatabasesOut"];
+                };
+            };
+        };
+    };
+    check_databases_api_v1_health_databases_check_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DatabasesOut"];
+                };
+            };
+        };
+    };
+    change_database_api_v1_health_databases__name__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                name: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DatabaseChange"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DatabaseOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_database_api_v1_health_databases__name__update_post: {
+        parameters: {
+            query?: {
+                /** @description Download again, without asking first. */
+                force?: boolean;
+            };
+            header?: never;
+            path: {
+                name: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Already up to date */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UpdateStarted"];
+                };
+            };
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UpdateStarted"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_degradation_api_v1_health_degradation_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DegradationOut"];
+                };
+            };
+        };
+    };
     get_settings_api_v1_health_inference_get: {
         parameters: {
             query?: never;
@@ -4301,6 +5524,37 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["InferenceSettingsOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_flow_api_v1_health_inference_flow_get: {
+        parameters: {
+            query?: {
+                sample_visit_id?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FlowOut"];
                 };
             };
             /** @description Validation Error */
@@ -4405,6 +5659,185 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_ratelimits_api_v1_health_ratelimits_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RateLimitsOut"];
+                };
+            };
+        };
+    };
+    change_ratelimits_api_v1_health_ratelimits_patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RateLimitsChange"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RateLimitsOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_retention_api_v1_health_retention_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RetentionOut"];
+                };
+            };
+        };
+    };
+    change_retention_api_v1_health_retention_patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PolicyModel"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RetentionOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    preview_retention_api_v1_health_retention_preview_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PreviewOut"];
+                };
+            };
+        };
+    };
+    purge_retention_api_v1_health_retention_purge_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PurgeIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PurgeAccepted"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_system_api_v1_health_system_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SystemOut"];
                 };
             };
         };
@@ -4526,7 +5959,9 @@ export interface operations {
     };
     delete_link_api_v1_links__link_id__delete: {
         parameters: {
-            query?: never;
+            query?: {
+                with_visits?: boolean;
+            };
             header?: never;
             path: {
                 link_id: string;
@@ -4672,6 +6107,37 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["LinkOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_preview_api_v1_links__link_id__delete_preview_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                link_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DeletePreview"];
                 };
             };
             /** @description Validation Error */

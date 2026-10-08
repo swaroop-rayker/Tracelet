@@ -50,6 +50,12 @@ const SecurityPage = lazy(() => import('@/pages/settings/SecurityPage'));
 const SessionsPage = lazy(() => import('@/pages/settings/SessionsPage'));
 const TeamPage = lazy(() => import('@/pages/settings/TeamPage'));
 const SystemPage = lazy(() => import('@/pages/settings/SystemPage'));
+const HealthLayout = lazy(() => import('@/pages/health/HealthLayout'));
+const HealthOverviewPage = lazy(() => import('@/pages/health/OverviewPage'));
+const HealthDatabasesPage = lazy(() => import('@/pages/health/DatabasesPage'));
+const HealthInferencePage = lazy(() => import('@/pages/health/InferencePage'));
+const HealthDataPage = lazy(() => import('@/pages/health/DataPage'));
+const HealthLimitsPage = lazy(() => import('@/pages/health/LimitsPage'));
 // The component gallery exists only in development builds (DESIGN §11): Vite replaces
 // import.meta.env.DEV with false in production, and the import is dropped with it.
 const DesignGallery = import.meta.env.DEV ? lazy(() => import('@/pages/dev/DesignGallery')) : null;
@@ -212,6 +218,13 @@ export default function App(): React.JSX.Element {
           <Route path="geofences/new" element={<Page component={GeofenceEditorPage} />} />
           <Route path="geofences/:geofenceId" element={<Page component={GeofenceEditorPage} />} />
           <Route path="alerts" element={<Page component={AlertsPage} />} />
+          <Route path="health" element={<Page component={HealthLayout} />}>
+            <Route index element={<Page component={HealthOverviewPage} />} />
+            <Route path="databases" element={<Page component={HealthDatabasesPage} />} />
+            <Route path="inference" element={<Page component={HealthInferencePage} />} />
+            <Route path="data" element={<Page component={HealthDataPage} />} />
+            <Route path="limits" element={<Page component={HealthLimitsPage} />} />
+          </Route>
           <Route path="settings" element={<Page component={SettingsLayout} />}>
             <Route index element={<Navigate to="profile" replace />} />
             <Route path="profile" element={<Page component={ProfilePage} />} />

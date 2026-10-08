@@ -118,11 +118,18 @@ jobs:
       # roles are created here. Kept deliberately in step with
       # db/init/01-extensions-and-roles.sh — if they diverge, CI stops testing
       # what actually ships.
+      #
+      # The image's own init script has already run here, and it installs more
+      # than db/init does: topology, fuzzystrmatch and the tiger geocoder, with
+      # their schemas. Compose mounts db/init over that script, so the shipped
+      # database has none of them; they are dropped first (docs/ERRORS.md E73).
       - name: Initialise extensions and roles
         env:
           PGPASSWORD: ci-postgres
         run: |
           psql -h localhost -U tracelet -d tracelet -v ON_ERROR_STOP=1 <<'SQL'
+            DROP EXTENSION IF EXISTS postgis_tiger_geocoder, postgis_topology, fuzzystrmatch CASCADE;
+            DROP SCHEMA IF EXISTS tiger, tiger_data, topology CASCADE;
             CREATE EXTENSION IF NOT EXISTS postgis;
             CREATE EXTENSION IF NOT EXISTS citext;
             CREATE ROLE tracelet_app      LOGIN PASSWORD 'ci-app';
@@ -141,6 +148,18 @@ jobs:
             GRANT SELECT ON TABLE public.spatial_ref_sys TO tracelet_app, tracelet_maint;
             GRANT pg_read_all_stats TO tracelet_app;
           SQL
+          # db/init/02-restore-check.sh: the restore check's scratch database (ADR-0022).
+          psql -h localhost -U tracelet -d tracelet -v ON_ERROR_STOP=1 <<'SQL'
+            ALTER ROLE tracelet_maint CREATEDB;
+            CREATE DATABASE tracelet_verify_template IS_TEMPLATE true;
+            REVOKE CONNECT ON DATABASE tracelet_verify_template FROM PUBLIC;
+          SQL
+          psql -h localhost -U tracelet -d tracelet_verify_template -v ON_ERROR_STOP=1 <<'SQL'
+            CREATE EXTENSION IF NOT EXISTS postgis;
+            CREATE EXTENSION IF NOT EXISTS citext;
+          SQL
+          # The backup tests run pg_dump and pg_restore from the runner: they must be 16.
+          pg_dump --version | grep -q ' 16\.' || { pg_dump --version; echo "need the PostgreSQL 16 client"; exit 1; }
 
       - name: Apply migrations
         env:
@@ -152,6 +171,7 @@ jobs:
           TRACELET_ENV: development
           TRACELET_DATABASE_URL: postgresql+asyncpg://tracelet_app:ci-app@localhost:5432/tracelet
           TRACELET_MIGRATE_DATABASE_URL: postgresql+psycopg://tracelet_migrate:ci-migrate@localhost:5432/tracelet
+          TRACELET_MAINT_DATABASE_URL: postgresql+asyncpg://tracelet_maint:ci-maint@localhost:5432/tracelet
         run: pytest tests/integration -q
 
   # === 7-9. Frontend ======================================================

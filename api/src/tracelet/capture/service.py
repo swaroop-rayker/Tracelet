@@ -30,7 +30,7 @@ from enum import StrEnum
 from typing import Any, Final
 
 import structlog
-from sqlalchemy import func, literal, select, text, update
+from sqlalchemy import func, literal, literal_column, select, text, update
 from sqlalchemy.dialects import postgresql as pg
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -51,6 +51,7 @@ from tracelet.crypto.envelope import EnvelopeError, seal_str
 from tracelet.crypto.hashing import hmac_sha256
 from tracelet.db.dml import execute_rowcount
 from tracelet.db.engine import session_scope
+from tracelet.health import pressure
 from tracelet.net import ClientAddress, prefix_of
 from tracelet.ratelimit import gcra
 
@@ -224,7 +225,18 @@ def _ip_forms(settings: Settings, visit_id: uuid.UUID, ip: str | None) -> dict[s
     else:
         forms["ip_enc"] = sealed.payload
         forms["ip_key_version"] = sealed.key_version
-        forms["ip_purge_after"] = func.now() + dt.timedelta(days=settings.retention_ip_days)
+        # The IP period is the retention policy's (F12.AC7), read in the INSERT itself: a
+        # primary-key lookup, and no cache to go stale. The environment's value applies
+        # only before the policy row exists.
+        forms["ip_purge_after"] = func.now() + func.make_interval(
+            0,
+            0,
+            0,
+            func.coalesce(
+                literal_column("(SELECT ip_days FROM retention_policy WHERE id = 1)"),
+                settings.retention_ip_days,
+            ),
+        )
     return forms
 
 
@@ -351,8 +363,17 @@ async def capture(settings: Settings, slug: str | None, facts: RequestFacts) -> 
                 return CaptureResult(outcome=Outcome.NOT_FOUND)
 
             prefix = prefix_of(facts.client.ip) or "unknown"
-            minute = await gcra.check(db, key=prefix, limit=CAPTURE_PER_MINUTE)
-            hour = await gcra.check(db, key=prefix, limit=CAPTURE_PER_HOUR)
+            # F15.AC6: under memory pressure, shed before spending anything on the
+            # visit -- not even the limiter's two upserts (health/pressure.py).
+            shed = pressure.shedding(settings)
+            if shed:
+                pressure.note_shed()
+                minute = hour = gcra.Decision(
+                    allowed=False, retry_after_seconds=1, limit_name="memory_pressure"
+                )
+            else:
+                minute = await gcra.check(db, key=prefix, limit=CAPTURE_PER_MINUTE)
+                hour = await gcra.check(db, key=prefix, limit=CAPTURE_PER_HOUR)
 
             if not (minute.allowed and hour.allowed):
                 # F11.AC3: shed the telemetry, never the human. A minimal row makes the

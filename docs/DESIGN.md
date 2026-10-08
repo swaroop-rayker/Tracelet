@@ -1023,7 +1023,7 @@ the page stays a calm summary. Plan: `docs/plans/SETTINGS-REDESIGN-PLAN.md`.
 | Page | Rows | Calls (all existing) |
 |---|---|---|
 | Profile | Initials, name, email; role and status as Badges; this session's expiry, relative | `GET /auth/me` |
-| Preferences | Theme as a SegmentedControl; display time zone as a Select of the browser's IANA zones; the reporting zone, read-only | `PATCH /auth/me/preferences` |
+| Preferences | Theme as a SegmentedControl; display time zone as a Select of the browser's IANA zones; the reporting zone, read-only; System Health's refresh interval as a SegmentedControl, 5 / 15 / 30 / 60 s (F10.AC1, M7) | `PATCH /auth/me/preferences` |
 | Security | Password (Dialog: show/hide, a live 12-character checklist); two-factor status; recovery codes (count, 10-step meter, Regenerate with confirmation); Telegram (two-step Dialog) | `/auth/password`, `/auth/totp/regenerate-codes`, `/auth/telegram/verify/*` |
 | Sessions | A DataTable: this device, IP prefix, started, last seen, expires; Revoke per row; Sign out all other sessions | `/auth/sessions`, one `DELETE` per session |
 | Team (owner) | A DataTable of admins; Invite; per row a menu: change role, disable or enable, new setup link, delete | `/admins`, `/admins/{id}/enrollment-token` |
@@ -1060,8 +1060,16 @@ error boundary renders an Alert with the trace id when one exists. No illustrati
 
 ### 10.11 Links and link detail (M5.6, §12 E20)
 
-`/links` lists every tracking link; `/links/:slug` is one link's dashboard. Creating and
-editing links stays in M7 (F10.AC6): these pages only read.
+`/links` lists every tracking link; `/links/:slug` is one link's dashboard. *M7 (F10.AC6,
+SPEC §11 row 25) adds the writes to `/links`:* **[＋ New link]** in the header; a **•••
+menu** per row with Edit…, Make default, Archive, and **Delete permanently…**; archived links
+(Show archived) keep only Delete permanently…. **New** and **Edit** share one Dialog: label,
+slug (with the capture URL it gives), destination, active, interstitial (ms), asks for
+location, and the three alert priorities. **Delete permanently** is a danger Dialog that first
+loads the preview -- "Deletes demo-ig, 164 visits and their 812 location candidates, 37 days
+of figures; geofence *Campus* will be switched off" -- and is enabled only when the slug is
+typed (UI-16). Every write is the owner's; an analyst sees the actions disabled with the
+reason (UI-17).
 
 ```
 Links                                                              [ ] Show archived
@@ -1389,6 +1397,99 @@ sharing", and the privacy link, and waits up to 15 s for the browser's answer.
 - **Outbox:** a DataTable with status filters as a SegmentedControl, and "updated Ns ago"
   (UI-18).
 - **Links** (F10.AC6) and **admins:** DataTables with a Dialog for create and edit forms.
+
+**As designed for the build (2026-10-07, UI-23).** One area, **System health**, in the
+sidebar's Configure group (`/health`, icon `Health`, `g h`), laid out like Settings (§10.8):
+a sub-navigation on the left at ≥ 1024 px, a select above the content below it. Five pages,
+because each answers one question; the polling ones say how fresh they are (UI-18).
+
+```
+System health                                                  ● Live · updated 10:25
+The server, its data and its safety nets.
+┌ nav ─────────────┐ ┌──────────────────────────────────────────────────────────────────┐
+│ ♡ Overview       │ │ ⚠ The last backup failed — "pg_dump exited 1: …"     (Callout)    │
+│ ⛁ Geo databases  │ │   Still works: earlier backups are on disk.          [Backups ›] │
+│ ⌬ Inference      │ │ ┌ CPU ──────┐ ┌ Memory ───┐ ┌ Swap ─────┐ ┌ Disk ─────────────┐  │
+│ ⛃ Data           │ │ │ 12 %      │ │ 61 %      │ │ 3 %       │ │ 91 % ● warn       │  │
+│ ⇅ Rate limits    │ │ │ 16 CPUs   │ │ 4.5/7.4 GB│ │ 0.1/2 GB  │ │ above the 85 % …  │  │
+└──────────────────┘ │ └───────────┘ └───────────┘ └───────────┘ └───────────────────┘  │
+                     │ Load 0.4 · 0.6 · 0.8   Uptime 3 d 4 h   Database 127 MB          │
+                     │ Temperature — "This host exposes no temperature sensor…"          │
+                     │ Readiness ✓ database ✓ PostGIS ✓ migrations (head 0012)           │
+                     │ Also from here: Links ›  Team ›  Alerts and the delivery log ›     │
+                     └──────────────────────────────────────────────────────────────────┘
+```
+
+- **Overview** (`/health`): every degradation condition as a Callout (critical `error`,
+  warning `warn`, notice `info`), each with what still works and a link to where it is fixed;
+  "Nothing is degraded" when empty. Then the host Stats with threshold Badges **and** words,
+  the line of smaller facts, readiness (taken over from Settings › System, which now points
+  here), and the F10.AC6 links. Polls at the admin's own interval, 15 s unless changed in
+  Settings › Preferences (F10.AC1). `scope: container` shows a `warn` Callout:
+  "These figures are the container's — the host's /proc is not mounted."
+- **Geo databases** (`/health/databases`): a DataTable — name and what it feeds, version
+  and age, **state**, file, **Auto-update** Switch, and Update. *Amended for SPEC §11 row 24:*
+
+```
+Database          Version          State                          File        Auto
+dbip-city-lite    2026-10          ● Up to date                   121 MB …    [on]   [Update]
+geolite2-city     20261006T…       ● Update available · 9 Oct     61 MB …     [on]   [Update]
+ipinfo-lite       20261006T…       ● Updating 42 % · downloading  23 MB …     [on]   [Updating…]
+ip2location-…     20260929T…       ● Update failed · checksum …   220 MB …    [off]  [Update]
+geolite2-asn      —                ● Unable to update · no key    —           [on]   [Update ⓘ]
+[⟳ Check for updates]   Last checked 10:20
+```
+
+  State Badges: up to date `ok`; update available `info` with the release date; updating
+  `info` with the percent and the step, **as a number, never a bar**; update failed `error`
+  and unable to update `warn`, each with the reason inline (the installed copy keeps
+  serving); not installed `error`. A "Stale" Badge is added when the copy is older than its
+  threshold. **Update**: confirm → the vendor is asked first → "Already up to date —
+  nothing downloaded", or "Updating n %" polling every 2 s → the result (UI-15). The same
+  dialog offers **Download again**, for a damaged copy (SPEC §11 row 26).
+  The Switch saves at once (reversible, UI-13), owner only.
+- **Inference** (`/health/inference`): the **source switches** as SettingRows (label, code,
+  family; "Applies to visits inferred from now on — no restart"); saving creates a settings
+  version (one Save for all, the diff named in the confirmation). Below, the **flow diagram**:
+
+```
+ Capture → Sources                → Suppression          → Consensus      → Classification → Geofence → Alert
+           ┌ The visitor's device ┐ ┌ Registry artifact ┐   ┌ Country ≥ 0.60 ┐
+           │ S1 Device location ● │ │ Mobile network    │   │ Admin1  ≥ 0.75 │
+           ├ Registry databases ──┤ │ Hosting network   │   │ Admin2  ≥ 0.75 │
+           │ S2 GeoLite2      ●   │ │ Time-zone mismatch│   │ City    ≥ 0.80 │
+           │ S3 IP2Location   ○ off │ Outvoted          │   └────────────────┘
+           │ …                    │ │ Below threshold   │
+           └──────────────────────┘ └───────────────────┘
+ [Visit ID ____________ Show]   Showing 01a1123c… (inferred under m3.3+s7)
+```
+
+  Columns of nodes in the sankey's node style (§6: `--surface-2`, `--border`), the stage
+  names above them; no lines — the columns are the order. *As built:* classification, geofence
+  and alert hold one node each and share the last column, so five columns fit at 1440; where
+  they do not fit (1024, 390) they wrap and read left to right, then down. Off sources are dimmed and say
+  "off". With a visit, each source node gains its outcome (fired `ok`, suppressed `warn` with
+  the rule, unavailable/empty neutral with the reason), each rule that fired is outlined in
+  `--accent`, each level shows strict / advisory / why it abstained, and the right-hand
+  stages show classification, geofence state and the alert. The visit is in the URL
+  (`?visit=`, UI-9), and a visit's page links here with it.
+- **Data** (`/health/data`): **Retention** — three number Fields (visits, encrypted IP,
+  audit log, in days), rollups "kept forever", delivered alerts "30 days"; Save; then
+  **Preview purge** → the exact counts in a DataTable → **Purge…** opens a typed confirmation
+  quoting the counts ("Type PURGE to delete 1 204 visits, …") → progress → the result,
+  which is the last purge line (UI-15, UI-16). **Backups** — a Stat row (last backup, last
+  restore check, last download, with the R11 notice when overdue), **Back up now**, and a
+  DataTable: started, kind, status Badge, size, tables/rows, checksum (Identifier), restore
+  check Badge, and Download · Verify now per row.
+- **Rate limits** (`/health/limits`): a DataTable grouped by capture / admin / outbound —
+  label, the limit in words ("30 a minute, bursts of 10"), default, an "edited" Badge; **Edit**
+  opens a Dialog with three number Fields and "Back to default"; an outbound row states its
+  third party's ceiling. "Applies within 30 seconds, no restart."
+- **The global banner** (§5.6): every page polls `/health/degradation` every 60 s and shows
+  one Banner for the most severe critical or warning condition ("+2 more"), linking to System
+  health. Notices stay on the Overview. Analysts see it too; it is information.
+- **Analysts** see every page; every write (Save, Update, Purge, Back up, Verify, Edit,
+  Download) is disabled with "Only the owner can …" (UI-17).
 
 ### M8 — Accuracy hardening and ground truth
 

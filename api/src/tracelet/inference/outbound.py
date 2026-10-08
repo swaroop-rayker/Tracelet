@@ -8,7 +8,10 @@ and both must degrade silently -- inference completes on whatever else answered.
   and the service's terms hold however many processes are running.
 * **Breaker** -- per process. After ``threshold`` consecutive failures the breaker opens and
   every call short-circuits for ``cooldown``; then one trial call is allowed through. A
-  dead service costs one timeout per cooldown, not one per visit.
+  dead service costs one timeout per cooldown, not one per visit. **Its state is
+  announced** in ``rate_limit_buckets`` as ``breaker:<name>`` with the time it stays open
+  until, so System Health's degradation banner (F10.AC14) sees an open breaker whichever
+  worker opened it. The decision itself stays in process.
 """
 
 from __future__ import annotations
@@ -18,6 +21,8 @@ import time
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Final
+
+from sqlalchemy import text
 
 from tracelet.db.engine import session_scope
 from tracelet.ratelimit import gcra
@@ -60,14 +65,46 @@ class Breaker:
     def allow(self) -> bool:
         return self.state != "open"
 
-    def success(self) -> None:
+    def success(self) -> bool:
+        """Close the breaker. True if it had been open: the announcement can go."""
+        was_open = self._opened_at is not None
         self._failures, self._opened_at = 0, None
+        return was_open
 
-    def failure(self) -> None:
+    def failure(self) -> bool:
+        """Count a failure. True if this one opened (or re-opened) the breaker."""
         self._failures += 1
         if self.state == "half_open" or self._failures >= self.threshold:
             self._opened_at = self._now()
+            return True
+        return False
 
 
 IPWHOIS_BREAKER: Final = Breaker("ipwhois")
 NOMINATIM_BREAKER: Final = Breaker("nominatim")
+
+BREAKER_KEY_PREFIX: Final = "breaker:"
+
+
+async def failed(breaker: Breaker) -> None:
+    """A failed call. If it opened the breaker, announce until when (F10.AC14)."""
+    if breaker.failure():
+        until = dt.datetime.now(dt.UTC) + dt.timedelta(seconds=breaker.cooldown_s)
+        async with session_scope() as db:
+            await db.execute(
+                text(
+                    "INSERT INTO rate_limit_buckets (key, tat, updated_at) VALUES (:k, :t, now()) "
+                    "ON CONFLICT (key) DO UPDATE SET tat = EXCLUDED.tat, updated_at = now()"
+                ),
+                {"k": f"{BREAKER_KEY_PREFIX}{breaker.name}", "t": until},
+            )
+
+
+async def succeeded(breaker: Breaker) -> None:
+    """A successful call. If the breaker had been open, withdraw the announcement."""
+    if breaker.success():
+        async with session_scope() as db:
+            await db.execute(
+                text("DELETE FROM rate_limit_buckets WHERE key = :k"),
+                {"k": f"{BREAKER_KEY_PREFIX}{breaker.name}"},
+            )

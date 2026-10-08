@@ -90,6 +90,7 @@ GET /r/{slug}        (bare /r and /r/ resolve the default link instead — F1.AC
  │
  ├─3  L2 GCRA check ─── over limit ──► 302 to destination, no capture,
  │                                     row stage='rate_limited'              [F11.AC3]
+ │      memory pressure (PSI ≥ 20 %) ──► the same, without the limiter     [F15.AC6]
  │
  ├─4  server-side signal extraction (always available, no JS involved)
  │      IP → HMAC + /24|/48 prefix + AES-GCM ciphertext                      [F12.AC1]
@@ -299,6 +300,10 @@ a table, so no second copy of consented addresses outlives visit retention. Both
 through `inference/outbound.py`: a shared GCRA budget in PostgreSQL (ipwho.is 900/day;
 Nominatim 4/min, the policy's figure for scheduled use) and a per-process circuit
 breaker (five consecutive failures open it for two minutes, then one trial call).
+Since M7 a breaker that opens also announces it -- `breaker:<name>` in
+`rate_limit_buckets`, with the time it stays open until -- and withdraws it when a call
+succeeds, so System Health's banner sees it from either worker; the decision itself
+stays in process.
 `TRACELET_EXTERNAL_GEO_ENABLED=false` stops both; `street_address_enabled` in the
 versioned settings stops Nominatim alone. S10 was dropped (SPEC section 11 row 12, RISKS
 R23). A registry-artifact city collapses to the country, not admin1 (row 11, R22).
@@ -673,7 +678,8 @@ load. `TRACELET_DB_MAX_CONNECTIONS` must be kept in step with the
 | Spike | Size | Mitigation |
 |---|---|---|
 | Argon2id verification | 32 MB × concurrent logins | **Pinned to `m=32MiB, t=3, p=1`. Library defaults of 64 MiB to 1 GiB would OOM the box on one login.** Logins are serialised by rate limit |
-| `pg_dump` | ~40 MB | Scheduled off-peak, streamed and compressed |
+| `pg_dump` | ~40 MB | Scheduled off-peak, streamed and compressed. A subprocess of the API, inside its `mem_limit` (ADR-0022) |
+| `pg_restore` into `tracelet_verify` | ~40 MB, plus the database's size on disk while it exists | Monthly, off-peak; refuses to start without the free disk; the scratch database is dropped whatever the outcome (ADR-0022) |
 | Geo database update | ~150 MB | **The riskiest one.** Streams to disk, validates in a memory-capped subprocess, atomic symlink swap, off-peak. A failed update must never take down capture — RISKS R4 |
 | Analytics aggregate | `work_mem` bounded | Dashboard reads rollups, not raw rows — F9.AC19 |
 
@@ -785,13 +791,14 @@ not a dependency (ADR-0003 amendment).
 | `IP2Location` | IP2Location LITE ships a proprietary BIN format. Zero dependencies | converting BIN to mmdb ourselves, a maintenance liability |
 | `jinja2` | Server-rendered capture page; already a FastAPI-adjacent standard. **Installed in M2.** Autoescaping is the reason: the destination and the nonce are interpolated into attributes and an inline script | f-string templating, unsafe for HTML |
 | `structlog` | Structured JSON logs with redaction processors | stdlib logging plus a custom formatter |
-| `psutil` | Host CPU, RAM, disk, swap, uptime for System Health | parsing `/proc` by hand |
+| `psutil` | Host CPU, RAM, disk, swap, uptime for System Health. **Installed in M7**, reading the host's `/proc` mounted read-only at `/host/proc` (`psutil.PROCFS_PATH`, F10.AC15). Temperature is read from `/host/sys` by our own few lines, because psutil's sensor reader hard-codes `/sys` | parsing `/proc` by hand |
+| system: `postgresql-client-16` (PostgreSQL apt repository) | `pg_dump` and `pg_restore` for backups and restore-verification, run by the API's scheduler (ADR-0022). **Added in M7**: only the two binaries, copied from a build stage (about 4 MB; the package whole is ~120 MB, nearly all Perl); RSS only while a job runs | Debian's `postgresql-client` 17 (its `pg_restore` emits settings a 16 server rejects), a backup container (a second scheduler and idle memory), `docker exec` into `db` (needs the Docker socket) |
 | `python-ulid` | Sortable `trace_id`, better index locality than UUID4 | `uuid4` (no time ordering) |
 | **Rejected: `shapely`** | — | Unnecessary once PostGIS owns the geometry |
 | **Rejected: `reverse_geocoder`** | — | Drags in numpy + scipy, roughly 80 MB on a 1 GB box |
 | **Rejected: `pandas`** | — | Aggregation belongs in SQL; would not fit the budget |
 | **Rejected: `celery` / `arq`** | — | Requires a broker; the outbox is transactionally stronger — ADR-0009 |
-| dev: `pytest`, `pytest-asyncio`, `ruff`, `mypy` | Test and quality toolchain | — |
+| dev: `pytest`, `pytest-asyncio`, `ruff`, `mypy`, `types-psutil` (M7: psutil ships no type information, and `mypy --strict` needs it) | Test and quality toolchain | — |
 | **Rejected: `testcontainers`** | — | CI PostgreSQL is a GitHub Actions service container; no dependency needed |
 | **Rejected: `email-validator` + `dnspython`** | — | Arrived as a side effect of `pydantic.EmailStr` and crash-looped the API (docs/ERRORS.md E9). This system sends **no email at all** — Gate 1 declined SMTP and recovery runs over Telegram — so an admin address is purely a login identifier, and two packages for RFC 5322 conformance on a string nothing is delivered to fails ES5. Replaced with a constrained string in `auth/types.py` |
 | **Rejected for now: `ua-parser`** | — | Its rule set compiles into every worker for a precision nothing in M2 consumes. `capture/useragent.py` answers the questions M2 needs -- which webview, which preview fetcher, roughly what device -- and returns `None` rather than guessing. M4's classifier is the place to revisit it, with evidence of what the modest parser gets wrong |

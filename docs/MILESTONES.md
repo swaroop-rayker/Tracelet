@@ -24,7 +24,7 @@ then open the PR (CLAUDE.md section 2).
 | M5.5 | Design system and UI polish (owner-directed 2026-10-02, approved 2026-10-03; docs/DESIGN.md) | L | **[x] done** — 11 of 11 items; CSP 0 in Chromium, Firefox and WebKit; 72-image matrix; bugs E41–E47; hand keyboard walkthrough by the owner 2026-10-07 |
 | M5.6 | Dashboard enhancements and the Settings redesign, UI only (owner-approved 2026-10-06; docs/plans/ENHANCEMENTS-PLAN.md Phase A, SETTINGS-REDESIGN-PLAN.md) | M | **[x] built** — dashboard 6/6, Settings 6/6; CSP 0 in three engines; no server change; bugs E48–E50 |
 | M6 | Geofencing and Telegram notifications | M | **[x] done** — 11 of 11; both Telegram alerts received on the owner's phone 2026-10-07 (inside: high, as the same-day upgrade); bugs E52–E65 |
-| M7 | System health and operations | L | [ ] |
+| M7 | System health and operations | L | **built** — 10 of 10 items, plus the owner's additions (SPEC §11 rows 24–25) and F10.AC1's per-admin refresh interval; CSP 0 in three engines; ADR-0022; bugs E66–E71 (E69 cleared 164 dev IP ciphertexts) |
 | M8 | Accuracy hardening and ground truth | M | [ ] |
 | M9 | Production hardening and deploy | M | [ ] |
 
@@ -832,16 +832,46 @@ F9.AC6, F9.AC16–F9.AC18, NFR7. No new requirement: every item reads an existin
 - Full graceful-degradation matrix implemented and tested (F15.AC6)
 
 **Done checklist**
-- [ ] All metrics real and reflecting the **host**, not the container
-- [ ] Temperature `N/A` with reason on GCP; real on the WSL box
-- [ ] Flow diagram shows enabled sources and what fired for a chosen visit
-- [ ] Toggling a source changes behaviour **without a restart**
-- [ ] Retention preview counts **exactly** match what the purge then deletes
-- [ ] Manual backup, download, and **automated restore-verify all pass**
-- [ ] Dead-lettered job visible and retryable from the UI
-- [ ] Every row of the F15.AC6 degradation matrix exercised — **each one still redirects**
-- [ ] Geo-database update under memory cap; failure leaves previous version serving
-- [ ] Docs: API section 10, DATA_MODEL sections 8, 11 verified
+- [x] All metrics real and reflecting the **host**, not the container -- the host's /proc and
+  /sys mounted read-only; on the dev box the API reports Docker Desktop's VM (16 CPUs, 7.4
+  GB), not its own 420 MB limit, and says `container` with the reason when unmounted
+- [x] Temperature `N/A` with reason on GCP and on the dev box (neither exposes a sensor); the
+  reading path proved by a test against a fake `/sys` with a thermal zone (SPEC §11 row 23)
+  -- *the dev box and the tests; GCP itself is seen at the M9 deploy*
+- [x] Flow diagram shows enabled sources and what fired for a chosen visit -- integration
+  test, and the owner's own phone visit overlaid in the browser
+- [x] Toggling a source changes behaviour **without a restart** -- the next visit inferred
+  in the same process is inferred under it (test); switched off and on in the browser
+- [x] Retention preview counts **exactly** match what the purge then deletes -- equal
+  category by category (test); the purge takes the preview's instant and policy back
+- [x] Manual backup, download, and **automated restore-verify all pass** -- into a scratch
+  database, counts equal to the dump's own (ADR-0022) -- tests, the browser, and the live
+  scheduler's own nightly backup and monthly check on 2026-10-07 (passed)
+- [x] Dead-lettered job visible and retryable from the UI -- Alerts (M6), and now the
+  degradation banner on every page
+- [x] Every row of the F15.AC6 degradation matrix exercised — **each one still redirects**
+  -- `test_degradation_matrix.py`; swap thrashing is new: shedding on memory pressure
+  (ADR-0010 amendment), thresholds checked on the e2-micro in M9 (R6)
+- [x] Geo-database update under memory cap; failure leaves previous version serving -- the
+  M3 installer and its tests; M7 adds the update control and its endpoint test
+- [x] Docs: API section 10, DATA_MODEL sections 8, 11 verified (and §2, §12; DESIGN §16 M7)
+
+**Added at the owner's request, 2026-10-07 (SPEC §11 rows 24 and 25)**
+- [x] Geo databases state up to date / update available / updating n % / update failed /
+  unable to update / not installed, with a per-database auto-update switch and a release
+  check (HEAD only; never IP2Location) -- unit and integration tests, and a real update watched
+  in the browser (which found E71)
+- [x] Links: create, edit, archive, make default, and **delete permanently with the visits**
+  after a preview and the slug typed -- archived links too -- integration tests and the full
+  cycle in the browser. *This is what makes F10.AC6 true: until now the Links page only read,
+  so the M7 tick above leaned on a page that could not create or edit a link.*
+
+**Closing F10.AC1, 2026-10-08 (owner's choice)**
+- [x] "Polled, with configurable interval": each admin picks System Health's refresh interval
+  (5, 15, 30 or 60 s; default 15, the old fixed value) in Settings › Preferences. It drives the
+  host figures and the degraded conditions on the Overview; readiness stays at a fixed minute,
+  and the progress pollers (updates, purges, backups) keep their own fast and slow pace.
+  `admins.health_refresh_seconds` (migration 0014), integration test
 
 ---
 

@@ -25,6 +25,7 @@ import json
 import shutil
 import sys
 import tarfile
+import time
 import uuid
 import zipfile
 from dataclasses import dataclass
@@ -69,8 +70,42 @@ def current_path(settings: Settings, spec: DatabaseSpec) -> Path:
 # ---------------------------------------------------------------------------
 
 
+class Progress:
+    """Writes an attempt's phase and download progress to its row (SPEC section 11 row 24),
+    so either worker can report it. Throttled: at most once a second or every 2 %."""
+
+    def __init__(self, row_id: int) -> None:
+        self.row_id = row_id
+        self._written_at = 0.0
+        self._written_fraction = -1.0
+
+    async def phase(self, name: str) -> None:
+        await self._write(phase=name, progress_bytes=None, total_bytes=None)
+
+    async def bytes(self, done: int, total: int | None) -> None:
+        now = time.monotonic()
+        fraction = done / total if total else 0.0
+        if now - self._written_at < 1.0 and fraction - self._written_fraction < 0.02:
+            return
+        self._written_at, self._written_fraction = now, fraction
+        await self._write(phase="downloading", progress_bytes=done, total_bytes=total)
+
+    async def _write(self, **values: object) -> None:
+        try:
+            async with session_scope() as db:
+                await db.execute(
+                    update(GeoDatabase).where(GeoDatabase.id == self.row_id).values(**values)
+                )
+        except Exception as exc:  # noqa: BLE001 -- progress is a courtesy; never fail the install
+            log.debug("geo_progress_not_written", error_type=type(exc).__name__)
+
+
 async def _fetch(
-    client: httpx.AsyncClient, dl: Download, dest: Path, max_bytes: int
+    client: httpx.AsyncClient,
+    dl: Download,
+    dest: Path,
+    max_bytes: int,
+    progress: Progress | None = None,
 ) -> tuple[Download, str, dt.datetime | None]:
     """Stream ``dl`` to ``dest``. Returns what was actually fetched, its SHA-256, and the
     server's Last-Modified. On a 404, tries ``dl.fallback`` once."""
@@ -83,6 +118,8 @@ async def _fetch(
                 continue
             if response.status_code != 200:
                 raise InstallError(f"download refused (HTTP {response.status_code})")
+            length = response.headers.get("content-length")
+            total = int(length) if length and length.isdigit() else None
             with dest.open("wb") as out:
                 async for chunk in response.aiter_bytes(CHUNK):
                     size += len(chunk)
@@ -90,12 +127,14 @@ async def _fetch(
                         raise InstallError(f"larger than the {max_bytes // 1_048_576} MB cap")
                     digest.update(chunk)
                     out.write(chunk)
-            released = _http_date(response.headers.get("last-modified"))
+                    if progress is not None:
+                        await progress.bytes(size, total)
+            released = http_date(response.headers.get("last-modified"))
         return attempt, digest.hexdigest(), released
     raise InstallError("not published (HTTP 404)")
 
 
-def _http_date(value: str | None) -> dt.datetime | None:
+def http_date(value: str | None) -> dt.datetime | None:
     if not value:
         return None
     try:
@@ -222,7 +261,7 @@ async def _record_failure(row_id: int, error: str) -> None:
         await db.execute(
             update(GeoDatabase)
             .where(GeoDatabase.id == row_id)
-            .values(status=GeoDbStatus.FAILED, last_error=error[:500])
+            .values(status=GeoDbStatus.FAILED, last_error=error[:500], phase=None)
         )
 
 
@@ -251,7 +290,10 @@ async def install(
     try:
         staging.mkdir(parents=True)
         archive = staging / "download"
-        fetched, sha256, released = await _fetch(http, dl, archive, spec.max_bytes)
+        progress = Progress(row_id)
+        await progress.phase("downloading")
+        fetched, sha256, released = await _fetch(http, dl, archive, spec.max_bytes, progress)
+        await progress.phase("verifying")
         expected = await _published_sha256(http, fetched)
         if expected is not None and expected != sha256:
             raise InstallError("checksum mismatch against the vendor's published SHA-256")
@@ -273,7 +315,13 @@ async def install(
                 await db.execute(
                     update(GeoDatabase)
                     .where(GeoDatabase.id == serving.id)
-                    .values(last_check_at=dt.datetime.now(dt.UTC))
+                    # The vendor republished the same bytes under a newer date (the Tor list
+                    # does, every few minutes): the serving copy *is* the latest, so take
+                    # the date, or the release check would call it outdated for ever (E71).
+                    .values(
+                        last_check_at=dt.datetime.now(dt.UTC),
+                        released_at=released or serving.released_at,
+                    )
                 )
                 # Nothing was installed, so the attempt leaves no row behind.
                 await db.execute(delete(GeoDatabase).where(GeoDatabase.id == row_id))
@@ -283,9 +331,12 @@ async def install(
         version_dir_name = f"{version}-{sha256[:8]}"
         unpacked_dir = staging / "unpacked"
         unpacked_dir.mkdir()
+        await progress.phase("unpacking")
         unpacked = await asyncio.to_thread(_unpack, spec, archive, unpacked_dir)
         archive.unlink(missing_ok=True)
+        await progress.phase("validating")
         await _validate(spec, unpacked)
+        await progress.phase("installing")
 
         spec_dir.mkdir(parents=True, exist_ok=True)
         version_dir = spec_dir / version_dir_name
@@ -317,6 +368,9 @@ async def install(
                     sha256=sha256,
                     size_bytes=size,
                     last_error=None,
+                    phase=None,
+                    progress_bytes=None,
+                    total_bytes=None,
                 )
             )
         _prune(spec_dir, {version_dir_name, previous or ""})

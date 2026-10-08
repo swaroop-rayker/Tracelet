@@ -32,6 +32,7 @@ from tracelet.capture import service
 from tracelet.db.engine import session_scope
 from tracelet.inference import engine as inference
 from tracelet.inference.geodb import maintenance as geodb
+from tracelet.lifecycle import backups, retention
 from tracelet.notify import worker as notify
 
 log = structlog.get_logger(__name__)
@@ -104,6 +105,13 @@ JOBS: tuple[Job, ...] = (
     # Telegram alerts from the outbox (ADR-0009, F7.AC6). Five seconds on top of the
     # two of inference: an alert arrives within seconds of the visit ending.
     Job(name="outbox", every_seconds=5, run=notify.run_job_once),
+    # Retention (F12.AC8): checked every 15 minutes, purges once a night, an hour before
+    # the backup. Every job also runs when a worker starts, and workers recycle, so the
+    # nightly ones decide for themselves whether they are due.
+    Job(name="retention", every_seconds=900, run=retention.run_nightly_once),
+    # The nightly backup and the monthly restore check (ADR-0014, ADR-0022), on the same
+    # 15-minute check: each runs when it is due and not before.
+    Job(name="backups", every_seconds=900, run=backups.run_scheduled_once),
 )
 
 

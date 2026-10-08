@@ -249,7 +249,9 @@ a cushion** — once swapping starts, latency degrades sharply.
 
 **Mitigation:** hard per-container limits; L2 request shedding must engage before the kernel
 swaps (F15.AC6); Argon2 pinned; no numpy/scipy/pandas; every new dependency states its RSS
-before merge. **Escalation order if breached:** reduce to one Uvicorn worker (roughly
+before merge. **Shedding built in M7** (ADR-0010 amendment): capture is shed on the
+host's memory pressure (PSI "some avg10" at 20 %), visitors still redirected; the
+thresholds are checked against the real e2-micro in M9. **Escalation order if breached:** reduce to one Uvicorn worker (roughly
 110 MB), then lower `shared_buffers`, then revisit the host — **not** the database.
 
 ---

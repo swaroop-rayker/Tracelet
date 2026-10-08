@@ -92,6 +92,10 @@ class Admin(Base):
 
     timezone: Mapped[str] = mapped_column(Text, nullable=False, default="Asia/Kolkata")
     theme: Mapped[str] = mapped_column(Text, nullable=False, default="semi_dark")
+    # F10.AC1: how often System Health refreshes for this admin; 5, 15, 30 or 60 (CHECK).
+    health_refresh_seconds: Mapped[int] = mapped_column(
+        SmallInteger, nullable=False, default=15, server_default="15"
+    )
 
     failed_login_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     locked_until: Mapped[dt.datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)

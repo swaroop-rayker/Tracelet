@@ -86,7 +86,9 @@ could not see it (docs/ERRORS.md E13).
 | `notify_priority` | `high`, `normal`, `silent` |
 | `outbox_kind` | `telegram.visit_alert`, `telegram.password_reset`, `telegram.health_alert`, `telegram.test` — `password_reset` is **unused**: reset links are sent synchronously, see the ADR-0009 amendment |
 | `outbox_status` | `pending`, `in_flight`, `done`, `failed`, `dead` |
-| `backup_kind` | `daily`, `weekly`, `manual` |
+| `backup_kind` | `scheduled`, `manual` — M7. Was planned as `daily`, `weekly`, `manual`; daily and weekly are rotation tiers computed when pruning, not stored (ADR-0022) |
+| `backup_status` | `running`, `ok`, `failed`, `pruned` — M7, section 8.8 |
+| `restore_status` | `running`, `passed`, `failed` — M7, section 8.8 |
 | `geo_db_status` | `installed`, `downloading`, `failed`, `stale` |
 | `shape_kind` | `polygon`, `circle`, `region` — `region` added in M6 (ADR-0020) |
 
@@ -114,6 +116,7 @@ could not see it (docs/ERRORS.md E13).
 | `telegram_verified_at` | `timestamptz` NULL | |
 | `timezone` | `text` | Default `Asia/Kolkata` |
 | `theme` | `text` | `semi_dark` default, `light`, `dark` |
+| `health_refresh_seconds` | `smallint` | How often System Health polls for this admin (F10.AC1): `5`, `15`, `30` or `60` (`CHECK`), default `15`. Added in M7 (migration 0014) |
 | `failed_login_count` | `integer` | |
 | `locked_until` | `timestamptz` NULL | |
 | `created_at`, `updated_at` | `timestamptz` | |
@@ -785,6 +788,17 @@ file unchanged leaves no row. On disk: `<geo_data_dir>/<name>/<version>-<sha8>/<
 with `<name>/current` a symlink to the serving version; the previous version is kept and
 older ones pruned.
 
+**Added in M7, SPEC §11 row 24 (migration 0013).** The attempt row also carries its
+progress, so either worker can report it: `phase text NULL` (`downloading`, `verifying`,
+`unpacking`, `validating`, `installing`), `progress_bytes bigint NULL`, `total_bytes bigint
+NULL` (the vendor's `Content-Length`, when it sends one). Written at most every second or 2 %.
+
+**`geo_database_settings`** -- one row per database name, written the first time it is needed:
+`name text` PK, `auto_update boolean` default true, `latest_version text NULL`,
+`latest_released_at timestamptz NULL` (from the last release check), `checked_at timestamptz
+NULL`, `check_error text NULL`, `updated_by uuid NULL` FK admins `ON DELETE SET NULL`,
+`updated_at`. In the must-never-be-lost set like the rest of section 8.
+
 ### 8.4 `inference_settings`
 
 `id`, `version integer` UNIQUE, `settings jsonb` (source toggles, weights, thresholds,
@@ -810,6 +824,15 @@ Singleton (`CHECK (id = 1)`): `visit_days` default 180, `ip_days` default 30,
 `updated_at`. *Quiet hours moved to `app_settings` in M6, which needs them before M7
 builds this table.*
 
+**As built in M7 (migration 0012).** The row is written the first time anything reads it,
+from `TRACELET_RETENTION_VISIT_DAYS`, `_IP_DAYS` and `_AUDIT_DAYS` (180, 30, 365); after
+that the dashboard edits it and the environment no longer matters. `CHECK`s: `ip_days
+BETWEEN 1 AND visit_days` (the encrypted IP cannot outlive its visit), `visit_days`
+between 8 and 3650 (rollups re-settle the last 7 days, so a visit inside that window must
+still exist), `audit_days` between 1 and 3650, and `rollup_forever` is always true -- rollups are never
+purged (ADR-0014), and the column records that rather than offering it. Every change is
+owner-only and writes `retention.changed` with the old and new values.
+
 ### 8.6 `app_settings`
 
 `key text` PK, `value jsonb`, `updated_by uuid NULL` FK admins `ON DELETE SET NULL`,
@@ -819,6 +842,7 @@ files only — F12.AC3, F14.AC5. Created in M6 (migration 0010). Keys:
 | Key | Value | Default when absent |
 |---|---|---|
 | `notifications.quiet_hours` | `{enabled, start: "HH:MM", end: "HH:MM", timezone: IANA}` — F7.AC9. A window whose end is before its start crosses midnight | `{enabled: false, start: "23:00", end: "07:00", timezone: "Asia/Kolkata"}` |
+| `ratelimits` | `{<limit name>: {per_period, period_seconds, burst}}` — F11.AC9, M7. Only the limits an owner changed; each worker re-reads it at most every 30 s, so a change applies without a restart. Names come from `ratelimit/registry.py`; an outbound limit may not exceed its third party's terms | absent: every limit at its default in code |
 
 Every change is owner-only and writes `settings.changed` with the old and new value
 (invariant 9); the audit row is the history, and restoring a value is another change.
@@ -827,6 +851,10 @@ Every change is owner-only and writes `settings.changed` with the old and new va
 
 `key text` PK (e.g. `cap:203.0.113.0/24`, `login:user@example.com`), `tat timestamptz`
 (theoretical arrival time), `updated_at`.
+
+**Also, since M7: `breaker:<name>`** (`breaker:ipwhois`, `breaker:nominatim`) with `tat` =
+the time an open circuit breaker stays open until, written when it opens and deleted
+when a call succeeds, so the degradation banner sees it from either worker (F10.AC14).
 
 **Index:** `(updated_at)` for the cleanup job. Ephemeral and rebuildable — the only
 table deliberately **excluded** from the must-never-be-lost set. Shared across both
@@ -840,6 +868,31 @@ an earlier migration and avoids a per-process limiter that would have to be repl
 Recorded as a deviation in docs/MILESTONES.md.
 
 ---
+
+### 8.8 `backups` and `restore_checks` -- added in M7 (ADR-0014, ADR-0022)
+
+**`backups`** -- one row per backup attempt. `id uuid` PK, `kind backup_kind`
+(`scheduled`, `manual`), `status backup_status` (`running`, `ok`, `failed`, `pruned`),
+`file_name text NULL`, `size_bytes bigint NULL`, `sha256 text NULL`, `row_counts jsonb NULL`
+(table name to count, taken in the dump's own snapshot), `error text NULL`, `started_at`,
+`finished_at NULL`, `requested_by uuid NULL` FK admins `ON DELETE SET NULL`,
+`last_downloaded_at timestamptz NULL`.
+
+**`restore_checks`** -- one row per restore-verification. `id bigint` identity PK,
+`backup_id uuid` FK backups `ON DELETE RESTRICT`, `kind backup_kind`, `status
+restore_status` (`running`, `passed`, `failed`), `mismatches jsonb NULL` (table to `{expected,
+restored}`), `error text NULL`, `started_at`, `finished_at NULL`, `requested_by uuid NULL` FK
+admins `ON DELETE SET NULL`.
+
+**Invariants**
+1. `status = 'ok'` exactly when `file_name`, `size_bytes`, `sha256` and `row_counts` are all
+   set, and `pruned` keeps them as history (`CHECK`). A `pruned` row's file is gone.
+2. At most one `running` backup and one `running` restore check (partial unique indexes), so
+   a second trigger is refused rather than run twice.
+3. Rows are never deleted: both tables are small, and they are the history System Health
+   shows. `error` never contains a password or a connection string.
+4. A restore check passes only if every table's restored count **equals** the backup's
+   `row_counts` (ADR-0022) -- no tolerance.
 
 ## 9. Derived and cached data
 
@@ -943,9 +996,9 @@ Tracelet reports about itself must be read with the sample size visible (RISKS R
 
 | Data | Retention | Purge behaviour |
 |---|---|---|
-| `visits.ip_enc` | 30 days (configurable) | Column set to `NULL`; `ip_hmac` and `ip_prefix` persist |
-| `visits` + `visit_candidates` | 180 days (configurable) | Batched delete, cascade to candidates, aggregates already rolled up |
-| `audit_log` | 365 days (configurable) | Deleted by a maintenance role, since the app role cannot delete |
+| `visits.ip_enc` | 30 days (configurable) | Column set to `NULL`; `ip_hmac` and `ip_prefix` persist. Every 10 minutes, on `ip_purge_after`, which capture stamps from the policy and a policy change re-dates |
+| `visits` + `visit_candidates` | 180 days (configurable, at least 8) | Batched delete, cascade to candidates, aggregates already rolled up. Nightly, an hour before the backup |
+| `audit_log` | 365 days (configurable) | Deleted by `tracelet_maint`, since the app role cannot delete. Nightly |
 | `sessions` | Expiry-driven | Reaped continuously |
 | `auth_challenges` | Minutes | Reaped once consumed or expired |
 | `admin_enrollment_tokens` | 24 hours | Reaped once consumed or expired |
@@ -953,7 +1006,8 @@ Tracelet reports about itself must be read with the sample size visible (RISKS R
 | `rate_limit_buckets` | Ephemeral | Cleaned when stale |
 | `geo_cache` | TTL | Cleaned on expiry |
 | `rollup_*` | **Indefinite** | Never purged; small and the long-term history |
-| `outbox` `done` rows | 30 days | `dead` rows retained until acknowledged |
+| `outbox` `done` rows | 30 days | Nightly. `dead` rows retained until retried |
+| `backups`, `restore_checks` | Indefinite (rows) | Rows are the history and are never deleted; a backup's **file** is rotated -- the newest of each of 7 days and 4 weeks kept -- and its row becomes `pruned` (section 8.8) |
 | Reference and config (section 8) | **Indefinite** | Never purged, always backed up |
 
 **Must never be lost** (F12.AC12, NFR5.AC3): `admins`, `admin_recovery_codes`, `links`,
@@ -962,7 +1016,10 @@ Tracelet reports about itself must be read with the sample size visible (RISKS R
 
 **Purge rules:** transactional, batched to avoid long locks, dry-runnable with exact
 counts before execution, and audit-logged with the counts actually deleted —
-F12.AC8, F10.AC12.
+F12.AC8, F10.AC12. *As built in M7:* `lifecycle/retention.py`; the purge takes the
+preview's instant and policy back and deletes against the same cutoffs, which is what makes
+the preview exact; one purge at a time (a session advisory lock); `retention.purged` holds
+the counts.
 
 ---
 
@@ -971,7 +1028,7 @@ F12.AC8, F10.AC12.
 | Role | Grants | Why |
 |---|---|---|
 | `tracelet_app` | `SELECT`, `INSERT`, `UPDATE`, `DELETE` on data tables; **`INSERT` and `SELECT` only on `audit_log`** | Makes the audit log append-only at the engine level, not by convention — NFR5.AC5 |
-| `tracelet_maint` | Additionally `DELETE` on `audit_log`; `VACUUM`; used by purge, backup and restore-verify | Separates routine traffic from destructive maintenance |
+| `tracelet_maint` | Additionally `DELETE` on `audit_log`; `VACUUM`; **`CREATEDB`** (M7, for the scratch database `tracelet_verify`, made from the template `tracelet_verify_template` -- ADR-0022); used by purge, backup and restore-verify, through `TRACELET_MAINT_DATABASE_URL` | Separates routine traffic from destructive maintenance |
 | `tracelet_migrate` | DDL | Used only by Alembic, never by the running application |
 
 A SQL-injection foothold in the application path therefore cannot erase the evidence of

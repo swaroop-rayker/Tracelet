@@ -124,9 +124,9 @@ async def lookup(prefix: str, timeout_s: float) -> dict[str, Any]:
         response.raise_for_status()
         payload: dict[str, Any] = response.json()
     except (httpx.HTTPError, ValueError) as exc:
-        breaker.failure()
+        await outbound.failed(breaker)
         raise SourceUnavailable(f"request_failed:{type(exc).__name__}") from exc
-    breaker.success()
+    await outbound.succeeded(breaker)
     return payload
 
 

@@ -143,6 +143,236 @@
         "title": "AdminSummary",
         "type": "object"
       },
+      "AttemptOut": {
+        "properties": {
+          "at": {
+            "format": "date-time",
+            "title": "At",
+            "type": "string"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "status",
+          "at",
+          "error"
+        ],
+        "title": "AttemptOut",
+        "type": "object"
+      },
+      "BackupKind": {
+        "enum": [
+          "scheduled",
+          "manual"
+        ],
+        "title": "BackupKind",
+        "type": "string"
+      },
+      "BackupOut": {
+        "properties": {
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          },
+          "file_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "File Name"
+          },
+          "finished_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Finished At"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/BackupKind"
+          },
+          "last_downloaded_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Downloaded At"
+          },
+          "last_restore_check": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RestoreCheckOut"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The newest restore check of this backup. A backup never restored is not yet a backup (F12.AC10)."
+          },
+          "rows": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Rows in the dump, from its own snapshot.",
+            "title": "Rows"
+          },
+          "sha256": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sha256"
+          },
+          "size_bytes": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Size Bytes"
+          },
+          "started_at": {
+            "format": "date-time",
+            "title": "Started At",
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/BackupStatus"
+          },
+          "tables": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Tables in the dump.",
+            "title": "Tables"
+          }
+        },
+        "required": [
+          "id",
+          "kind",
+          "status",
+          "file_name",
+          "size_bytes",
+          "sha256",
+          "tables",
+          "rows",
+          "error",
+          "started_at",
+          "finished_at",
+          "last_downloaded_at",
+          "last_restore_check"
+        ],
+        "title": "BackupOut",
+        "type": "object"
+      },
+      "BackupStatus": {
+        "enum": [
+          "running",
+          "ok",
+          "failed",
+          "pruned"
+        ],
+        "title": "BackupStatus",
+        "type": "string"
+      },
+      "BackupsOut": {
+        "properties": {
+          "backup_running": {
+            "title": "Backup Running",
+            "type": "boolean"
+          },
+          "backups": {
+            "items": {
+              "$ref": "#/components/schemas/BackupOut"
+            },
+            "title": "Backups",
+            "type": "array"
+          },
+          "download": {
+            "$ref": "#/components/schemas/DownloadReminder"
+          },
+          "last_restore_check": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RestoreCheckOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "restore_check_running": {
+            "title": "Restore Check Running",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "backups",
+          "last_restore_check",
+          "backup_running",
+          "restore_check_running",
+          "download"
+        ],
+        "title": "BackupsOut",
+        "type": "object"
+      },
       "Breakdown": {
         "properties": {
           "dimension": {
@@ -629,6 +859,40 @@
         "title": "ClassifierConfig",
         "type": "object"
       },
+      "ConditionOut": {
+        "properties": {
+          "detail": {
+            "title": "Detail",
+            "type": "string"
+          },
+          "key": {
+            "title": "Key",
+            "type": "string"
+          },
+          "severity": {
+            "description": "critical, warning or notice.",
+            "title": "Severity",
+            "type": "string"
+          },
+          "still_works": {
+            "title": "Still Works",
+            "type": "string"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "key",
+          "severity",
+          "title",
+          "detail",
+          "still_works"
+        ],
+        "title": "ConditionOut",
+        "type": "object"
+      },
       "Confidence": {
         "properties": {
           "levels": {
@@ -704,6 +968,75 @@
         "title": "CountryOut",
         "type": "object"
       },
+      "CountsModel": {
+        "properties": {
+          "audit_rows": {
+            "title": "Audit Rows",
+            "type": "integer"
+          },
+          "delivered_alerts": {
+            "title": "Delivered Alerts",
+            "type": "integer"
+          },
+          "ip_addresses": {
+            "title": "Ip Addresses",
+            "type": "integer"
+          },
+          "visit_candidates": {
+            "title": "Visit Candidates",
+            "type": "integer"
+          },
+          "visits": {
+            "title": "Visits",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "visits",
+          "visit_candidates",
+          "ip_addresses",
+          "audit_rows",
+          "delivered_alerts"
+        ],
+        "title": "CountsModel",
+        "type": "object"
+      },
+      "CpuOut": {
+        "properties": {
+          "count": {
+            "title": "Count",
+            "type": "integer"
+          },
+          "load": {
+            "maxItems": 3,
+            "minItems": 3,
+            "prefixItems": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "number"
+              },
+              {
+                "type": "number"
+              }
+            ],
+            "title": "Load",
+            "type": "array"
+          },
+          "percent": {
+            "title": "Percent",
+            "type": "number"
+          }
+        },
+        "required": [
+          "percent",
+          "count",
+          "load"
+        ],
+        "title": "CpuOut",
+        "type": "object"
+      },
       "CreateAdminRequest": {
         "properties": {
           "display_name": {
@@ -754,6 +1087,214 @@
         "title": "CreateAdminResponse",
         "type": "object"
       },
+      "CutoffsModel": {
+        "properties": {
+          "audit": {
+            "format": "date-time",
+            "title": "Audit",
+            "type": "string"
+          },
+          "ip": {
+            "format": "date-time",
+            "title": "Ip",
+            "type": "string"
+          },
+          "outbox": {
+            "format": "date-time",
+            "title": "Outbox",
+            "type": "string"
+          },
+          "visits": {
+            "format": "date-time",
+            "title": "Visits",
+            "type": "string"
+          }
+        },
+        "required": [
+          "visits",
+          "ip",
+          "audit",
+          "outbox"
+        ],
+        "title": "CutoffsModel",
+        "type": "object"
+      },
+      "DatabaseChange": {
+        "properties": {
+          "auto_update": {
+            "title": "Auto Update",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "auto_update"
+        ],
+        "title": "DatabaseChange",
+        "type": "object"
+      },
+      "DatabaseOut": {
+        "properties": {
+          "age_days": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Age Days"
+          },
+          "attribution": {
+            "title": "Attribution",
+            "type": "string"
+          },
+          "auto_update": {
+            "description": "Whether the scheduler updates it (SPEC 11 row 24).",
+            "title": "Auto Update",
+            "type": "boolean"
+          },
+          "check_error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Check Error"
+          },
+          "checked_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Checked At"
+          },
+          "configured": {
+            "description": "False when its vendor credentials are not set.",
+            "title": "Configured",
+            "type": "boolean"
+          },
+          "feeds": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The inference source it feeds, if any.",
+            "title": "Feeds"
+          },
+          "installed": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/InstalledOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "kind": {
+            "title": "Kind",
+            "type": "string"
+          },
+          "last_attempt": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AttemptOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "latest": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/LatestOut"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "What the last release check found."
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "progress": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ProgressOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "stale": {
+            "description": "The installed copy is older than its staleness threshold.",
+            "title": "Stale",
+            "type": "boolean"
+          },
+          "staleness_days": {
+            "title": "Staleness Days",
+            "type": "integer"
+          },
+          "state": {
+            "description": "updating, update_failed, unable_to_update, not_installed, update_available or up_to_date (SPEC section 11 row 24).",
+            "title": "State",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "kind",
+          "feeds",
+          "attribution",
+          "configured",
+          "auto_update",
+          "staleness_days",
+          "stale",
+          "state",
+          "progress",
+          "age_days",
+          "installed",
+          "latest",
+          "last_attempt",
+          "check_error",
+          "checked_at"
+        ],
+        "title": "DatabaseOut",
+        "type": "object"
+      },
+      "DatabasesOut": {
+        "properties": {
+          "databases": {
+            "items": {
+              "$ref": "#/components/schemas/DatabaseOut"
+            },
+            "title": "Databases",
+            "type": "array"
+          }
+        },
+        "required": [
+          "databases"
+        ],
+        "title": "DatabasesOut",
+        "type": "object"
+      },
       "DecryptedIp": {
         "properties": {
           "decrypted_at": {
@@ -771,6 +1312,85 @@
           "decrypted_at"
         ],
         "title": "DecryptedIp",
+        "type": "object"
+      },
+      "DegradationOut": {
+        "properties": {
+          "checked_at": {
+            "format": "date-time",
+            "title": "Checked At",
+            "type": "string"
+          },
+          "conditions": {
+            "items": {
+              "$ref": "#/components/schemas/ConditionOut"
+            },
+            "title": "Conditions",
+            "type": "array"
+          }
+        },
+        "required": [
+          "conditions",
+          "checked_at"
+        ],
+        "title": "DegradationOut",
+        "type": "object"
+      },
+      "DeletePreview": {
+        "properties": {
+          "archived": {
+            "title": "Archived",
+            "type": "boolean"
+          },
+          "geofences_deactivated": {
+            "description": "Geofences scoped to this link alone: switched off.",
+            "items": {
+              "$ref": "#/components/schemas/GeofenceRef"
+            },
+            "title": "Geofences Deactivated",
+            "type": "array"
+          },
+          "geofences_updated": {
+            "description": "Geofences scoped to this link among others: this link is removed from them.",
+            "items": {
+              "$ref": "#/components/schemas/GeofenceRef"
+            },
+            "title": "Geofences Updated",
+            "type": "array"
+          },
+          "is_default": {
+            "title": "Is Default",
+            "type": "boolean"
+          },
+          "rollup_rows": {
+            "description": "The link's daily and hourly figures (rollups).",
+            "title": "Rollup Rows",
+            "type": "integer"
+          },
+          "slug": {
+            "title": "Slug",
+            "type": "string"
+          },
+          "visit_candidates": {
+            "title": "Visit Candidates",
+            "type": "integer"
+          },
+          "visits": {
+            "title": "Visits",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "slug",
+          "is_default",
+          "archived",
+          "visits",
+          "visit_candidates",
+          "rollup_rows",
+          "geofences_updated",
+          "geofences_deactivated"
+        ],
+        "title": "DeletePreview",
         "type": "object"
       },
       "DeliveryOut": {
@@ -1008,6 +1628,45 @@
         "title": "DeviceClass",
         "type": "string"
       },
+      "DiskOut": {
+        "properties": {
+          "path": {
+            "title": "Path",
+            "type": "string"
+          },
+          "percent": {
+            "title": "Percent",
+            "type": "number"
+          },
+          "state": {
+            "description": "ok, warn or critical against the thresholds.",
+            "title": "State",
+            "type": "string"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          },
+          "used": {
+            "title": "Used",
+            "type": "integer"
+          },
+          "warn_percent": {
+            "title": "Warn Percent",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "used",
+          "total",
+          "percent",
+          "warn_percent",
+          "state",
+          "path"
+        ],
+        "title": "DiskOut",
+        "type": "object"
+      },
       "DivisionOut": {
         "properties": {
           "code": {
@@ -1034,6 +1693,38 @@
           "name"
         ],
         "title": "DivisionOut",
+        "type": "object"
+      },
+      "DownloadReminder": {
+        "properties": {
+          "last_downloaded_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Downloaded At"
+          },
+          "overdue": {
+            "description": "True when no backup has been downloaded within `reminder_days`: the download is the only copy off this machine (F12.AC11, RISKS R11).",
+            "title": "Overdue",
+            "type": "boolean"
+          },
+          "reminder_days": {
+            "title": "Reminder Days",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "last_downloaded_at",
+          "reminder_days",
+          "overdue"
+        ],
+        "title": "DownloadReminder",
         "type": "object"
       },
       "Drift": {
@@ -1236,6 +1927,91 @@
         "title": "FeatureIn",
         "type": "object"
       },
+      "FiredOut": {
+        "properties": {
+          "accepted": {
+            "title": "Accepted",
+            "type": "boolean"
+          },
+          "effective_weight": {
+            "title": "Effective Weight",
+            "type": "number"
+          },
+          "level": {
+            "title": "Level",
+            "type": "string"
+          },
+          "suppressed_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Suppressed Reason"
+          },
+          "value": {
+            "title": "Value",
+            "type": "string"
+          }
+        },
+        "required": [
+          "level",
+          "value",
+          "accepted",
+          "suppressed_reason",
+          "effective_weight"
+        ],
+        "title": "FiredOut",
+        "type": "object"
+      },
+      "FlowFamilyOut": {
+        "properties": {
+          "family": {
+            "title": "Family",
+            "type": "string"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "sources": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Sources",
+            "type": "array"
+          }
+        },
+        "required": [
+          "family",
+          "label",
+          "sources"
+        ],
+        "title": "FlowFamilyOut",
+        "type": "object"
+      },
+      "FlowLevelOut": {
+        "properties": {
+          "level": {
+            "title": "Level",
+            "type": "string"
+          },
+          "threshold": {
+            "description": "Minimum confidence for the strict value (F4.AC10).",
+            "title": "Threshold",
+            "type": "number"
+          }
+        },
+        "required": [
+          "level",
+          "threshold"
+        ],
+        "title": "FlowLevelOut",
+        "type": "object"
+      },
       "FlowLink": {
         "properties": {
           "source": {
@@ -1257,6 +2033,146 @@
           "value"
         ],
         "title": "FlowLink",
+        "type": "object"
+      },
+      "FlowOut": {
+        "properties": {
+          "families": {
+            "items": {
+              "$ref": "#/components/schemas/FlowFamilyOut"
+            },
+            "title": "Families",
+            "type": "array"
+          },
+          "inference_version": {
+            "title": "Inference Version",
+            "type": "string"
+          },
+          "levels": {
+            "items": {
+              "$ref": "#/components/schemas/FlowLevelOut"
+            },
+            "title": "Levels",
+            "type": "array"
+          },
+          "rules": {
+            "items": {
+              "$ref": "#/components/schemas/FlowRuleOut"
+            },
+            "title": "Rules",
+            "type": "array"
+          },
+          "sample": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SampleOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "sources": {
+            "items": {
+              "$ref": "#/components/schemas/FlowSourceOut"
+            },
+            "title": "Sources",
+            "type": "array"
+          },
+          "stages": {
+            "description": "The pipeline, in order, from capture to alert.",
+            "items": {
+              "type": "string"
+            },
+            "title": "Stages",
+            "type": "array"
+          }
+        },
+        "required": [
+          "inference_version",
+          "stages",
+          "families",
+          "sources",
+          "rules",
+          "levels",
+          "sample"
+        ],
+        "title": "FlowOut",
+        "type": "object"
+      },
+      "FlowRuleOut": {
+        "properties": {
+          "description": {
+            "title": "Description",
+            "type": "string"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "rule": {
+            "title": "Rule",
+            "type": "string"
+          }
+        },
+        "required": [
+          "rule",
+          "label",
+          "description"
+        ],
+        "title": "FlowRuleOut",
+        "type": "object"
+      },
+      "FlowSourceOut": {
+        "properties": {
+          "code": {
+            "description": "S1-S11, as SPEC F4 numbers them.",
+            "title": "Code",
+            "type": "string"
+          },
+          "enabled": {
+            "title": "Enabled",
+            "type": "boolean"
+          },
+          "family": {
+            "title": "Family",
+            "type": "string"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "order": {
+            "title": "Order",
+            "type": "integer"
+          },
+          "priors": {
+            "additionalProperties": {
+              "type": "number"
+            },
+            "title": "Priors",
+            "type": "object"
+          },
+          "source": {
+            "title": "Source",
+            "type": "string"
+          },
+          "timeout_ms": {
+            "title": "Timeout Ms",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "source",
+          "code",
+          "label",
+          "family",
+          "order",
+          "enabled",
+          "timeout_ms",
+          "priors"
+        ],
+        "title": "FlowSourceOut",
         "type": "object"
       },
       "Funnel": {
@@ -1556,6 +2472,24 @@
           "updated_at"
         ],
         "title": "GeofenceOut",
+        "type": "object"
+      },
+      "GeofenceRef": {
+        "properties": {
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name"
+        ],
+        "title": "GeofenceRef",
         "type": "object"
       },
       "GeofenceState": {
@@ -1968,6 +2902,76 @@
         "title": "InferenceSource",
         "type": "string"
       },
+      "InstalledOut": {
+        "properties": {
+          "installed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Installed At"
+          },
+          "released_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Released At"
+          },
+          "sha256": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sha256"
+          },
+          "size_bytes": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Size Bytes"
+          },
+          "version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Version"
+          }
+        },
+        "required": [
+          "version",
+          "released_at",
+          "installed_at",
+          "size_bytes",
+          "sha256"
+        ],
+        "title": "InstalledOut",
+        "type": "object"
+      },
       "Kpi": {
         "properties": {
           "change": {
@@ -2038,6 +3042,41 @@
         "title": "Kpi",
         "type": "object"
       },
+      "LastPurgeOut": {
+        "properties": {
+          "at": {
+            "format": "date-time",
+            "title": "At",
+            "type": "string"
+          },
+          "by": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "By"
+          },
+          "counts": {
+            "$ref": "#/components/schemas/CountsModel"
+          },
+          "trigger": {
+            "title": "Trigger",
+            "type": "string"
+          }
+        },
+        "required": [
+          "at",
+          "trigger",
+          "counts",
+          "by"
+        ],
+        "title": "LastPurgeOut",
+        "type": "object"
+      },
       "LatLng": {
         "properties": {
           "lat": {
@@ -2058,6 +3097,39 @@
           "lng"
         ],
         "title": "LatLng",
+        "type": "object"
+      },
+      "LatestOut": {
+        "properties": {
+          "released_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Released At"
+          },
+          "version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Version"
+          }
+        },
+        "required": [
+          "version",
+          "released_at"
+        ],
+        "title": "LatestOut",
         "type": "object"
       },
       "LevelAccuracy": {
@@ -2132,6 +3204,67 @@
         "title": "LevelAccuracy",
         "type": "object"
       },
+      "LevelOutcomeOut": {
+        "properties": {
+          "abstain_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Abstain Reason"
+          },
+          "advisory": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Advisory"
+          },
+          "confidence": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Confidence"
+          },
+          "level": {
+            "title": "Level",
+            "type": "string"
+          },
+          "strict": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Strict"
+          }
+        },
+        "required": [
+          "level",
+          "strict",
+          "advisory",
+          "confidence",
+          "abstain_reason"
+        ],
+        "title": "LevelOutcomeOut",
+        "type": "object"
+      },
       "LevelPriors": {
         "additionalProperties": false,
         "description": "How far a source is trusted at each level, 0..1.\n\nA database that is right about the country 99 % of the time can be right about the\ncity half the time; one number per source cannot say that.",
@@ -2168,6 +3301,93 @@
           "city"
         ],
         "title": "LevelPriors",
+        "type": "object"
+      },
+      "LimitOut": {
+        "properties": {
+          "burst": {
+            "title": "Burst",
+            "type": "integer"
+          },
+          "ceiling_per_second": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ceiling Per Second"
+          },
+          "default": {
+            "$ref": "#/components/schemas/LimitValue"
+          },
+          "description": {
+            "title": "Description",
+            "type": "string"
+          },
+          "group": {
+            "title": "Group",
+            "type": "string"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "overridden": {
+            "title": "Overridden",
+            "type": "boolean"
+          },
+          "per_period": {
+            "title": "Per Period",
+            "type": "integer"
+          },
+          "period_seconds": {
+            "title": "Period Seconds",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "per_period",
+          "period_seconds",
+          "burst",
+          "name",
+          "group",
+          "label",
+          "description",
+          "default",
+          "overridden",
+          "ceiling_per_second"
+        ],
+        "title": "LimitOut",
+        "type": "object"
+      },
+      "LimitValue": {
+        "properties": {
+          "burst": {
+            "title": "Burst",
+            "type": "integer"
+          },
+          "per_period": {
+            "title": "Per Period",
+            "type": "integer"
+          },
+          "period_seconds": {
+            "title": "Period Seconds",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "per_period",
+          "period_seconds",
+          "burst"
+        ],
+        "title": "LimitValue",
         "type": "object"
       },
       "LinkClone": {
@@ -2583,6 +3803,10 @@
             "title": "Email",
             "type": "string"
           },
+          "health_refresh_seconds": {
+            "title": "Health Refresh Seconds",
+            "type": "integer"
+          },
           "id": {
             "title": "Id",
             "type": "string"
@@ -2635,6 +3859,7 @@
           "status",
           "timezone",
           "theme",
+          "health_refresh_seconds",
           "totp_enrolled",
           "telegram_verified",
           "recovery_codes_remaining",
@@ -3146,6 +4371,38 @@
         "title": "PointCluster",
         "type": "object"
       },
+      "PolicyModel": {
+        "properties": {
+          "audit_days": {
+            "description": "Audit rows older than this are deleted.",
+            "maximum": 3650.0,
+            "minimum": 1.0,
+            "title": "Audit Days",
+            "type": "integer"
+          },
+          "ip_days": {
+            "description": "The encrypted IP is cleared after this.",
+            "maximum": 3650.0,
+            "minimum": 1.0,
+            "title": "Ip Days",
+            "type": "integer"
+          },
+          "visit_days": {
+            "description": "Visits older than this are deleted. At least 8: rollups re-settle the last 7 days, so a visit inside that window must still exist.",
+            "maximum": 3650.0,
+            "minimum": 8.0,
+            "title": "Visit Days",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "visit_days",
+          "ip_days",
+          "audit_days"
+        ],
+        "title": "PolicyModel",
+        "type": "object"
+      },
       "PolygonCreate": {
         "properties": {
           "description": {
@@ -3259,6 +4516,23 @@
         "additionalProperties": false,
         "description": "Display preferences: per admin, persisted, and harmless (F9.AC16).",
         "properties": {
+          "health_refresh_seconds": {
+            "anyOf": [
+              {
+                "enum": [
+                  5,
+                  15,
+                  30,
+                  60
+                ],
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Health Refresh Seconds"
+          },
           "theme": {
             "anyOf": [
               {
@@ -3290,6 +4564,97 @@
           }
         },
         "title": "PreferencesRequest",
+        "type": "object"
+      },
+      "PreviewOut": {
+        "properties": {
+          "as_of": {
+            "description": "Send this back, with the policy, to purge.",
+            "format": "date-time",
+            "title": "As Of",
+            "type": "string"
+          },
+          "counts": {
+            "$ref": "#/components/schemas/CountsModel"
+          },
+          "cutoffs": {
+            "$ref": "#/components/schemas/CutoffsModel"
+          },
+          "policy": {
+            "$ref": "#/components/schemas/PolicyModel"
+          }
+        },
+        "required": [
+          "as_of",
+          "policy",
+          "cutoffs",
+          "counts"
+        ],
+        "title": "PreviewOut",
+        "type": "object"
+      },
+      "ProgressOut": {
+        "properties": {
+          "percent": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Overall, 0-100; null while downloading from a vendor that sends no length.",
+            "title": "Percent"
+          },
+          "phase": {
+            "description": "downloading, verifying, unpacking, validating or installing.",
+            "title": "Phase",
+            "type": "string"
+          }
+        },
+        "required": [
+          "phase",
+          "percent"
+        ],
+        "title": "ProgressOut",
+        "type": "object"
+      },
+      "PurgeAccepted": {
+        "properties": {
+          "as_of": {
+            "format": "date-time",
+            "title": "As Of",
+            "type": "string"
+          },
+          "status": {
+            "default": "started",
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "as_of"
+        ],
+        "title": "PurgeAccepted",
+        "type": "object"
+      },
+      "PurgeIn": {
+        "properties": {
+          "as_of": {
+            "format": "date-time",
+            "title": "As Of",
+            "type": "string"
+          },
+          "policy": {
+            "$ref": "#/components/schemas/PolicyModel"
+          }
+        },
+        "required": [
+          "as_of",
+          "policy"
+        ],
+        "title": "PurgeIn",
         "type": "object"
       },
       "QuietHoursIn": {
@@ -3369,6 +4734,52 @@
           "active_now"
         ],
         "title": "QuietHoursOut",
+        "type": "object"
+      },
+      "RateLimitsChange": {
+        "properties": {
+          "limits": {
+            "additionalProperties": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/LimitValue"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "description": "By name: the new value, or null to go back to the default. Names left out are unchanged.",
+            "title": "Limits",
+            "type": "object"
+          }
+        },
+        "required": [
+          "limits"
+        ],
+        "title": "RateLimitsChange",
+        "type": "object"
+      },
+      "RateLimitsOut": {
+        "properties": {
+          "applies_within_seconds": {
+            "description": "Each worker re-reads the limits this often.",
+            "title": "Applies Within Seconds",
+            "type": "integer"
+          },
+          "limits": {
+            "items": {
+              "$ref": "#/components/schemas/LimitOut"
+            },
+            "title": "Limits",
+            "type": "array"
+          }
+        },
+        "required": [
+          "limits",
+          "applies_within_seconds"
+        ],
+        "title": "RateLimitsOut",
         "type": "object"
       },
       "ReadinessResponse": {
@@ -3579,6 +4990,224 @@
           "email"
         ],
         "title": "ResetRequest",
+        "type": "object"
+      },
+      "RestoreCheckOut": {
+        "properties": {
+          "backup_id": {
+            "format": "uuid",
+            "title": "Backup Id",
+            "type": "string"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          },
+          "finished_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Finished At"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/BackupKind"
+          },
+          "mismatches": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mismatches"
+          },
+          "started_at": {
+            "format": "date-time",
+            "title": "Started At",
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/RestoreStatus"
+          }
+        },
+        "required": [
+          "id",
+          "backup_id",
+          "kind",
+          "status",
+          "mismatches",
+          "error",
+          "started_at",
+          "finished_at"
+        ],
+        "title": "RestoreCheckOut",
+        "type": "object"
+      },
+      "RestoreStatus": {
+        "enum": [
+          "running",
+          "passed",
+          "failed"
+        ],
+        "title": "RestoreStatus",
+        "type": "string"
+      },
+      "RetentionOut": {
+        "properties": {
+          "delivered_alerts_days": {
+            "description": "Delivered alerts are kept this long; not configurable (ADR-0014).",
+            "title": "Delivered Alerts Days",
+            "type": "integer"
+          },
+          "last_purge": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/LastPurgeOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "policy": {
+            "$ref": "#/components/schemas/PolicyModel"
+          },
+          "purge_running": {
+            "title": "Purge Running",
+            "type": "boolean"
+          },
+          "rollups": {
+            "description": "Always 'kept forever' (NFR5.AC4).",
+            "title": "Rollups",
+            "type": "string"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "policy",
+          "delivered_alerts_days",
+          "rollups",
+          "updated_at",
+          "purge_running",
+          "last_purge"
+        ],
+        "title": "RetentionOut",
+        "type": "object"
+      },
+      "SampleOut": {
+        "properties": {
+          "alert": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Alert"
+          },
+          "classification": {
+            "title": "Classification",
+            "type": "string"
+          },
+          "geo_source_primary": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Geo Source Primary"
+          },
+          "geofence_state": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Geofence State"
+          },
+          "inference_version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The settings it was inferred under, which may not be the active ones.",
+            "title": "Inference Version"
+          },
+          "levels": {
+            "items": {
+              "$ref": "#/components/schemas/LevelOutcomeOut"
+            },
+            "title": "Levels",
+            "type": "array"
+          },
+          "rules_fired": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Rules Fired",
+            "type": "array"
+          },
+          "sources": {
+            "items": {
+              "$ref": "#/components/schemas/SourceOutcomeOut"
+            },
+            "title": "Sources",
+            "type": "array"
+          },
+          "visit_id": {
+            "title": "Visit Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "visit_id",
+          "inference_version",
+          "classification",
+          "geo_source_primary",
+          "geofence_state",
+          "sources",
+          "levels",
+          "rules_fired",
+          "alert"
+        ],
+        "title": "SampleOut",
         "type": "object"
       },
       "Series": {
@@ -3814,6 +5443,45 @@
         "title": "SourceFlow",
         "type": "object"
       },
+      "SourceOutcomeOut": {
+        "properties": {
+          "candidates": {
+            "items": {
+              "$ref": "#/components/schemas/FiredOut"
+            },
+            "title": "Candidates",
+            "type": "array"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          },
+          "source": {
+            "title": "Source",
+            "type": "string"
+          },
+          "status": {
+            "description": "fired, suppressed, disabled, unavailable, empty or silent.",
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "source",
+          "status",
+          "reason",
+          "candidates"
+        ],
+        "title": "SourceOutcomeOut",
+        "type": "object"
+      },
       "SourceSettings": {
         "additionalProperties": false,
         "properties": {
@@ -3886,6 +5554,24 @@
         "title": "StageMix",
         "type": "object"
       },
+      "Started": {
+        "properties": {
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "status": {
+            "default": "started",
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id"
+        ],
+        "title": "Started",
+        "type": "object"
+      },
       "Summary": {
         "properties": {
           "kpis": {
@@ -3910,6 +5596,74 @@
           "kpis"
         ],
         "title": "Summary",
+        "type": "object"
+      },
+      "SystemOut": {
+        "properties": {
+          "cpu": {
+            "$ref": "#/components/schemas/CpuOut"
+          },
+          "database_bytes": {
+            "title": "Database Bytes",
+            "type": "integer"
+          },
+          "disk": {
+            "$ref": "#/components/schemas/DiskOut"
+          },
+          "memory": {
+            "$ref": "#/components/schemas/UsageOut"
+          },
+          "poll_seconds": {
+            "description": "How often the dashboard should ask again.",
+            "title": "Poll Seconds",
+            "type": "integer"
+          },
+          "sampled_at": {
+            "format": "date-time",
+            "title": "Sampled At",
+            "type": "string"
+          },
+          "scope": {
+            "description": "host, or container when the host's /proc is not mounted.",
+            "title": "Scope",
+            "type": "string"
+          },
+          "scope_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Scope Reason"
+          },
+          "swap": {
+            "$ref": "#/components/schemas/UsageOut"
+          },
+          "temperature": {
+            "$ref": "#/components/schemas/TemperatureOut"
+          },
+          "uptime_seconds": {
+            "title": "Uptime Seconds",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "scope",
+          "scope_reason",
+          "sampled_at",
+          "cpu",
+          "memory",
+          "swap",
+          "disk",
+          "uptime_seconds",
+          "database_bytes",
+          "temperature",
+          "poll_seconds"
+        ],
+        "title": "SystemOut",
         "type": "object"
       },
       "TelegramOut": {
@@ -3961,6 +5715,51 @@
           "chat_id"
         ],
         "title": "TelegramVerifyStart",
+        "type": "object"
+      },
+      "TemperatureOut": {
+        "properties": {
+          "celsius": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Celsius"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Why there is no reading, when there is none (RW-5).",
+            "title": "Reason"
+          },
+          "sensor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sensor"
+          }
+        },
+        "required": [
+          "celsius",
+          "sensor",
+          "reason"
+        ],
+        "title": "TemperatureOut",
         "type": "object"
       },
       "TestOut": {
@@ -4185,6 +5984,59 @@
           }
         },
         "title": "UpdateAdminRequest",
+        "type": "object"
+      },
+      "UpdateStarted": {
+        "properties": {
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "status": {
+            "default": "started",
+            "description": "started (202), or up_to_date (200): the vendor has nothing newer, so nothing was downloaded (SPEC section 11 row 26).",
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "title": "UpdateStarted",
+        "type": "object"
+      },
+      "UsageOut": {
+        "properties": {
+          "percent": {
+            "title": "Percent",
+            "type": "number"
+          },
+          "state": {
+            "description": "ok, warn or critical against the thresholds.",
+            "title": "State",
+            "type": "string"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          },
+          "used": {
+            "title": "Used",
+            "type": "integer"
+          },
+          "warn_percent": {
+            "title": "Warn Percent",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "used",
+          "total",
+          "percent",
+          "warn_percent",
+          "state"
+        ],
+        "title": "UsageOut",
         "type": "object"
       },
       "ValidationError": {
@@ -9050,7 +10902,7 @@
     },
     "/api/v1/auth/me/preferences": {
       "patch": {
-        "description": "Display only. The theme is semi-dark unless changed (F9.AC16); the timezone is how timestamps are shown to you, not how analytics are bucketed (ADR-0016). Not audited: it changes nothing anyone else sees.",
+        "description": "Display only. The theme is semi-dark unless changed (F9.AC16); the timezone is how timestamps are shown to you, not how analytics are bucketed (ADR-0016); the refresh interval is how often System Health polls for you (F10.AC1). Not audited: it changes nothing anyone else sees.",
         "operationId": "update_preferences_api_v1_auth_me_preferences_patch",
         "requestBody": {
           "content": {
@@ -9084,7 +10936,7 @@
             "description": "Validation Error"
           }
         },
-        "summary": "Change your own theme or display timezone",
+        "summary": "Change your own theme, display timezone or System Health refresh interval",
         "tags": [
           "auth"
         ]
@@ -9848,6 +11700,313 @@
         ]
       }
     },
+    "/api/v1/health/backups": {
+      "get": {
+        "operationId": "list_backups_api_v1_health_backups_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BackupsOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Backups and restore checks",
+        "tags": [
+          "lifecycle"
+        ]
+      },
+      "post": {
+        "description": "`409 LIFECYCLE_JOB_RUNNING` if a backup is running. The result is its row in `GET /backups`.",
+        "operationId": "start_backup_api_v1_health_backups_post",
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Started"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Back up now (owner only)",
+        "tags": [
+          "lifecycle"
+        ]
+      }
+    },
+    "/api/v1/health/backups/{backup_id}/download": {
+      "get": {
+        "description": "The only copy that leaves this machine (F12.AC11). Audited.",
+        "operationId": "download_backup_api_v1_health_backups__backup_id__download_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "backup_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Backup Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/octet-stream": {}
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Download a backup (owner only)",
+        "tags": [
+          "lifecycle"
+        ]
+      }
+    },
+    "/api/v1/health/backups/{backup_id}/verify-restore": {
+      "post": {
+        "description": "F12.AC10, ADR-0022. `409 BACKUP_UNAVAILABLE` for a backup without a file, `409 LIFECYCLE_JOB_RUNNING` if a check is running. The result is in `GET /backups`.",
+        "operationId": "verify_restore_api_v1_health_backups__backup_id__verify_restore_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "backup_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Backup Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Started"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Restore a backup into a scratch database and check it (owner only)",
+        "tags": [
+          "lifecycle"
+        ]
+      }
+    },
+    "/api/v1/health/databases": {
+      "get": {
+        "operationId": "get_databases_api_v1_health_databases_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DatabasesOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Geo databases (F10.AC3)",
+        "tags": [
+          "system health"
+        ]
+      }
+    },
+    "/api/v1/health/databases/check": {
+      "post": {
+        "description": "A HEAD request per vendor, no download (SPEC section 11 row 24); IP2Location is not asked, its URL being metered. The six-hourly update job runs the same check.",
+        "operationId": "check_databases_api_v1_health_databases_check_post",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DatabasesOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Check every geo database for a newer release now (owner only)",
+        "tags": [
+          "system health"
+        ]
+      }
+    },
+    "/api/v1/health/databases/{name}": {
+      "patch": {
+        "description": "Off: the scheduler leaves it alone; it keeps serving and Update still works. Audited `geodb.toggled` with the old and new value.",
+        "operationId": "change_database_api_v1_health_databases__name__patch",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "title": "Name",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DatabaseChange"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DatabaseOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Switch a geo database's automatic updates (owner only)",
+        "tags": [
+          "system health"
+        ]
+      }
+    },
+    "/api/v1/health/databases/{name}/update": {
+      "post": {
+        "description": "F10.AC4, SPEC section 11 row 26. Asks the vendor first: nothing newer is `200 {status: up_to_date}` and no download. Otherwise downloads, verifies in a memory-capped subprocess and swaps atomically (`202`); a failure leaves the previous version serving. `force=true` is Download again: no check. Works whatever `auto_update` says. `409 LIFECYCLE_JOB_RUNNING` while it is updating.",
+        "operationId": "update_database_api_v1_health_databases__name__update_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "title": "Name",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Download again, without asking first.",
+            "in": "query",
+            "name": "force",
+            "required": false,
+            "schema": {
+              "default": false,
+              "description": "Download again, without asking first.",
+              "title": "Force",
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UpdateStarted"
+                }
+              }
+            },
+            "description": "Already up to date"
+          },
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UpdateStarted"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Update one geo database now (owner only)",
+        "tags": [
+          "system health"
+        ]
+      }
+    },
+    "/api/v1/health/degradation": {
+      "get": {
+        "operationId": "get_degradation_api_v1_health_degradation_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DegradationOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "What is degraded now, for the banner (F10.AC14)",
+        "tags": [
+          "system health"
+        ]
+      }
+    },
     "/api/v1/health/inference": {
       "get": {
         "operationId": "get_settings_api_v1_health_inference_get",
@@ -9904,6 +12063,57 @@
           }
         },
         "summary": "Save a new settings version and make it active (owner only)",
+        "tags": [
+          "inference"
+        ]
+      }
+    },
+    "/api/v1/health/inference/flow": {
+      "get": {
+        "description": "The source levels in order and which are enabled, under the active settings. With `sample_visit_id`, what inference recorded for that visit: which sources fired, which were suppressed and why, which did not answer, and each level's outcome.",
+        "operationId": "get_flow_api_v1_health_inference_flow_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "sample_visit_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Sample Visit Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FlowOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "The inference flow diagram's model (F10.AC8)",
         "tags": [
           "inference"
         ]
@@ -10079,6 +12289,213 @@
         ]
       }
     },
+    "/api/v1/health/ratelimits": {
+      "get": {
+        "operationId": "get_ratelimits_api_v1_health_ratelimits_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RateLimitsOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Rate limits in force",
+        "tags": [
+          "system health"
+        ]
+      },
+      "patch": {
+        "description": "F11.AC9: no redeploy; every worker applies the change within `applies_within_seconds`. Audited `settings.changed` with the old and new values. An outbound limit may not exceed its third party's own terms.",
+        "operationId": "change_ratelimits_api_v1_health_ratelimits_patch",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RateLimitsChange"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RateLimitsOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Change rate limits (owner only)",
+        "tags": [
+          "system health"
+        ]
+      }
+    },
+    "/api/v1/health/retention": {
+      "get": {
+        "operationId": "get_retention_api_v1_health_retention_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RetentionOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Retention periods, and the last purge",
+        "tags": [
+          "lifecycle"
+        ]
+      },
+      "patch": {
+        "description": "Takes all three periods. A shorter IP period also applies to visits already stored. Nothing is deleted here: the nightly purge, or a previewed purge, does that.",
+        "operationId": "change_retention_api_v1_health_retention_patch",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PolicyModel"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RetentionOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Change the retention periods (owner only)",
+        "tags": [
+          "lifecycle"
+        ]
+      }
+    },
+    "/api/v1/health/retention/preview": {
+      "post": {
+        "description": "Deletes nothing. Its `as_of` and `policy` are what the purge needs.",
+        "operationId": "preview_retention_api_v1_health_retention_preview_post",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PreviewOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Dry run: exactly what a purge now would delete (owner only)",
+        "tags": [
+          "lifecycle"
+        ]
+      }
+    },
+    "/api/v1/health/retention/purge": {
+      "post": {
+        "description": "Send the preview's `as_of` and `policy`. Refused with `409 RETENTION_PREVIEW_STALE` if the preview is over 15 minutes old or the periods have changed, and `409 LIFECYCLE_JOB_RUNNING` if a purge is running. Runs in the background; the counts deleted are in the audit row `retention.purged` and in `GET /retention` as `last_purge`.",
+        "operationId": "purge_retention_api_v1_health_retention_purge_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PurgeIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PurgeAccepted"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Purge what a preview showed (owner only)",
+        "tags": [
+          "lifecycle"
+        ]
+      }
+    },
+    "/api/v1/health/system": {
+      "get": {
+        "operationId": "get_system_api_v1_health_system_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SystemOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Host metrics (F10.AC1, F10.AC2)",
+        "tags": [
+          "system health"
+        ]
+      }
+    },
     "/api/v1/health/telegram/test": {
       "post": {
         "description": "Sent at once, not through the outbox: the owner is watching for the answer (F7.AC8). A failure is 502 with Telegram's own reason, without the token.",
@@ -10190,7 +12607,7 @@
     },
     "/api/v1/links/{link_id}": {
       "delete": {
-        "description": "Refused while any visit references it (409 LINK_HAS_VISITS) -- archive it instead. Historical data is never orphaned (F1.AC10), and the foreign key enforces that even if this check were bypassed.",
+        "description": "Without `with_visits`, refused while any visit references it (409 LINK_HAS_VISITS) -- archive it instead (F1.AC10). With `with_visits=true`, a **permanent** delete of the link, its visits and their candidates, and its rollups, in one transaction; it is removed from geofences scoped to it, and one scoped to it alone is switched off (SPEC section 11 row 25). Works on archived links too.",
         "operationId": "delete_link_api_v1_links__link_id__delete",
         "parameters": [
           {
@@ -10200,6 +12617,16 @@
             "schema": {
               "title": "Link Id",
               "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "with_visits",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "With Visits",
+              "type": "boolean"
             }
           }
         ],
@@ -10449,6 +12876,49 @@
           }
         },
         "summary": "Make this the default link",
+        "tags": [
+          "links"
+        ]
+      }
+    },
+    "/api/v1/links/{link_id}/delete-preview": {
+      "get": {
+        "description": "Deletes nothing (SPEC section 11 row 25).",
+        "operationId": "delete_preview_api_v1_links__link_id__delete_preview_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "link_id",
+            "required": true,
+            "schema": {
+              "title": "Link Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeletePreview"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "What a permanent delete would remove (owner only)",
         "tags": [
           "links"
         ]

@@ -1,0 +1,546 @@
+"""System Health: host metrics, geo databases, degradation and rate limits (API section 10).
+
+Reads are open to any admin; writes are the owner's and audited (CLAUDE.md invariant 9).
+The public liveness and readiness probes are ``health/router.py``; this surface is
+authenticated and says much more.
+"""
+
+from __future__ import annotations
+
+import asyncio
+import datetime as dt
+from typing import Annotated, Final
+
+from fastapi import APIRouter, Query, Request, Response, status
+from pydantic import BaseModel, Field
+from sqlalchemy import func, select, text
+from sqlalchemy.dialects import postgresql as pg
+
+from tracelet.audit import log as audit
+from tracelet.auth.dependencies import (
+    Config,
+    CurrentPrincipal,
+    DbSession,
+    OwnerPrincipal,
+    client_ip,
+)
+from tracelet.errors import FieldError, LifecycleJobRunning, NotFound, ValidationFailed
+from tracelet.health import databases, degradation, system
+from tracelet.inference.geodb import check, maintenance
+from tracelet.inference.geodb.catalog import BY_NAME
+from tracelet.inference.models import GeoDatabaseSettings
+from tracelet.net import prefix_of
+from tracelet.notify.settings import AppSetting
+from tracelet.ratelimit import gcra, registry
+
+router = APIRouter(prefix="/api/v1/health", tags=["system health"])
+
+_TASKS: set[asyncio.Task[object]] = set()
+
+
+# ---------------------------------------------------------------------------
+# Host metrics
+# ---------------------------------------------------------------------------
+
+
+class UsageOut(BaseModel):
+    used: int
+    total: int
+    percent: float
+    warn_percent: int
+    state: str = Field(description="ok, warn or critical against the thresholds.")
+
+
+class DiskOut(UsageOut):
+    path: str
+
+
+class CpuOut(BaseModel):
+    percent: float
+    count: int
+    load: tuple[float, float, float]
+
+
+class TemperatureOut(BaseModel):
+    celsius: float | None
+    sensor: str | None
+    reason: str | None = Field(description="Why there is no reading, when there is none (RW-5).")
+
+
+class SystemOut(BaseModel):
+    scope: str = Field(description="host, or container when the host's /proc is not mounted.")
+    scope_reason: str | None
+    sampled_at: dt.datetime
+    cpu: CpuOut
+    memory: UsageOut
+    swap: UsageOut
+    disk: DiskOut
+    uptime_seconds: int
+    database_bytes: int
+    temperature: TemperatureOut
+    poll_seconds: int = Field(description="How often the dashboard should ask again.")
+
+
+POLL_SECONDS: Final = 15
+
+
+def _state(percent: float, warn: int, critical: int | None = None) -> str:
+    if critical is not None and percent >= critical:
+        return "critical"
+    return "warn" if percent >= warn else "ok"
+
+
+@router.get("/system", response_model=SystemOut, summary="Host metrics (F10.AC1, F10.AC2)")
+async def get_system(principal: CurrentPrincipal, db: DbSession, config: Config) -> SystemOut:
+    del principal
+    s = await system.sample(config)
+    size = int((await db.execute(text("SELECT pg_database_size(current_database())"))).scalar_one())
+    return SystemOut(
+        scope=s.scope,
+        scope_reason=s.scope_reason,
+        sampled_at=s.sampled_at,
+        cpu=CpuOut(percent=s.cpu_percent, count=s.cpu_count, load=s.load),
+        memory=UsageOut(
+            used=s.memory.used,
+            total=s.memory.total,
+            percent=s.memory.percent,
+            warn_percent=config.memory_warn_percent,
+            state=_state(s.memory.percent, config.memory_warn_percent),
+        ),
+        swap=UsageOut(
+            used=s.swap.used,
+            total=s.swap.total,
+            percent=s.swap.percent,
+            warn_percent=config.swap_warn_percent,
+            state=_state(s.swap.percent, config.swap_warn_percent),
+        ),
+        disk=DiskOut(
+            used=s.disk.used,
+            total=s.disk.total,
+            percent=s.disk.percent,
+            warn_percent=config.disk_warn_percent,
+            state=_state(s.disk.percent, config.disk_warn_percent, config.disk_critical_percent),
+            path=s.disk_path,
+        ),
+        uptime_seconds=s.uptime_seconds,
+        database_bytes=size,
+        temperature=TemperatureOut(
+            celsius=s.temperature.celsius, sensor=s.temperature.sensor, reason=s.temperature.reason
+        ),
+        poll_seconds=POLL_SECONDS,
+    )
+
+
+# ---------------------------------------------------------------------------
+# Degradation
+# ---------------------------------------------------------------------------
+
+
+class ConditionOut(BaseModel):
+    key: str
+    severity: str = Field(description="critical, warning or notice.")
+    title: str
+    detail: str
+    still_works: str
+
+
+class DegradationOut(BaseModel):
+    conditions: list[ConditionOut]
+    checked_at: dt.datetime
+
+
+@router.get(
+    "/degradation",
+    response_model=DegradationOut,
+    summary="What is degraded now, for the banner (F10.AC14)",
+)
+async def get_degradation(
+    principal: CurrentPrincipal, db: DbSession, config: Config
+) -> DegradationOut:
+    del principal
+    found = await degradation.conditions(db, config)
+    return DegradationOut(
+        conditions=[
+            ConditionOut(
+                key=c.key,
+                severity=c.severity,
+                title=c.title,
+                detail=c.detail,
+                still_works=c.still_works,
+            )
+            for c in found
+        ],
+        checked_at=dt.datetime.now(dt.UTC),
+    )
+
+
+# ---------------------------------------------------------------------------
+# Geo databases
+# ---------------------------------------------------------------------------
+
+
+class InstalledOut(BaseModel):
+    version: str | None
+    released_at: dt.datetime | None
+    installed_at: dt.datetime | None
+    size_bytes: int | None
+    sha256: str | None
+
+
+class AttemptOut(BaseModel):
+    status: str
+    at: dt.datetime
+    error: str | None
+
+
+class ProgressOut(BaseModel):
+    phase: str = Field(description="downloading, verifying, unpacking, validating or installing.")
+    percent: int | None = Field(
+        description="Overall, 0-100; null while downloading from a vendor that sends no length."
+    )
+
+
+class LatestOut(BaseModel):
+    version: str | None
+    released_at: dt.datetime | None
+
+
+class DatabaseOut(BaseModel):
+    name: str
+    kind: str
+    feeds: str | None = Field(description="The inference source it feeds, if any.")
+    attribution: str
+    configured: bool = Field(description="False when its vendor credentials are not set.")
+    auto_update: bool = Field(description="Whether the scheduler updates it (SPEC 11 row 24).")
+    staleness_days: int
+    stale: bool = Field(description="The installed copy is older than its staleness threshold.")
+    state: str = Field(
+        description="updating, update_failed, unable_to_update, not_installed, "
+        "update_available or up_to_date (SPEC section 11 row 24)."
+    )
+    progress: ProgressOut | None
+    age_days: int | None
+    installed: InstalledOut | None
+    latest: LatestOut | None = Field(description="What the last release check found.")
+    last_attempt: AttemptOut | None
+    check_error: str | None
+    checked_at: dt.datetime | None
+
+
+class DatabasesOut(BaseModel):
+    databases: list[DatabaseOut]
+
+
+def _db_out(d: databases.DatabaseState) -> DatabaseOut:
+    return DatabaseOut(
+        name=d.name,
+        kind=d.kind,
+        feeds=d.feeds,
+        attribution=d.attribution,
+        configured=d.configured,
+        auto_update=d.auto_update,
+        staleness_days=d.staleness_days,
+        stale=d.stale,
+        state=d.state,
+        progress=(
+            ProgressOut(phase=d.progress.phase, percent=d.progress.percent) if d.progress else None
+        ),
+        age_days=d.age_days,
+        installed=(
+            InstalledOut(
+                version=d.installed.version,
+                released_at=d.installed.released_at,
+                installed_at=d.installed.installed_at,
+                size_bytes=d.installed.size_bytes,
+                sha256=d.installed.sha256,
+            )
+            if d.installed
+            else None
+        ),
+        latest=LatestOut(version=d.latest.version, released_at=d.latest.released_at)
+        if d.latest
+        else None,
+        last_attempt=(
+            AttemptOut(
+                status=d.last_attempt.status, at=d.last_attempt.at, error=d.last_attempt.error
+            )
+            if d.last_attempt
+            else None
+        ),
+        check_error=d.check_error,
+        checked_at=d.checked_at,
+    )
+
+
+async def _databases_out(db: DbSession, config: Config) -> DatabasesOut:
+    return DatabasesOut(databases=[_db_out(d) for d in await databases.states(db, config)])
+
+
+@router.get("/databases", response_model=DatabasesOut, summary="Geo databases (F10.AC3)")
+async def get_databases(principal: CurrentPrincipal, db: DbSession, config: Config) -> DatabasesOut:
+    del principal
+    return await _databases_out(db, config)
+
+
+@router.post(
+    "/databases/check",
+    response_model=DatabasesOut,
+    summary="Check every geo database for a newer release now (owner only)",
+    description=(
+        "A HEAD request per vendor, no download (SPEC section 11 row 24); IP2Location is not "
+        "asked, its URL being metered. The six-hourly update job runs the same check."
+    ),
+)
+async def check_databases(principal: OwnerPrincipal, db: DbSession, config: Config) -> DatabasesOut:
+    del principal
+    await check.check_all(config)
+    return await _databases_out(db, config)
+
+
+class DatabaseChange(BaseModel):
+    auto_update: bool
+
+
+@router.patch(
+    "/databases/{name}",
+    response_model=DatabaseOut,
+    summary="Switch a geo database's automatic updates (owner only)",
+    description=(
+        "Off: the scheduler leaves it alone; it keeps serving and Update still works. Audited "
+        "`geodb.toggled` with the old and new value."
+    ),
+)
+async def change_database(
+    name: str,
+    body: DatabaseChange,
+    request: Request,
+    principal: OwnerPrincipal,
+    db: DbSession,
+    config: Config,
+) -> DatabaseOut:
+    if name not in BY_NAME:
+        raise NotFound("No such geo database.")
+    before = await db.get(GeoDatabaseSettings, name)
+    old = before.auto_update if before is not None else True
+    await db.execute(
+        pg.insert(GeoDatabaseSettings)
+        .values(name=name, auto_update=body.auto_update, updated_by=principal.admin.id)
+        .on_conflict_do_update(
+            index_elements=[GeoDatabaseSettings.name],
+            set_={
+                "auto_update": body.auto_update,
+                "updated_by": principal.admin.id,
+                "updated_at": func.now(),
+            },
+        )
+    )
+    if old != body.auto_update:
+        await audit.record(
+            db,
+            action=audit.Action.GEO_DB_TOGGLED,
+            actor_admin_id=principal.admin.id,
+            actor_ip_prefix=prefix_of(client_ip(request, config)),
+            target_type="geo_database",
+            target_id=name,
+            trace_id=getattr(request.state, "trace_id", None),
+            detail={"auto_update": {"from": old, "to": body.auto_update}},
+        )
+    await db.flush()
+    db.expire_all()
+    return next(_db_out(d) for d in await databases.states(db, config) if d.name == name)
+
+
+class UpdateStarted(BaseModel):
+    name: str
+    status: str = Field(
+        default="started",
+        description="started (202), or up_to_date (200): the vendor has nothing newer, so "
+        "nothing was downloaded (SPEC section 11 row 26).",
+    )
+
+
+@router.post(
+    "/databases/{name}/update",
+    response_model=UpdateStarted,
+    status_code=status.HTTP_202_ACCEPTED,
+    summary="Update one geo database now (owner only)",
+    description=(
+        "F10.AC4, SPEC section 11 row 26. Asks the vendor first: nothing newer is `200 "
+        "{status: up_to_date}` and no download. Otherwise downloads, verifies in a "
+        "memory-capped subprocess and swaps atomically (`202`); a failure leaves the previous "
+        "version serving. `force=true` is Download again: no check. Works whatever "
+        "`auto_update` says. `409 LIFECYCLE_JOB_RUNNING` while it is updating."
+    ),
+    responses={200: {"model": UpdateStarted, "description": "Already up to date"}},
+)
+async def update_database(
+    name: str,
+    request: Request,
+    response: Response,
+    principal: OwnerPrincipal,
+    db: DbSession,
+    config: Config,
+    force: Annotated[bool, Query(description="Download again, without asking first.")] = False,
+) -> UpdateStarted:
+    if name not in BY_NAME:
+        raise NotFound("No such geo database.")
+    state = next(d for d in await databases.states(db, config) if d.name == name)
+    if state.state == "updating":
+        raise LifecycleJobRunning(f"{name} is already updating.")
+    download = force or await maintenance.manual_update_due(BY_NAME[name], config)
+    await audit.record(
+        db,
+        action=audit.Action.GEO_DB_UPDATE_REQUESTED,
+        actor_admin_id=principal.admin.id,
+        actor_ip_prefix=prefix_of(client_ip(request, config)),
+        target_type="geo_database",
+        target_id=name,
+        trace_id=getattr(request.state, "trace_id", None),
+        detail={"force": force, "outcome": "started" if download else "up_to_date"},
+    )
+    if not download:
+        response.status_code = status.HTTP_200_OK
+        return UpdateStarted(name=name, status="up_to_date")
+    task: asyncio.Task[object] = asyncio.create_task(
+        maintenance.update_all(config, only=[name], force=True), name=f"geodb:{name}"
+    )
+    _TASKS.add(task)
+    task.add_done_callback(_TASKS.discard)
+    return UpdateStarted(name=name)
+
+
+# ---------------------------------------------------------------------------
+# Rate limits (F11.AC9)
+# ---------------------------------------------------------------------------
+
+
+class LimitValue(BaseModel):
+    per_period: int
+    period_seconds: int
+    burst: int
+
+
+class LimitOut(LimitValue):
+    name: str
+    group: str
+    label: str
+    description: str
+    default: LimitValue
+    overridden: bool
+    ceiling_per_second: float | None
+
+
+class RateLimitsOut(BaseModel):
+    limits: list[LimitOut]
+    applies_within_seconds: int = Field(description="Each worker re-reads the limits this often.")
+
+
+class RateLimitsChange(BaseModel):
+    limits: dict[str, LimitValue | None] = Field(
+        description="By name: the new value, or null to go back to the default. Names left "
+        "out are unchanged."
+    )
+
+
+def _value(limit: gcra.Limit) -> LimitValue:
+    return LimitValue(
+        per_period=limit.per_period,
+        period_seconds=int(limit.period.total_seconds()),
+        burst=limit.burst,
+    )
+
+
+async def _stored(db: DbSession) -> dict[str, dict[str, int]]:
+    value = (
+        await db.execute(select(AppSetting.value).where(AppSetting.key == gcra.OVERRIDES_KEY))
+    ).scalar_one_or_none()
+    return {str(k): dict(v) for k, v in (value or {}).items() if isinstance(v, dict)}
+
+
+async def _limits_out(db: DbSession) -> RateLimitsOut:
+    overrides = gcra.parse_overrides(await _stored(db))
+    return RateLimitsOut(
+        limits=[
+            LimitOut(
+                name=e.limit.name,
+                group=e.group,
+                label=e.label,
+                description=e.description,
+                default=_value(e.limit),
+                overridden=e.limit.name in overrides,
+                ceiling_per_second=e.ceiling_per_second,
+                **_value(overrides.get(e.limit.name, e.limit)).model_dump(),
+            )
+            for e in registry.REGISTRY
+        ],
+        applies_within_seconds=int(gcra.OVERRIDES_TTL_S),
+    )
+
+
+@router.get("/ratelimits", response_model=RateLimitsOut, summary="Rate limits in force")
+async def get_ratelimits(principal: CurrentPrincipal, db: DbSession) -> RateLimitsOut:
+    del principal
+    return await _limits_out(db)
+
+
+@router.patch(
+    "/ratelimits",
+    response_model=RateLimitsOut,
+    summary="Change rate limits (owner only)",
+    description=(
+        "F11.AC9: no redeploy; every worker applies the change within "
+        "`applies_within_seconds`. Audited `settings.changed` with the old and new values. "
+        "An outbound limit may not exceed its third party's own terms."
+    ),
+)
+async def change_ratelimits(
+    body: RateLimitsChange,
+    request: Request,
+    principal: OwnerPrincipal,
+    db: DbSession,
+    config: Config,
+) -> RateLimitsOut:
+    errors = [
+        FieldError(field=f"limits.{name}", code="INVALID_LIMIT", message=reason)
+        for name, value in body.limits.items()
+        if (
+            reason := (
+                f"There is no rate limit named {name!r}."
+                if name not in registry.BY_NAME
+                else registry.problem(name, value.per_period, value.period_seconds, value.burst)
+                if value is not None
+                else None
+            )
+        )
+    ]
+    if errors:
+        raise ValidationFailed("Some rate limits were refused; nothing was saved.", errors=errors)
+    before = await _stored(db)
+    after = dict(before)
+    for name, value in body.limits.items():
+        default = registry.BY_NAME[name].limit
+        if value is None or value == _value(default):
+            after.pop(name, None)
+        else:
+            after[name] = value.model_dump()
+    if after != before:
+        await db.execute(
+            pg.insert(AppSetting)
+            .values(key=gcra.OVERRIDES_KEY, value=after, updated_by=principal.admin.id)
+            .on_conflict_do_update(
+                index_elements=[AppSetting.key],
+                set_={"value": after, "updated_by": principal.admin.id, "updated_at": func.now()},
+            )
+        )
+        await audit.record(
+            db,
+            action=audit.Action.SETTINGS_CHANGED,
+            actor_admin_id=principal.admin.id,
+            actor_ip_prefix=prefix_of(client_ip(request, config)),
+            target_type="app_settings",
+            target_id=gcra.OVERRIDES_KEY,
+            trace_id=getattr(request.state, "trace_id", None),
+            detail={"key": gcra.OVERRIDES_KEY, "from": before, "to": after},
+        )
+        await gcra.reload_overrides(db)  # this worker at once; the other within the TTL
+    return await _limits_out(db)

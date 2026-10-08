@@ -94,6 +94,14 @@ task_ps()      { $DC ps; }
 task_psql()    { $DC exec db psql -U "${POSTGRES_USER:-tracelet}" -d "${POSTGRES_DB:-tracelet}"; }
 task_shell()   { $API_RUN sh; }
 
+# The restore check's one-time superuser setup (ADR-0022). db/init runs it on an
+# empty volume; this applies it to an existing one. Idempotent.
+task_db_setup() {
+    require_env
+    # MSYS_NO_PATHCONV: Git Bash would rewrite the container path into a Windows one.
+    MSYS_NO_PATHCONV=1 $DC exec -T db bash /docker-entrypoint-initdb.d/02-restore-check.sh
+}
+
 # Migrations run in the PRODUCTION image, because that is the one that ships.
 task_migrate() { require_env; $API_PROD alembic upgrade head; }
 
@@ -226,6 +234,7 @@ tl — Tracelet task runner
   logs [svc]  follow logs
   ps          container status
   psql        open a psql shell on the database
+  db-setup    one-time superuser setup for the restore check (ADR-0022)
   shell       open a shell in the api container
   help        this
 
@@ -251,6 +260,7 @@ case "$cmd" in
     logs)          task_logs "$@" ;;
     ps)            task_ps ;;
     psql)          task_psql ;;
+    db-setup)      task_db_setup ;;
     shell)         task_shell ;;
     waitdb)        task_waitdb ;;
     help|-h|--help) task_help ;;

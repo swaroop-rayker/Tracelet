@@ -83,6 +83,9 @@ import {
   Workflow,
   X,
   type LucideIcon,
+  Database,
+  Gauge,
+  HardDrive,
 } from 'lucide-react';
 
 export const Icon = {
@@ -168,6 +171,10 @@ export const Icon = {
   Notifications: Bell,
   Retry: RotateCw,
   Send,
+  // System health (M7)
+  Databases: Database,
+  Data: HardDrive,
+  Limits: Gauge,
 } as const satisfies Record<string, LucideIcon>;
 
 export type IconName = keyof typeof Icon;

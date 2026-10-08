@@ -190,7 +190,7 @@ generated TypeScript client are regenerated from it and checked for drift by CI 
 | `POST` | `/api/v1/auth/recovery-code` | — | `{email, code}` → `204` + session + `X-Recovery-Remaining` |
 | `POST` | `/api/v1/auth/logout` | any | `204`, revokes the current session |
 | `GET` | `/api/v1/auth/me` | any | Current admin, role, TOTP state, `recovery_codes_remaining`, `csrf_token`, theme, timezone, and (M5) `reporting_tz`, the zone analytics buckets are cut in |
-| `PATCH` | `/api/v1/auth/me/preferences` | any | `{theme?, timezone?}` → the `/me` body. Theme `semi_dark` (default), `light` or `dark`; timezone an IANA name. **Added in M5** (F9.AC16). Display only, so not audited |
+| `PATCH` | `/api/v1/auth/me/preferences` | any | `{theme?, timezone?, health_refresh_seconds?}` → the `/me` body. Theme `semi_dark` (default), `light` or `dark`; timezone an IANA name. **Added in M5** (F9.AC16). `health_refresh_seconds` `5`, `15` (default), `30` or `60`: how often System Health polls for this admin, also on `/me` (F10.AC1, **added in M7**). Display only, so not audited |
 | `POST` | `/api/v1/auth/reset/request` | — | `{email}` → **always `202`**. Telegram-delivered link |
 | `POST` | `/api/v1/auth/reset/confirm` | — | `{token, new_password}` → `204`, revokes every session |
 | `POST` | `/api/v1/auth/password` | any | `{current_password, new_password}` → `204`, revokes every **other** session |
@@ -334,7 +334,8 @@ to twelve hours.
 | `POST` | `/api/v1/links/{id}/clone` | owner | Rotate a burned slug, keeping configuration (F1.AC9) |
 | `POST` | `/api/v1/links/{id}/default` | owner | Set default; clears the previous atomically |
 | `POST` | `/api/v1/links/{id}/archive` | owner | Archive |
-| `DELETE` | `/api/v1/links/{id}` | owner | `409 LINK_HAS_VISITS` if referenced — archive instead (F1.AC10) |
+| `DELETE` | `/api/v1/links/{id}` | owner | `409 LINK_HAS_VISITS` if referenced — archive instead (F1.AC10); with `?with_visits=true`, a permanent delete of the link and its visits (SPEC §11 row 25) |
+| `GET` | `/api/v1/links/{id}/delete-preview` | owner | Exactly what a permanent delete would remove. **M7** |
 
 **Create / update body**
 
@@ -392,6 +393,18 @@ header, or path** (F1.AC7, F13.AC3).
 * **Every write** is owner-only and writes an `audit_log` row: `link.created`,
   `link.updated` (with `{from, to}` for each changed field -- F1.AC8), `link.cloned`,
   `link.default_changed`, `link.archived`, `link.deleted`.
+
+### 6.2 Permanent delete — added in M7 (SPEC §11 row 25)
+
+`GET /api/v1/links/{id}/delete-preview` returns `{slug, is_default, archived, visits,
+visit_candidates, rollup_rows, geofences_updated: [{id, name}], geofences_deactivated: [{id,
+name}]}` and deletes nothing. `DELETE /api/v1/links/{id}?with_visits=true` then removes, in one
+transaction, the link, its visits and their candidates, and its rollup rows (foreign keys
+cascade); removes it from every geofence's `link_ids`, switching off a geofence that was scoped
+to it alone; and leaves queued alerts to send. `204`. It works on archived links too. The
+default link while another live one exists is still `409 DEFAULT_LINK_REQUIRED`. Without
+`with_visits`, a link with visits is `409 LINK_HAS_VISITS` as before. Audited `link.deleted`
+with `slug`, `destination_url`, `with_visits` and the counts deleted.
 
 ---
 
@@ -795,7 +808,8 @@ ISP, the classification with its bot score, and a link to the visit (F7.AC4).
 | `GET` | `/api/v1/health/system` | any | CPU %, RAM, swap, disk, load, uptime, DB size, **temperature or `null` with a reason** (F10.AC1, RW-5) |
 | `GET` | `/api/v1/health/databases` | any | Each geo database: version, dates, size, sha256, staleness verdict (F10.AC3) |
 | `POST` | `/api/v1/health/databases/{name}/update` | owner | `202` job. Streams, verifies, atomic swap. Failure leaves the previous version serving (F10.AC4) |
-| `PATCH` | `/api/v1/health/databases/{name}` | owner | Enable or disable |
+| `PATCH` | `/api/v1/health/databases/{name}` | owner | `{auto_update}`: whether the scheduler updates it (SPEC §11 row 24). **M7** |
+| `POST` | `/api/v1/health/databases/check` | owner | Check every database for a newer release now; no download. **M7** |
 | `GET` | `/api/v1/health/inference` | any | Active settings version: source toggles, weights, thresholds |
 | `PATCH` | `/api/v1/health/inference` | owner | Creates a **new version**; old versions retained for rollback (F4.AC14) |
 | `POST` | `/api/v1/health/inference/rollback/{version}` | owner | Reactivate an earlier version |
@@ -817,6 +831,128 @@ ISP, the classification with its bot score, and a link to the visit (F7.AC4).
 preview before purge**; the API does not enforce ordering, but the dashboard does and
 the audit log records both.
 
+### System health — as built in M7 (F10.AC1–AC4, F10.AC14, F11.AC9)
+
+`GET /system` returns `{scope, scope_reason, sampled_at, cpu: {percent, count, load}, memory,
+swap, disk, uptime_seconds, database_bytes, temperature, poll_seconds}`. `memory`, `swap` and
+`disk` are `{used, total, percent, warn_percent, state: "ok"|"warn"|"critical"}` (bytes);
+`disk` also has `path`, the backups volume, which lives on the host's disk. `scope` is
+`host` when the host's `/proc` is mounted at `/host/proc` (F10.AC15) and `container` -- with
+the reason -- when it is not, so a figure is never passed off as the host's. `cpu.percent` is
+measured over a quarter of a second. `temperature` is `{celsius, sensor, reason}`: on a host
+with no sensor (GCP, Docker Desktop's VM) `celsius` is `null` and `reason` says why (RW-5).
+Thresholds come from `TRACELET_DISK_WARN_PERCENT` (85), `_DISK_CRITICAL_PERCENT` (95),
+`_MEMORY_WARN_PERCENT` (90) and `_SWAP_WARN_PERCENT` (50).
+
+`GET /databases` returns `{databases[]}`, one per catalogue entry whether or not it was ever
+installed: `{name, kind, feeds, attribution, configured, auto_update, staleness_days, stale,
+state, progress, age_days, installed, latest, last_attempt, check_error, checked_at}`.
+`installed` is `{version, released_at, installed_at, size_bytes, sha256}` or `null`; `latest` is
+what the last release check found, `{version, released_at}` or `null`.
+
+`state` (SPEC §11 row 24) is one of, in this order of precedence: `updating` (an attempt in
+flight; `progress` is `{phase, percent}` -- `percent` may be `null` while downloading from a
+vendor that sends no length), `update_failed` (the newest attempt failed; the installed copy
+keeps serving; `last_attempt.error` says why), `unable_to_update` (no credentials, or the last
+release check could not reach the vendor: `check_error`), `not_installed`, `update_available`
+(the check found a newer release, or -- for a database that cannot be checked -- its refresh
+schedule says it is due), `up_to_date`. `stale` is separately true when the installed copy is
+older than its staleness threshold; it raises the degradation banner.
+
+`POST /databases/{name}/update` (owner) **asks the vendor first** (SPEC §11 row 26): if
+nothing is newer than the installed copy it downloads nothing and answers `200 {name, status:
+"up_to_date"}`; otherwise it starts the install and answers `202 {name, status: "started"}`. It
+downloads without asking when the database is not installed, its file is missing, it is never
+checked (IP2Location), the check fails, or the dates cannot be compared. `?force=true` is
+**Download again**: no check, always `202`. Either way, whatever `auto_update` says. `404` for
+an unknown name, `409 LIFECYCLE_JOB_RUNNING` while it is updating; audited
+`geodb.update_requested` with `force` and the outcome.
+`PATCH /databases/{name}` (owner) takes `{auto_update}` and returns the database; audited
+`geodb.toggled` with the old and new value. `POST /databases/check` (owner) runs the release
+check for every database now and returns `{databases[]}`; the six-hourly update job runs it
+too. The check is a HEAD request for the vendor's `Last-Modified` (DB-IP: whether this month's
+edition is published); IP2Location is never checked over the network, because its URL is
+metered per token. **The scheduler trusts a successful check** made in the last 12 hours: it
+downloads a checked database only when the check found a newer release; the refresh period
+applies to IP2Location, to a failed or old check, and when the dates cannot be compared.
+
+`GET /degradation` returns `{conditions[], checked_at}`, most severe first. Each condition is
+`{key, severity: "critical"|"warning"|"notice", title, detail, still_works}`. Keys: `shedding`
+(capture is being shed on memory pressure, F15.AC6), `disk`,
+`swap`, `backups` (not set up, failed, or none in 36 h), `restore` (failed, or none passed in
+35 days), `download` (notice: no backup downloaded within the reminder period), `outbox`
+(dead letters), `breaker:<name>` (an open circuit breaker), `geodb:<name>` (a configured
+database stale or missing). Read from shared state, so both workers agree.
+
+`GET /ratelimits` returns `{limits[], applies_within_seconds: 30}`; each limit is `{name,
+group: "capture"|"admin"|"outbound", label, description, per_period, period_seconds, burst,
+default: {per_period, period_seconds, burst}, overridden, ceiling_per_second}`. `PATCH
+/ratelimits` (owner) takes `{limits: {<name>: {per_period, period_seconds, burst} | null}}`:
+`null`, or a value equal to the default, removes the override; names left out are unchanged.
+Any refused entry -- an unknown name, a value out of range, or an outbound limit above its
+third party's terms -- is `422` with one field error per entry, and nothing is saved.
+Audited `settings.changed` with the old and new overrides; this worker applies it at once and
+the other within 30 seconds.
+
+### Retention — as built in M7 (F10.AC12, F12.AC7–AC8)
+
+`GET /retention` returns `{policy: {visit_days, ip_days, audit_days}, delivered_alerts_days:
+30, rollups: "kept forever", updated_at, purge_running, last_purge}`. `last_purge` is the
+newest `retention.purged` audit row: `{at, trigger: "manual"|"scheduled", counts, by}`.
+`purge_running` is read from PostgreSQL's lock table, so it is true whichever worker runs it.
+
+`PATCH /retention` takes **all three** periods: `visit_days` 8–3650 (rollups re-settle the
+last 7 days), `ip_days` 1–`visit_days`, `audit_days` 1–3650; anything else is `422`. A changed
+`ip_days` also re-dates the IP expiry of every visit still holding one. Audited
+`retention.changed` with `from` and `to`. Nothing is deleted by a `PATCH`.
+
+`POST /retention/preview` returns `{as_of, policy, cutoffs: {visits, ip, audit, outbox},
+counts: {visits, visit_candidates, ip_addresses, audit_rows, delivered_alerts}}` and deletes
+nothing; it is audited `retention.previewed` with the counts. `ip_addresses` counts only
+visits that are being kept -- a visit about to be deleted is counted once, as a visit.
+
+`POST /retention/purge` takes `{as_of, policy}` **exactly as the preview returned them**, and
+deletes against the cutoffs derived from them, so its counts equal the preview's. It is
+`409 RETENTION_PREVIEW_STALE` if `as_of` is over 15 minutes old or the policy has changed,
+and `409 LIFECYCLE_JOB_RUNNING` if a purge holds the lock. Otherwise `202 {as_of, status:
+"started"}`; the purge runs as `tracelet_maint` in batches of 1 000, and its result is the
+`retention.purged` audit row (`trigger`, `as_of`, `policy`, `cutoffs`, `counts`,
+`duration_ms`), shown as `last_purge`. The scheduled purges -- every night an hour before the
+backup, and the IP purge every 10 minutes -- may take some of the previewed rows first; the
+manual purge then reports the fewer it deleted.
+
+### Backups — as built in M7 (F10.AC11, F12.AC9–AC12, ADR-0022)
+
+`GET /backups` returns `{backups[], last_restore_check, backup_running,
+restore_check_running, download}`, newest first (up to 60). Each backup is `{id, kind:
+"scheduled"|"manual", status: "running"|"ok"|"failed"|"pruned", file_name, size_bytes, sha256,
+tables, rows, error, started_at, finished_at, last_downloaded_at, last_restore_check}`, where
+`tables` and `rows` come from the counts taken in the dump's own snapshot, and
+`last_restore_check` is that backup's newest check `{id, backup_id, kind, status:
+"running"|"passed"|"failed", mismatches, error, started_at, finished_at}`. `mismatches` maps a
+table to `{expected, restored}`. `download` is `{last_downloaded_at, reminder_days, overdue}`:
+overdue when nothing has been downloaded within `TRACELET_BACKUP_DOWNLOAD_REMINDER_DAYS`, the
+only off-machine copy being the download (RISKS R11).
+
+`POST /backups` (owner) is `202 {id, status: "started"}`, or `409 LIFECYCLE_JOB_RUNNING`;
+audited `backup.requested`. The dump is written as `.partial` and renamed only when complete
+and checksummed; then rotation keeps the newest of each of the last 7 local days and 4 ISO
+weeks, and always the newest, and marks the rest `pruned` (their files deleted, rows kept).
+
+`GET /backups/{id}/download` (owner) streams the file as `tracelet-<file_name>`, with the
+checksum in `X-Content-SHA256`; audited `backup.downloaded`. `409 BACKUP_UNAVAILABLE` for a
+backup without a file.
+
+`POST /backups/{id}/verify-restore` (owner) is `202 {id: <restore check id>}`: the backup is
+restored into the scratch database `tracelet_verify` and passes only if **every table's count
+equals** the backup's. Audited `backup.restore_check_requested`. `409 BACKUP_UNAVAILABLE` for a
+backup that is not `ok`, `409 LIFECYCLE_JOB_RUNNING` if a check is running. Without the
+one-time `tl db-setup`, the check fails with that step named in `error`.
+
+The scheduler runs the backup nightly at `TRACELET_BACKUP_HOUR` (local; 3 by default), retrying
+a failure up to three times that night, and the restore check monthly, on the 1st, an hour
+later, on the newest `ok` backup.
+
 ### `/api/v1/health/inference` — as shipped in M3
 
 `GET` returns `{engine_revision, active_version, inference_version, settings, versions[]}`,
@@ -830,10 +966,31 @@ reviewable configuration. Validation is total — a threshold of `1.7` is a `422
 nothing is saved. `POST /rollback/{version}` reactivates an existing version (`404` if
 there is none; rolling back to the active version is a no-op and writes no audit row).
 Both writes are owner-only and record `inference.settings_changed` (with the dotted paths
-that changed) or `inference.settings_rolled_back`. `/flow` is M7's (F10.AC8). Since M4 the settings object also has a `classifier` section: per-rule
+that changed) or `inference.settings_rolled_back`. `/flow` is M7's (F10.AC8), below. Since M4 the settings object also has a `classifier` section: per-rule
 `weights`, the bot/spoof/spam thresholds, the human ceilings, and the collision, gateway,
 rate and impossible-travel parameters — changed and rolled back exactly like the rest.
 
+
+### `/api/v1/health/inference/flow` — as built in M7 (F10.AC8)
+
+`GET /flow` returns `{inference_version, stages, families, sources, rules, levels, sample}`.
+`stages` is the pipeline in order: `capture`, `sources`, `suppression`, `consensus`,
+`classification`, `geofence`, `alert`. `sources` lists S1–S9 and S11 in their order, each
+`{source, code, label, family, order, enabled, timeout_ms, priors}` under the **active**
+settings, so a toggle shows at once; `families` groups them (`client`, `database`,
+`network`, `edge`, `context`); `rules` are the suppression rules with a sentence each;
+`levels` are the four levels with their strict thresholds.
+
+With `?sample_visit_id=`, `sample` is what inference **recorded** for that visit --
+nothing is recomputed: `{visit_id, inference_version, classification, geo_source_primary,
+geofence_state, sources[], levels[], rules_fired, alert}`. Each source is `{source, status,
+reason, candidates[]}` with `status` `fired` (a candidate was accepted), `suppressed`
+(every candidate was, `reason` naming the rule), `disabled`, `unavailable` or `empty` (as
+inference recorded the absence, with its reason), or `silent` (nothing recorded). Each level
+is `{level, strict, advisory, confidence, abstain_reason}`. `alert` is the visit's first
+queued alert `{priority, status, upgrade}`, or `null`. `inference_version` may differ from
+the active one: the overlay shows the settings the visit was inferred under. `404` for an
+unknown visit.
 ---
 
 ## 11. Ground truth and accuracy
@@ -905,11 +1062,15 @@ no SQL, no internal hostname (F15.AC3). The detail is written to the log under t
 | `GEOFENCE_UNKNOWN_REGION` | 422 | A region key `/geofences/regions` does not list (ADR-0020) |
 | `OUTBOX_NOT_DEAD` | 409 | Only a dead-lettered delivery is retried by hand (F7.AC6) |
 | `TELEGRAM_DELIVERY_FAILED` | 502 | The test message did not arrive; `detail` is Telegram's reason, without the token (F7.AC8) |
+| `RETENTION_PREVIEW_STALE` | 409 | A purge was sent with a preview over 15 minutes old, or the periods changed since it (F10.AC12). Preview again. **M7** |
+| `LIFECYCLE_JOB_RUNNING` | 409 | A purge, backup or restore check of that kind is already running. **M7** |
+| `BACKUP_UNAVAILABLE` | 409 | That backup has no file: it failed, is still running, or was rotated away. **M7** |
 | `PAYLOAD_TOO_LARGE` | 413 | Body above cap |
 | `RATE_LIMITED` | 429 | `Retry-After` set (F11.AC10) |
 | `GEO_DB_UNAVAILABLE` | 503 | A source is missing or corrupt; inference degraded, not failed |
 | `EXTERNAL_SOURCE_UNAVAILABLE` | 503 | Circuit breaker open. Informational |
 | `DEPENDENCY_UNAVAILABLE` | 503 | Database or another hard dependency down |
+| `MAINTENANCE_UNAVAILABLE` | 503 | The maintenance role is not configured or not set up (ADR-0022); `detail` names the missing step. **M7** |
 | `INTERNAL_ERROR` | 500 | Unexpected. `trace_id` only |
 
 ### 12.2 Errors on the capture path

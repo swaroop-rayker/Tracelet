@@ -11,7 +11,7 @@
 
 TL := ./scripts/tl
 
-.PHONY: help bootstrap up down verify migrate fmt openapi logs ps psql shell
+.PHONY: help bootstrap up down verify migrate fmt openapi logs ps psql shell db-setup
 
 help:       ; @$(TL) help
 bootstrap:  ; @$(TL) bootstrap
@@ -25,3 +25,4 @@ logs:       ; @$(TL) logs
 ps:         ; @$(TL) ps
 psql:       ; @$(TL) psql
 shell:      ; @$(TL) shell
+db-setup:   ; @$(TL) db-setup

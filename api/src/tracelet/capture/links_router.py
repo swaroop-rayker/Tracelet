@@ -517,14 +517,85 @@ async def archive_link(
     return _out(link, settings.public_base_url, await _visit_count(db, link.id))
 
 
+class GeofenceRef(BaseModel):
+    id: str
+    name: str
+
+
+class DeletePreview(BaseModel):
+    slug: str
+    is_default: bool
+    archived: bool
+    visits: int
+    visit_candidates: int
+    rollup_rows: int = Field(description="The link's daily and hourly figures (rollups).")
+    geofences_updated: list[GeofenceRef] = Field(
+        description="Geofences scoped to this link among others: this link is removed from them."
+    )
+    geofences_deactivated: list[GeofenceRef] = Field(
+        description="Geofences scoped to this link alone: switched off."
+    )
+
+
+async def _preview(db: DbSession, link: Link) -> DeletePreview:
+    counts = (
+        await db.execute(
+            text(
+                """
+                SELECT
+                  (SELECT count(*) FROM visits WHERE link_id = :id),
+                  (SELECT count(*) FROM visit_candidates c JOIN visits v ON v.id = c.visit_id
+                    WHERE v.link_id = :id),
+                  (SELECT count(*) FROM rollup_visit_daily WHERE link_id = :id)
+                  + (SELECT count(*) FROM rollup_visit_hourly WHERE link_id = :id)
+                  + (SELECT count(*) FROM rollup_visit_dim_daily WHERE link_id = :id)
+                """
+            ),
+            {"id": link.id},
+        )
+    ).one()
+    fences = (
+        await db.execute(
+            text(
+                "SELECT id, name, cardinality(link_ids) = 1 FROM geofences "
+                "WHERE :id = ANY(link_ids) ORDER BY name"
+            ),
+            {"id": link.id},
+        )
+    ).all()
+    return DeletePreview(
+        slug=link.slug,
+        is_default=link.is_default,
+        archived=link.archived_at is not None,
+        visits=int(counts[0]),
+        visit_candidates=int(counts[1]),
+        rollup_rows=int(counts[2]),
+        geofences_updated=[GeofenceRef(id=str(i), name=n) for i, n, alone in fences if not alone],
+        geofences_deactivated=[GeofenceRef(id=str(i), name=n) for i, n, alone in fences if alone],
+    )
+
+
+@router.get(
+    "/{link_id}/delete-preview",
+    response_model=DeletePreview,
+    summary="What a permanent delete would remove (owner only)",
+    description="Deletes nothing (SPEC section 11 row 25).",
+)
+async def delete_preview(link_id: str, principal: OwnerPrincipal, db: DbSession) -> DeletePreview:
+    del principal
+    return await _preview(db, await _get(db, link_id))
+
+
 @router.delete(
     "/{link_id}",
     status_code=status.HTTP_204_NO_CONTENT,
     summary="Delete a link",
     description=(
-        "Refused while any visit references it (409 LINK_HAS_VISITS) -- archive it "
-        "instead. Historical data is never orphaned (F1.AC10), and the foreign key "
-        "enforces that even if this check were bypassed."
+        "Without `with_visits`, refused while any visit references it (409 LINK_HAS_VISITS) "
+        "-- archive it instead (F1.AC10). With `with_visits=true`, a **permanent** delete of "
+        "the link, its visits and their candidates, and its rollups, in one transaction; it "
+        "is removed from geofences scoped to it, and one scoped to it alone is switched off "
+        "(SPEC section 11 row 25). Works on archived links too."
     ),
 )
 async def delete_link(
@@ -533,23 +604,44 @@ async def delete_link(
     principal: OwnerPrincipal,
     db: DbSession,
     settings: Config,
+    with_visits: Annotated[bool, Query()] = False,
 ) -> Response:
     link = await _get(db, link_id)
     await _lock_defaults(db)
-    if await _visit_count(db, link.id) > 0:
-        raise LinkHasVisits("This link has visits. Archive it instead.")
+    # Lock the row: a visit arriving now waits on the foreign key, then finds the link gone
+    # and is redirected uncaptured (the capture path's fallback, invariant 1).
+    await db.execute(select(Link.id).where(Link.id == link.id).with_for_update())
+    preview = await _preview(db, link)
+    if preview.visits > 0 and not with_visits:
+        raise LinkHasVisits(
+            "This link has visits. Archive it, or delete it permanently with its visits."
+        )
     if link.is_default and link.archived_at is None and await _other_live_links(db, link.id) > 0:
         raise DefaultLinkRequired("Make another link the default before deleting this one.")
 
-    slug = link.slug
+    slug, destination = link.slug, link.destination_url
+    await db.execute(
+        text(
+            "UPDATE geofences SET link_ids = array_remove(link_ids, :id), updated_at = now() "
+            "WHERE :id = ANY(link_ids) AND cardinality(link_ids) > 1"
+        ),
+        {"id": link.id},
+    )
+    await db.execute(
+        text(
+            "UPDATE geofences SET is_active = false, updated_at = now() "
+            "WHERE :id = ANY(link_ids) AND cardinality(link_ids) = 1"
+        ),
+        {"id": link.id},
+    )
+    # Candidates cascade from visits; rollups cascade from the link.
+    await db.execute(text("DELETE FROM visits WHERE link_id = :id"), {"id": link.id})
     try:
         await db.delete(link)
         await db.flush()
     except IntegrityError as exc:
-        # A visit arrived between the count and the delete. ON DELETE RESTRICT is the
-        # backstop; the answer is the same as if the count had seen it.
         await db.rollback()
-        raise LinkHasVisits("This link has visits. Archive it instead.") from exc
+        raise LinkHasVisits("A visit arrived while deleting. Try again.") from exc
     link_cache.forget(slug)
 
     await audit.record(
@@ -560,6 +652,15 @@ async def delete_link(
         target_type="link",
         target_id=str(link.id),
         trace_id=getattr(request.state, "trace_id", None),
-        detail={"slug": slug},
+        detail={
+            "slug": slug,
+            "destination_url": destination,
+            "with_visits": with_visits,
+            "visits": preview.visits,
+            "visit_candidates": preview.visit_candidates,
+            "rollup_rows": preview.rollup_rows,
+            "geofences_updated": [g.name for g in preview.geofences_updated],
+            "geofences_deactivated": [g.name for g in preview.geofences_deactivated],
+        },
     )
     return Response(status_code=status.HTTP_204_NO_CONTENT)

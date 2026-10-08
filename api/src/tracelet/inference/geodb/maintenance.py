@@ -24,10 +24,17 @@ from tracelet.capture.models import AsnType
 from tracelet.config import Settings, get_settings
 from tracelet.db.engine import session_scope
 from tracelet.inference.geodb.catalog import BY_NAME, CATALOG, DatabaseSpec
+from tracelet.inference.geodb.check import (
+    NOT_CHECKED,
+    check_all,
+    check_and_store,
+    comparable,
+    newer_release,
+)
 from tracelet.inference.geodb.geonames import CITY_KM
 from tracelet.inference.geodb.installer import InstallResult, current_path, install
 from tracelet.inference.geodb.readers import geocoder
-from tracelet.inference.models import AsnProfile, GeoDatabase, GeoDbStatus
+from tracelet.inference.models import AsnProfile, GeoDatabase, GeoDatabaseSettings, GeoDbStatus
 from tracelet.inference.sources.asn_org import asn_type, classify
 
 log = structlog.get_logger(__name__)
@@ -97,18 +104,108 @@ def is_due(spec: DatabaseSpec, latest: _Latest, settings: Settings, today: dt.da
     return age > dt.timedelta(days=REFRESH_DAYS.get(spec.name, 30))
 
 
+async def _settings_rows() -> dict[str, GeoDatabaseSettings]:
+    async with session_scope() as db:
+        rows = (await db.execute(select(GeoDatabaseSettings))).scalars()
+        return {row.name: row for row in rows}
+
+
+# A check this recent, and successful, is believed over the refresh period (row 26).
+CHECK_TRUSTED_FOR: Final = dt.timedelta(hours=12)
+
+
+def scheduled_due(
+    spec: DatabaseSpec,
+    latest: _Latest,
+    row: GeoDatabaseSettings | None,
+    settings: Settings,
+    *,
+    today: dt.date,
+    now: dt.datetime,
+) -> bool:
+    """Whether the scheduler should download ``spec`` now (SPEC section 11 rows 24, 26).
+
+    Not after a recent failure. Always when it is not installed or its file is missing.
+    When the last release check succeeded within 12 hours and can be compared with the
+    installed copy, **only** if it found a newer release -- the refresh period would download
+    an unchanged file and spend the vendor's allowance. Otherwise -- IP2Location (never
+    checked), a failed or old check, dates that cannot be compared -- the refresh period
+    decides, as before, and a newer release found anyway still counts.
+    """
+    if latest.failed_recently:
+        return False
+    if latest.installed is None or not current_path(settings, spec).exists():
+        return True
+    if row is not None:
+        args = (
+            latest.installed.version,
+            latest.installed.released_at,
+            row.latest_version,
+            row.latest_released_at,
+        )
+        trusted = (
+            spec.name not in NOT_CHECKED
+            and row.check_error is None
+            and row.checked_at is not None
+            and now - row.checked_at < CHECK_TRUSTED_FOR
+            and comparable(*args)
+        )
+        if trusted:
+            return newer_release(*args)
+        if newer_release(*args):
+            return True
+    return is_due(spec, latest, settings, today)
+
+
+async def manual_update_due(spec: DatabaseSpec, settings: Settings) -> bool:
+    """The Update button asks the vendor first (SPEC section 11 row 26): download only if
+    the check finds a newer release. Downloads without asking when there is nothing to
+    compare with -- not installed, file missing, never checked (IP2Location), the check
+    failed, or the dates do not compare -- because the owner did ask for an update."""
+    now = dt.datetime.now(dt.UTC)
+    latest = await _latest(spec, now)
+    if latest.installed is None or not current_path(settings, spec).exists():
+        return True
+    if spec.name in NOT_CHECKED:
+        return True
+    found = await check_and_store(spec, settings)
+    args = (
+        latest.installed.version,
+        latest.installed.released_at,
+        found.latest_version,
+        found.latest_released_at,
+    )
+    if found.error is not None or not comparable(*args):
+        return True
+    return newer_release(*args)
+
+
 async def update_all(
-    settings: Settings | None = None, *, only: list[str] | None = None, force: bool = False
+    settings: Settings | None = None,
+    *,
+    only: list[str] | None = None,
+    force: bool = False,
+    respect_auto_update: bool = False,
 ) -> list[InstallResult]:
-    """Install everything due (or everything named, with ``force``). Never raises."""
+    """Install everything due (or everything named, with ``force``). Never raises.
+
+    Due: see ``scheduled_due`` (SPEC section 11 rows 24 and 26). ``respect_auto_update`` is the scheduler's: a
+    database whose automatic updates are off is left alone; a manual update ignores it.
+    """
     settings = settings or get_settings()
     today = dt.datetime.now(dt.UTC).date()
     now = dt.datetime.now(dt.UTC)
+    rows = await _settings_rows()
     results: list[InstallResult] = []
     for spec in CATALOG:
         if only is not None and spec.name not in only:
             continue
-        if not force and not is_due(spec, await _latest(spec, now), settings, today):
+        row = rows.get(spec.name)
+        if respect_auto_update and row is not None and not row.auto_update:
+            continue
+        if not force and not scheduled_due(
+            spec, await _latest(spec, now), row, settings, today=today, now=now
+        ):
             continue
         results.append(await install(spec, settings, today=today))
     if any(r.status == "installed" and r.name in LOCATION_OR_ASN for r in results):
@@ -117,8 +214,10 @@ async def update_all(
 
 
 async def run_job_once() -> int:
-    """The scheduler's entry point (ADR-0009): daily, one worker at a time."""
-    results = await update_all()
+    """The scheduler's entry point (ADR-0009): every six hours, one worker at a time --
+    check for releases, then update what is due and has automatic updates on."""
+    await check_all()
+    results = await update_all(respect_auto_update=True)
     return sum(1 for r in results if r.status == "installed")
 
 

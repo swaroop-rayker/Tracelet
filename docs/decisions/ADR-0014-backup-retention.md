@@ -1,6 +1,8 @@
 # ADR-0014 — Backup, restore verification, and retention
 
-**Status:** Accepted (Gate 1 and Gate 2, 2026-09-25)
+**Status:** Accepted (Gate 1 and Gate 2, 2026-09-25). **Amended 2026-10-07 by ADR-0022:**
+restore-verification uses a scratch *database* on the same server, not a scratch schema, and
+checks the counts taken in the dump's own snapshot.
 **Deciders:** repository owner
 **Relates to:** F10.AC11, F10.AC12, F12.AC7–F12.AC12, NFR5, C6
 

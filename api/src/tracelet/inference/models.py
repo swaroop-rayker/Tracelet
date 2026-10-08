@@ -146,6 +146,28 @@ class GeoDatabase(Base):
     created_at: Mapped[dt.datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )
+    # An attempt in flight says how far it has got (SPEC section 11 row 24, migration 0013).
+    phase: Mapped[str | None] = mapped_column(Text)
+    progress_bytes: Mapped[int | None] = mapped_column(BigInteger)
+    total_bytes: Mapped[int | None] = mapped_column(BigInteger)
+
+
+class GeoDatabaseSettings(Base):
+    """Per database: whether the scheduler updates it, and the last release check
+    (DATA_MODEL section 8.3, SPEC section 11 row 24)."""
+
+    __tablename__ = "geo_database_settings"
+
+    name: Mapped[str] = mapped_column(Text, primary_key=True)
+    auto_update: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    latest_version: Mapped[str | None] = mapped_column(Text)
+    latest_released_at: Mapped[dt.datetime | None] = mapped_column(DateTime(timezone=True))
+    checked_at: Mapped[dt.datetime | None] = mapped_column(DateTime(timezone=True))
+    check_error: Mapped[str | None] = mapped_column(Text)
+    updated_by: Mapped[uuid.UUID | None] = mapped_column(pg.UUID(as_uuid=True))
+    updated_at: Mapped[dt.datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
 
 
 class InferenceSettingsVersion(Base):

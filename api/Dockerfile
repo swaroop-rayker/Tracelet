@@ -6,6 +6,26 @@
 # image, no dev dependencies in production, non-root user.
 # ---------------------------------------------------------------------------
 
+# --- PostgreSQL 16 client binaries (ADR-0022) ------------------------------
+#
+# pg_dump and pg_restore for backups and the restore check, matching the
+# server's major version. Debian's own client is 17, whose pg_restore emits
+# settings a 16 server rejects. Only the two binaries are copied into the image:
+# the package's wrapper scripts are Perl, and installing it whole adds ~120 MB
+# for nothing they need. They link the image's libpq5, which is ABI-stable.
+# The repository key is vendored (fingerprint B97B0AFC...ACCC4CF8), not fetched.
+FROM python:3.13-slim AS pgclient
+COPY certs/ /usr/local/share/ca-certificates/
+COPY docker/pgdg.asc /usr/share/keyrings/pgdg.asc
+RUN update-ca-certificates \
+ && . /etc/os-release \
+ && echo "deb [signed-by=/usr/share/keyrings/pgdg.asc] https://apt.postgresql.org/pub/repos/apt ${VERSION_CODENAME}-pgdg main" \
+      > /etc/apt/sources.list.d/pgdg.list \
+ && apt-get update \
+ && apt-get install -y --no-install-recommends postgresql-client-16 \
+ && rm -rf /var/lib/apt/lists/*
+
+
 FROM python:3.13-slim AS base
 
 ENV PYTHONUNBUFFERED=1 \
@@ -23,6 +43,8 @@ RUN apt-get update \
       libpq5 \
       ca-certificates \
  && rm -rf /var/lib/apt/lists/*
+
+COPY --from=pgclient /usr/lib/postgresql/16/bin/pg_dump /usr/lib/postgresql/16/bin/pg_restore /usr/local/bin/
 
 # --- local trust anchors, for a development machine only -------------------
 #

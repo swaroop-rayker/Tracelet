@@ -12,6 +12,7 @@
 import { useCallback, useState } from 'react';
 import { Outlet } from 'react-router';
 import { CommandPalette } from '@/components/shell/CommandPalette';
+import { DegradationBanner } from '@/components/shell/DegradationBanner';
 import { Header } from '@/components/shell/Header';
 import { HelpDialog } from '@/components/shell/HelpDialog';
 import { Sidebar } from '@/components/shell/Sidebar';
@@ -82,6 +83,7 @@ export function Layout(): React.JSX.Element {
           onSearch={openPalette}
           onHelp={openHelp}
         />
+        <DegradationBanner />
         <main id="main" className="app-content" tabIndex={-1}>
           <Outlet />
         </main>
