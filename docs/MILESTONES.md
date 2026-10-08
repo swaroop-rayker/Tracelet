@@ -24,10 +24,10 @@ then open the PR (CLAUDE.md section 2).
 | M5.5 | Design system and UI polish (owner-directed 2026-10-02, approved 2026-10-03; docs/DESIGN.md) | L | **[x] done** — 11 of 11 items; CSP 0 in Chromium, Firefox and WebKit; 72-image matrix; bugs E41–E47; hand keyboard walkthrough by the owner 2026-10-07 |
 | M5.6 | Dashboard enhancements and the Settings redesign, UI only (owner-approved 2026-10-06; docs/plans/ENHANCEMENTS-PLAN.md Phase A, SETTINGS-REDESIGN-PLAN.md) | M | **[x] built** — dashboard 6/6, Settings 6/6; CSP 0 in three engines; no server change; bugs E48–E50 |
 | M6 | Geofencing and Telegram notifications | M | **[x] done** — 11 of 11; both Telegram alerts received on the owner's phone 2026-10-07 (inside: high, as the same-day upgrade); bugs E52–E65 |
-| M7 | System health and operations | L | **built** — 10 of 10 items, plus the owner's additions (SPEC §11 rows 24–25) and F10.AC1's per-admin refresh interval; CSP 0 in three engines; ADR-0022; bugs E66–E71 (E69 cleared 164 dev IP ciphertexts) |
-| M7.5 | Alert types (owner-approved 2026-10-08; ENHANCEMENTS-PLAN Phase B, SPEC §11 row 27) | S | **[x] built** — 8 of 8 items; 4 types, all off by default; CSP 0 in three engines; no new dependency |
-| M7.6 | Sources, returning visitors, carriers, capture quality (owner-approved 2026-10-08; Phase C without C2; SPEC §11 row 28) | M | **[x] built** — 8 of 8 items; referrers cut to their origin (stored rows too); CSP 0 in three engines; bugs E74–E75 |
-| M7.7 | Annotations, saved views, compare, link builder (owner-approved 2026-10-08; Phase D; SPEC §11 row 29, ADR-0023) | M | **built** — 7 of 8 items; the QR code's phone scan is the owner's check; CSP 0 in three engines |
+| M7 | System health and operations | L | **[x] done** — merged to `main` 2026-10-08 (#9); 10 of 10 items, plus the owner's additions (SPEC §11 rows 24–25) and F10.AC1's per-admin refresh interval; CSP 0 in three engines; ADR-0022; bugs E66–E71 (E69 cleared 164 dev IP ciphertexts) |
+| M7.5 | Alert types (owner-approved 2026-10-08; ENHANCEMENTS-PLAN Phase B, SPEC §11 row 27) | S | **[x] done** — merged 2026-10-08 (#10); 8 of 8 items; 4 types, all off by default; CSP 0 in three engines; no new dependency |
+| M7.6 | Sources, returning visitors, carriers, capture quality (owner-approved 2026-10-08; Phase C without C2; SPEC §11 row 28) | M | **[x] done** — merged 2026-10-08 (#11); 8 of 8 items; referrers cut to their origin (stored rows too); CSP 0 in three engines; bugs E74–E75 |
+| M7.7 | Annotations, saved views, compare, link builder (owner-approved 2026-10-08; Phase D; SPEC §11 row 29, ADR-0023) | M | **[x] done** — merged 2026-10-08 (#12); 7 of 8 items; **outstanding: the owner's phone scan of a printed QR code** (the last checklist item below); CSP 0 in three engines |
 | M8 | Accuracy hardening and ground truth | M | [ ] |
 | M9 | Production hardening and deploy | M | [ ] |
 
