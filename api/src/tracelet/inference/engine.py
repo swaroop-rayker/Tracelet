@@ -215,7 +215,7 @@ async def infer_visit(
     asn = await profile_of(asn_number) if asn_number is not None else AsnInfo()
     if asn_number is not None:
         classified = asn_org.classify(asn_number, org)
-        asn = _combine(classified, asn)
+        asn = combine_asn(classified, asn)
     if ip is not None and toolkit.tor_exits is not None and str(ip) in toolkit.tor_exits:
         asn = dataclasses.replace(asn, is_tor=True)
 
@@ -329,8 +329,11 @@ async def _street_address(
     return address, None if address else "no_address_known"
 
 
-def _combine(classified: AsnInfo, profiled: AsnInfo) -> AsnInfo:
-    """The curated classification, plus whatever ``asn_profiles`` adds."""
+def combine_asn(classified: AsnInfo, profiled: AsnInfo) -> AsnInfo:
+    """The curated classification, plus whatever ``asn_profiles`` adds.
+
+    Public because the accuracy replay must rebuild a visit's network facts exactly as
+    inference did (ADR-0024)."""
     return AsnInfo(
         asn=classified.asn,
         org=classified.org or profiled.org,

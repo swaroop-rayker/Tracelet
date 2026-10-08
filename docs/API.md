@@ -1073,7 +1073,7 @@ be scored -- not only the one each visit was inferred under.
 {
   "visit_id": "0192…", "cant_tell": false,
   "country_code": "IN", "admin1": "Karnataka", "admin2": null, "city": "Bengaluru",
-  "use_gps": false,
+  "use_gps": null,
   "connection_kind": "mobile_data", "vpn_used": false, "network": "jio",
   "notes": "Phone, Indiranagar"
 }
@@ -1084,8 +1084,9 @@ be scored -- not only the one each visit was inferred under.
   `country_code|admin1` must be a key `/geofences/regions` lists (the GeoNames spelling the
   engine uses). `admin2` and `city` are free text up to 100 characters; the form offers
   GeoNames places.
-- `use_gps: true` copies the visit's own consented GPS fix into the label's coordinates.
-  Coordinates are never typed. Without a fix it is `422`.
+- `use_gps: true` copies the visit's own consented GPS fix into the label's coordinates;
+  `false` clears them; left out or `null`, they are kept. Coordinates are never typed. Asking
+  for a fix the visit does not have is `422 NO_GPS_FIX`.
 - `connection_kind` is `wifi`, `mobile_data` or `ethernet`; `network` is `airtel`, `jio`,
   `vi`, `bsnl`, `act` or `other`; `notes` at most 500 characters.
 - Errors: unknown visit `404`; a second label for one visit `409 GROUND_TRUTH_EXISTS`.

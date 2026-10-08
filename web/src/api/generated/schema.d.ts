@@ -76,7 +76,7 @@ export interface paths {
         };
         /**
          * Precision and coverage per level, with label counts (F9.AC10)
-         * @description Precision and coverage need the ground-truth set (F4.AC15), which M8 builds. Until then both are null with reason `no_ground_truth_labels` and `label_count` is 0. `emission_rate` is reported meanwhile and is explicitly not accuracy: it says how often strict answered, not whether it was right.
+         * @description A replay, under the active settings version, of the labelled visits the filters select (ADR-0024), on the network-only population: consented visits are scored without their GPS. Every figure has its label count and a 95 % Wilson interval. `emission_rate` is how often strict answered over every inferred visit in scope, and is explicitly not accuracy.
          */
         get: operations["accuracy_api_v1_analytics_accuracy_get"];
         put?: never;
@@ -824,6 +824,117 @@ export interface paths {
         patch: operations["update_geofence_api_v1_geofences__geofence_id__patch"];
         trace?: never;
     };
+    "/api/v1/ground-truth": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Every label, with the engine's recorded answer beside it */
+        get: operations["list_labels_api_v1_ground_truth_get"];
+        put?: never;
+        /** Label a visit (owner only, audited) */
+        post: operations["create_label_api_v1_ground_truth_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/ground-truth/metrics": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Precision, coverage and best-guess accuracy, replayed (F4.AC13, F4.AC17)
+         * @description A replay of the consensus over every labelled visit's stored candidates under `settings_version` (default: the active one), so a retained version can be scored without activating it. Every proportion carries `k`, `n` and a 95 % Wilson interval.
+         */
+        get: operations["metrics_api_v1_ground_truth_metrics_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/ground-truth/queue": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Visits worth labelling, most disagreement first
+         * @description `order=conflict` ranks by `conflict_score`, then newest: where sources disagreed most, a label teaches tuning most. `order=recent` is newest first, for the test visit you have just made.
+         */
+        get: operations["queue_api_v1_ground_truth_queue_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/ground-truth/runs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Recorded measurements, newest first */
+        get: operations["list_runs_api_v1_ground_truth_runs_get"];
+        put?: never;
+        /** Score the active version now and record it (owner only) */
+        post: operations["record_run_api_v1_ground_truth_runs_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/ground-truth/runs/{run_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** One recorded measurement */
+        get: operations["get_run_api_v1_ground_truth_runs__run_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/ground-truth/{label_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Delete a label (owner only, audited) */
+        delete: operations["delete_label_api_v1_ground_truth__label_id__delete"];
+        options?: never;
+        head?: never;
+        /** Change a label (owner only, audited) */
+        patch: operations["update_label_api_v1_ground_truth__label_id__patch"];
+        trace?: never;
+    };
     "/api/v1/health/backups": {
         parameters: {
             query?: never;
@@ -1519,11 +1630,20 @@ export interface components {
     schemas: {
         /** Accuracy */
         Accuracy: {
+            /** Inference Version */
+            inference_version: string;
             /** Inferred */
             inferred: number;
             /** Levels */
             levels: components["schemas"]["LevelAccuracy"][];
             meta: components["schemas"]["Meta"];
+            /**
+             * Population
+             * @constant
+             */
+            population: "network_only";
+            /** Settings Version */
+            settings_version: number;
         };
         /** Admin1Count */
         Admin1Count: {
@@ -1533,6 +1653,13 @@ export interface components {
             count: number;
             /** Country Code */
             country_code: string;
+        };
+        /** AdminRef */
+        AdminRef: {
+            /** Id */
+            id: string;
+            /** Name */
+            name: string;
         };
         /**
          * AdminRole
@@ -2531,6 +2658,12 @@ export interface components {
             /** Points Truncated */
             points_truncated: boolean;
         };
+        /**
+         * GeoLevel
+         * @description Values match the ``geo_level`` enum created by migration 0005.
+         * @enum {string}
+         */
+        GeoLevel: "country" | "admin1" | "admin2" | "city" | "point";
         /** GeofenceBlock */
         GeofenceBlock: {
             /** Matched */
@@ -2794,6 +2927,120 @@ export interface components {
             /** Value */
             value: number | null;
         };
+        /** LabelIn */
+        LabelIn: {
+            /** Admin1 */
+            admin1?: string | null;
+            /** Admin2 */
+            admin2?: string | null;
+            /**
+             * Cant Tell
+             * @default false
+             */
+            cant_tell: boolean;
+            /** City */
+            city?: string | null;
+            /** Connection Kind */
+            connection_kind?: ("wifi" | "mobile_data" | "ethernet") | null;
+            /** Country Code */
+            country_code?: string | null;
+            /** Network */
+            network?: ("airtel" | "jio" | "vi" | "bsnl" | "act" | "other") | null;
+            /** Notes */
+            notes?: string | null;
+            /** Use Gps */
+            use_gps?: boolean | null;
+            /**
+             * Visit Id
+             * Format: uuid
+             */
+            visit_id: string;
+            /** Vpn Used */
+            vpn_used?: boolean | null;
+        };
+        /** LabelLink */
+        LabelLink: {
+            /** Id */
+            id: string;
+            /** Label */
+            label: string;
+            /** Slug */
+            slug: string;
+        };
+        /** LabelList */
+        LabelList: {
+            /** Cant Tell */
+            cant_tell: number;
+            /** Items */
+            items: components["schemas"]["LabelOut"][];
+            /** Total */
+            total: number;
+        };
+        /** LabelOut */
+        LabelOut: {
+            /** Cant Tell */
+            cant_tell: boolean;
+            /** Connection Kind */
+            connection_kind: string | null;
+            consent_state: components["schemas"]["ConsentState"];
+            /** Has Coordinates */
+            has_coordinates: boolean;
+            /** Id */
+            id: string;
+            /**
+             * Labeled At
+             * Format: date-time
+             */
+            labeled_at: string;
+            labeled_by: components["schemas"]["AdminRef"] | null;
+            link: components["schemas"]["LabelLink"];
+            /** Network */
+            network: string | null;
+            /** Notes */
+            notes: string | null;
+            /**
+             * Occurred At
+             * Format: date-time
+             */
+            occurred_at: string;
+            recorded: components["schemas"]["RecordedOut"];
+            truth: components["schemas"]["TruthOut"];
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+            /** Visit Id */
+            visit_id: string;
+            /** Vpn Used */
+            vpn_used: boolean | null;
+        };
+        /**
+         * LabelPatch
+         * @description Any subset; a field sent as null is cleared, a field left out is kept.
+         */
+        LabelPatch: {
+            /** Admin1 */
+            admin1?: string | null;
+            /** Admin2 */
+            admin2?: string | null;
+            /** Cant Tell */
+            cant_tell?: boolean | null;
+            /** City */
+            city?: string | null;
+            /** Connection Kind */
+            connection_kind?: ("wifi" | "mobile_data" | "ethernet") | null;
+            /** Country Code */
+            country_code?: string | null;
+            /** Network */
+            network?: ("airtel" | "jio" | "vi" | "bsnl" | "act" | "other") | null;
+            /** Notes */
+            notes?: string | null;
+            /** Use Gps */
+            use_gps?: boolean | null;
+            /** Vpn Used */
+            vpn_used?: boolean | null;
+        };
         /** LastPurgeOut */
         LastPurgeOut: {
             /**
@@ -2823,8 +3070,20 @@ export interface components {
         };
         /** LevelAccuracy */
         LevelAccuracy: {
+            /** Advisory Accuracy */
+            advisory_accuracy: number | null;
+            /** Advisory Ci95 */
+            advisory_ci95: [
+                number,
+                number
+            ] | null;
             /** Coverage */
             coverage: number | null;
+            /** Coverage Ci95 */
+            coverage_ci95: [
+                number,
+                number
+            ] | null;
             /** Emission Rate */
             emission_rate: number | null;
             /** Label Count */
@@ -2836,6 +3095,11 @@ export interface components {
             level: "country" | "admin1" | "admin2" | "city";
             /** Precision */
             precision: number | null;
+            /** Precision Ci95 */
+            precision_ci95: [
+                number,
+                number
+            ] | null;
             /** Reason */
             reason: string | null;
         };
@@ -2868,6 +3132,15 @@ export interface components {
             city: number;
             /** Country */
             country: number;
+        };
+        /** LevelReport */
+        LevelReport: {
+            advisory_accuracy: components["schemas"]["Proportion"];
+            /** Label Count */
+            label_count: number;
+            level: components["schemas"]["GeoLevel"];
+            strict_coverage: components["schemas"]["Proportion"];
+            strict_precision: components["schemas"]["Proportion"];
         };
         /** LimitOut */
         LimitOut: {
@@ -3032,6 +3305,17 @@ export interface components {
             email: string;
             /** Password */
             password: string;
+        };
+        /** MatrixCell */
+        MatrixCell: {
+            /** Connection Kind */
+            connection_kind: string | null;
+            /** Count */
+            count: number;
+            /** Network */
+            network: string | null;
+            /** Vpn Used */
+            vpn_used: boolean | null;
         };
         /** MeResponse */
         MeResponse: {
@@ -3224,6 +3508,18 @@ export interface components {
          * @enum {string}
          */
         OutboxStatus: "pending" | "in_flight" | "done" | "failed" | "dead";
+        /** PathReport */
+        PathReport: {
+            city_strict_coverage: components["schemas"]["Proportion"];
+            city_strict_precision: components["schemas"]["Proportion"];
+            /** Label Count */
+            label_count: number;
+            /**
+             * Path
+             * @enum {string}
+             */
+            path: "cloudflare" | "direct";
+        };
         /** PlaceOut */
         PlaceOut: {
             /** Admin1 */
@@ -3323,6 +3619,18 @@ export interface components {
              */
             type: "Polygon";
         };
+        /** PopulationReport */
+        PopulationReport: {
+            /** Label Count */
+            label_count: number;
+            /** Levels */
+            levels: components["schemas"]["LevelReport"][];
+            /**
+             * Population
+             * @enum {string}
+             */
+            population: "all" | "consented" | "non_consented" | "network_only";
+        };
         /**
          * PreferencesRequest
          * @description Display preferences: per admin, persisted, and harmless (F9.AC16).
@@ -3360,6 +3668,20 @@ export interface components {
              */
             phase: string;
         };
+        /** Proportion */
+        Proportion: {
+            /** Ci95 */
+            ci95: [
+                number,
+                number
+            ] | null;
+            /** K */
+            k: number;
+            /** N */
+            n: number;
+            /** Value */
+            value: number | null;
+        };
         /** PurgeAccepted */
         PurgeAccepted: {
             /**
@@ -3381,6 +3703,24 @@ export interface components {
              */
             as_of: string;
             policy: components["schemas"]["PolicyModel"];
+        };
+        /** Queue */
+        Queue: {
+            /** Items */
+            items: components["schemas"]["QueueItem"][];
+            /** Labelled */
+            labelled: number;
+            /** Remaining */
+            remaining: number;
+        };
+        /** QueueItem */
+        QueueItem: {
+            /** Agreement Score */
+            agreement_score: number | null;
+            /** Conflict Score */
+            conflict_score: number | null;
+            consent_state: components["schemas"]["ConsentState"];
+            visit: components["schemas"]["VisitSummary"];
         };
         /** QuietHoursIn */
         QuietHoursIn: {
@@ -3455,6 +3795,22 @@ export interface components {
             /** Ready */
             ready: boolean;
         };
+        /**
+         * RecordedOut
+         * @description What the visit holds -- from the version it was inferred under, not a replay.
+         */
+        RecordedOut: {
+            /** Advisory */
+            advisory: {
+                [key: string]: string | null;
+            };
+            /** Inference Version */
+            inference_version: string | null;
+            /** Strict */
+            strict: {
+                [key: string]: string | null;
+            };
+        };
         /** RecoveryCodeRequest */
         RecoveryCodeRequest: {
             /** Code */
@@ -3511,6 +3867,33 @@ export interface components {
              * @default 0.3
              */
             min_modal_share: number;
+        };
+        /** Report */
+        Report: {
+            /** Cant Tell */
+            cant_tell: number;
+            /** Classifier Version */
+            classifier_version: string;
+            /** Inference Version */
+            inference_version: string;
+            /** Label Count */
+            label_count: number;
+            /** Matrix */
+            matrix: components["schemas"]["MatrixCell"][];
+            /** Passed */
+            passed: boolean | null;
+            /** Paths */
+            paths: components["schemas"]["PathReport"][];
+            /** Pending */
+            pending: number;
+            /** Populations */
+            populations: components["schemas"]["PopulationReport"][];
+            /** Settings Version */
+            settings_version: number | null;
+            /** Sources */
+            sources: components["schemas"]["SourceReport"][];
+            /** Targets */
+            targets: components["schemas"]["TargetCheck"][];
         };
         /** ResetConfirm */
         ResetConfirm: {
@@ -3621,6 +4004,72 @@ export interface components {
             after_days: number;
             /** Enabled */
             enabled: boolean;
+        };
+        /** RunDetail */
+        RunDetail: {
+            /** Classifier Version */
+            classifier_version: string;
+            /** Git Sha */
+            git_sha: string | null;
+            /** Id */
+            id: string;
+            /** Inference Version */
+            inference_version: string;
+            /** Label Count */
+            label_count: number;
+            metrics: components["schemas"]["Report"];
+            /** Note */
+            note: string | null;
+            /**
+             * Origin
+             * @enum {string}
+             */
+            origin: "cli" | "dashboard";
+            /** Passed */
+            passed: boolean | null;
+            recorded_by: components["schemas"]["AdminRef"] | null;
+            /**
+             * Run At
+             * Format: date-time
+             */
+            run_at: string;
+            /** Settings Version */
+            settings_version: number;
+        };
+        /** RunIn */
+        RunIn: {
+            /** Note */
+            note?: string | null;
+        };
+        /** RunOut */
+        RunOut: {
+            /** Classifier Version */
+            classifier_version: string;
+            /** Git Sha */
+            git_sha: string | null;
+            /** Id */
+            id: string;
+            /** Inference Version */
+            inference_version: string;
+            /** Label Count */
+            label_count: number;
+            /** Note */
+            note: string | null;
+            /**
+             * Origin
+             * @enum {string}
+             */
+            origin: "cli" | "dashboard";
+            /** Passed */
+            passed: boolean | null;
+            recorded_by: components["schemas"]["AdminRef"] | null;
+            /**
+             * Run At
+             * Format: date-time
+             */
+            run_at: string;
+            /** Settings Version */
+            settings_version: number;
         };
         /** SampleOut */
         SampleOut: {
@@ -3785,6 +4234,15 @@ export interface components {
             /** Visits */
             visits: number;
         };
+        /** SourceLevel */
+        SourceLevel: {
+            /** Accepted */
+            accepted: number;
+            /** Claims */
+            claims: number;
+            correct: components["schemas"]["Proportion"];
+            level: components["schemas"]["GeoLevel"];
+        };
         /** SourceOutcomeOut */
         SourceOutcomeOut: {
             /** Candidates */
@@ -3798,6 +4256,12 @@ export interface components {
              * @description fired, suppressed, disabled, unavailable, empty or silent.
              */
             status: string;
+        };
+        /** SourceReport */
+        SourceReport: {
+            /** Levels */
+            levels: components["schemas"]["SourceLevel"][];
+            source: components["schemas"]["InferenceSource"];
         };
         /** SourceSettings */
         SourceSettings: {
@@ -3895,6 +4359,35 @@ export interface components {
             temperature: components["schemas"]["TemperatureOut"];
             /** Uptime Seconds */
             uptime_seconds: number;
+        };
+        /** TargetCheck */
+        TargetCheck: {
+            /** Gated */
+            gated: boolean;
+            /** Id */
+            id: string;
+            level: components["schemas"]["GeoLevel"];
+            /**
+             * Metric
+             * @enum {string}
+             */
+            metric: "strict_precision" | "strict_coverage" | "advisory_accuracy";
+            /** N */
+            n: number;
+            /**
+             * Population
+             * @enum {string}
+             */
+            population: "all" | "consented" | "non_consented" | "network_only";
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "met" | "missed" | "unmeasured" | "reported";
+            /** Target */
+            target: number | null;
+            /** Value */
+            value: number | null;
         };
         /** TelegramOut */
         TelegramOut: {
@@ -4004,6 +4497,17 @@ export interface components {
             /** Confirm Token */
             confirm_token: string;
         };
+        /** TruthOut */
+        TruthOut: {
+            /** Admin1 */
+            admin1: string | null;
+            /** Admin2 */
+            admin2: string | null;
+            /** City */
+            city: string | null;
+            /** Country Code */
+            country_code: string | null;
+        };
         /** UpdateAdminRequest */
         UpdateAdminRequest: {
             /** Display Name */
@@ -4066,6 +4570,7 @@ export interface components {
             /** Finalized At */
             finalized_at: string | null;
             geofence: components["schemas"]["GeofenceBlock"];
+            ground_truth_label?: components["schemas"]["LabelOut"] | null;
             /** Honeypot Tripped */
             honeypot_tripped: boolean;
             /** Id */
@@ -5967,6 +6472,271 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["GeofenceOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_labels_api_v1_ground_truth_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LabelList"];
+                };
+            };
+        };
+    };
+    create_label_api_v1_ground_truth_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LabelIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LabelOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    metrics_api_v1_ground_truth_metrics_get: {
+        parameters: {
+            query?: {
+                settings_version?: number | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Report"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    queue_api_v1_ground_truth_queue_get: {
+        parameters: {
+            query?: {
+                order?: "conflict" | "recent";
+                link_id?: string | null;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Queue"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_runs_api_v1_ground_truth_runs_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RunOut"][];
+                };
+            };
+        };
+    };
+    record_run_api_v1_ground_truth_runs_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RunIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RunDetail"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_run_api_v1_ground_truth_runs__run_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                run_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RunDetail"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_label_api_v1_ground_truth__label_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                label_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_label_api_v1_ground_truth__label_id__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                label_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LabelPatch"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LabelOut"];
                 };
             };
             /** @description Validation Error */

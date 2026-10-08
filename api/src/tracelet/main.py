@@ -13,6 +13,7 @@ from contextlib import asynccontextmanager
 import structlog
 from fastapi import FastAPI
 
+from tracelet.accuracy.router import router as accuracy_router
 from tracelet.analytics.router import router as analytics_router
 from tracelet.auth.admins_router import router as admins_router
 from tracelet.auth.router import router as auth_router
@@ -141,6 +142,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(lifecycle_router)
     app.include_router(system_health_router)
     app.include_router(workflow_router)
+    app.include_router(accuracy_router)
 
     return app
 

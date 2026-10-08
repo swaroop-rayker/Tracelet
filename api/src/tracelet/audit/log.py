@@ -89,6 +89,11 @@ class Action:
     # visits (M2)
     IP_DECRYPTED: Final = "visit.ip_decrypted"  # F12.AC4
 
+    # ground truth (M8, F4.AC15) -- owner-only, invariant 9; the truth, never coordinates
+    GROUND_TRUTH_LABELLED: Final = "ground_truth.labelled"
+    GROUND_TRUTH_UPDATED: Final = "ground_truth.updated"  # old and new
+    GROUND_TRUTH_DELETED: Final = "ground_truth.deleted"  # the truth it held
+
     # location inference (M3, F4.AC14) -- owner-only configuration, invariant 9
     INFERENCE_SETTINGS_CHANGED: Final = "inference.settings_changed"
     INFERENCE_SETTINGS_ROLLED_BACK: Final = "inference.settings_rolled_back"

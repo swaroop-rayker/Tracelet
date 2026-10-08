@@ -1,0 +1,2753 @@
+{
+ "cases": [
+  {
+   "asn": {
+    "is_cgnat": false,
+    "is_hosting": false,
+    "is_mobile": false,
+    "is_tor": false,
+    "modal_admin1": null,
+    "modal_city": null,
+    "modal_share": null
+   },
+   "candidates": [
+    {
+     "admin1": null,
+     "admin2": null,
+     "city": null,
+     "country_code": "IN",
+     "level": "country",
+     "raw_confidence": 1.0,
+     "source": "ipinfo"
+    },
+    {
+     "admin1": "Maharashtra",
+     "admin2": null,
+     "city": "Pune",
+     "country_code": "IN",
+     "level": "city",
+     "raw_confidence": 1.0,
+     "source": "geolite2"
+    },
+    {
+     "admin1": "Maharashtra",
+     "admin2": null,
+     "city": "Pune",
+     "country_code": "IN",
+     "level": "city",
+     "raw_confidence": 1.0,
+     "source": "dbip"
+    },
+    {
+     "admin1": "Maharashtra",
+     "admin2": null,
+     "city": "Pune",
+     "country_code": "IN",
+     "level": "city",
+     "raw_confidence": 1.0,
+     "source": "ip2location"
+    }
+   ],
+   "connection_kind": "wifi",
+   "consented": false,
+   "network": "airtel",
+   "path": "direct",
+   "truth": {
+    "admin1": "Maharashtra",
+    "admin2": null,
+    "city": "Pune",
+    "country_code": "IN"
+   },
+   "tz_countries": [
+    "IN"
+   ],
+   "vpn_used": false
+  },
+  {
+   "asn": {
+    "is_cgnat": false,
+    "is_hosting": false,
+    "is_mobile": false,
+    "is_tor": false,
+    "modal_admin1": null,
+    "modal_city": null,
+    "modal_share": null
+   },
+   "candidates": [
+    {
+     "admin1": null,
+     "admin2": null,
+     "city": null,
+     "country_code": "IN",
+     "level": "country",
+     "raw_confidence": 1.0,
+     "source": "ipinfo"
+    },
+    {
+     "admin1": "Haryana",
+     "admin2": null,
+     "city": "Faridabad",
+     "country_code": "IN",
+     "level": "city",
+     "raw_confidence": 0.8,
+     "source": "ip2location"
+    }
+   ],
+   "connection_kind": "wifi",
+   "consented": false,
+   "network": "other",
+   "path": "direct",
+   "truth": {
+    "admin1": "Karnataka",
+    "admin2": null,
+    "city": "Bengaluru",
+    "country_code": "IN"
+   },
+   "tz_countries": [
+    "IN"
+   ],
+   "vpn_used": false
+  },
+  {
+   "asn": {
+    "is_cgnat": false,
+    "is_hosting": false,
+    "is_mobile": false,
+    "is_tor": false,
+    "modal_admin1": null,
+    "modal_city": null,
+    "modal_share": null
+   },
+   "candidates": [
+    {
+     "admin1": null,
+     "admin2": null,
+     "city": null,
+     "country_code": "IN",
+     "level": "country",
+     "raw_confidence": 1.0,
+     "source": "ipinfo"
+    },
+    {
+     "admin1": "Maharashtra",
+     "admin2": null,
+     "city": "Pune",
+     "country_code": "IN",
+     "level": "city",
+     "raw_confidence": 0.95,
+     "source": "rdns"
+    },
+    {
+     "admin1": "Maharashtra",
+     "admin2": null,
+     "city": "Pune",
+     "country_code": "IN",
+     "level": "city",
+     "raw_confidence": 1.0,
+     "source": "geolite2"
+    },
+    {
+     "admin1": "Maharashtra",
+     "admin2": null,
+     "city": "Pune",
+     "country_code": "IN",
+     "level": "city",
+     "raw_confidence": 1.0,
+     "source": "dbip"
+    }
+   ],
+   "connection_kind": "wifi",
+   "consented": false,
+   "network": "airtel",
+   "path": "direct",
+   "truth": {
+    "admin1": "Maharashtra",
+    "admin2": null,
+    "city": "Pune",
+    "country_code": "IN"
+   },
+   "tz_countries": [
+    "IN"
+   ],
+   "vpn_used": false
+  },
+  {
+   "asn": {
+    "is_cgnat": false,
+    "is_hosting": false,
+    "is_mobile": false,
+    "is_tor": false,
+    "modal_admin1": null,
+    "modal_city": null,
+    "modal_share": null
+   },
+   "candidates": [
+    {
+     "admin1": null,
+     "admin2": null,
+     "city": null,
+     "country_code": "IN",
+     "level": "country",
+     "raw_confidence": 1.0,
+     "source": "ipinfo"
+    },
+    {
+     "admin1": "Uttar Pradesh",
+     "admin2": null,
+     "city": "Noida",
+     "country_code": "IN",
+     "level": "city",
+     "raw_confidence": 0.8,
+     "source": "ip2location"
+    }
+   ],
+   "connection_kind": "wifi",
+   "consented": false,
+   "network": "other",
+   "path": "direct",
+   "truth": {
+    "admin1": "Maharashtra",
+    "admin2": null,
+    "city": "Mumbai",
+    "country_code": "IN"
+   },
+   "tz_countries": [
+    "IN"
+   ],
+   "vpn_used": false
+  },
+  {
+   "asn": {
+    "is_cgnat": false,
+    "is_hosting": false,
+    "is_mobile": false,
+    "is_tor": false,
+    "modal_admin1": null,
+    "modal_city": null,
+    "modal_share": null
+   },
+   "candidates": [
+    {
+     "admin1": null,
+     "admin2": null,
+     "city": null,
+     "country_code": "IN",
+     "level": "country",
+     "raw_confidence": 1.0,
+     "source": "ipinfo"
+    },
+    {
+     "admin1": "Telangana",
+     "admin2": null,
+     "city": "Hyderabad",
+     "country_code": "IN",
+     "level": "city",
+     "raw_confidence": 0.99,
+     "source": "gps"
+    },
+    {
+     "admin1": "Telangana",
+     "admin2": null,
+     "city": "Hyderabad",
+     "country_code": "IN",
+     "level": "city",
+     "raw_confidence": 1.0,
+     "source": "geolite2"
+    },
+    {
+     "admin1": "Telangana",
+     "admin2": null,
+     "city": "Hyderabad",
+     "country_code": "IN",
+     "level": "city",
+     "raw_confidence": 1.0,
+     "source": "dbip"
+    }
+   ],
+   "connection_kind": "mobile_data",
+   "consented": true,
+   "network": "jio",
+   "path": "direct",
+   "truth": {
+    "admin1": "Telangana",
+    "admin2": null,
+    "city": "Hyderabad",
+    "country_code": "IN"
+   },
+   "tz_countries": [
+    "IN"
+   ],
+   "vpn_used": false
+  },
+  {
+   "asn": {
+    "is_cgnat": false,
+    "is_hosting": false,
+    "is_mobile": false,
+    "is_tor": false,
+    "modal_admin1": null,
+    "modal_city": null,
+    "modal_share": null
+   },
+   "candidates": [
+    {
+     "admin1": null,
+     "admin2": null,
+     "city": null,
+     "country_code": "IN",
+     "level": "country",
+     "raw_confidence": 1.0,
+     "source": "ipinfo"
+    },
+    {
+     "admin1": "West Bengal",
+     "admin2": null,
+     "city": "Kolkata",
+     "country_code": "IN",
+     "level": "city",
+     "raw_confidence": 1.0,
+     "source": "geolite2"
+    },
+    {
+     "admin1": "West Bengal",
+     "admin2": null,
+     "city": "Kolkata",
+     "country_code": "IN",
+     "level": "city",
+     "raw_confidence": 1.0,
+     "source": "dbip"
+    },
+    {
+     "admin1": "West Bengal",
+     "admin2": null,
+     "city": "Kolkata",
+     "country_code": "IN",
+     "level": "city",
+     "raw_confidence": 1.0,
+     "source": "ip2location"
+    }
+   ],
+   "connection_kind": "wifi",
+   "consented": false,
+   "network": "bsnl",
+   "path": "direct",
+   "truth": {
+    "admin1": "West Bengal",
+    "admin2": null,
+    "city": "Kolkata",
+    "country_code": "IN"
+   },
+   "tz_countries": [
+    "IN"
+   ],
+   "vpn_used": false
+  },
+  {
+   "asn": {
+    "is_cgnat": false,
+    "is_hosting": false,
+    "is_mobile": true,
+    "is_tor": false,
+    "modal_admin1": null,
+    "modal_city": null,
+    "modal_share": null
+   },
+   "candidates": [
+    {
+     "admin1": null,
+     "admin2": null,
+     "city": null,
+     "country_code": "IN",
+     "level": "country",
+     "raw_confidence": 1.0,
+     "source": "ipinfo"
+    },
+    {
+     "admin1": "Karnataka",
+     "admin2": null,
+     "city": "Bengaluru",
+     "country_code": "IN",
+     "level": "city",
+     "raw_confidence": 1.0,
+     "source": "geolite2"
+    },
+    {
+     "admin1": "Karnataka",
+     "admin2": null,
+     "city": "Bengaluru",
+     "country_code": "IN",
+     "level": "city",
+     "raw_confidence": 1.0,
+     "source": "dbip"
+    }
+   ],
+   "connection_kind": "mobile_data",
+   "consented": false,
+   "network": "jio",
+   "path": "direct",
+   "truth": {
+    "admin1": "Karnataka",
+    "admin2": null,
+    "city": "Bengaluru",
+    "country_code": "IN"
+   },
+   "tz_countries": [
+    "IN"
+   ],
+   "vpn_used": false
+  },
+  {
+   "asn": {
+    "is_cgnat": false,
+    "is_hosting": false,
+    "is_mobile": false,
+    "is_tor": false,
+    "modal_admin1": null,
+    "modal_city": null,
+    "modal_share": null
+   },
+   "candidates": [
+    {
+     "admin1": null,
+     "admin2": null,
+     "city": null,
+     "country_code": "IN",
+     "level": "country",
+     "raw_confidence": 1.0,
+     "source": "ipinfo"
+    },
+    {
+     "admin1": "Telangana",
+     "admin2": null,
+     "city": "Hyderabad",
+     "country_code": "IN",
+     "level": "city",
+     "raw_confidence": 1.0,
+     "source": "geolite2"
+    },
+    {
+     "admin1": "Telangana",
+     "admin2": null,
+     "city": "Hyderabad",
+     "country_code": "IN",
+     "level": "city",
+     "raw_confidence": 1.0,
+     "source": "dbip"
+    },
+    {
+     "admin1": "Telangana",
+     "admin2": null,
+     "city": "Hyderabad",
+     "country_code": "IN",
+     "level": "city",
+     "raw_confidence": 1.0,
+     "source": "ip2location"
+    }
+   ],
+   "connection_kind": "wifi",
+   "consented": false,
+   "network": "bsnl",
+   "path": "direct",
+   "truth": {
+    "admin1": "Telangana",
+    "admin2": null,
+    "city": "Hyderabad",
+    "country_code": "IN"
+   },
+   "tz_countries": [
+    "IN"
+   ],
+   "vpn_used": false
+  },
+  {
+   "asn": {
+    "is_cgnat": false,
+    "is_hosting": false,
+    "is_mobile": false,
+    "is_tor": false,
+    "modal_admin1": null,
+    "modal_city": null,
+    "modal_share": null
+   },
+   "candidates": [
+    {
+     "admin1": null,
+     "admin2": null,
+     "city": null,
+     "country_code": "IN",
+     "level": "country",
+     "raw_confidence": 1.0,
+     "source": "ipinfo"
+    },
+    {
+     "admin1": "West Bengal",
+     "admin2": null,
+     "city": "Kolkata",
+     "country_code": "IN",
+     "level": "city",
+     "raw_confidence": 1.0,
+     "source": "geolite2"
+    },
+    {
+     "admin1": "West Bengal",
+     "admin2": null,
+     "city": "Kolkata",
+     "country_code": "IN",
+     "level": "city",
+     "raw_confidence": 1.0,
+     "source": "dbip"
+    },
+    {
+     "admin1": "West Bengal",
+     "admin2": null,
+     "city": "Kolkata",
+     "country_code": "IN",
+     "level": "city",
+     "raw_confidence": 1.0,
+     "source": "ip2location"
+    }
+   ],
+   "connection_kind": "wifi",
+   "consented": false,
+   "network": "act",
+   "path": "direct",
+   "truth": {
+    "admin1": "West Bengal",
+    "admin2": null,
+    "city": "Kolkata",
+    "country_code": "IN"
+   },
+   "tz_countries": [
+    "IN"
+   ],
+   "vpn_used": false
+  },
+  {
+   "asn": {
+    "is_cgnat": false,
+    "is_hosting": false,
+    "is_mobile": false,
+    "is_tor": false,
+    "modal_admin1": null,
+    "modal_city": null,
+    "modal_share": null
+   },
+   "candidates": [
+    {
+     "admin1": null,
+     "admin2": null,
+     "city": null,
+     "country_code": "IN",
+     "level": "country",
+     "raw_confidence": 1.0,
+     "source": "ipinfo"
+    },
+    {
+     "admin1": "West Bengal",
+     "admin2": null,
+     "city": "Kolkata",
+     "country_code": "IN",
+     "level": "city",
+     "raw_confidence": 1.0,
+     "source": "geolite2"
+    },
+    {
+     "admin1": "West Bengal",
+     "admin2": null,
+     "city": "Kolkata",
+     "country_code": "IN",
+     "level": "city",
+     "raw_confidence": 1.0,
+     "source": "dbip"
+    },
+    {
+     "admin1": "West Bengal",
+     "admin2": null,
+     "city": "Kolkata",
+     "country_code": "IN",
+     "level": "city",
+     "raw_confidence": 1.0,
+     "source": "ip2location"
+    }
+   ],
+   "connection_kind": "wifi",
+   "consented": false,
+   "network": "airtel",
+   "path": "direct",
+   "truth": {
+    "admin1": "West Bengal",
+    "admin2": null,
+    "city": "Kolkata",
+    "country_code": "IN"
+   },
+   "tz_countries": [
+    "IN"
+   ],
+   "vpn_used": false
+  },
+  {
+   "asn": {
+    "is_cgnat": false,
+    "is_hosting": false,
+    "is_mobile": false,
+    "is_tor": false,
+    "modal_admin1": null,
+    "modal_city": null,
+    "modal_share": null
+   },
+   "candidates": [
+    {
+     "admin1": null,
+     "admin2": null,
+     "city": null,
+     "country_code": "IN",
+     "level": "country",
+     "raw_confidence": 1.0,
+     "source": "ipinfo"
+    },
+    {
+     "admin1": "Maharashtra",
+     "admin2": null,
+     "city": "Mumbai",
+     "country_code": "IN",
+     "level": "city",
+     "raw_confidence": 0.99,
+     "source": "gps"
+    },
+    {
+     "admin1": "Maharashtra",
+     "admin2": null,
+     "city": "Pune",
+     "country_code": "IN",
+     "level": "city",
+     "raw_confidence": 1.0,
+     "source": "geolite2"
+    },
+    {
+     "admin1": "Maharashtra",
+     "admin2": null,
+     "city": "Pune",
+     "country_code": "IN",
+     "level": "city",
+     "raw_confidence": 1.0,
+     "source": "dbip"
+    }
+   ],
+   "connection_kind": "mobile_data",
+   "consented": true,
+   "network": "jio",
+   "path": "direct",
+   "truth": {
+    "admin1": "Maharashtra",
+    "admin2": null,
+    "city": "Mumbai",
+    "country_code": "IN"
+   },
+   "tz_countries": [
+    "IN"
+   ],
+   "vpn_used": false
+  },
+  {
+   "asn": {
+    "is_cgnat": false,
+    "is_hosting": false,
+    "is_mobile": true,
+    "is_tor": false,
+    "modal_admin1": null,
+    "modal_city": null,
+    "modal_share": null
+   },
+   "candidates": [
+    {
+     "admin1": null,
+     "admin2": null,
+     "city": null,
+     "country_code": "IN",
+     "level": "country",
+     "raw_confidence": 1.0,
+     "source": "ipinfo"
+    },
+    {
+     "admin1": "Tamil Nadu",
+     "admin2": null,
+     "city": "Chennai",
+     "country_code": "IN",
+     "level": "city",
+     "raw_confidence": 1.0,
+     "source": "geolite2"
+    },
+    {
+     "admin1": "Tamil Nadu",
+     "admin2": null,
+     "city": "Chennai",
+     "country_code": "IN",
+     "level": "city",
+     "raw_confidence": 1.0,
+     "source": "dbip"
+    }
+   ],
+   "connection_kind": "mobile_data",
+   "consented": false,
+   "network": "jio",
+   "path": "direct",
+   "truth": {
+    "admin1": "Tamil Nadu",
+    "admin2": null,
+    "city": "Chennai",
+    "country_code": "IN"
+   },
+   "tz_countries": [
+    "IN"
+   ],
+   "vpn_used": false
+  },
+  {
+   "asn": {
+    "is_cgnat": false,
+    "is_hosting": false,
+    "is_mobile": false,
+    "is_tor": false,
+    "modal_admin1": null,
+    "modal_city": null,
+    "modal_share": null
+   },
+   "candidates": [
+    {
+     "admin1": null,
+     "admin2": null,
+     "city": null,
+     "country_code": "IN",
+     "level": "country",
+     "raw_confidence": 1.0,
+     "source": "ipinfo"
+    },
+    {
+     "admin1": "Karnataka",
+     "admin2": null,
+     "city": "Bengaluru",
+     "country_code": "IN",
+     "level": "city",
+     "raw_confidence": 1.0,
+     "source": "geolite2"
+    },
+    {
+     "admin1": "Karnataka",
+     "admin2": null,
+     "city": "Bengaluru",
+     "country_code": "IN",
+     "level": "city",
+     "raw_confidence": 1.0,
+     "source": "dbip"
+    },
+    {
+     "admin1": "Karnataka",
+     "admin2": null,
+     "city": "Bengaluru",
+     "country_code": "IN",
+     "level": "city",
+     "raw_confidence": 1.0,
+     "source": "ip2location"
+    }
+   ],
+   "connection_kind": "wifi",
+   "consented": false,
+   "network": "act",
+   "path": "direct",
+   "truth": {
+    "admin1": "Karnataka",
+    "admin2": null,
+    "city": "Bengaluru",
+    "country_code": "IN"
+   },
+   "tz_countries": [
+    "IN"
+   ],
+   "vpn_used": false
+  },
+  {
+   "asn": {
+    "is_cgnat": false,
+    "is_hosting": false,
+    "is_mobile": true,
+    "is_tor": false,
+    "modal_admin1": null,
+    "modal_city": null,
+    "modal_share": null
+   },
+   "candidates": [
+    {
+     "admin1": null,
+     "admin2": null,
+     "city": null,
+     "country_code": "IN",
+     "level": "country",
+     "raw_confidence": 1.0,
+     "source": "ipinfo"
+    },
+    {
+     "admin1": "Maharashtra",
+     "admin2": null,
+     "city": "Mumbai",
+     "country_code": "IN",
+     "level": "city",
+     "raw_confidence": 1.0,
+     "source": "geolite2"
+    },
+    {
+     "admin1": "Maharashtra",
+     "admin2": null,
+     "city": "Mumbai",
+     "country_code": "IN",
+     "level": "city",
+     "raw_confidence": 1.0,
+     "source": "dbip"
+    }
+   ],
+   "connection_kind": "mobile_data",
+   "consented": false,
+   "network": "vi",
+   "path": "direct",
+   "truth": {
+    "admin1": "Maharashtra",
+    "admin2": null,
+    "city": "Mumbai",
+    "country_code": "IN"
+   },
+   "tz_countries": [
+    "IN"
+   ],
+   "vpn_used": false
+  },
+  {
+   "asn": {
+    "is_cgnat": false,
+    "is_hosting": false,
+    "is_mobile": false,
+    "is_tor": false,
+    "modal_admin1": null,
+    "modal_city": null,
+    "modal_share": null
+   },
+   "candidates": [
+    {
+     "admin1": null,
+     "admin2": null,
+     "city": null,
+     "country_code": "IN",
+     "level": "country",
+     "raw_confidence": 1.0,
+     "source": "ipinfo"
+    },
+    {
+     "admin1": "Maharashtra",
+     "admin2": null,
+     "city": "Pune",
+     "country_code": "IN",
+     "level": "city",
+     "raw_confidence": 1.0,
+     "source": "geolite2"
+    },
+    {
+     "admin1": "Maharashtra",
+     "admin2": null,
+     "city": "Pune",
+     "country_code": "IN",
+     "level": "city",
+     "raw_confidence": 1.0,
+     "source": "dbip"
+    },
+    {
+     "admin1": "Maharashtra",
+     "admin2": null,
+     "city": "Pune",
+     "country_code": "IN",
+     "level": "city",
+     "raw_confidence": 1.0,
+     "source": "ip2location"
+    }
+   ],
+   "connection_kind": "wifi",
+   "consented": false,
+   "network": "bsnl",
+   "path": "direct",
+   "truth": {
+    "admin1": "Maharashtra",
+    "admin2": null,
+    "city": "Pune",
+    "country_code": "IN"
+   },
+   "tz_countries": [
+    "IN"
+   ],
+   "vpn_used": false
+  },
+  {
+   "asn": {
+    "is_cgnat": false,
+    "is_hosting": false,
+    "is_mobile": false,
+    "is_tor": false,
+    "modal_admin1": null,
+    "modal_city": null,
+    "modal_share": null
+   },
+   "candidates": [
+    {
+     "admin1": null,
+     "admin2": null,
+     "city": null,
+     "country_code": "IN",
+     "level": "country",
+     "raw_confidence": 1.0,
+     "source": "ipinfo"
+    },
+    {
+     "admin1": "Maharashtra",
+     "admin2": null,
+     "city": "Pune",
+     "country_code": "IN",
+     "level": "city",
+     "raw_confidence": 1.0,
+     "source": "geolite2"
+    },
+    {
+     "admin1": "Maharashtra",
+     "admin2": null,
+     "city": "Pune",
+     "country_code": "IN",
+     "level": "city",
+     "raw_confidence": 1.0,
+     "source": "dbip"
+    },
+    {
+     "admin1": "Maharashtra",
+     "admin2": null,
+     "city": "Pune",
+     "country_code": "IN",
+     "level": "city",
+     "raw_confidence": 1.0,
+     "source": "ip2location"
+    }
+   ],
+   "connection_kind": "wifi",
+   "consented": false,
+   "network": "act",
+   "path": "direct",
+   "truth": {
+    "admin1": "Maharashtra",
+    "admin2": null,
+    "city": "Pune",
+    "country_code": "IN"
+   },
+   "tz_countries": [
+    "IN"
+   ],
+   "vpn_used": false
+  },
+  {
+   "asn": {
+    "is_cgnat": false,
+    "is_hosting": false,
+    "is_mobile": false,
+    "is_tor": false,
+    "modal_admin1": null,
+    "modal_city": null,
+    "modal_share": null
+   },
+   "candidates": [
+    {
+     "admin1": null,
+     "admin2": null,
+     "city": null,
+     "country_code": "IN",
+     "level": "country",
+     "raw_confidence": 1.0,
+     "source": "ipinfo"
+    },
+    {
+     "admin1": "Karnataka",
+     "admin2": null,
+     "city": "Bengaluru",
+     "country_code": "IN",
+     "level": "city",
+     "raw_confidence": 1.0,
+     "source": "geolite2"
+    },
+    {
+     "admin1": "Karnataka",
+     "admin2": null,
+     "city": "Bengaluru",
+     "country_code": "IN",
+     "level": "city",
+     "raw_confidence": 1.0,
+     "source": "dbip"
+    },
+    {
+     "admin1": "Karnataka",
+     "admin2": null,
+     "city": "Bengaluru",
+     "country_code": "IN",
+     "level": "city",
+     "raw_confidence": 1.0,
+     "source": "ip2location"
+    }
+   ],
+   "connection_kind": "wifi",
+   "consented": false,
+   "network": "bsnl",
+   "path": "direct",
+   "truth": {
+    "admin1": "Karnataka",
+    "admin2": null,
+    "city": "Bengaluru",
+    "country_code": "IN"
+   },
+   "tz_countries": [
+    "IN"
+   ],
+   "vpn_used": false
+  },
+  {
+   "asn": {
+    "is_cgnat": false,
+    "is_hosting": false,
+    "is_mobile": false,
+    "is_tor": false,
+    "modal_admin1": null,
+    "modal_city": null,
+    "modal_share": null
+   },
+   "candidates": [
+    {
+     "admin1": null,
+     "admin2": null,
+     "city": null,
+     "country_code": "IN",
+     "level": "country",
+     "raw_confidence": 1.0,
+     "source": "ipinfo"
+    },
+    {
+     "admin1": "Maharashtra",
+     "admin2": null,
+     "city": "Mumbai",
+     "country_code": "IN",
+     "level": "city",
+     "raw_confidence": 1.0,
+     "source": "geolite2"
+    },
+    {
+     "admin1": "Maharashtra",
+     "admin2": null,
+     "city": "Mumbai",
+     "country_code": "IN",
+     "level": "city",
+     "raw_confidence": 1.0,
+     "source": "dbip"
+    },
+    {
+     "admin1": "Maharashtra",
+     "admin2": null,
+     "city": "Mumbai",
+     "country_code": "IN",
+     "level": "city",
+     "raw_confidence": 1.0,
+     "source": "ip2location"
+    }
+   ],
+   "connection_kind": "wifi",
+   "consented": false,
+   "network": "airtel",
+   "path": "direct",
+   "truth": {
+    "admin1": "Maharashtra",
+    "admin2": null,
+    "city": "Mumbai",
+    "country_code": "IN"
+   },
+   "tz_countries": [
+    "IN"
+   ],
+   "vpn_used": false
+  },
+  {
+   "asn": {
+    "is_cgnat": false,
+    "is_hosting": false,
+    "is_mobile": false,
+    "is_tor": false,
+    "modal_admin1": null,
+    "modal_city": null,
+    "modal_share": null
+   },
+   "candidates": [
+    {
+     "admin1": null,
+     "admin2": null,
+     "city": null,
+     "country_code": "IN",
+     "level": "country",
+     "raw_confidence": 1.0,
+     "source": "ipinfo"
+    },
+    {
+     "admin1": "Karnataka",
+     "admin2": null,
+     "city": "Bengaluru",
+     "country_code": "IN",
+     "level": "city",
+     "raw_confidence": 1.0,
+     "source": "geolite2"
+    },
+    {
+     "admin1": "Karnataka",
+     "admin2": null,
+     "city": "Bengaluru",
+     "country_code": "IN",
+     "level": "city",
+     "raw_confidence": 1.0,
+     "source": "dbip"
+    },
+    {
+     "admin1": "Karnataka",
+     "admin2": null,
+     "city": "Bengaluru",
+     "country_code": "IN",
+     "level": "city",
+     "raw_confidence": 1.0,
+     "source": "ip2location"
+    }
+   ],
+   "connection_kind": "wifi",
+   "consented": false,
+   "network": "airtel",
+   "path": "direct",
+   "truth": {
+    "admin1": "Karnataka",
+    "admin2": null,
+    "city": "Bengaluru",
+    "country_code": "IN"
+   },
+   "tz_countries": [
+    "IN"
+   ],
+   "vpn_used": false
+  },
+  {
+   "asn": {
+    "is_cgnat": false,
+    "is_hosting": false,
+    "is_mobile": false,
+    "is_tor": false,
+    "modal_admin1": null,
+    "modal_city": null,
+    "modal_share": null
+   },
+   "candidates": [
+    {
+     "admin1": null,
+     "admin2": null,
+     "city": null,
+     "country_code": "IN",
+     "level": "country",
+     "raw_confidence": 1.0,
+     "source": "ipinfo"
+    },
+    {
+     "admin1": "Tamil Nadu",
+     "admin2": null,
+     "city": "Chennai",
+     "country_code": "IN",
+     "level": "city",
+     "raw_confidence": 1.0,
+     "source": "geolite2"
+    },
+    {
+     "admin1": "Tamil Nadu",
+     "admin2": null,
+     "city": "Chennai",
+     "country_code": "IN",
+     "level": "city",
+     "raw_confidence": 1.0,
+     "source": "dbip"
+    },
+    {
+     "admin1": "Tamil Nadu",
+     "admin2": null,
+     "city": "Chennai",
+     "country_code": "IN",
+     "level": "city",
+     "raw_confidence": 1.0,
+     "source": "ip2location"
+    }
+   ],
+   "connection_kind": "wifi",
+   "consented": false,
+   "network": "airtel",
+   "path": "direct",
+   "truth": {
+    "admin1": "Tamil Nadu",
+    "admin2": null,
+    "city": "Chennai",
+    "country_code": "IN"
+   },
+   "tz_countries": [
+    "IN"
+   ],
+   "vpn_used": false
+  },
+  {
+   "asn": {
+    "is_cgnat": false,
+    "is_hosting": false,
+    "is_mobile": false,
+    "is_tor": false,
+    "modal_admin1": null,
+    "modal_city": null,
+    "modal_share": null
+   },
+   "candidates": [
+    {
+     "admin1": null,
+     "admin2": null,
+     "city": null,
+     "country_code": "IN",
+     "level": "country",
+     "raw_confidence": 1.0,
+     "source": "ipinfo"
+    },
+    {
+     "admin1": "Telangana",
+     "admin2": null,
+     "city": "Hyderabad",
+     "country_code": "IN",
+     "level": "city",
+     "raw_confidence": 0.95,
+     "source": "rdns"
+    },
+    {
+     "admin1": "Telangana",
+     "admin2": null,
+     "city": "Hyderabad",
+     "country_code": "IN",
+     "level": "city",
+     "raw_confidence": 1.0,
+     "source": "geolite2"
+    },
+    {
+     "admin1": "Telangana",
+     "admin2": null,
+     "city": "Hyderabad",
+     "country_code": "IN",
+     "level": "city",
+     "raw_confidence": 1.0,
+     "source": "dbip"
+    }
+   ],
+   "connection_kind": "wifi",
+   "consented": false,
+   "network": "airtel",
+   "path": "cloudflare",
+   "truth": {
+    "admin1": "Telangana",
+    "admin2": null,
+    "city": "Hyderabad",
+    "country_code": "IN"
+   },
+   "tz_countries": [
+    "IN"
+   ],
+   "vpn_used": false
+  },
+  {
+   "asn": {
+    "is_cgnat": false,
+    "is_hosting": false,
+    "is_mobile": false,
+    "is_tor": false,
+    "modal_admin1": null,
+    "modal_city": null,
+    "modal_share": null
+   },
+   "candidates": [
+    {
+     "admin1": null,
+     "admin2": null,
+     "city": null,
+     "country_code": "IN",
+     "level": "country",
+     "raw_confidence": 1.0,
+     "source": "ipinfo"
+    },
+    {
+     "admin1": "Delhi",
+     "admin2": null,
+     "city": "New Delhi",
+     "country_code": "IN",
+     "level": "city",
+     "raw_confidence": 1.0,
+     "source": "geolite2"
+    },
+    {
+     "admin1": "Delhi",
+     "admin2": null,
+     "city": "New Delhi",
+     "country_code": "IN",
+     "level": "city",
+     "raw_confidence": 1.0,
+     "source": "dbip"
+    },
+    {
+     "admin1": "Delhi",
+     "admin2": null,
+     "city": "New Delhi",
+     "country_code": "IN",
+     "level": "city",
+     "raw_confidence": 1.0,
+     "source": "ip2location"
+    }
+   ],
+   "connection_kind": "wifi",
+   "consented": false,
+   "network": "act",
+   "path": "direct",
+   "truth": {
+    "admin1": "Delhi",
+    "admin2": null,
+    "city": "New Delhi",
+    "country_code": "IN"
+   },
+   "tz_countries": [
+    "IN"
+   ],
+   "vpn_used": false
+  },
+  {
+   "asn": {
+    "is_cgnat": false,
+    "is_hosting": false,
+    "is_mobile": false,
+    "is_tor": false,
+    "modal_admin1": null,
+    "modal_city": null,
+    "modal_share": null
+   },
+   "candidates": [
+    {
+     "admin1": null,
+     "admin2": null,
+     "city": null,
+     "country_code": "IN",
+     "level": "country",
+     "raw_confidence": 1.0,
+     "source": "ipinfo"
+    },
+    {
+     "admin1": "Maharashtra",
+     "admin2": null,
+     "city": "Mumbai",
+     "country_code": "IN",
+     "level": "city",
+     "raw_confidence": 0.95,
+     "source": "rdns"
+    },
+    {
+     "admin1": "Maharashtra",
+     "admin2": null,
+     "city": "Mumbai",
+     "country_code": "IN",
+     "level": "city",
+     "raw_confidence": 1.0,
+     "source": "geolite2"
+    },
+    {
+     "admin1": "Maharashtra",
+     "admin2": null,
+     "city": "Mumbai",
+     "country_code": "IN",
+     "level": "city",
+     "raw_confidence": 1.0,
+     "source": "dbip"
+    }
+   ],
+   "connection_kind": "wifi",
+   "consented": false,
+   "network": "airtel",
+   "path": "cloudflare",
+   "truth": {
+    "admin1": "Maharashtra",
+    "admin2": null,
+    "city": "Mumbai",
+    "country_code": "IN"
+   },
+   "tz_countries": [
+    "IN"
+   ],
+   "vpn_used": false
+  },
+  {
+   "asn": {
+    "is_cgnat": false,
+    "is_hosting": false,
+    "is_mobile": false,
+    "is_tor": false,
+    "modal_admin1": null,
+    "modal_city": null,
+    "modal_share": null
+   },
+   "candidates": [
+    {
+     "admin1": null,
+     "admin2": null,
+     "city": null,
+     "country_code": "IN",
+     "level": "country",
+     "raw_confidence": 1.0,
+     "source": "ipinfo"
+    },
+    {
+     "admin1": "Maharashtra",
+     "admin2": null,
+     "city": "Mumbai",
+     "country_code": "IN",
+     "level": "city",
+     "raw_confidence": 0.95,
+     "source": "rdns"
+    },
+    {
+     "admin1": "Maharashtra",
+     "admin2": null,
+     "city": "Mumbai",
+     "country_code": "IN",
+     "level": "city",
+     "raw_confidence": 1.0,
+     "source": "geolite2"
+    },
+    {
+     "admin1": "Maharashtra",
+     "admin2": null,
+     "city": "Mumbai",
+     "country_code": "IN",
+     "level": "city",
+     "raw_confidence": 1.0,
+     "source": "dbip"
+    }
+   ],
+   "connection_kind": "wifi",
+   "consented": false,
+   "network": "airtel",
+   "path": "cloudflare",
+   "truth": {
+    "admin1": "Maharashtra",
+    "admin2": null,
+    "city": "Mumbai",
+    "country_code": "IN"
+   },
+   "tz_countries": [
+    "IN"
+   ],
+   "vpn_used": false
+  },
+  {
+   "asn": {
+    "is_cgnat": false,
+    "is_hosting": false,
+    "is_mobile": false,
+    "is_tor": false,
+    "modal_admin1": null,
+    "modal_city": null,
+    "modal_share": null
+   },
+   "candidates": [
+    {
+     "admin1": null,
+     "admin2": null,
+     "city": null,
+     "country_code": "IN",
+     "level": "country",
+     "raw_confidence": 1.0,
+     "source": "ipinfo"
+    },
+    {
+     "admin1": "Karnataka",
+     "admin2": null,
+     "city": "Bengaluru",
+     "country_code": "IN",
+     "level": "city",
+     "raw_confidence": 1.0,
+     "source": "geolite2"
+    },
+    {
+     "admin1": "Karnataka",
+     "admin2": null,
+     "city": "Bengaluru",
+     "country_code": "IN",
+     "level": "city",
+     "raw_confidence": 1.0,
+     "source": "dbip"
+    },
+    {
+     "admin1": "Haryana",
+     "admin2": null,
+     "city": "Faridabad",
+     "country_code": "IN",
+     "level": "city",
+     "raw_confidence": 1.0,
+     "source": "ip2location"
+    }
+   ],
+   "connection_kind": "wifi",
+   "consented": false,
+   "network": "bsnl",
+   "path": "direct",
+   "truth": {
+    "admin1": "Karnataka",
+    "admin2": null,
+    "city": "Bengaluru",
+    "country_code": "IN"
+   },
+   "tz_countries": [
+    "IN"
+   ],
+   "vpn_used": false
+  },
+  {
+   "asn": {
+    "is_cgnat": false,
+    "is_hosting": false,
+    "is_mobile": false,
+    "is_tor": false,
+    "modal_admin1": null,
+    "modal_city": null,
+    "modal_share": null
+   },
+   "candidates": [
+    {
+     "admin1": null,
+     "admin2": null,
+     "city": null,
+     "country_code": "IN",
+     "level": "country",
+     "raw_confidence": 1.0,
+     "source": "ipinfo"
+    },
+    {
+     "admin1": "Karnataka",
+     "admin2": null,
+     "city": "Bengaluru",
+     "country_code": "IN",
+     "level": "city",
+     "raw_confidence": 0.99,
+     "source": "gps"
+    },
+    {
+     "admin1": "Karnataka",
+     "admin2": null,
+     "city": "Bengaluru",
+     "country_code": "IN",
+     "level": "city",
+     "raw_confidence": 1.0,
+     "source": "geolite2"
+    },
+    {
+     "admin1": "Karnataka",
+     "admin2": null,
+     "city": "Bengaluru",
+     "country_code": "IN",
+     "level": "city",
+     "raw_confidence": 1.0,
+     "source": "dbip"
+    }
+   ],
+   "connection_kind": "mobile_data",
+   "consented": true,
+   "network": "jio",
+   "path": "direct",
+   "truth": {
+    "admin1": "Karnataka",
+    "admin2": null,
+    "city": "Bengaluru",
+    "country_code": "IN"
+   },
+   "tz_countries": [
+    "IN"
+   ],
+   "vpn_used": false
+  },
+  {
+   "asn": {
+    "is_cgnat": false,
+    "is_hosting": false,
+    "is_mobile": false,
+    "is_tor": false,
+    "modal_admin1": null,
+    "modal_city": null,
+    "modal_share": null
+   },
+   "candidates": [
+    {
+     "admin1": null,
+     "admin2": null,
+     "city": null,
+     "country_code": "IN",
+     "level": "country",
+     "raw_confidence": 1.0,
+     "source": "ipinfo"
+    },
+    {
+     "admin1": "Gujarat",
+     "admin2": null,
+     "city": "Ahmedabad",
+     "country_code": "IN",
+     "level": "city",
+     "raw_confidence": 1.0,
+     "source": "geolite2"
+    },
+    {
+     "admin1": "Gujarat",
+     "admin2": null,
+     "city": "Ahmedabad",
+     "country_code": "IN",
+     "level": "city",
+     "raw_confidence": 1.0,
+     "source": "dbip"
+    },
+    {
+     "admin1": "Gujarat",
+     "admin2": null,
+     "city": "Ahmedabad",
+     "country_code": "IN",
+     "level": "city",
+     "raw_confidence": 1.0,
+     "source": "ip2location"
+    }
+   ],
+   "connection_kind": "wifi",
+   "consented": false,
+   "network": "act",
+   "path": "direct",
+   "truth": {
+    "admin1": "Gujarat",
+    "admin2": null,
+    "city": "Ahmedabad",
+    "country_code": "IN"
+   },
+   "tz_countries": [
+    "IN"
+   ],
+   "vpn_used": false
+  },
+  {
+   "asn": {
+    "is_cgnat": false,
+    "is_hosting": false,
+    "is_mobile": false,
+    "is_tor": false,
+    "modal_admin1": null,
+    "modal_city": null,
+    "modal_share": null
+   },
+   "candidates": [
+    {
+     "admin1": null,
+     "admin2": null,
+     "city": null,
+     "country_code": "IN",
+     "level": "country",
+     "raw_confidence": 1.0,
+     "source": "ipinfo"
+    },
+    {
+     "admin1": "Maharashtra",
+     "admin2": null,
+     "city": "Pune",
+     "country_code": "IN",
+     "level": "city",
+     "raw_confidence": 0.99,
+     "source": "gps"
+    },
+    {
+     "admin1": "Maharashtra",
+     "admin2": null,
+     "city": "Mumbai",
+     "country_code": "IN",
+     "level": "city",
+     "raw_confidence": 1.0,
+     "source": "geolite2"
+    },
+    {
+     "admin1": "Maharashtra",
+     "admin2": null,
+     "city": "Mumbai",
+     "country_code": "IN",
+     "level": "city",
+     "raw_confidence": 1.0,
+     "source": "dbip"
+    }
+   ],
+   "connection_kind": "mobile_data",
+   "consented": true,
+   "network": "jio",
+   "path": "direct",
+   "truth": {
+    "admin1": "Maharashtra",
+    "admin2": null,
+    "city": "Pune",
+    "country_code": "IN"
+   },
+   "tz_countries": [
+    "IN"
+   ],
+   "vpn_used": false
+  },
+  {
+   "asn": {
+    "is_cgnat": false,
+    "is_hosting": false,
+    "is_mobile": false,
+    "is_tor": false,
+    "modal_admin1": null,
+    "modal_city": null,
+    "modal_share": null
+   },
+   "candidates": [
+    {
+     "admin1": null,
+     "admin2": null,
+     "city": null,
+     "country_code": "IN",
+     "level": "country",
+     "raw_confidence": 1.0,
+     "source": "ipinfo"
+    },
+    {
+     "admin1": "Gujarat",
+     "admin2": null,
+     "city": "Ahmedabad",
+     "country_code": "IN",
+     "level": "city",
+     "raw_confidence": 1.0,
+     "source": "geolite2"
+    },
+    {
+     "admin1": "Gujarat",
+     "admin2": null,
+     "city": "Ahmedabad",
+     "country_code": "IN",
+     "level": "city",
+     "raw_confidence": 1.0,
+     "source": "dbip"
+    },
+    {
+     "admin1": "Gujarat",
+     "admin2": null,
+     "city": "Ahmedabad",
+     "country_code": "IN",
+     "level": "city",
+     "raw_confidence": 1.0,
+     "source": "ip2location"
+    }
+   ],
+   "connection_kind": "wifi",
+   "consented": false,
+   "network": "airtel",
+   "path": "direct",
+   "truth": {
+    "admin1": "Gujarat",
+    "admin2": null,
+    "city": "Ahmedabad",
+    "country_code": "IN"
+   },
+   "tz_countries": [
+    "IN"
+   ],
+   "vpn_used": false
+  },
+  {
+   "asn": {
+    "is_cgnat": false,
+    "is_hosting": false,
+    "is_mobile": false,
+    "is_tor": false,
+    "modal_admin1": null,
+    "modal_city": null,
+    "modal_share": null
+   },
+   "candidates": [
+    {
+     "admin1": null,
+     "admin2": null,
+     "city": null,
+     "country_code": "IN",
+     "level": "country",
+     "raw_confidence": 1.0,
+     "source": "ipinfo"
+    },
+    {
+     "admin1": "Maharashtra",
+     "admin2": null,
+     "city": "Mumbai",
+     "country_code": "IN",
+     "level": "city",
+     "raw_confidence": 1.0,
+     "source": "geolite2"
+    },
+    {
+     "admin1": "Maharashtra",
+     "admin2": null,
+     "city": "Mumbai",
+     "country_code": "IN",
+     "level": "city",
+     "raw_confidence": 1.0,
+     "source": "dbip"
+    },
+    {
+     "admin1": "Maharashtra",
+     "admin2": null,
+     "city": "Mumbai",
+     "country_code": "IN",
+     "level": "city",
+     "raw_confidence": 1.0,
+     "source": "ip2location"
+    }
+   ],
+   "connection_kind": "wifi",
+   "consented": false,
+   "network": "act",
+   "path": "direct",
+   "truth": {
+    "admin1": "Maharashtra",
+    "admin2": null,
+    "city": "Mumbai",
+    "country_code": "IN"
+   },
+   "tz_countries": [
+    "IN"
+   ],
+   "vpn_used": false
+  },
+  {
+   "asn": {
+    "is_cgnat": false,
+    "is_hosting": false,
+    "is_mobile": false,
+    "is_tor": false,
+    "modal_admin1": null,
+    "modal_city": null,
+    "modal_share": null
+   },
+   "candidates": [
+    {
+     "admin1": null,
+     "admin2": null,
+     "city": null,
+     "country_code": "IN",
+     "level": "country",
+     "raw_confidence": 1.0,
+     "source": "ipinfo"
+    },
+    {
+     "admin1": "Tamil Nadu",
+     "admin2": null,
+     "city": "Chennai",
+     "country_code": "IN",
+     "level": "city",
+     "raw_confidence": 1.0,
+     "source": "geolite2"
+    },
+    {
+     "admin1": "Tamil Nadu",
+     "admin2": null,
+     "city": "Chennai",
+     "country_code": "IN",
+     "level": "city",
+     "raw_confidence": 1.0,
+     "source": "dbip"
+    },
+    {
+     "admin1": "Tamil Nadu",
+     "admin2": null,
+     "city": "Chennai",
+     "country_code": "IN",
+     "level": "city",
+     "raw_confidence": 1.0,
+     "source": "ip2location"
+    }
+   ],
+   "connection_kind": "wifi",
+   "consented": false,
+   "network": "bsnl",
+   "path": "direct",
+   "truth": {
+    "admin1": "Tamil Nadu",
+    "admin2": null,
+    "city": "Chennai",
+    "country_code": "IN"
+   },
+   "tz_countries": [
+    "IN"
+   ],
+   "vpn_used": false
+  },
+  {
+   "asn": {
+    "is_cgnat": false,
+    "is_hosting": false,
+    "is_mobile": false,
+    "is_tor": false,
+    "modal_admin1": null,
+    "modal_city": null,
+    "modal_share": null
+   },
+   "candidates": [
+    {
+     "admin1": null,
+     "admin2": null,
+     "city": null,
+     "country_code": "IN",
+     "level": "country",
+     "raw_confidence": 1.0,
+     "source": "ipinfo"
+    },
+    {
+     "admin1": "Telangana",
+     "admin2": null,
+     "city": "Hyderabad",
+     "country_code": "IN",
+     "level": "city",
+     "raw_confidence": 1.0,
+     "source": "geolite2"
+    },
+    {
+     "admin1": "Telangana",
+     "admin2": null,
+     "city": "Hyderabad",
+     "country_code": "IN",
+     "level": "city",
+     "raw_confidence": 1.0,
+     "source": "dbip"
+    },
+    {
+     "admin1": "Telangana",
+     "admin2": null,
+     "city": "Hyderabad",
+     "country_code": "IN",
+     "level": "city",
+     "raw_confidence": 1.0,
+     "source": "ip2location"
+    }
+   ],
+   "connection_kind": "wifi",
+   "consented": false,
+   "network": "act",
+   "path": "direct",
+   "truth": {
+    "admin1": "Telangana",
+    "admin2": null,
+    "city": "Hyderabad",
+    "country_code": "IN"
+   },
+   "tz_countries": [
+    "IN"
+   ],
+   "vpn_used": false
+  },
+  {
+   "asn": {
+    "is_cgnat": false,
+    "is_hosting": false,
+    "is_mobile": false,
+    "is_tor": false,
+    "modal_admin1": null,
+    "modal_city": null,
+    "modal_share": null
+   },
+   "candidates": [
+    {
+     "admin1": null,
+     "admin2": null,
+     "city": null,
+     "country_code": "IN",
+     "level": "country",
+     "raw_confidence": 1.0,
+     "source": "ipinfo"
+    },
+    {
+     "admin1": "Maharashtra",
+     "admin2": null,
+     "city": "Mumbai",
+     "country_code": "IN",
+     "level": "city",
+     "raw_confidence": 1.0,
+     "source": "geolite2"
+    },
+    {
+     "admin1": "Maharashtra",
+     "admin2": null,
+     "city": "Mumbai",
+     "country_code": "IN",
+     "level": "city",
+     "raw_confidence": 1.0,
+     "source": "dbip"
+    },
+    {
+     "admin1": "Uttar Pradesh",
+     "admin2": null,
+     "city": "Noida",
+     "country_code": "IN",
+     "level": "city",
+     "raw_confidence": 1.0,
+     "source": "ip2location"
+    }
+   ],
+   "connection_kind": "wifi",
+   "consented": false,
+   "network": "bsnl",
+   "path": "direct",
+   "truth": {
+    "admin1": "Maharashtra",
+    "admin2": null,
+    "city": "Mumbai",
+    "country_code": "IN"
+   },
+   "tz_countries": [
+    "IN"
+   ],
+   "vpn_used": false
+  },
+  {
+   "asn": {
+    "is_cgnat": false,
+    "is_hosting": false,
+    "is_mobile": true,
+    "is_tor": false,
+    "modal_admin1": null,
+    "modal_city": null,
+    "modal_share": null
+   },
+   "candidates": [
+    {
+     "admin1": null,
+     "admin2": null,
+     "city": null,
+     "country_code": "IN",
+     "level": "country",
+     "raw_confidence": 1.0,
+     "source": "ipinfo"
+    },
+    {
+     "admin1": "Delhi",
+     "admin2": null,
+     "city": "New Delhi",
+     "country_code": "IN",
+     "level": "city",
+     "raw_confidence": 1.0,
+     "source": "geolite2"
+    },
+    {
+     "admin1": "Delhi",
+     "admin2": null,
+     "city": "New Delhi",
+     "country_code": "IN",
+     "level": "city",
+     "raw_confidence": 1.0,
+     "source": "dbip"
+    }
+   ],
+   "connection_kind": "mobile_data",
+   "consented": false,
+   "network": "vi",
+   "path": "direct",
+   "truth": {
+    "admin1": "Delhi",
+    "admin2": null,
+    "city": "New Delhi",
+    "country_code": "IN"
+   },
+   "tz_countries": [
+    "IN"
+   ],
+   "vpn_used": false
+  },
+  {
+   "asn": {
+    "is_cgnat": false,
+    "is_hosting": false,
+    "is_mobile": true,
+    "is_tor": false,
+    "modal_admin1": null,
+    "modal_city": null,
+    "modal_share": null
+   },
+   "candidates": [
+    {
+     "admin1": null,
+     "admin2": null,
+     "city": null,
+     "country_code": "IN",
+     "level": "country",
+     "raw_confidence": 1.0,
+     "source": "ipinfo"
+    },
+    {
+     "admin1": "Telangana",
+     "admin2": null,
+     "city": "Hyderabad",
+     "country_code": "IN",
+     "level": "city",
+     "raw_confidence": 1.0,
+     "source": "geolite2"
+    },
+    {
+     "admin1": "Telangana",
+     "admin2": null,
+     "city": "Hyderabad",
+     "country_code": "IN",
+     "level": "city",
+     "raw_confidence": 1.0,
+     "source": "dbip"
+    }
+   ],
+   "connection_kind": "mobile_data",
+   "consented": false,
+   "network": "vi",
+   "path": "direct",
+   "truth": {
+    "admin1": "Telangana",
+    "admin2": null,
+    "city": "Hyderabad",
+    "country_code": "IN"
+   },
+   "tz_countries": [
+    "IN"
+   ],
+   "vpn_used": false
+  },
+  {
+   "asn": {
+    "is_cgnat": false,
+    "is_hosting": false,
+    "is_mobile": true,
+    "is_tor": false,
+    "modal_admin1": null,
+    "modal_city": null,
+    "modal_share": null
+   },
+   "candidates": [
+    {
+     "admin1": null,
+     "admin2": null,
+     "city": null,
+     "country_code": "IN",
+     "level": "country",
+     "raw_confidence": 1.0,
+     "source": "ipinfo"
+    },
+    {
+     "admin1": "Maharashtra",
+     "admin2": null,
+     "city": "Pune",
+     "country_code": "IN",
+     "level": "city",
+     "raw_confidence": 1.0,
+     "source": "geolite2"
+    },
+    {
+     "admin1": "Maharashtra",
+     "admin2": null,
+     "city": "Pune",
+     "country_code": "IN",
+     "level": "city",
+     "raw_confidence": 1.0,
+     "source": "dbip"
+    }
+   ],
+   "connection_kind": "mobile_data",
+   "consented": false,
+   "network": "jio",
+   "path": "direct",
+   "truth": {
+    "admin1": "Maharashtra",
+    "admin2": null,
+    "city": "Pune",
+    "country_code": "IN"
+   },
+   "tz_countries": [
+    "IN"
+   ],
+   "vpn_used": false
+  },
+  {
+   "asn": {
+    "is_cgnat": false,
+    "is_hosting": false,
+    "is_mobile": false,
+    "is_tor": false,
+    "modal_admin1": null,
+    "modal_city": null,
+    "modal_share": null
+   },
+   "candidates": [
+    {
+     "admin1": null,
+     "admin2": null,
+     "city": null,
+     "country_code": "IN",
+     "level": "country",
+     "raw_confidence": 1.0,
+     "source": "ipinfo"
+    },
+    {
+     "admin1": "Maharashtra",
+     "admin2": null,
+     "city": "Pune",
+     "country_code": "IN",
+     "level": "city",
+     "raw_confidence": 1.0,
+     "source": "geolite2"
+    },
+    {
+     "admin1": "Maharashtra",
+     "admin2": null,
+     "city": "Pune",
+     "country_code": "IN",
+     "level": "city",
+     "raw_confidence": 1.0,
+     "source": "dbip"
+    },
+    {
+     "admin1": "Uttar Pradesh",
+     "admin2": null,
+     "city": "Noida",
+     "country_code": "IN",
+     "level": "city",
+     "raw_confidence": 1.0,
+     "source": "ip2location"
+    }
+   ],
+   "connection_kind": "wifi",
+   "consented": false,
+   "network": "bsnl",
+   "path": "direct",
+   "truth": {
+    "admin1": "Maharashtra",
+    "admin2": null,
+    "city": "Pune",
+    "country_code": "IN"
+   },
+   "tz_countries": [
+    "IN"
+   ],
+   "vpn_used": false
+  },
+  {
+   "asn": {
+    "is_cgnat": false,
+    "is_hosting": false,
+    "is_mobile": false,
+    "is_tor": false,
+    "modal_admin1": null,
+    "modal_city": null,
+    "modal_share": null
+   },
+   "candidates": [
+    {
+     "admin1": null,
+     "admin2": null,
+     "city": null,
+     "country_code": "IN",
+     "level": "country",
+     "raw_confidence": 1.0,
+     "source": "ipinfo"
+    },
+    {
+     "admin1": "Tamil Nadu",
+     "admin2": null,
+     "city": "Chennai",
+     "country_code": "IN",
+     "level": "city",
+     "raw_confidence": 1.0,
+     "source": "geolite2"
+    },
+    {
+     "admin1": "Tamil Nadu",
+     "admin2": null,
+     "city": "Chennai",
+     "country_code": "IN",
+     "level": "city",
+     "raw_confidence": 1.0,
+     "source": "dbip"
+    },
+    {
+     "admin1": "Tamil Nadu",
+     "admin2": null,
+     "city": "Chennai",
+     "country_code": "IN",
+     "level": "city",
+     "raw_confidence": 1.0,
+     "source": "ip2location"
+    }
+   ],
+   "connection_kind": "wifi",
+   "consented": false,
+   "network": "act",
+   "path": "direct",
+   "truth": {
+    "admin1": "Tamil Nadu",
+    "admin2": null,
+    "city": "Chennai",
+    "country_code": "IN"
+   },
+   "tz_countries": [
+    "IN"
+   ],
+   "vpn_used": false
+  },
+  {
+   "asn": {
+    "is_cgnat": false,
+    "is_hosting": false,
+    "is_mobile": false,
+    "is_tor": false,
+    "modal_admin1": null,
+    "modal_city": null,
+    "modal_share": null
+   },
+   "candidates": [
+    {
+     "admin1": null,
+     "admin2": null,
+     "city": null,
+     "country_code": "IN",
+     "level": "country",
+     "raw_confidence": 1.0,
+     "source": "ipinfo"
+    },
+    {
+     "admin1": "Karnataka",
+     "admin2": null,
+     "city": "Bengaluru",
+     "country_code": "IN",
+     "level": "city",
+     "raw_confidence": 0.95,
+     "source": "rdns"
+    },
+    {
+     "admin1": "Karnataka",
+     "admin2": null,
+     "city": "Bengaluru",
+     "country_code": "IN",
+     "level": "city",
+     "raw_confidence": 1.0,
+     "source": "geolite2"
+    },
+    {
+     "admin1": "Karnataka",
+     "admin2": null,
+     "city": "Bengaluru",
+     "country_code": "IN",
+     "level": "city",
+     "raw_confidence": 1.0,
+     "source": "dbip"
+    }
+   ],
+   "connection_kind": "wifi",
+   "consented": false,
+   "network": "airtel",
+   "path": "direct",
+   "truth": {
+    "admin1": "Karnataka",
+    "admin2": null,
+    "city": "Bengaluru",
+    "country_code": "IN"
+   },
+   "tz_countries": [
+    "IN"
+   ],
+   "vpn_used": false
+  },
+  {
+   "asn": {
+    "is_cgnat": false,
+    "is_hosting": false,
+    "is_mobile": false,
+    "is_tor": false,
+    "modal_admin1": null,
+    "modal_city": null,
+    "modal_share": null
+   },
+   "candidates": [
+    {
+     "admin1": null,
+     "admin2": null,
+     "city": null,
+     "country_code": "IN",
+     "level": "country",
+     "raw_confidence": 1.0,
+     "source": "ipinfo"
+    },
+    {
+     "admin1": "Karnataka",
+     "admin2": null,
+     "city": "Bengaluru",
+     "country_code": "IN",
+     "level": "city",
+     "raw_confidence": 0.95,
+     "source": "rdns"
+    },
+    {
+     "admin1": "Karnataka",
+     "admin2": null,
+     "city": "Bengaluru",
+     "country_code": "IN",
+     "level": "city",
+     "raw_confidence": 1.0,
+     "source": "geolite2"
+    },
+    {
+     "admin1": "Karnataka",
+     "admin2": null,
+     "city": "Bengaluru",
+     "country_code": "IN",
+     "level": "city",
+     "raw_confidence": 1.0,
+     "source": "dbip"
+    }
+   ],
+   "connection_kind": "wifi",
+   "consented": false,
+   "network": "airtel",
+   "path": "direct",
+   "truth": {
+    "admin1": "Karnataka",
+    "admin2": null,
+    "city": "Bengaluru",
+    "country_code": "IN"
+   },
+   "tz_countries": [
+    "IN"
+   ],
+   "vpn_used": false
+  },
+  {
+   "asn": {
+    "is_cgnat": false,
+    "is_hosting": false,
+    "is_mobile": false,
+    "is_tor": false,
+    "modal_admin1": null,
+    "modal_city": null,
+    "modal_share": null
+   },
+   "candidates": [
+    {
+     "admin1": null,
+     "admin2": null,
+     "city": null,
+     "country_code": "IN",
+     "level": "country",
+     "raw_confidence": 1.0,
+     "source": "ipinfo"
+    },
+    {
+     "admin1": "Delhi",
+     "admin2": null,
+     "city": "New Delhi",
+     "country_code": "IN",
+     "level": "city",
+     "raw_confidence": 1.0,
+     "source": "geolite2"
+    },
+    {
+     "admin1": "Delhi",
+     "admin2": null,
+     "city": "New Delhi",
+     "country_code": "IN",
+     "level": "city",
+     "raw_confidence": 1.0,
+     "source": "dbip"
+    },
+    {
+     "admin1": "Delhi",
+     "admin2": null,
+     "city": "New Delhi",
+     "country_code": "IN",
+     "level": "city",
+     "raw_confidence": 1.0,
+     "source": "ip2location"
+    }
+   ],
+   "connection_kind": "wifi",
+   "consented": false,
+   "network": "bsnl",
+   "path": "direct",
+   "truth": {
+    "admin1": "Delhi",
+    "admin2": null,
+    "city": "New Delhi",
+    "country_code": "IN"
+   },
+   "tz_countries": [
+    "IN"
+   ],
+   "vpn_used": false
+  },
+  {
+   "asn": {
+    "is_cgnat": false,
+    "is_hosting": false,
+    "is_mobile": false,
+    "is_tor": false,
+    "modal_admin1": null,
+    "modal_city": null,
+    "modal_share": null
+   },
+   "candidates": [
+    {
+     "admin1": null,
+     "admin2": null,
+     "city": null,
+     "country_code": "IN",
+     "level": "country",
+     "raw_confidence": 1.0,
+     "source": "ipinfo"
+    },
+    {
+     "admin1": "Gujarat",
+     "admin2": null,
+     "city": "Ahmedabad",
+     "country_code": "IN",
+     "level": "city",
+     "raw_confidence": 1.0,
+     "source": "geolite2"
+    },
+    {
+     "admin1": "Gujarat",
+     "admin2": null,
+     "city": "Ahmedabad",
+     "country_code": "IN",
+     "level": "city",
+     "raw_confidence": 1.0,
+     "source": "dbip"
+    },
+    {
+     "admin1": "Gujarat",
+     "admin2": null,
+     "city": "Ahmedabad",
+     "country_code": "IN",
+     "level": "city",
+     "raw_confidence": 1.0,
+     "source": "ip2location"
+    }
+   ],
+   "connection_kind": "wifi",
+   "consented": false,
+   "network": "bsnl",
+   "path": "direct",
+   "truth": {
+    "admin1": "Gujarat",
+    "admin2": null,
+    "city": "Ahmedabad",
+    "country_code": "IN"
+   },
+   "tz_countries": [
+    "IN"
+   ],
+   "vpn_used": false
+  },
+  {
+   "asn": {
+    "is_cgnat": false,
+    "is_hosting": false,
+    "is_mobile": false,
+    "is_tor": false,
+    "modal_admin1": null,
+    "modal_city": null,
+    "modal_share": null
+   },
+   "candidates": [
+    {
+     "admin1": null,
+     "admin2": null,
+     "city": null,
+     "country_code": "IN",
+     "level": "country",
+     "raw_confidence": 1.0,
+     "source": "ipinfo"
+    },
+    {
+     "admin1": "Maharashtra",
+     "admin2": null,
+     "city": "Mumbai",
+     "country_code": "IN",
+     "level": "city",
+     "raw_confidence": 1.0,
+     "source": "geolite2"
+    },
+    {
+     "admin1": "Maharashtra",
+     "admin2": null,
+     "city": "Mumbai",
+     "country_code": "IN",
+     "level": "city",
+     "raw_confidence": 1.0,
+     "source": "dbip"
+    },
+    {
+     "admin1": "Maharashtra",
+     "admin2": null,
+     "city": "Mumbai",
+     "country_code": "IN",
+     "level": "city",
+     "raw_confidence": 1.0,
+     "source": "ip2location"
+    }
+   ],
+   "connection_kind": "wifi",
+   "consented": false,
+   "network": "bsnl",
+   "path": "direct",
+   "truth": {
+    "admin1": "Maharashtra",
+    "admin2": null,
+    "city": "Mumbai",
+    "country_code": "IN"
+   },
+   "tz_countries": [
+    "IN"
+   ],
+   "vpn_used": false
+  },
+  {
+   "asn": {
+    "is_cgnat": false,
+    "is_hosting": false,
+    "is_mobile": false,
+    "is_tor": false,
+    "modal_admin1": null,
+    "modal_city": null,
+    "modal_share": null
+   },
+   "candidates": [
+    {
+     "admin1": null,
+     "admin2": null,
+     "city": null,
+     "country_code": "IN",
+     "level": "country",
+     "raw_confidence": 1.0,
+     "source": "ipinfo"
+    },
+    {
+     "admin1": "Telangana",
+     "admin2": null,
+     "city": "Hyderabad",
+     "country_code": "IN",
+     "level": "city",
+     "raw_confidence": 1.0,
+     "source": "geolite2"
+    },
+    {
+     "admin1": "Telangana",
+     "admin2": null,
+     "city": "Hyderabad",
+     "country_code": "IN",
+     "level": "city",
+     "raw_confidence": 1.0,
+     "source": "dbip"
+    },
+    {
+     "admin1": "Telangana",
+     "admin2": null,
+     "city": "Hyderabad",
+     "country_code": "IN",
+     "level": "city",
+     "raw_confidence": 1.0,
+     "source": "ip2location"
+    }
+   ],
+   "connection_kind": "wifi",
+   "consented": false,
+   "network": "airtel",
+   "path": "direct",
+   "truth": {
+    "admin1": "Telangana",
+    "admin2": null,
+    "city": "Hyderabad",
+    "country_code": "IN"
+   },
+   "tz_countries": [
+    "IN"
+   ],
+   "vpn_used": false
+  },
+  {
+   "asn": {
+    "is_cgnat": false,
+    "is_hosting": false,
+    "is_mobile": false,
+    "is_tor": false,
+    "modal_admin1": null,
+    "modal_city": null,
+    "modal_share": null
+   },
+   "candidates": [
+    {
+     "admin1": null,
+     "admin2": null,
+     "city": null,
+     "country_code": "IN",
+     "level": "country",
+     "raw_confidence": 1.0,
+     "source": "ipinfo"
+    },
+    {
+     "admin1": "Delhi",
+     "admin2": null,
+     "city": "New Delhi",
+     "country_code": "IN",
+     "level": "city",
+     "raw_confidence": 1.0,
+     "source": "geolite2"
+    },
+    {
+     "admin1": "Delhi",
+     "admin2": null,
+     "city": "New Delhi",
+     "country_code": "IN",
+     "level": "city",
+     "raw_confidence": 1.0,
+     "source": "dbip"
+    },
+    {
+     "admin1": "Delhi",
+     "admin2": null,
+     "city": "New Delhi",
+     "country_code": "IN",
+     "level": "city",
+     "raw_confidence": 1.0,
+     "source": "ip2location"
+    }
+   ],
+   "connection_kind": "wifi",
+   "consented": false,
+   "network": "airtel",
+   "path": "direct",
+   "truth": {
+    "admin1": "Delhi",
+    "admin2": null,
+    "city": "New Delhi",
+    "country_code": "IN"
+   },
+   "tz_countries": [
+    "IN"
+   ],
+   "vpn_used": false
+  }
+ ],
+ "format": "tracelet.accuracy-fixture",
+ "settings": null,
+ "settings_version": null,
+ "version": 1
+}
