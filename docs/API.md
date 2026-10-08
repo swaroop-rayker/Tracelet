@@ -1021,6 +1021,33 @@ the active one: the overlay shows the settings the visit was inferred under. `40
 unknown visit.
 ---
 
+## 10a. Annotations and saved views (M7.7, F9.AC25, F9.AC26)
+
+Admin-entered data only (SPEC §11 row 29). Role rules follow F8.AC12 as amended: these are
+the two places an analyst writes, and only their own.
+
+| Method | Path | Role | Purpose |
+|---|---|---|---|
+| `GET` | `/api/v1/annotations` | any | Notes in a window: `from`, `to` (default the last 30 local days) and `link_id` (that link's notes **and** every-link notes; without it, all). At most 500, oldest first. Each: `{id, at, text, link_id, link_label, author: {id, name} \| null, mine, created_at, updated_at}` |
+| `POST` | `/api/v1/annotations` | any | `{at, text, link_id?}` → `201` the note. `text` 1–200 characters after trimming |
+| `PATCH` | `/api/v1/annotations/{id}` | the author | `{at?, text?, link_id?}` (`link_id: null` makes it every-link). Someone else's note: `403 NOT_AUTHOR` |
+| `DELETE` | `/api/v1/annotations/{id}` | the author, or an owner | `204`. Audited `annotation.deleted` with the text. An analyst deleting someone else's: `403 NOT_AUTHOR` |
+| `GET` | `/api/v1/saved-views` | any | The caller's own views, by name |
+| `POST` | `/api/v1/saved-views` | any | `{name, path, query}` → `201`. `409 SAVED_VIEW_EXISTS` for a name the caller already uses; `409 SAVED_VIEW_LIMIT` at 50 |
+| `PATCH` | `/api/v1/saved-views/{id}` | its admin | `{name?, query?}`; another admin's view is `404`, as if it did not exist |
+| `DELETE` | `/api/v1/saved-views/{id}` | its admin | `204`; another admin's is `404` |
+
+`path` is one of `/`, `/visits`, `/geography`, `/breakdowns`, `/sources`, `/returning`,
+`/compare`, `/links`, `/links/{slug}`; `query` the URL search string without `?`, at most 2000
+characters. A saved view never reaches the server as a filter: the dashboard opens it as the
+URL it was.
+
+**Compare (F9.AC27) and the link builder (F1.AC12) add no endpoint.** Compare sends the
+existing analytics requests once per side; the builder appends `utm_*` keys to
+`/r/{slug}` and draws the QR code in the browser (ADR-0023).
+
+---
+
 ## 11. Ground truth and accuracy
 
 | Method | Path | Role | Purpose |
@@ -1093,6 +1120,9 @@ no SQL, no internal hostname (F15.AC3). The detail is written to the log under t
 | `RETENTION_PREVIEW_STALE` | 409 | A purge was sent with a preview over 15 minutes old, or the periods changed since it (F10.AC12). Preview again. **M7** |
 | `LIFECYCLE_JOB_RUNNING` | 409 | A purge, backup or restore check of that kind is already running. **M7** |
 | `BACKUP_UNAVAILABLE` | 409 | That backup has no file: it failed, is still running, or was rotated away. **M7** |
+| `NOT_AUTHOR` | 403 | Only the author may change this note, and only its author or an owner delete it. **M7.7** |
+| `SAVED_VIEW_EXISTS` | 409 | You already have a saved view with this name. **M7.7** |
+| `SAVED_VIEW_LIMIT` | 409 | You have 50 saved views; delete one first. **M7.7** |
 | `PAYLOAD_TOO_LARGE` | 413 | Body above cap |
 | `RATE_LIMITED` | 429 | `Retry-After` set (F11.AC10) |
 | `GEO_DB_UNAVAILABLE` | 503 | A source is missing or corrupt; inference degraded, not failed |
