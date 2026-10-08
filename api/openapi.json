@@ -143,6 +143,32 @@
         "title": "AdminSummary",
         "type": "object"
       },
+      "AlertTypesIO": {
+        "additionalProperties": false,
+        "description": "F7.AC10-F7.AC15. Each type is given whole; every one is off by default.",
+        "properties": {
+          "digest": {
+            "$ref": "#/components/schemas/DigestIn"
+          },
+          "new_place": {
+            "$ref": "#/components/schemas/NewPlaceIn"
+          },
+          "returning": {
+            "$ref": "#/components/schemas/ReturningIn"
+          },
+          "spike": {
+            "$ref": "#/components/schemas/SpikeIn"
+          }
+        },
+        "required": [
+          "digest",
+          "spike",
+          "new_place",
+          "returning"
+        ],
+        "title": "AlertTypesIO",
+        "type": "object"
+      },
       "AttemptOut": {
         "properties": {
           "at": {
@@ -1627,6 +1653,29 @@
         ],
         "title": "DeviceClass",
         "type": "string"
+      },
+      "DigestIn": {
+        "additionalProperties": false,
+        "description": "F7.AC10: once a day at ``at``, in the reporting timezone, about the day before.",
+        "properties": {
+          "at": {
+            "examples": [
+              "09:00"
+            ],
+            "title": "At",
+            "type": "string"
+          },
+          "enabled": {
+            "title": "Enabled",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "enabled",
+          "at"
+        ],
+        "title": "DigestIn",
+        "type": "object"
       },
       "DiskOut": {
         "properties": {
@@ -4085,20 +4134,53 @@
         "title": "NetworkBlock",
         "type": "object"
       },
-      "NotificationSettingsIn": {
+      "NewPlaceIn": {
+        "additionalProperties": false,
+        "description": "F7.AC12: a strict country or state seen on a link for the first time.",
         "properties": {
-          "quiet_hours": {
-            "$ref": "#/components/schemas/QuietHoursIn"
+          "enabled": {
+            "title": "Enabled",
+            "type": "boolean"
           }
         },
         "required": [
-          "quiet_hours"
+          "enabled"
         ],
+        "title": "NewPlaceIn",
+        "type": "object"
+      },
+      "NotificationSettingsIn": {
+        "additionalProperties": false,
+        "properties": {
+          "alert_types": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AlertTypesIO"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "quiet_hours": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/QuietHoursIn"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
         "title": "NotificationSettingsIn",
         "type": "object"
       },
       "NotificationSettingsOut": {
         "properties": {
+          "alert_types": {
+            "$ref": "#/components/schemas/AlertTypesIO"
+          },
           "quiet_hours": {
             "$ref": "#/components/schemas/QuietHoursOut"
           },
@@ -4108,7 +4190,8 @@
         },
         "required": [
           "telegram",
-          "quiet_hours"
+          "quiet_hours",
+          "alert_types"
         ],
         "title": "NotificationSettingsOut",
         "type": "object"
@@ -4203,7 +4286,11 @@
           "telegram.visit_alert",
           "telegram.password_reset",
           "telegram.health_alert",
-          "telegram.test"
+          "telegram.test",
+          "telegram.digest",
+          "telegram.spike",
+          "telegram.new_place",
+          "telegram.returning"
         ],
         "title": "OutboxKind",
         "type": "string"
@@ -5118,6 +5205,28 @@
         "title": "RetentionOut",
         "type": "object"
       },
+      "ReturningIn": {
+        "additionalProperties": false,
+        "description": "F7.AC13: back on a link more than ``after_days`` after the last human visit.",
+        "properties": {
+          "after_days": {
+            "maximum": 90.0,
+            "minimum": 1.0,
+            "title": "After Days",
+            "type": "integer"
+          },
+          "enabled": {
+            "title": "Enabled",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "enabled",
+          "after_days"
+        ],
+        "title": "ReturningIn",
+        "type": "object"
+      },
       "SampleOut": {
         "properties": {
           "alert": {
@@ -5505,6 +5614,35 @@
           "priors"
         ],
         "title": "SourceSettings",
+        "type": "object"
+      },
+      "SpikeIn": {
+        "additionalProperties": false,
+        "description": "F7.AC11: at least ``floor`` human visits in 60 minutes and over ``k`` x the usual.",
+        "properties": {
+          "enabled": {
+            "title": "Enabled",
+            "type": "boolean"
+          },
+          "floor": {
+            "maximum": 1000.0,
+            "minimum": 1.0,
+            "title": "Floor",
+            "type": "integer"
+          },
+          "k": {
+            "maximum": 20.0,
+            "minimum": 1.5,
+            "title": "K",
+            "type": "number"
+          }
+        },
+        "required": [
+          "enabled",
+          "floor",
+          "k"
+        ],
+        "title": "SpikeIn",
         "type": "object"
       },
       "SplitBy": {
@@ -12945,7 +13083,7 @@
         ]
       },
       "patch": {
-        "description": "Quiet hours hold normal-priority alerts until the window closes (F7.AC9).",
+        "description": "Quiet hours hold normal-priority alerts until the window closes (F7.AC9). The alert types switch the digest, the spike, new places and returning visitors on or off, with their settings (F7.AC10-F7.AC15). Each key changed writes its own audit row.",
         "operationId": "update_settings_api_v1_notifications_settings_patch",
         "requestBody": {
           "content": {
@@ -12979,7 +13117,7 @@
             "description": "Validation Error"
           }
         },
-        "summary": "Change quiet hours",
+        "summary": "Change quiet hours or the alert types",
         "tags": [
           "notifications"
         ]

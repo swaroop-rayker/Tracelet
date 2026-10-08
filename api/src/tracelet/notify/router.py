@@ -14,7 +14,7 @@ import zoneinfo
 from typing import Annotated, Any, Literal
 
 from fastapi import APIRouter, Query, Request
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 from sqlalchemy import func, select
 
 from tracelet.audit import log as audit
@@ -80,13 +80,79 @@ class TelegramOut(BaseModel):
     chat_verified: bool
 
 
+class DigestIn(BaseModel):
+    """F7.AC10: once a day at ``at``, in the reporting timezone, about the day before."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    enabled: bool
+    at: str = Field(examples=["09:00"])
+
+    @field_validator("at")
+    @classmethod
+    def _hh_mm(cls, value: str) -> str:
+        if not alerts.QuietHours.valid_time(value):
+            msg = "A time is HH:MM, 00:00 to 23:59."
+            raise ValueError(msg)
+        return value
+
+
+class SpikeIn(BaseModel):
+    """F7.AC11: at least ``floor`` human visits in 60 minutes and over ``k`` x the usual."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    enabled: bool
+    floor: int = Field(ge=alerts.SPIKE_FLOOR_RANGE[0], le=alerts.SPIKE_FLOOR_RANGE[1])
+    k: float = Field(ge=alerts.SPIKE_K_RANGE[0], le=alerts.SPIKE_K_RANGE[1])
+
+
+class NewPlaceIn(BaseModel):
+    """F7.AC12: a strict country or state seen on a link for the first time."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    enabled: bool
+
+
+class ReturningIn(BaseModel):
+    """F7.AC13: back on a link more than ``after_days`` after the last human visit."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    enabled: bool
+    after_days: int = Field(ge=alerts.RETURNING_DAYS_RANGE[0], le=alerts.RETURNING_DAYS_RANGE[1])
+
+
+class AlertTypesIO(BaseModel):
+    """F7.AC10-F7.AC15. Each type is given whole; every one is off by default."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    digest: DigestIn
+    spike: SpikeIn
+    new_place: NewPlaceIn
+    returning: ReturningIn
+
+
 class NotificationSettingsOut(BaseModel):
     telegram: TelegramOut
     quiet_hours: QuietHoursOut
+    alert_types: AlertTypesIO
 
 
 class NotificationSettingsIn(BaseModel):
-    quiet_hours: QuietHoursIn
+    model_config = ConfigDict(extra="forbid")
+
+    quiet_hours: QuietHoursIn | None = None
+    alert_types: AlertTypesIO | None = None
+
+    @model_validator(mode="after")
+    def _something(self) -> NotificationSettingsIn:
+        if self.quiet_hours is None and self.alert_types is None:
+            msg = "Give quiet_hours, alert_types, or both."
+            raise ValueError(msg)
+        return self
 
 
 class OutboxCounts(BaseModel):
@@ -199,14 +265,30 @@ async def get_settings(
             chat_verified=await _chat_verified(db, config.telegram_owner_chat_id),
         ),
         quiet_hours=_quiet_out(await notify_settings.quiet_hours(db)),
+        alert_types=AlertTypesIO.model_validate(
+            dataclasses.asdict(await notify_settings.alert_types(db))
+        ),
+    )
+
+
+def _alert_types(value: AlertTypesIO) -> alerts.AlertTypes:
+    return alerts.AlertTypes(
+        digest=alerts.DigestType(**value.digest.model_dump()),
+        spike=alerts.SpikeType(**value.spike.model_dump()),
+        new_place=alerts.NewPlaceType(**value.new_place.model_dump()),
+        returning=alerts.ReturningType(**value.returning.model_dump()),
     )
 
 
 @router.patch(
     "/api/v1/notifications/settings",
     response_model=NotificationSettingsOut,
-    summary="Change quiet hours",
-    description="Quiet hours hold normal-priority alerts until the window closes (F7.AC9).",
+    summary="Change quiet hours or the alert types",
+    description=(
+        "Quiet hours hold normal-priority alerts until the window closes (F7.AC9). The alert "
+        "types switch the digest, the spike, new places and returning visitors on or off, "
+        "with their settings (F7.AC10-F7.AC15). Each key changed writes its own audit row."
+    ),
 )
 async def update_settings(
     payload: NotificationSettingsIn,
@@ -215,17 +297,30 @@ async def update_settings(
     db: DbSession,
     config: Config,
 ) -> NotificationSettingsOut:
-    value = alerts.QuietHours(**payload.quiet_hours.model_dump())
-    previous = await notify_settings.set_quiet_hours(db, value, admin_id=principal.admin.id)
-    if previous != value:
-        await audit.record(
-            db,
-            action=audit.Action.SETTINGS_CHANGED,
-            target_type="app_settings",
-            target_id=notify_settings.QUIET_HOURS_KEY,
-            detail={"from": dataclasses.asdict(previous), "to": dataclasses.asdict(value)},
-            **_audit(request, principal, config),
-        )
+    if payload.quiet_hours is not None:
+        value = alerts.QuietHours(**payload.quiet_hours.model_dump())
+        previous = await notify_settings.set_quiet_hours(db, value, admin_id=principal.admin.id)
+        if previous != value:
+            await audit.record(
+                db,
+                action=audit.Action.SETTINGS_CHANGED,
+                target_type="app_settings",
+                target_id=notify_settings.QUIET_HOURS_KEY,
+                detail={"from": dataclasses.asdict(previous), "to": dataclasses.asdict(value)},
+                **_audit(request, principal, config),
+            )
+    if payload.alert_types is not None:
+        types = _alert_types(payload.alert_types)
+        before = await notify_settings.set_alert_types(db, types, admin_id=principal.admin.id)
+        if before != types:
+            await audit.record(
+                db,
+                action=audit.Action.SETTINGS_CHANGED,
+                target_type="app_settings",
+                target_id=notify_settings.ALERT_TYPES_KEY,
+                detail={"from": dataclasses.asdict(before), "to": dataclasses.asdict(types)},
+                **_audit(request, principal, config),
+            )
     return await get_settings(principal, db, config)
 
 

@@ -1,7 +1,8 @@
-"""Visit alerts, the pure part (F7, SPEC section 11 rows 17 and 18, ADR-0020 decision 7).
+"""Visit alerts, the pure part (F7, SPEC section 11 rows 17, 18 and 27, ADR-0020 decision 7).
 
 What decides whether a visit alerts, at which priority, under which deduplication key,
-whether quiet hours hold it, when a failed send is retried, and what the message says.
+whether quiet hours hold it, when a failed send is retried, and what the message says --
+for visit alerts and, since M7.5, the digest, the spike, a new place and a returning visitor.
 No I/O, so every rule is unit-tested directly. The outbox (``notify/outbox.py``) and the
 worker (``notify/worker.py``) do the writing and the sending.
 
@@ -21,7 +22,7 @@ import re
 import uuid
 import zoneinfo
 from collections.abc import Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any, Final
 
 from tracelet.capture.models import GeofenceState
@@ -125,6 +126,79 @@ class QuietHours:
 
 
 # ---------------------------------------------------------------------------
+# Alert types (F7.AC10-F7.AC15, SPEC section 11 row 27). Every one off by default.
+# ---------------------------------------------------------------------------
+
+SPIKE_FLOOR_RANGE: Final = (1, 1000)
+SPIKE_K_RANGE: Final = (1.5, 20.0)
+RETURNING_DAYS_RANGE: Final = (1, 90)
+
+
+@dataclass(frozen=True, slots=True)
+class DigestType:
+    enabled: bool = False
+    at: str = "09:00"  # HH:MM in the reporting timezone
+
+    def due(self, now: dt.datetime, reporting_tz: str) -> dt.date | None:
+        """The day whose digest is due at ``now``: yesterday, once ``at`` has passed today.
+        ``None`` before then, or when switched off. A missed day is never sent later."""
+        if not self.enabled:
+            return None
+        local = now.astimezone(zoneinfo.ZoneInfo(reporting_tz))
+        hours, minutes = (int(p) for p in self.at.split(":"))
+        if (local.hour, local.minute) < (hours, minutes):
+            return None
+        return local.date() - dt.timedelta(days=1)
+
+
+@dataclass(frozen=True, slots=True)
+class SpikeType:
+    enabled: bool = False
+    floor: int = 10
+    k: float = 3.0
+
+    def fires(self, count: int, usual: float) -> bool:
+        """At least the floor, and more than k times the usual (F7.AC11)."""
+        return self.enabled and count >= self.floor and count > self.k * usual
+
+
+@dataclass(frozen=True, slots=True)
+class NewPlaceType:
+    enabled: bool = False
+
+
+@dataclass(frozen=True, slots=True)
+class ReturningType:
+    enabled: bool = False
+    after_days: int = 7
+
+
+@dataclass(frozen=True, slots=True)
+class AlertTypes:
+    digest: DigestType = field(default_factory=DigestType)
+    spike: SpikeType = field(default_factory=SpikeType)
+    new_place: NewPlaceType = field(default_factory=NewPlaceType)
+    returning: ReturningType = field(default_factory=ReturningType)
+
+
+def median(values: list[int]) -> float:
+    """The plain median: no numpy (CLAUDE.md section 5)."""
+    if not values:
+        return 0.0
+    ordered = sorted(values)
+    mid = len(ordered) // 2
+    if len(ordered) % 2:
+        return float(ordered[mid])
+    return (ordered[mid - 1] + ordered[mid]) / 2
+
+
+def region_label(region_key: str) -> str:
+    """``IN|Karnataka`` reads "Karnataka, IN", as the alert's own place line does."""
+    country, _, admin1 = region_key.partition("|")
+    return f"{admin1}, {country}" if admin1 else country
+
+
+# ---------------------------------------------------------------------------
 # Retry (F7.AC6)
 # ---------------------------------------------------------------------------
 
@@ -223,10 +297,119 @@ def render(payload: Mapping[str, Any], *, priority: NotifyPriority) -> str:
         f"<b>Classified</b> {_e(payload.get('classification', 'human'))}"
         + (f" (bot score {_e(score)})" if score is not None else "")
     )
+    notes = [line for line in (_note_line(n) for n in payload.get("notes") or []) if line]
+    if notes:
+        lines.extend(["", *notes])
     url = payload.get("visit_url")
     if url:
         lines.extend(["", f'<a href="{html.escape(str(url), quote=True)}">Open the visit</a>'])
     return "\n".join(lines)
+
+
+# ---------------------------------------------------------------------------
+# The M7.5 messages (F7.AC10-F7.AC14). Every value escaped, as above.
+# ---------------------------------------------------------------------------
+
+KIND_DIGEST: Final = "telegram.digest"
+KIND_SPIKE: Final = "telegram.spike"
+KIND_NEW_PLACE: Final = "telegram.new_place"
+KIND_RETURNING: Final = "telegram.returning"
+
+
+def _note_line(note: Mapping[str, Any]) -> str | None:
+    """A new place or a returning visitor, as a line on the visit's alert (row 27). A new
+    place is always strict (F7.AC12), so it needs no "best guess" mark."""
+    if note.get("kind") == "new_place" and note.get("region_key"):
+        return f"📍 First visit from {_e(region_label(str(note['region_key'])))} on this link"
+    if note.get("kind") == "returning" and note.get("days") is not None:
+        days = int(note["days"])
+        return f"↩️ Back after {days} day{'' if days == 1 else 's'}"
+    return None
+
+
+def _visit_lines(payload: Mapping[str, Any]) -> list[str]:
+    link = payload.get("link") or {}
+    lines = [
+        f"<b>Link</b> {_e(link.get('label', ''))} (/{_e(link.get('slug', ''))})",
+        f"<b>When</b> {_e(payload.get('occurred_local', payload.get('occurred_at', '')))}",
+    ]
+    place, confirmed = _place(payload.get("location") or {})
+    if place:
+        lines.append(f"<b>Where</b> {_e(place)} ({'confirmed' if confirmed else 'best guess'})")
+    url = payload.get("visit_url")
+    if url:
+        lines.extend(["", f'<a href="{html.escape(str(url), quote=True)}">Open the visit</a>'])
+    return lines
+
+
+def render_note(payload: Mapping[str, Any]) -> str:
+    """A new place or a returning visitor sent alone, because the visit's own alert had
+    already gone out that day (F7.AC14)."""
+    line = _note_line(payload.get("note") or {}) or "Visitor note"
+    return "\n".join([f"<b>{line}</b>", "", *_visit_lines(payload)])
+
+
+def _ranked(rows: list[tuple[str, int]]) -> str:
+    return " · ".join(f"{_e(name)} {count}" for name, count in rows)
+
+
+def render_digest(payload: Mapping[str, Any]) -> str:
+    """Yesterday in one message (F7.AC10). States are the best guess, and say so."""
+    visits = int(payload.get("visits", 0))
+    human = int(payload.get("human", 0))
+    day = _e(payload.get("label", payload.get("day", "")))
+    lines = [f"🗓 <b>Yesterday on Tracelet</b> ({day})", ""]
+    if visits == 0:
+        lines.append("No visits.")
+    else:
+        lines.append(
+            f"<b>Visits</b> {visits}, of which {human} people ({round(human * 100 / visits)} %)"
+        )
+        states = [
+            (region_label(str(r.get("key", ""))), int(r.get("count", 0)))
+            for r in payload.get("states") or []
+        ]
+        if states:
+            lines.append(f"<b>Top states</b> (best guess) {_ranked(states)}")
+        links = [
+            (str(r.get("label", "")), int(r.get("count", 0))) for r in payload.get("links") or []
+        ]
+        if links:
+            lines.append(f"<b>Top links</b> {_ranked(links)}")
+    dead = int(payload.get("dead", 0))
+    if dead:
+        lines.append(f"⚠️ <b>{dead} alert{'' if dead == 1 else 's'} dead-lettered</b>: see Alerts")
+    url = payload.get("dashboard_url")
+    if url:
+        lines.extend(["", f'<a href="{html.escape(str(url), quote=True)}">Open the dashboard</a>'])
+    return "\n".join(lines)
+
+
+def render_spike(payload: Mapping[str, Any]) -> str:
+    """A link far busier than usual for the time of day (F7.AC11). Names no place."""
+    link = payload.get("link") or {}
+    usual = float(payload.get("usual", 0))
+    lines = [
+        f"📈 <b>Busy link</b>: {_e(link.get('label', ''))} (/{_e(link.get('slug', ''))})",
+        "",
+        f"<b>Last 60 minutes</b> {int(payload.get('count', 0))} people",
+        f"<b>Usually</b> {usual:g} (the median for the same 60 minutes on the last 7 days)",
+    ]
+    url = payload.get("link_url")
+    if url:
+        lines.extend(["", f'<a href="{html.escape(str(url), quote=True)}">Open the link</a>'])
+    return "\n".join(lines)
+
+
+def render_message(kind: str, payload: Mapping[str, Any], *, priority: NotifyPriority) -> str:
+    """The message for an outbox row of ``kind``, rendered at send time."""
+    if kind == KIND_DIGEST:
+        return render_digest(payload)
+    if kind == KIND_SPIKE:
+        return render_spike(payload)
+    if kind in (KIND_NEW_PLACE, KIND_RETURNING):
+        return render_note(payload)
+    return render(payload, priority=priority)
 
 
 def probe_message(*, at: dt.datetime) -> str:

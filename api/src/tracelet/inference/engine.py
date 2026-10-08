@@ -569,7 +569,10 @@ async def persist(
             "visit_alert_queued",
             visit_id=str(result.visit_id),
             priority=enqueued.priority.value if enqueued.priority else None,
+            notes=list(enqueued.notes),
         )
+    elif enqueued.alone:
+        log.info("visit_notes_queued", visit_id=str(result.visit_id), kinds=list(enqueued.alone))
     return True
 
 

@@ -54,7 +54,7 @@ async def run_once(config: Settings | None = None, *, only: Sequence[int] | None
         try:
             if not token or chat_id is None:
                 raise telegram.TelegramError(NOT_CONFIGURED)
-            text = alerts.render(row.payload, priority=row.priority)
+            text = alerts.render_message(row.kind.value, row.payload, priority=row.priority)
             await telegram.send_message(bot_token=token, chat_id=chat_id, text=text)
         except telegram.TelegramError as exc:
             retry_in = dt.timedelta(seconds=exc.retry_after) if exc.retry_after else None

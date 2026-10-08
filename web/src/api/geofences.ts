@@ -201,6 +201,15 @@ const quietHours = z.object({
 });
 export type QuietHours = z.infer<typeof quietHours>;
 
+/** F7.AC10–F7.AC15: four more alert types, each off until an owner switches it on. */
+const alertTypes = z.object({
+  digest: z.object({ enabled: z.boolean(), at: z.string() }),
+  spike: z.object({ enabled: z.boolean(), floor: z.number(), k: z.number() }),
+  new_place: z.object({ enabled: z.boolean() }),
+  returning: z.object({ enabled: z.boolean(), after_days: z.number() }),
+});
+export type AlertTypes = z.infer<typeof alertTypes>;
+
 export const notificationSettingsSchema = z.object({
   telegram: z.object({
     bot_token_set: z.boolean(),
@@ -208,6 +217,7 @@ export const notificationSettingsSchema = z.object({
     chat_verified: z.boolean(),
   }),
   quiet_hours: quietHours.extend({ active_now: z.boolean() }),
+  alert_types: alertTypes,
 }) satisfies z.ZodType<S['NotificationSettingsOut']>;
 export type NotificationSettings = z.infer<typeof notificationSettingsSchema>;
 
@@ -227,6 +237,10 @@ const delivery = z.object({
     'telegram.password_reset',
     'telegram.health_alert',
     'telegram.test',
+    'telegram.digest',
+    'telegram.spike',
+    'telegram.new_place',
+    'telegram.returning',
   ]),
   priority: notifyPriority,
   status: outboxStatus,
@@ -263,6 +277,18 @@ export function updateQuietHours(
   return request('/api/v1/notifications/settings', {
     method: 'PATCH',
     body: { quiet_hours: value },
+    csrfToken,
+    parse: parseWith(notificationSettingsSchema),
+  });
+}
+
+export function updateAlertTypes(
+  csrfToken: string,
+  value: AlertTypes,
+): Promise<ApiResult<NotificationSettings>> {
+  return request('/api/v1/notifications/settings', {
+    method: 'PATCH',
+    body: { alert_types: value },
     csrfToken,
     parse: parseWith(notificationSettingsSchema),
   });

@@ -1,6 +1,6 @@
 /**
- * Alerts (DESIGN §16, F7): where Telegram alerts go, when quiet hours hold them, and every
- * delivery with its outcome.
+ * Alerts (DESIGN §16, F7): where Telegram alerts go, when quiet hours hold them, which other
+ * kinds of message are on (M7.5, F7.AC10–F7.AC15), and every delivery with its outcome.
  *
  * The bot token and the chat are deployment secrets (F12.AC3): this page says whether they
  * are set, never what they are. Changing quiet hours, sending the test message and retrying a
@@ -21,7 +21,9 @@ import {
   outboxSchema,
   retryDelivery,
   sendTestMessage,
+  updateAlertTypes,
   updateQuietHours,
+  type AlertTypes,
   type Delivery,
   type NotificationSettings,
 } from '@/api/geofences';
@@ -117,6 +119,7 @@ function SettingsCards({
         <TestMessageRow owner={owner} configured={configured} />
       </Card>
       <QuietHoursCard settings={settings} owner={owner} />
+      <AlertTypesCard settings={settings} owner={owner} />
     </>
   );
 }
@@ -287,6 +290,219 @@ function QuietHoursCard({
   );
 }
 
+/** Whole numbers only, within bounds; the message the Field shows otherwise. */
+function wholeIn(value: string, low: number, high: number): string | null {
+  const n = Number(value);
+  return /^\d+$/.test(value) && n >= low && n <= high
+    ? null
+    : `A whole number from ${String(low)} to ${String(high)}.`;
+}
+
+function numberIn(value: string, low: number, high: number): string | null {
+  const n = Number(value);
+  return value.trim() !== '' && Number.isFinite(n) && n >= low && n <= high
+    ? null
+    : `A number from ${String(low)} to ${String(high)}.`;
+}
+
+/**
+ * F7.AC10–F7.AC15 (DESIGN §16 M7.5): four more kinds of message, each off until the owner
+ * switches it on. One form and one Save, like quiet hours; numbers are edited as text so a
+ * half-typed value can be shown with its error rather than silently coerced.
+ */
+function AlertTypesCard({
+  settings,
+  owner,
+}: {
+  readonly settings: NotificationSettings;
+  readonly owner: boolean;
+}): React.JSX.Element {
+  const { me } = useSession();
+  const client = useQueryClient();
+  const saved = settings.alert_types;
+  const [digestOn, setDigestOn] = useState(saved.digest.enabled);
+  const [digestAt, setDigestAt] = useState(saved.digest.at);
+  const [spikeOn, setSpikeOn] = useState(saved.spike.enabled);
+  const [floor, setFloor] = useState(String(saved.spike.floor));
+  const [k, setK] = useState(String(saved.spike.k));
+  const [placeOn, setPlaceOn] = useState(saved.new_place.enabled);
+  const [returningOn, setReturningOn] = useState(saved.returning.enabled);
+  const [afterDays, setAfterDays] = useState(String(saved.returning.after_days));
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<ApiError | null>(null);
+
+  useEffect(() => {
+    setDigestOn(saved.digest.enabled);
+    setDigestAt(saved.digest.at);
+    setSpikeOn(saved.spike.enabled);
+    setFloor(String(saved.spike.floor));
+    setK(String(saved.spike.k));
+    setPlaceOn(saved.new_place.enabled);
+    setReturningOn(saved.returning.enabled);
+    setAfterDays(String(saved.returning.after_days));
+  }, [saved]);
+
+  const atError = HHMM.test(digestAt) ? null : 'A time is HH:MM, 00:00 to 23:59.';
+  const floorError = wholeIn(floor, 1, 1000);
+  const kError = numberIn(k, 1.5, 20);
+  const daysError = wholeIn(afterDays, 1, 90);
+  const valid = atError === null && floorError === null && kError === null && daysError === null;
+  const value: AlertTypes = {
+    digest: { enabled: digestOn, at: digestAt },
+    spike: { enabled: spikeOn, floor: Number(floor), k: Number(k) },
+    new_place: { enabled: placeOn },
+    returning: { enabled: returningOn, after_days: Number(afterDays) },
+  };
+  const changed = JSON.stringify(value) !== JSON.stringify(saved);
+
+  async function save(): Promise<void> {
+    setBusy(true);
+    setError(null);
+    const result = await updateAlertTypes(me.csrf_token, value);
+    setBusy(false);
+    if (!result.ok) {
+      setError(result.error);
+      return;
+    }
+    toast('Alert types saved.');
+    void client.invalidateQueries({ queryKey: [SETTINGS] });
+  }
+
+  return (
+    <Card
+      title="Alert types"
+      description="More kinds of message. Each is off until you switch it on, and counts people only, never bots."
+    >
+      <form
+        className="stack"
+        onSubmit={(event) => {
+          event.preventDefault();
+          if (valid) void save();
+        }}
+      >
+        <SettingRow
+          title="Daily digest"
+          description={`Yesterday's visits, the human share, top states (best guess) and links, and any dead letters. Held by quiet hours. The time is in ${me.reporting_tz}.`}
+        >
+          <div className="alert-type__fields">
+            <Field
+              label="At"
+              value={digestAt}
+              onChange={setDigestAt}
+              mono
+              placeholder="09:00"
+              maxLength={5}
+              disabled={!owner}
+              error={atError}
+            />
+            <Switch
+              label="Send the daily digest"
+              hideLabel
+              checked={digestOn}
+              onChange={setDigestOn}
+              disabled={!owner}
+            />
+          </div>
+        </SettingRow>
+        <SettingRow
+          title="Volume spike"
+          description="A link far busier than usual for this time of day: at least this many people in 60 minutes, and more than this many times the median of the same 60 minutes over the last 7 days."
+        >
+          <div className="alert-type__fields">
+            <Field
+              label="At least"
+              value={floor}
+              onChange={setFloor}
+              inputMode="numeric"
+              maxLength={4}
+              disabled={!owner}
+              error={floorError}
+            />
+            <Field
+              label="Times usual"
+              value={k}
+              onChange={setK}
+              inputMode="text"
+              maxLength={4}
+              disabled={!owner}
+              error={kError}
+            />
+            <Switch
+              label="Send volume spikes"
+              hideLabel
+              checked={spikeOn}
+              onChange={setSpikeOn}
+              disabled={!owner}
+            />
+          </div>
+        </SettingRow>
+        <SettingRow
+          title="First visit from a new place"
+          description="A country or state confirmed for the first time on a link. Added to the visit's alert; sent alone only if that visitor's alert already went out today."
+        >
+          <div className="alert-type__fields">
+            <Switch
+              label="Say when a link gets its first visit from a new place"
+              hideLabel
+              checked={placeOn}
+              onChange={setPlaceOn}
+              disabled={!owner}
+            />
+          </div>
+        </SettingRow>
+        <SettingRow
+          title="Returning visitor"
+          description="Someone back on a link after a while. Added to the visit's alert, as above. Only visits still kept are remembered (retention)."
+        >
+          <div className="alert-type__fields">
+            <Field
+              label="Away more than (days)"
+              value={afterDays}
+              onChange={setAfterDays}
+              inputMode="numeric"
+              maxLength={2}
+              disabled={!owner}
+              error={daysError}
+            />
+            <Switch
+              label="Say when a visitor returns"
+              hideLabel
+              checked={returningOn}
+              onChange={setReturningOn}
+              disabled={!owner}
+            />
+          </div>
+        </SettingRow>
+        {error !== null && <ErrorNotice error={error} />}
+        <div>
+          <Button
+            variant="primary"
+            type="submit"
+            busy={busy}
+            busyLabel="Saving…"
+            disabled={owner && (!changed || !valid)}
+            disabledReason={owner ? null : OWNER_ONLY}
+          >
+            Save alert types
+          </Button>
+        </div>
+      </form>
+    </Card>
+  );
+}
+
+/** What each queued row is, for the delivery log's "What" column (DESIGN §16 M7.5). */
+const KIND_LABEL: Readonly<Record<Delivery['kind'], string>> = {
+  'telegram.visit_alert': 'Visit alert',
+  'telegram.password_reset': 'Password reset',
+  'telegram.health_alert': 'Health alert',
+  'telegram.test': 'Test',
+  'telegram.digest': 'Daily digest',
+  'telegram.spike': 'Volume spike',
+  'telegram.new_place': 'New place',
+  'telegram.returning': 'Returning',
+};
+
 function statusBadge(d: Delivery): React.JSX.Element {
   switch (d.status) {
     case 'done':
@@ -406,12 +622,13 @@ function DeliveryLog(): React.JSX.Element {
                   header: 'Queued',
                   render: (d) => <Timestamp iso={d.created_at} zone={me.timezone} />,
                 },
+                { key: 'what', header: 'What', render: (d) => KIND_LABEL[d.kind] },
                 {
                   key: 'visit',
                   header: 'Visit',
                   render: (d) =>
                     d.visit_id === null ? (
-                      <span className="muted">{d.kind === 'telegram.test' ? 'Test' : '—'}</span>
+                      <span className="muted">—</span>
                     ) : (
                       <Link className="link t-mono" to={`/visits/${d.visit_id}`} title={d.visit_id}>
                         {d.visit_id.slice(0, 8)}…
