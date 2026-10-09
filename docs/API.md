@@ -1122,16 +1122,19 @@ visit you have just made. `labelled` and `remaining` drive "12 of 40 labelled".
   "sources": [ { "source": "geolite2", "levels": [ { "level": "city", "claims": 30, "accepted": 4, "correct": {…} } ] } ],
   "matrix": [ { "network": "jio", "connection_kind": "mobile_data", "vpn_used": false, "count": 6 } ],
   "targets": [ { "id": "admin1.strict_precision", "population": "network_only", "level": "admin1",
-                 "metric": "strict_precision", "target": 0.99, "value": 1.0, "n": 31,
-                 "gated": true, "status": "met" } ],
+                 "metric": "strict_precision", "target": 0.99, "direction": "at_least",
+                 "value": 1.0, "n": 31, "gated": true, "status": "met" } ],
   "passed": true
 }
 ```
 
 - **Populations.** `all` is every label as recorded (consented visits with their GPS).
   `consented` and `non_consented` split it by `consent_state = 'granted'`. `network_only` is
-  every label with any GPS candidate removed before the replay: what the network alone says,
-  and the population F4.AC13's network targets are gated on.
+  every label **not marked VPN on**, with any GPS candidate removed before the replay: what the
+  network alone says, and the population F4.AC13's network targets are gated on. `vpn` is the
+  labels marked VPN on, network path: the address is the VPN's, so confirming nothing is the
+  right answer, and VPN labels count in neither `network_only`, `paths` nor `sources`
+  (SPEC §11 row 32).
 - **Per level.** `strict_precision` is right answers over strict emissions; `strict_coverage`
   is strict emissions over labels whose truth reaches that level; `advisory_accuracy` is right
   best guesses over the same labels. A level is right only when every shallower level is too.
@@ -1142,8 +1145,10 @@ visit you have just made. `labelled` and `remaining` drive "12 of 40 labelled".
 - **`sources`** (F4.AC17): for each source and level, `claims` (labels where it proposed a
   value at that level), `accepted` (of those, accepted in the replay) and `correct` (right
   claims over `claims`). This is the evidence for down-weighting a source.
-- **`targets`** are F4.AC13. `gated: false` is reported only ("near-100-percent coverage", "≈
-  100 percent"). `status`: `met`, `missed`, `unmeasured` (`n` is 0) or `reported`.
+- **`targets`** are F4.AC13 as amended by SPEC §11 row 32. `direction` is `at_least` (a
+  floor) or `at_most` (a ceiling: the `vpn` checks allow no strict country or state at all).
+  `gated: false` is reported only (city best guess and coverage, consented city). `status`:
+  `met`, `missed`, `unmeasured` (`n` is 0) or `reported`.
   `passed` is `null` when no gated target was measurable, `false` when any was missed.
 - `pending` counts labelled visits not inferred yet; they are not scored.
 - An unknown `settings_version` is `404`.

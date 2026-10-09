@@ -1104,7 +1104,7 @@ delete writes an `audit_log` row naming the visit and the truth (never the coord
 | `inference_version`, `classifier_version` | `text` | What was measured (CLAUDE.md invariant 10), e.g. `m3.4+s3` |
 | `git_sha` | `text` NULL | The CLI's `--git-sha`, or `GITHUB_SHA` when set |
 | `label_count` | `integer` | Labels scored (not "Can't tell") |
-| `metrics` | `jsonb` | The full report: per population (`all`, `consented`, `non_consented`, `network_only`), per level strict precision and coverage and advisory accuracy, each `{n, k, value, ci95}`; city per path; per source; the network × connection × VPN matrix; the target checks (API §11) |
+| `metrics` | `jsonb` | The full report: per population (`all`, `consented`, `non_consented`, `network_only`, `vpn`), per level strict precision and coverage and advisory accuracy, each `{n, k, value, ci95}`; city per path; per source; the network × connection × VPN matrix; the target checks (API §11) |
 | `passed` | `boolean` NULL | Every gated F4.AC13 target met. NULL when no gated figure could be measured (no labels at that level) |
 | `recorded_by` | `uuid` NULL FK `admins` SET NULL | NULL from the CLI |
 | `note` | `text` NULL | At most 200 characters |

@@ -1052,10 +1052,14 @@ F8.AC12 (amended), SPEC §11 row 29, ADR-0023. Branch `feat/m7.7-workflow`, stac
       evidence from `visit_candidates`**, not intuition — *reported (F4.AC17: API `sources`,
       the Sources tab); any down-weighting waits for real labels*
 - [x] ~~S10 measured~~ — not applicable: S10 dropped in M3 (SPEC §11 row 12, RISKS R23)
-- [ ] **F4.AC13 targets either met or formally amended in SPEC section 11 with data** —
-      *after the labels: retune by new settings versions first, then amend what still misses
-      (row 30)*
-- [ ] Docs: SPEC F4.AC13 reconciled with measured reality
+- [x] **F4.AC13 targets either met or formally amended in SPEC section 11 with data** —
+      amended by SPEC §11 row 32 (2026-10-09) from the owner's first 8 labels, as **interim**
+      targets until about 30 labels: precision kept everywhere, country coverage ≥ 95 %, admin1
+      coverage ≥ 60 %, city best guess reported, VPN labels scored apart (nothing confirmed).
+      The real fixture passes them (`tracelet accuracy check`), and it is the CI secret.
+      Retuning is deferred to about 30 labels by the owner's decision
+- [x] Docs: SPEC F4.AC13 reconciled with measured reality — F4.AC13's text, row 32,
+      `accuracy/targets.py`, API §11 and the synthetic fixture (now with VPN cases) agree
 
 **A labelling session (the owner; ADR-0024, ADR-0025, RISKS R28)**
 0. On the development stack: `TRACELET_DEV_TRUSTED_TUNNEL=172.31.254.0/29` in `.env` (see
@@ -1075,6 +1079,8 @@ F8.AC12 (amended), SPEC §11 row 29, ADR-0023. Branch `feat/m7.7-workflow`, stac
 3. Repeat across Airtel, Jio, Vi, BSNL and ACT, on Wi-Fi and mobile data, with a VPN on and
    off, until Coverage has no "none yet" where it matters and there are 30+ labels.
 4. End the session: **Record this measurement**, then refresh the CI secret:
+   in Git Bash prefix each with `MSYS_NO_PATHCONV=1` (it rewrites `/tmp/...` into a
+   Windows path):
    `docker compose exec api tracelet accuracy export --out /tmp/gt.json.gz`,
    `docker compose cp api:/tmp/gt.json.gz ./gt.json.gz`,
    `base64 -w0 gt.json.gz | gh secret set ACCURACY_FIXTURE`, then delete `gt.json.gz`.

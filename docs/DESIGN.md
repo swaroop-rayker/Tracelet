@@ -1701,7 +1701,7 @@ disabled-with-reason for analysts, UI-17):
 ```
 Ground truth                                           [Record this measurement]
 How often the engine was right about visits whose true location you know.
-Population (•) Network only ( ) Consented ( ) Not consented ( ) All
+Population (•) Network only ( ) Consented ( ) Not consented ( ) All ( ) VPN
 Scored under [v3 · active ▾]   m3.4+s3 · 41 labels · 2 can't tell
 ┌ Country ──────────┐ ┌ State ────────────┐ ┌ District ─────────┐ ┌ City ──────────────┐
 │ Precision 100 %   │ │ Precision 100 %   │ │ Precision —       │ │ Precision —        │
