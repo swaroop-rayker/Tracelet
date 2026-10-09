@@ -308,6 +308,34 @@ stays in process.
 versioned settings stops Nominatim alone. S10 was dropped (SPEC section 11 row 12, RISKS
 R23). A registry-artifact city collapses to the country, not admin1 (row 11, R22).
 
+### 3.2 Accuracy measurement — added in M8 (ADR-0024)
+
+```
+ground_truth_labels ──┐
+visits (asn, asn_org, is_tor, tz_iana, consent_state, cf_colo) ──┼─► replay ─► score ─► targets
+visit_candidates ─────┘    asn_profiles (now) ─┘     consensus.decide()   Wilson    F4.AC13
+                                                     under version N
+```
+
+`tracelet/accuracy/` holds three pure modules, `replay` (cases to decisions), `metrics`
+(proportions, Wilson intervals, populations, per source, per path, the matrix) and `targets`
+(F4.AC13 as data), plus `fixture`, the allow-listed export and import. Only `store` and the
+router touch the database. The same code serves four callers: `/ground-truth/metrics`,
+`/analytics/accuracy`, `tracelet accuracy run|report` and the database-free
+`tracelet accuracy check` that CI runs.
+
+- **Nothing is decrypted and nothing is looked up.** Replay reads stored candidates, and
+  rebuilds the network facts exactly as the engine does: `asn_org.classify` over the
+  visit's ASN and organisation, the current `asn_profiles` overlay, and the visit's `is_tor`.
+  An integration test holds replay to the engine's own answer under the same version.
+- **Labels never write to `visits`.** The inference job and the replay are independent:
+  re-inferring a visit leaves its label alone, and labelling leaves its inference alone.
+- **Memory.** A report over a few hundred labels is a few thousand small objects for the
+  length of one request: no cache, no new process, no measurable RSS (§6).
+- **CI** runs `check` against the committed synthetic fixture always, and against the real
+  fixture when the `ACCURACY_FIXTURE` secret is present (the repository is public, so the real
+  one is never committed).
+
 ---
 
 ## 4. Classification pipeline
@@ -402,6 +430,9 @@ the previous located visit of the same fingerprint). Weights and thresholds are 
              Including CF-Connecting-IP unless the peer is a verified
              Cloudflare address. Including the enrichment payload, which is
              attacker-controlled and only ever treated as a claim.       [F13.AC6]
+             Development only: CF-Connecting-IP from the `tunnel` network's
+             cloudflared, when TRACELET_DEV_TRUSTED_TUNNEL names it; the
+             address only, never the edge's colo or country.  [ADR-0025]
   ─────────────────────────────────────────────────────────────────────────────
   SEMI       admin session: authenticated, but role-checked server-side on
              every route, CSRF-validated, and audit-logged.            [F8.AC12]
@@ -770,6 +801,14 @@ not a dependency (ADR-0003 amendment).
 (only its two Latin font files are referenced, declared in `index.css`) and `lucide-react`
 (imported only through `components/icons.ts`, enforced by ESLint). Production memory cost:
 **zero** -- static assets. Download cost: 48 KB for the Latin font face on first load, cached.
+
+**M8 adds one development-only image and no runtime dependency** (ADR-0025):
+`cloudflare/cloudflared:2026.8.0`, the `tunnel` compose service, pulled only with the
+`tunnel` profile, so a phone can reach the development stack for labelling. Considered
+instead: an ngrok-style service (an account and a third party in the request path), and
+waiting for the M9 deploy (declined by the owner). Production memory cost: **zero** (never
+started there); 96 MiB `mem_limit` where it runs. M8's accuracy code is plain Python on
+existing dependencies (no numpy, CLAUDE.md §5).
 
 ### Python
 

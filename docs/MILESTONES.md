@@ -993,10 +993,11 @@ F8.AC12 (amended), SPEC §11 row 29, ADR-0023. Branch `feat/m7.7-workflow`, stac
       included), and in the browser a view saved on Sources reopened from the sidebar
 - [x] Compare: both sides are the existing endpoints; the URL reproduces the comparison --
       two links and two periods walked in three engines; "Choose two links" when unset
-- [ ] Link builder: only `utm_*` keys; the QR code encodes exactly the URL shown; the SVG
-      download opens in a scanner -- *the keys, the URL and the QR's own text are tested
-      (vitest and the browser: the image's text is the URL shown), and the SVG downloads; a
-      phone scan of the printed code is the owner's check, not yet done*
+- [x] Link builder: only `utm_*` keys; the QR code encodes exactly the URL shown; the SVG
+      download opens in a scanner -- the keys, the URL and the QR's own text are tested
+      (vitest and the browser: the image's text is the URL shown), and the SVG downloads;
+      **the owner scanned a link-builder QR code with a phone and it opened the link
+      (2026-10-09)**
 - [x] The vendored file's licence, origin and commit recorded; gzipped size stated; loaded
       only on a link's page -- ADR-0023, ledger; 5.5 KB gzipped in its own lazy chunk
 - [x] New screens: four states, 3 themes × 3 widths, zero CSP violations in three engines --
@@ -1024,18 +1025,66 @@ F8.AC12 (amended), SPEC §11 row 29, ADR-0023. Branch `feat/m7.7-workflow`, stac
 - Dashboard accuracy panel with **`label_count` beside every figure**
 - Threshold tuning against real labels; lexicon expansion from observed PTR records
 - ~~Measure S10 latency triangulation~~ — S10 was dropped in M3 (SPEC §11 row 12)
-- Re-run inference on retained ciphertext IPs to validate tuning (the ADR-0007 payoff)
+- ~~Re-run inference on retained ciphertext IPs to validate tuning (the ADR-0007 payoff)~~ —
+  replaced by **replaying the consensus over stored candidates**, which validates tuning
+  without decrypting anything and for visits of any age (SPEC §11 row 30, ADR-0024)
+- Real fixture as an Actions secret, committed synthetic fixture (row 30: the repository is
+  public)
 
 **Done checklist**
 - [ ] 30+ labels collected across Airtel, Jio, ACT, BSNL, Vi; Wi-Fi and mobile data;
-      VPN on and off
-- [ ] Accuracy metrics computed, stored, and displayed with sample size
-- [ ] CI job fails on a deliberately-regressed threshold
+      VPN on and off — *the owner's labelling sessions (below); Ground truth › Coverage counts
+      the matrix*
+- [x] Accuracy metrics computed, stored, and displayed with sample size — a replay of the
+      consensus over stored candidates (ADR-0024): `/ground-truth/metrics`, `accuracy_runs`
+      (append-only, migration 0018), the Ground truth page and the Inference card, every
+      proportion `k of n` with a 95 % Wilson interval. Replay equals the engine's own answer
+      (`test_a_replay_reproduces_what_the_engine_decided`); 9 integration, 22 unit and 6
+      vitest tests; QA in Chromium, Firefox and WebKit with 0 CSP violations and the 3 × 3
+      matrix (2026-10-09)
+- [x] CI job fails on a deliberately-regressed threshold — job 13 runs
+      `tracelet accuracy check`. On a throwaway branch (`ci/m8-regressed-threshold`, deleted
+      after) with the admin1 threshold lowered from 0.75 to 0.30, CI run 37930522895 failed
+      job 13: `admin1.strict_precision` 95.6 % (n=45) against ≥ 99 %, `FAILED`, exit code 1
+      (2026-10-09). Locally, a lowered threshold fails precision and a raised one fails
+      coverage (`test_accuracy_gate.py`)
 - [ ] Per-source accuracy reported; any consistently-wrong source down-weighted **with
-      evidence from `visit_candidates`**, not intuition
+      evidence from `visit_candidates`**, not intuition — *reported (F4.AC17: API `sources`,
+      the Sources tab); any down-weighting waits for real labels*
 - [x] ~~S10 measured~~ — not applicable: S10 dropped in M3 (SPEC §11 row 12, RISKS R23)
-- [ ] **F4.AC13 targets either met or formally amended in SPEC section 11 with data**
-- [ ] Docs: SPEC F4.AC13 reconciled with measured reality
+- [x] **F4.AC13 targets either met or formally amended in SPEC section 11 with data** —
+      amended by SPEC §11 row 32 (2026-10-09) from the owner's first 8 labels, as **interim**
+      targets until about 30 labels: precision kept everywhere, country coverage ≥ 95 %, admin1
+      coverage ≥ 60 %, city best guess reported, VPN labels scored apart (nothing confirmed).
+      The real fixture passes them (`tracelet accuracy check`), and it is the CI secret.
+      Retuning is deferred to about 30 labels by the owner's decision
+- [x] Docs: SPEC F4.AC13 reconciled with measured reality — F4.AC13's text, row 32,
+      `accuracy/targets.py`, API §11 and the synthetic fixture (now with VPN cases) agree
+
+**A labelling session (the owner; ADR-0024, ADR-0025, RISKS R28)**
+0. On the development stack: `TRACELET_DEV_TRUSTED_TUNNEL=172.31.254.0/29` in `.env` (see
+   `.env.example`; restart the api), then `./scripts/tl tunnel`, which prints a
+   `https://….trycloudflare.com` address. On the phone, open `<that address>/r/<slug>`: type
+   it, or send it to yourself. The dashboard stays at `https://localhost` on the PC; signing
+   in through the tunnel is refused by the CSRF origin check, by design (F8.AC11). A QR code
+   from the link builder there encodes `localhost`, which a phone cannot open. Without the
+   setting, a tunnelled visit records the tunnel, not your network (SPEC §11 row 31). Stop
+   with `./scripts/tl tunnel-stop`; the address changes on every start.
+1. On one network and connection (say Jio, mobile data, VPN off), open one of your links on
+   your phone. A link with *ask for location* lets you allow it, and the GPS fix pre-fills
+   the label.
+2. Ground truth › Queue › **Newest**: check the visit is yours (time, network), then say
+   where you were: state, then city. Choose the connection, VPN and network, then save. They
+   carry over to the next label.
+3. Repeat across Airtel, Jio, Vi, BSNL and ACT, on Wi-Fi and mobile data, with a VPN on and
+   off, until Coverage has no "none yet" where it matters and there are 30+ labels.
+4. End the session: **Record this measurement**, then refresh the CI secret:
+   in Git Bash prefix each with `MSYS_NO_PATHCONV=1` (it rewrites `/tmp/...` into a
+   Windows path):
+   `docker compose exec api tracelet accuracy export --out /tmp/gt.json.gz`,
+   `docker compose cp api:/tmp/gt.json.gz ./gt.json.gz`,
+   `base64 -w0 gt.json.gz | gh secret set ACCURACY_FIXTURE`, then delete `gt.json.gz`.
+   It is never committed: the repository is public.
 
 ---
 

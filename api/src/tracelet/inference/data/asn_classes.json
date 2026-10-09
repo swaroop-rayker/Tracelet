@@ -20,7 +20,8 @@
     "54113": "Fastly", "32934": "Meta -- first-party infrastructure; its fetchers and scanners originate here (RISKS R21)",
     "212238": "Datacamp (CDN77) -- common VPN egress", "136907": "Huawei Cloud", "135377": "UCloud",
     "55293": "A2 Hosting", "46606": "Unified Layer", "36352": "ColoCrossing", "62567": "DigitalOcean",
-    "40021": "Contabo US", "197540": "netcup", "12876": "Scaleway", "35540": "OVH Telecom"
+    "40021": "Contabo US", "197540": "netcup", "12876": "Scaleway", "35540": "OVH Telecom",
+    "147049": "PacketHub S.A. -- NordVPN's server network, VPN egress (docs/ERRORS.md E77)"
   },
   "families_about": "Carrier families for 'Mobile networks by state' (F9.AC23, M7.6): an ASN's brand, whatever its medium -- Airtel's broadband AS24560 is Airtel, as its mobile AS45609 is. Display only: inference never reads this section. An ASN not listed is 'other'.",
   "families": {
@@ -31,7 +32,7 @@
   },
   "hosting_org_keywords": [
     "hosting", "host europe", "cloud", "data center", "datacenter", "data centre", "server",
-    "vps", "colocation", "colo ", "dedicated", "vpn", "proxy", "cdn"
+    "vps", "colocation", "colo ", "dedicated", "vpn", "proxy", "cdn", "packethub"
   ],
   "mobile_org_keywords": ["mobile", "cellular", "wireless", "telemedia mobile"]
 }

@@ -43,6 +43,7 @@ const LinksPage = lazy(() => import('@/pages/dashboard/LinksPage'));
 const LinkDetailPage = lazy(() => import('@/pages/dashboard/LinkDetailPage'));
 const InferencePage = lazy(() => import('@/pages/dashboard/InferencePage'));
 const DetectionPage = lazy(() => import('@/pages/dashboard/DetectionPage'));
+const GroundTruthPage = lazy(() => import('@/pages/groundtruth/GroundTruthPage'));
 const GeofencesPage = lazy(() => import('@/pages/configure/GeofencesPage'));
 const GeofenceEditorPage = lazy(() => import('@/pages/configure/GeofenceEditorPage'));
 const AlertsPage = lazy(() => import('@/pages/configure/AlertsPage'));
@@ -221,6 +222,7 @@ export default function App(): React.JSX.Element {
           <Route path="links/:slug" element={<Page component={LinkDetailPage} />} />
           <Route path="inference" element={<Page component={InferencePage} />} />
           <Route path="detection" element={<Page component={DetectionPage} />} />
+          <Route path="ground-truth" element={<Page component={GroundTruthPage} />} />
           <Route path="geofences" element={<Page component={GeofencesPage} />} />
           <Route path="geofences/new" element={<Page component={GeofenceEditorPage} />} />
           <Route path="geofences/:geofenceId" element={<Page component={GeofenceEditorPage} />} />

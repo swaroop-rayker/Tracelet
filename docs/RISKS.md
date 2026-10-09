@@ -13,7 +13,7 @@ Severity is `impact × likelihood` at the time of writing, reassessed after each
 | R6 | 1 GB steady state under real load; swap thrash | Medium | Open, verified in M9 |
 | R7 | Bot-detection ceiling without JA4 | **High** | **Accepted with a weaker substitute: header set (R19, SPEC §11 row 7)** |
 | R8 | Safe Browsing may flag the site regardless | Medium | Accepted, no guaranteed remedy |
-| R9 | 30–60 ground-truth labels give wide confidence intervals | Medium | Accepted, disclosed |
+| R9 | 30–60 ground-truth labels give wide confidence intervals | Medium | Accepted, disclosed — Wilson intervals on every figure since M8 |
 | R10 | Free-subdomain path is materially weaker than documented parity suggests | Medium | Accepted, owner-chosen |
 | R11 | **VM loss loses everything since the last manual backup download** | **High** | **Accepted, owner-chosen** |
 | R12 | Solo developer: no review, no bus factor | Medium | Accepted, mitigated by CI and docs |
@@ -32,6 +32,8 @@ Severity is `impact × likelihood` at the time of writing, reassessed after each
 | R25 | **The raw analytics fallback is slow at the design load** | Medium | **Open — rollup path measured at p95 ≤ 70 ms; raw fallback up to 10 s on long windows** |
 | R26 | Geofence drawing (M6) has no street-level basemap | Medium | **Closed 2026-10-06 — accepted: no basemap, region geofences (ADR-0020)** |
 | R27 | The UI redesign (M5.5) regresses accessibility, the CSP or behaviour | Medium | **Mitigated 2026-10-03 — 0 CSP violations in Chromium, Firefox and WebKit (after E44), filters unchanged, a11y sweep clean, 72-image matrix; hand keyboard pass by the owner 2026-10-07, nothing failed** |
+| R28 | The real-data accuracy gate is only as current as its last export | Low | Accepted, mitigated: export ends a labelling session (ADR-0024) |
+| R29 | The development tunnel trust could reach production, or trust too much | Medium | Mitigated: refused outside development, a private /29 only, warned at startup (ADR-0025) |
 
 ---
 
@@ -307,6 +309,46 @@ interval**, and stating it as a point value would be misleading.
 it with every response, and the dashboard displays it next to every figure (F9.AC10,
 API section 11). Labelling candidates are ranked by `conflict_score` so scarce labels are
 spent where they are most informative.
+
+**As built in M8 (ADR-0024):** every proportion carries `k of n` and a 95 % Wilson interval,
+in the API, in `accuracy_runs.metrics` and on the page. Consented labels are also scored
+without their GPS candidate, so every label measures the network path, which raises `n` for
+the network targets. **The gate itself is a point comparison**, and at this size a single
+country miss is 96.7 % of 30, under a 99.5 % target. That is deliberate (a wrong strict
+country is the error ADR-0005 forbids), and SPEC §11 row 30 has the targets re-set from
+data in the amendment that follows the first real labels.
+
+---
+
+## R29 — The development tunnel trust could reach production, or trust too much · MEDIUM
+
+**Risk.** `TRACELET_DEV_TRUSTED_TUNNEL` believes a header-supplied address, which F13.AC6
+exists to forbid. Set in production, or set to a wide range, it would let a visitor choose
+their own address and defeat rate limiting and geolocation together.
+
+**Mitigation (ADR-0025):** Settings refuse to load with it set unless `TRACELET_ENV` is
+`development`. The value must be a private network of at most 256 addresses. Only
+`cloudflared` and Caddy join the `tunnel` network it names, so the compose `default` network
+(the api, the database, the tools) is never trusted. The app logs `dev_tunnel_trusted` at
+every start. Every visit that used it carries `edge.dev_tunnel_address`. Unit tests cover
+each refusal, and an integration test covers the capture path both ways.
+
+**Residual.** While it is on, anything that reaches the `tunnel` network can pick its
+address. On a development PC that is only `cloudflared`.
+
+---
+
+## R28 — The real-data accuracy gate is only as current as its last export · LOW
+
+**Risk.** CI gates on the real fixture only through the `ACCURACY_FIXTURE` secret, which is
+refreshed by hand (`tracelet accuracy export`, then `gh secret set`). Labels added since the
+last export are not in the gate. And a label is deleted with its visit (180 days), so a
+ground-truth set that is never exported is eventually lost.
+
+**Mitigation:** the export is the durable copy (ADR-0024). `accuracy_runs` keeps every
+recorded measurement after the labels are gone. The M8 runbook step ends a labelling session
+with an export and a secret update. A fork or a missing secret skips the real step with a
+visible notice rather than passing silently.
 
 ---
 

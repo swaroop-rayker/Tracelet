@@ -30,6 +30,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy import ColumnElement, Select, and_, case, null, or_, select
 from sqlalchemy.orm import aliased
 
+from tracelet.accuracy.schemas import LabelOut, label_for_visit
 from tracelet.analytics.filters import VisitFilter, visit_clauses, visit_filter
 from tracelet.audit import log as audit
 from tracelet.auth.dependencies import (
@@ -165,6 +166,9 @@ class VisitDetail(VisitSummary):
     referer: str | None
     utm: dict[str, str] | None
     honeypot_tripped: bool
+    # The owner's truth for this visit, when labelled (M8, F4.AC15); it never changes the
+    # inference above.
+    ground_truth_label: LabelOut | None = None
 
 
 class DecryptedIp(BaseModel):
@@ -638,7 +642,9 @@ async def get_visit(visit_id: str, principal: CurrentPrincipal, db: DbSession) -
             .order_by(VisitCandidate.id)
         )
     ).scalars()
-    return _detail(visit, link, list(candidates), is_returning=returning)
+    detail = _detail(visit, link, list(candidates), is_returning=returning)
+    detail.ground_truth_label = await label_for_visit(db, visit.id)
+    return detail
 
 
 @router.get(

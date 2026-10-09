@@ -1,7 +1,8 @@
 # ---------------------------------------------------------------------------
-# Tracelet CI — the 12 checks F14.AC7 requires, plus the frontend tests (9b, M5).
+# Tracelet CI — the 12 checks F14.AC7 requires, plus the frontend tests (9b, M5)
+# and the location-accuracy gate (13, F14.AC12, M8).
 #
-# `./scripts/tl verify` runs the same 12 locally, in the same order, so a red
+# `./scripts/tl verify` runs the same checks locally, in the same order, so a red
 # build is reproducible on the developer's machine without guessing.
 #
 # Jobs run in parallel where they can. The Python jobs share one setup step
@@ -174,6 +175,40 @@ jobs:
           TRACELET_MAINT_DATABASE_URL: postgresql+asyncpg://tracelet_maint:ci-maint@localhost:5432/tracelet
         run: pytest tests/integration -q
 
+  # === 13. Location accuracy (F14.AC12, ADR-0024) ===========================
+  # `tracelet accuracy check` replays a fixture through the consensus and exits 1 when
+  # a gated F4.AC13 target is missed. No database: the fixture carries the candidates.
+  # The committed synthetic fixture always runs, and a unit test proves it fails on a
+  # regressed threshold. The real one is the owner's labels, so it is a secret, never
+  # a file: the repository is public (SPEC section 11 row 30). Its output is figures
+  # only -- levels, counts, targets -- never a place name.
+  accuracy:
+    name: "13 · accuracy (F14.AC12)"
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: api
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+          cache-dependency-path: api/pyproject.toml
+      - run: pip install -e ".[dev]"
+      - name: Synthetic fixture (always)
+        run: tracelet accuracy check --fixture tests/fixtures/accuracy/synthetic.json
+      - name: Real ground truth (when the ACCURACY_FIXTURE secret is set)
+        env:
+          ACCURACY_FIXTURE: ${{ secrets.ACCURACY_FIXTURE }}
+        run: |
+          if [ -z "${ACCURACY_FIXTURE}" ]; then
+            echo "::notice title=Accuracy::No ACCURACY_FIXTURE secret here (a fork, or none exported yet): the real-data gate was skipped."
+            exit 0
+          fi
+          printf '%s' "${ACCURACY_FIXTURE}" | base64 -d > "${RUNNER_TEMP}/real.json.gz"
+          tracelet accuracy check --fixture "${RUNNER_TEMP}/real.json.gz"
+
   # === 7-9. Frontend ======================================================
   frontend:
     name: "${{ matrix.label }}"
@@ -317,6 +352,7 @@ jobs:
       - guard-private-docs
       - python
       - integration
+      - accuracy
       - frontend
       - openapi-drift
       - docker-build

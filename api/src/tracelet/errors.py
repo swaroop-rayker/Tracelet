@@ -271,6 +271,12 @@ class SavedViewExists(TraceletError):
     title = "You already have a saved view with this name"
 
 
+class GroundTruthExists(TraceletError):
+    status = 409
+    code = "GROUND_TRUTH_EXISTS"
+    title = "This visit already has a label; change that one instead"
+
+
 class SavedViewLimit(TraceletError):
     status = 409
     code = "SAVED_VIEW_LIMIT"

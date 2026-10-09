@@ -124,19 +124,19 @@ task_verify() {
     require_env
     failed=""
 
-    step "1/13  ruff check"
+    step "1/14  ruff check"
     $API_RUN ruff check src tests spikes || failed="$failed ruff-check"
 
-    step "2/13  ruff format --check"
+    step "2/14  ruff format --check"
     $API_RUN ruff format --check src tests spikes || failed="$failed ruff-format"
 
-    step "3/13  mypy --strict"
+    step "3/14  mypy --strict"
     $API_RUN mypy src tests spikes || failed="$failed mypy"
 
-    step "4/13  pytest unit"
+    step "4/14  pytest unit"
     $API_RUN pytest tests/unit -q || failed="$failed pytest-unit"
 
-    step "5/13  pytest integration (real PostgreSQL + PostGIS, never mocked)"
+    step "5/14  pytest integration (real PostgreSQL + PostGIS, never mocked)"
     $DC up -d db >/dev/null 2>&1 || true
     task_waitdb >/dev/null
     # The suite shares the dev database. A running api's scheduler would infer,
@@ -152,28 +152,31 @@ task_verify() {
         $DC start api >/dev/null 2>&1 || true
     fi
 
-    step "6/13  eslint"
+    step "6/14  eslint"
     $WEB_RUN npx eslint src || failed="$failed eslint"
 
-    step "7/13  prettier --check"
+    step "7/14  prettier --check"
     $WEB_RUN npx prettier --check "src/**/*.{ts,tsx,css}" || failed="$failed prettier"
 
-    step "8/13  tsc --noEmit"
+    step "8/14  tsc --noEmit"
     $WEB_RUN npx tsc --noEmit || failed="$failed tsc"
 
-    step "9/13  vitest (dashboard: panel states, contrast, filters)"
+    step "9/14  vitest (dashboard: panel states, contrast, filters)"
     $WEB_RUN npx vitest run || failed="$failed vitest"
 
-    step "10/13 OpenAPI -> TypeScript drift"
+    step "10/14 accuracy gate (F14.AC12: the synthetic fixture, no database)"
+    $API_RUN tracelet accuracy check --fixture tests/fixtures/accuracy/synthetic.json >/dev/null         || failed="$failed accuracy"
+
+    step "11/14 OpenAPI -> TypeScript drift"
     task_openapi_check || failed="$failed openapi-drift"
 
-    step "11/13 route-name guard (B6: content blockers match URL substrings)"
+    step "12/14 route-name guard (B6: content blockers match URL substrings)"
     $API_RUN pytest tests/unit/test_route_names.py -q || failed="$failed route-names"
 
-    step "12/13 guard-private-docs"
+    step "13/14 guard-private-docs"
     sh scripts/guard_private_docs.sh || failed="$failed guard-private-docs"
 
-    step "13/13 docker build"
+    step "14/14 docker build"
     $DCT build >/dev/null || failed="$failed docker-build"
 
     echo
@@ -181,7 +184,7 @@ task_verify() {
         red "FAILED:$failed"
         exit 1
     fi
-    grn "All 13 checks passed."
+    grn "All 14 checks passed."
 }
 
 # Regenerate api/openapi.json and web/src/api/generated/schema.d.ts.
@@ -219,6 +222,34 @@ task_openapi_check() {
     return 0
 }
 
+# The development tunnel (ADR-0025): a Cloudflare quick tunnel to this stack, so a phone
+# can reach it for M8's labelling. Development only; the address changes on every start.
+task_tunnel() {
+    require_env
+    if ! grep -q '^TRACELET_DEV_TRUSTED_TUNNEL=' .env; then
+        ylw "TRACELET_DEV_TRUSTED_TUNNEL is not set in .env: visits through the tunnel will"
+        ylw "record the tunnel, not your phone's network. Set it (see .env.example), then"
+        ylw "restart the api:  docker compose up -d api"
+    fi
+    $DC --profile tunnel up -d tunnel
+    step "Waiting for the tunnel's address"
+    i=0
+    while [ $i -lt 45 ]; do
+        url="$($DC --profile tunnel logs tunnel 2>/dev/null | grep -o 'https://[a-z0-9-]*\.trycloudflare\.com' | tail -1 || true)"
+        if [ -n "$url" ]; then
+            grn "$url"
+            echo "  Your links are at $url/r/<slug>. Stop with: ./scripts/tl tunnel-stop"
+            return 0
+        fi
+        i=$((i + 1))
+        sleep 1
+    done
+    red "No address yet. See: docker compose --profile tunnel logs tunnel"
+    exit 1
+}
+
+task_tunnel_stop() { $DC --profile tunnel rm -sf tunnel; grn "Tunnel stopped."; }
+
 task_help() {
     cat <<'EOF'
 tl — Tracelet task runner
@@ -226,7 +257,7 @@ tl — Tracelet task runner
   bootstrap   build images, migrate, create the first owner admin
   up          start everything (docker compose up -d)
   down        stop everything
-  verify      the full CI gate, locally: 13 checks
+  verify      the full CI gate, locally: 14 checks
   migrate     alembic upgrade head
   revision M  create a migration:  tl revision "add visits table"
   fmt         ruff format + ruff --fix + prettier --write
@@ -236,6 +267,8 @@ tl — Tracelet task runner
   psql        open a psql shell on the database
   db-setup    one-time superuser setup for the restore check (ADR-0022)
   shell       open a shell in the api container
+  tunnel      development only: a public address for a phone (ADR-0025)
+  tunnel-stop stop it
   help        this
 
 Same tasks are available as `make <target>` where make is installed.
@@ -262,6 +295,8 @@ case "$cmd" in
     psql)          task_psql ;;
     db-setup)      task_db_setup ;;
     shell)         task_shell ;;
+    tunnel)        task_tunnel ;;
+    tunnel-stop)   task_tunnel_stop ;;
     waitdb)        task_waitdb ;;
     help|-h|--help) task_help ;;
     *) red "Unknown task: $cmd"; echo; task_help; exit 1 ;;

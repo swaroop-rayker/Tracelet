@@ -273,6 +273,17 @@ def _build_visit(
                 "detail": {"patterns": probes},
             }
         )
+    if facts.client.via_dev_tunnel:
+        # Development only (ADR-0025): the address came from the tunnel's
+        # CF-Connecting-IP. Said on the visit so a label's provenance is always visible.
+        fired.append(
+            {
+                "rule_id": "edge.dev_tunnel_address",
+                "category": "network",
+                "weight": 0,
+                "detail": {"edge_headers_believed": False},
+            }
+        )
     if facts.client.forged_edge_header:
         # Evidence only this request can carry -- it is gone once the response is
         # sent. Recorded unweighted: what it *means* is M4's classifier's decision.

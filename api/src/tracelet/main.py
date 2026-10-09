@@ -13,6 +13,7 @@ from contextlib import asynccontextmanager
 import structlog
 from fastapi import FastAPI
 
+from tracelet.accuracy.router import router as accuracy_router
 from tracelet.analytics.router import router as analytics_router
 from tracelet.auth.admins_router import router as admins_router
 from tracelet.auth.router import router as auth_router
@@ -59,6 +60,13 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         # R10). Worth seeing in the log at every boot rather than forgetting.
         edge="cloudflare" if settings.behind_cloudflare else "origin-only",
     )
+    if settings.dev_trusted_tunnel is not None:
+        # ADR-0025: development only (Settings refuse it elsewhere), never silent.
+        log.warning(
+            "dev_tunnel_trusted",
+            network=settings.dev_trusted_tunnel,
+            meaning="CF-Connecting-IP from this network is taken as the visitor's address",
+        )
 
     # The engine is not connected to here at startup on purpose. A database that
     # is slow to accept connections must not prevent the process from starting --
@@ -141,6 +149,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(lifecycle_router)
     app.include_router(system_health_router)
     app.include_router(workflow_router)
+    app.include_router(accuracy_router)
 
     return app
 

@@ -145,3 +145,54 @@ def test_an_unparseable_claim_from_a_real_edge_falls_back_to_the_peer() -> None:
 def test_the_repr_never_renders_an_address() -> None:
     client = resolve_client(peer=VISITOR, cf_connecting_ip=None, behind_cloudflare=False)
     assert VISITOR not in repr(client)
+
+
+# ---------------------------------------------------------------------------
+# The development tunnel (ADR-0025, SPEC section 11 row 31)
+# ---------------------------------------------------------------------------
+
+TUNNEL = ipaddress.ip_network("172.31.254.0/29")
+TUNNEL_PEER = "172.31.254.3"  # cloudflared on the tunnel network
+
+
+def test_the_tunnel_peer_is_believed_for_the_address_only() -> None:
+    client = resolve_client(
+        peer=TUNNEL_PEER, cf_connecting_ip=VISITOR, behind_cloudflare=False, trusted_tunnel=TUNNEL
+    )
+    assert client.ip == VISITOR
+    assert client.via_dev_tunnel is True
+    # CF-Ray and CF-IPCountry stay unbelieved: this is not a verified edge.
+    assert client.edge_verified is False
+    assert client.forged_edge_header is False
+
+
+def test_a_peer_outside_the_tunnel_network_is_not_believed() -> None:
+    """The compose default network is not trusted: another container there could forge."""
+    client = resolve_client(
+        peer="172.18.0.5", cf_connecting_ip=VISITOR, behind_cloudflare=False, trusted_tunnel=TUNNEL
+    )
+    assert client.ip == "172.18.0.5"
+    assert client.via_dev_tunnel is False
+    assert client.forged_edge_header is True
+
+
+def test_without_the_setting_the_tunnel_peer_is_just_a_peer() -> None:
+    client = resolve_client(peer=TUNNEL_PEER, cf_connecting_ip=VISITOR, behind_cloudflare=False)
+    assert client.ip == TUNNEL_PEER
+    assert client.via_dev_tunnel is False
+
+
+def test_the_tunnel_with_no_claim_uses_the_peer() -> None:
+    client = resolve_client(
+        peer=TUNNEL_PEER, cf_connecting_ip=None, behind_cloudflare=False, trusted_tunnel=TUNNEL
+    )
+    assert client.ip == TUNNEL_PEER
+    assert client.via_dev_tunnel is False
+
+
+def test_an_ipv6_peer_is_never_inside_an_ipv4_tunnel() -> None:
+    client = resolve_client(
+        peer="fd00::3", cf_connecting_ip=VISITOR, behind_cloudflare=False, trusted_tunnel=TUNNEL
+    )
+    assert client.ip == "fd00::3"
+    assert client.via_dev_tunnel is False

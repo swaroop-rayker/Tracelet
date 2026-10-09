@@ -495,6 +495,54 @@ async def test_a_verified_cloudflare_edge_is_believed(integration_settings: Sett
     assert not any(s["rule_id"] == "edge.unverified_cf_header" for s in stored.signals)
 
 
+async def test_the_development_tunnel_is_believed_for_the_address_only(
+    integration_settings: Settings,
+) -> None:
+    """ADR-0025: through the tunnel the visitor's network is recorded, the edge's
+    colo and country are not, and the visit says how its address was decided."""
+    link = await ch.create_link()
+    settings = integration_settings.model_copy(update={"dev_trusted_tunnel": "172.31.254.0/29"})
+
+    async with _client_for(settings) as client:
+        await ch.visit(
+            client,
+            link.slug,
+            peer="172.31.254.3",  # cloudflared on the tunnel network
+            headers={
+                "CF-Connecting-IP": ch.VISITOR_IP,
+                "CF-IPCountry": "IN",
+                "CF-Ray": "8b1c2d3e4f5a6b7c-BLR",
+            },
+        )
+
+    stored = await ch.latest_visit(link.id)
+    assert str(stored.ip_prefix) == ch.VISITOR_PREFIX
+    assert (stored.cf_country, stored.cf_colo) == (None, None)
+    rules = {s["rule_id"] for s in stored.signals}
+    assert "edge.dev_tunnel_address" in rules
+    assert "edge.unverified_cf_header" not in rules
+
+
+async def test_without_the_setting_the_tunnel_records_the_tunnel(
+    integration_settings: Settings,
+) -> None:
+    """F13.AC6 unchanged by default: the tunnel's peer is all that is known."""
+    link = await ch.create_link()
+    settings = integration_settings.model_copy(update={"dev_trusted_tunnel": None})
+
+    async with _client_for(settings) as client:
+        await ch.visit(
+            client,
+            link.slug,
+            peer="172.31.254.3",
+            headers={"CF-Connecting-IP": ch.VISITOR_IP},
+        )
+
+    stored = await ch.latest_visit(link.id)
+    assert str(stored.ip_prefix) == "172.31.254.0/24"
+    assert any(s["rule_id"] == "edge.unverified_cf_header" for s in stored.signals)
+
+
 # ---------------------------------------------------------------------------
 # Rate limiting still redirects (F11.AC3)
 # ---------------------------------------------------------------------------

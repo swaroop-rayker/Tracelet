@@ -3,6 +3,10 @@
     "schemas": {
       "Accuracy": {
         "properties": {
+          "inference_version": {
+            "title": "Inference Version",
+            "type": "string"
+          },
           "inferred": {
             "title": "Inferred",
             "type": "integer"
@@ -16,11 +20,23 @@
           },
           "meta": {
             "$ref": "#/components/schemas/Meta"
+          },
+          "population": {
+            "const": "network_only",
+            "title": "Population",
+            "type": "string"
+          },
+          "settings_version": {
+            "title": "Settings Version",
+            "type": "integer"
           }
         },
         "required": [
           "meta",
           "inferred",
+          "settings_version",
+          "inference_version",
+          "population",
           "levels"
         ],
         "title": "Accuracy",
@@ -47,6 +63,24 @@
           "count"
         ],
         "title": "Admin1Count",
+        "type": "object"
+      },
+      "AdminRef": {
+        "properties": {
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name"
+        ],
+        "title": "AdminRef",
         "type": "object"
       },
       "AdminRole": {
@@ -2733,6 +2767,18 @@
         "title": "Geo",
         "type": "object"
       },
+      "GeoLevel": {
+        "description": "Values match the ``geo_level`` enum created by migration 0005.",
+        "enum": [
+          "country",
+          "admin1",
+          "admin2",
+          "city",
+          "point"
+        ],
+        "title": "GeoLevel",
+        "type": "string"
+      },
       "GeofenceBlock": {
         "properties": {
           "matched": {
@@ -3479,6 +3525,449 @@
         "title": "Kpi",
         "type": "object"
       },
+      "LabelIn": {
+        "additionalProperties": false,
+        "properties": {
+          "admin1": {
+            "anyOf": [
+              {
+                "maxLength": 100,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Admin1"
+          },
+          "admin2": {
+            "anyOf": [
+              {
+                "maxLength": 100,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Admin2"
+          },
+          "cant_tell": {
+            "default": false,
+            "title": "Cant Tell",
+            "type": "boolean"
+          },
+          "city": {
+            "anyOf": [
+              {
+                "maxLength": 100,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "City"
+          },
+          "connection_kind": {
+            "anyOf": [
+              {
+                "enum": [
+                  "wifi",
+                  "mobile_data",
+                  "ethernet"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Connection Kind"
+          },
+          "country_code": {
+            "anyOf": [
+              {
+                "maxLength": 2,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Country Code"
+          },
+          "network": {
+            "anyOf": [
+              {
+                "enum": [
+                  "airtel",
+                  "jio",
+                  "vi",
+                  "bsnl",
+                  "act",
+                  "other"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Network"
+          },
+          "notes": {
+            "anyOf": [
+              {
+                "maxLength": 500,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Notes"
+          },
+          "use_gps": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Use Gps"
+          },
+          "visit_id": {
+            "format": "uuid",
+            "title": "Visit Id",
+            "type": "string"
+          },
+          "vpn_used": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Vpn Used"
+          }
+        },
+        "required": [
+          "visit_id"
+        ],
+        "title": "LabelIn",
+        "type": "object"
+      },
+      "LabelLink": {
+        "properties": {
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "slug": {
+            "title": "Slug",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "slug",
+          "label"
+        ],
+        "title": "LabelLink",
+        "type": "object"
+      },
+      "LabelList": {
+        "properties": {
+          "cant_tell": {
+            "title": "Cant Tell",
+            "type": "integer"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/LabelOut"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "total",
+          "cant_tell"
+        ],
+        "title": "LabelList",
+        "type": "object"
+      },
+      "LabelOut": {
+        "properties": {
+          "cant_tell": {
+            "title": "Cant Tell",
+            "type": "boolean"
+          },
+          "connection_kind": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Connection Kind"
+          },
+          "consent_state": {
+            "$ref": "#/components/schemas/ConsentState"
+          },
+          "has_coordinates": {
+            "title": "Has Coordinates",
+            "type": "boolean"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "labeled_at": {
+            "format": "date-time",
+            "title": "Labeled At",
+            "type": "string"
+          },
+          "labeled_by": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AdminRef"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "link": {
+            "$ref": "#/components/schemas/LabelLink"
+          },
+          "network": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Network"
+          },
+          "notes": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Notes"
+          },
+          "occurred_at": {
+            "format": "date-time",
+            "title": "Occurred At",
+            "type": "string"
+          },
+          "recorded": {
+            "$ref": "#/components/schemas/RecordedOut"
+          },
+          "truth": {
+            "$ref": "#/components/schemas/TruthOut"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          },
+          "visit_id": {
+            "title": "Visit Id",
+            "type": "string"
+          },
+          "vpn_used": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Vpn Used"
+          }
+        },
+        "required": [
+          "id",
+          "visit_id",
+          "occurred_at",
+          "link",
+          "consent_state",
+          "cant_tell",
+          "truth",
+          "has_coordinates",
+          "connection_kind",
+          "vpn_used",
+          "network",
+          "notes",
+          "labeled_by",
+          "labeled_at",
+          "updated_at",
+          "recorded"
+        ],
+        "title": "LabelOut",
+        "type": "object"
+      },
+      "LabelPatch": {
+        "additionalProperties": false,
+        "description": "Any subset; a field sent as null is cleared, a field left out is kept.",
+        "properties": {
+          "admin1": {
+            "anyOf": [
+              {
+                "maxLength": 100,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Admin1"
+          },
+          "admin2": {
+            "anyOf": [
+              {
+                "maxLength": 100,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Admin2"
+          },
+          "cant_tell": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cant Tell"
+          },
+          "city": {
+            "anyOf": [
+              {
+                "maxLength": 100,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "City"
+          },
+          "connection_kind": {
+            "anyOf": [
+              {
+                "enum": [
+                  "wifi",
+                  "mobile_data",
+                  "ethernet"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Connection Kind"
+          },
+          "country_code": {
+            "anyOf": [
+              {
+                "maxLength": 2,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Country Code"
+          },
+          "network": {
+            "anyOf": [
+              {
+                "enum": [
+                  "airtel",
+                  "jio",
+                  "vi",
+                  "bsnl",
+                  "act",
+                  "other"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Network"
+          },
+          "notes": {
+            "anyOf": [
+              {
+                "maxLength": 500,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Notes"
+          },
+          "use_gps": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Use Gps"
+          },
+          "vpn_used": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Vpn Used"
+          }
+        },
+        "title": "LabelPatch",
+        "type": "object"
+      },
       "LastPurgeOut": {
         "properties": {
           "at": {
@@ -3571,6 +4060,38 @@
       },
       "LevelAccuracy": {
         "properties": {
+          "advisory_accuracy": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Advisory Accuracy"
+          },
+          "advisory_ci95": {
+            "anyOf": [
+              {
+                "maxItems": 2,
+                "minItems": 2,
+                "prefixItems": [
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "number"
+                  }
+                ],
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Advisory Ci95"
+          },
           "coverage": {
             "anyOf": [
               {
@@ -3581,6 +4102,27 @@
               }
             ],
             "title": "Coverage"
+          },
+          "coverage_ci95": {
+            "anyOf": [
+              {
+                "maxItems": 2,
+                "minItems": 2,
+                "prefixItems": [
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "number"
+                  }
+                ],
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Coverage Ci95"
           },
           "emission_rate": {
             "anyOf": [
@@ -3618,6 +4160,27 @@
             ],
             "title": "Precision"
           },
+          "precision_ci95": {
+            "anyOf": [
+              {
+                "maxItems": 2,
+                "minItems": 2,
+                "prefixItems": [
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "number"
+                  }
+                ],
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Precision Ci95"
+          },
           "reason": {
             "anyOf": [
               {
@@ -3634,7 +4197,11 @@
           "level",
           "label_count",
           "precision",
+          "precision_ci95",
           "coverage",
+          "coverage_ci95",
+          "advisory_accuracy",
+          "advisory_ci95",
           "emission_rate",
           "reason"
         ],
@@ -3738,6 +4305,35 @@
           "city"
         ],
         "title": "LevelPriors",
+        "type": "object"
+      },
+      "LevelReport": {
+        "properties": {
+          "advisory_accuracy": {
+            "$ref": "#/components/schemas/Proportion"
+          },
+          "label_count": {
+            "title": "Label Count",
+            "type": "integer"
+          },
+          "level": {
+            "$ref": "#/components/schemas/GeoLevel"
+          },
+          "strict_coverage": {
+            "$ref": "#/components/schemas/Proportion"
+          },
+          "strict_precision": {
+            "$ref": "#/components/schemas/Proportion"
+          }
+        },
+        "required": [
+          "level",
+          "label_count",
+          "strict_precision",
+          "strict_coverage",
+          "advisory_accuracy"
+        ],
+        "title": "LevelReport",
         "type": "object"
       },
       "LimitOut": {
@@ -4221,6 +4817,55 @@
           "password"
         ],
         "title": "LoginRequest",
+        "type": "object"
+      },
+      "MatrixCell": {
+        "properties": {
+          "connection_kind": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Connection Kind"
+          },
+          "count": {
+            "title": "Count",
+            "type": "integer"
+          },
+          "network": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Network"
+          },
+          "vpn_used": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Vpn Used"
+          }
+        },
+        "required": [
+          "network",
+          "connection_kind",
+          "vpn_used",
+          "count"
+        ],
+        "title": "MatrixCell",
         "type": "object"
       },
       "MeResponse": {
@@ -4726,6 +5371,36 @@
         "title": "OutboxStatus",
         "type": "string"
       },
+      "PathReport": {
+        "properties": {
+          "city_strict_coverage": {
+            "$ref": "#/components/schemas/Proportion"
+          },
+          "city_strict_precision": {
+            "$ref": "#/components/schemas/Proportion"
+          },
+          "label_count": {
+            "title": "Label Count",
+            "type": "integer"
+          },
+          "path": {
+            "enum": [
+              "cloudflare",
+              "direct"
+            ],
+            "title": "Path",
+            "type": "string"
+          }
+        },
+        "required": [
+          "path",
+          "label_count",
+          "city_strict_precision",
+          "city_strict_coverage"
+        ],
+        "title": "PathReport",
+        "type": "object"
+      },
       "PlaceOut": {
         "properties": {
           "admin1": {
@@ -4987,6 +5662,39 @@
         "title": "PolygonGeometry",
         "type": "object"
       },
+      "PopulationReport": {
+        "properties": {
+          "label_count": {
+            "title": "Label Count",
+            "type": "integer"
+          },
+          "levels": {
+            "items": {
+              "$ref": "#/components/schemas/LevelReport"
+            },
+            "title": "Levels",
+            "type": "array"
+          },
+          "population": {
+            "enum": [
+              "all",
+              "consented",
+              "non_consented",
+              "network_only",
+              "vpn"
+            ],
+            "title": "Population",
+            "type": "string"
+          }
+        },
+        "required": [
+          "population",
+          "label_count",
+          "levels"
+        ],
+        "title": "PopulationReport",
+        "type": "object"
+      },
       "PreferencesRequest": {
         "additionalProperties": false,
         "description": "Display preferences: per admin, persisted, and harmless (F9.AC16).",
@@ -5095,6 +5803,58 @@
         "title": "ProgressOut",
         "type": "object"
       },
+      "Proportion": {
+        "properties": {
+          "ci95": {
+            "anyOf": [
+              {
+                "maxItems": 2,
+                "minItems": 2,
+                "prefixItems": [
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "number"
+                  }
+                ],
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ci95"
+          },
+          "k": {
+            "title": "K",
+            "type": "integer"
+          },
+          "n": {
+            "title": "N",
+            "type": "integer"
+          },
+          "value": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Value"
+          }
+        },
+        "required": [
+          "k",
+          "n",
+          "value",
+          "ci95"
+        ],
+        "title": "Proportion",
+        "type": "object"
+      },
       "PurgeAccepted": {
         "properties": {
           "as_of": {
@@ -5130,6 +5890,72 @@
           "policy"
         ],
         "title": "PurgeIn",
+        "type": "object"
+      },
+      "Queue": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/QueueItem"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "labelled": {
+            "title": "Labelled",
+            "type": "integer"
+          },
+          "remaining": {
+            "title": "Remaining",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "labelled",
+          "remaining"
+        ],
+        "title": "Queue",
+        "type": "object"
+      },
+      "QueueItem": {
+        "properties": {
+          "agreement_score": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Agreement Score"
+          },
+          "conflict_score": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Conflict Score"
+          },
+          "consent_state": {
+            "$ref": "#/components/schemas/ConsentState"
+          },
+          "visit": {
+            "$ref": "#/components/schemas/VisitSummary"
+          }
+        },
+        "required": [
+          "visit",
+          "consent_state",
+          "conflict_score",
+          "agreement_score"
+        ],
+        "title": "QueueItem",
         "type": "object"
       },
       "QuietHoursIn": {
@@ -5283,6 +6109,57 @@
         "title": "ReadinessResponse",
         "type": "object"
       },
+      "RecordedOut": {
+        "description": "What the visit holds -- from the version it was inferred under, not a replay.",
+        "properties": {
+          "advisory": {
+            "additionalProperties": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "title": "Advisory",
+            "type": "object"
+          },
+          "inference_version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Inference Version"
+          },
+          "strict": {
+            "additionalProperties": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "title": "Strict",
+            "type": "object"
+          }
+        },
+        "required": [
+          "inference_version",
+          "strict",
+          "advisory"
+        ],
+        "title": "RecordedOut",
+        "type": "object"
+      },
       "RecoveryCodeRequest": {
         "properties": {
           "code": {
@@ -5427,6 +6304,103 @@
           }
         },
         "title": "RegistryArtifact",
+        "type": "object"
+      },
+      "Report": {
+        "properties": {
+          "cant_tell": {
+            "title": "Cant Tell",
+            "type": "integer"
+          },
+          "classifier_version": {
+            "title": "Classifier Version",
+            "type": "string"
+          },
+          "inference_version": {
+            "title": "Inference Version",
+            "type": "string"
+          },
+          "label_count": {
+            "title": "Label Count",
+            "type": "integer"
+          },
+          "matrix": {
+            "items": {
+              "$ref": "#/components/schemas/MatrixCell"
+            },
+            "title": "Matrix",
+            "type": "array"
+          },
+          "passed": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Passed"
+          },
+          "paths": {
+            "items": {
+              "$ref": "#/components/schemas/PathReport"
+            },
+            "title": "Paths",
+            "type": "array"
+          },
+          "pending": {
+            "title": "Pending",
+            "type": "integer"
+          },
+          "populations": {
+            "items": {
+              "$ref": "#/components/schemas/PopulationReport"
+            },
+            "title": "Populations",
+            "type": "array"
+          },
+          "settings_version": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Settings Version"
+          },
+          "sources": {
+            "items": {
+              "$ref": "#/components/schemas/SourceReport"
+            },
+            "title": "Sources",
+            "type": "array"
+          },
+          "targets": {
+            "items": {
+              "$ref": "#/components/schemas/TargetCheck"
+            },
+            "title": "Targets",
+            "type": "array"
+          }
+        },
+        "required": [
+          "settings_version",
+          "inference_version",
+          "classifier_version",
+          "label_count",
+          "cant_tell",
+          "pending",
+          "populations",
+          "paths",
+          "sources",
+          "matrix",
+          "targets",
+          "passed"
+        ],
+        "title": "Report",
         "type": "object"
       },
       "ResetConfirm": {
@@ -5716,6 +6690,219 @@
           "after_days"
         ],
         "title": "ReturningIn",
+        "type": "object"
+      },
+      "RunDetail": {
+        "properties": {
+          "classifier_version": {
+            "title": "Classifier Version",
+            "type": "string"
+          },
+          "git_sha": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Git Sha"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "inference_version": {
+            "title": "Inference Version",
+            "type": "string"
+          },
+          "label_count": {
+            "title": "Label Count",
+            "type": "integer"
+          },
+          "metrics": {
+            "$ref": "#/components/schemas/Report"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          },
+          "origin": {
+            "enum": [
+              "cli",
+              "dashboard"
+            ],
+            "title": "Origin",
+            "type": "string"
+          },
+          "passed": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Passed"
+          },
+          "recorded_by": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AdminRef"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "run_at": {
+            "format": "date-time",
+            "title": "Run At",
+            "type": "string"
+          },
+          "settings_version": {
+            "title": "Settings Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "run_at",
+          "origin",
+          "settings_version",
+          "inference_version",
+          "classifier_version",
+          "git_sha",
+          "label_count",
+          "passed",
+          "note",
+          "recorded_by",
+          "metrics"
+        ],
+        "title": "RunDetail",
+        "type": "object"
+      },
+      "RunIn": {
+        "additionalProperties": false,
+        "properties": {
+          "note": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          }
+        },
+        "title": "RunIn",
+        "type": "object"
+      },
+      "RunOut": {
+        "properties": {
+          "classifier_version": {
+            "title": "Classifier Version",
+            "type": "string"
+          },
+          "git_sha": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Git Sha"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "inference_version": {
+            "title": "Inference Version",
+            "type": "string"
+          },
+          "label_count": {
+            "title": "Label Count",
+            "type": "integer"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          },
+          "origin": {
+            "enum": [
+              "cli",
+              "dashboard"
+            ],
+            "title": "Origin",
+            "type": "string"
+          },
+          "passed": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Passed"
+          },
+          "recorded_by": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AdminRef"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "run_at": {
+            "format": "date-time",
+            "title": "Run At",
+            "type": "string"
+          },
+          "settings_version": {
+            "title": "Settings Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "run_at",
+          "origin",
+          "settings_version",
+          "inference_version",
+          "classifier_version",
+          "git_sha",
+          "label_count",
+          "passed",
+          "note",
+          "recorded_by"
+        ],
+        "title": "RunOut",
         "type": "object"
       },
       "SampleOut": {
@@ -6173,6 +7360,32 @@
         "title": "SourceFlow",
         "type": "object"
       },
+      "SourceLevel": {
+        "properties": {
+          "accepted": {
+            "title": "Accepted",
+            "type": "integer"
+          },
+          "claims": {
+            "title": "Claims",
+            "type": "integer"
+          },
+          "correct": {
+            "$ref": "#/components/schemas/Proportion"
+          },
+          "level": {
+            "$ref": "#/components/schemas/GeoLevel"
+          }
+        },
+        "required": [
+          "level",
+          "claims",
+          "accepted",
+          "correct"
+        ],
+        "title": "SourceLevel",
+        "type": "object"
+      },
       "SourceOutcomeOut": {
         "properties": {
           "candidates": {
@@ -6210,6 +7423,26 @@
           "candidates"
         ],
         "title": "SourceOutcomeOut",
+        "type": "object"
+      },
+      "SourceReport": {
+        "properties": {
+          "levels": {
+            "items": {
+              "$ref": "#/components/schemas/SourceLevel"
+            },
+            "title": "Levels",
+            "type": "array"
+          },
+          "source": {
+            "$ref": "#/components/schemas/InferenceSource"
+          }
+        },
+        "required": [
+          "source",
+          "levels"
+        ],
+        "title": "SourceReport",
         "type": "object"
       },
       "SourceSettings": {
@@ -6423,6 +7656,99 @@
           "poll_seconds"
         ],
         "title": "SystemOut",
+        "type": "object"
+      },
+      "TargetCheck": {
+        "properties": {
+          "direction": {
+            "enum": [
+              "at_least",
+              "at_most"
+            ],
+            "title": "Direction",
+            "type": "string"
+          },
+          "gated": {
+            "title": "Gated",
+            "type": "boolean"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "level": {
+            "$ref": "#/components/schemas/GeoLevel"
+          },
+          "metric": {
+            "enum": [
+              "strict_precision",
+              "strict_coverage",
+              "advisory_accuracy"
+            ],
+            "title": "Metric",
+            "type": "string"
+          },
+          "n": {
+            "title": "N",
+            "type": "integer"
+          },
+          "population": {
+            "enum": [
+              "all",
+              "consented",
+              "non_consented",
+              "network_only",
+              "vpn"
+            ],
+            "title": "Population",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "met",
+              "missed",
+              "unmeasured",
+              "reported"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "target": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Target"
+          },
+          "value": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Value"
+          }
+        },
+        "required": [
+          "id",
+          "population",
+          "level",
+          "metric",
+          "target",
+          "direction",
+          "value",
+          "n",
+          "gated",
+          "status"
+        ],
+        "title": "TargetCheck",
         "type": "object"
       },
       "TelegramOut": {
@@ -6706,6 +8032,62 @@
         "title": "TotpConfirmRequest",
         "type": "object"
       },
+      "TruthOut": {
+        "properties": {
+          "admin1": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Admin1"
+          },
+          "admin2": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Admin2"
+          },
+          "city": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "City"
+          },
+          "country_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Country Code"
+          }
+        },
+        "required": [
+          "country_code",
+          "admin1",
+          "admin2",
+          "city"
+        ],
+        "title": "TruthOut",
+        "type": "object"
+      },
       "UpdateAdminRequest": {
         "properties": {
           "display_name": {
@@ -6891,6 +8273,16 @@
           },
           "geofence": {
             "$ref": "#/components/schemas/GeofenceBlock"
+          },
+          "ground_truth_label": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/LabelOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "honeypot_tripped": {
             "title": "Honeypot Tripped",
@@ -7499,7 +8891,7 @@
     },
     "/api/v1/analytics/accuracy": {
       "get": {
-        "description": "Precision and coverage need the ground-truth set (F4.AC15), which M8 builds. Until then both are null with reason `no_ground_truth_labels` and `label_count` is 0. `emission_rate` is reported meanwhile and is explicitly not accuracy: it says how often strict answered, not whether it was right.",
+        "description": "A replay, under the active settings version, of the labelled visits the filters select (ADR-0024), on the network-only population: consented visits are scored without their GPS. Every figure has its label count and a 95 % Wilson interval. `emission_rate` is how often strict answered over every inferred visit in scope, and is explicitly not accuracy.",
         "operationId": "accuracy_api_v1_analytics_accuracy_get",
         "parameters": [
           {
@@ -14807,6 +16199,385 @@
         "summary": "Update a geofence",
         "tags": [
           "geofences"
+        ]
+      }
+    },
+    "/api/v1/ground-truth": {
+      "get": {
+        "operationId": "list_labels_api_v1_ground_truth_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LabelList"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Every label, with the engine's recorded answer beside it",
+        "tags": [
+          "ground-truth"
+        ]
+      },
+      "post": {
+        "operationId": "create_label_api_v1_ground_truth_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LabelIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LabelOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Label a visit (owner only, audited)",
+        "tags": [
+          "ground-truth"
+        ]
+      }
+    },
+    "/api/v1/ground-truth/metrics": {
+      "get": {
+        "description": "A replay of the consensus over every labelled visit's stored candidates under `settings_version` (default: the active one), so a retained version can be scored without activating it. Every proportion carries `k`, `n` and a 95 % Wilson interval.",
+        "operationId": "metrics_api_v1_ground_truth_metrics_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "settings_version",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "minimum": 1,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Settings Version"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Report"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Precision, coverage and best-guess accuracy, replayed (F4.AC13, F4.AC17)",
+        "tags": [
+          "ground-truth"
+        ]
+      }
+    },
+    "/api/v1/ground-truth/queue": {
+      "get": {
+        "description": "`order=conflict` ranks by `conflict_score`, then newest: where sources disagreed most, a label teaches tuning most. `order=recent` is newest first, for the test visit you have just made.",
+        "operationId": "queue_api_v1_ground_truth_queue_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "order",
+            "required": false,
+            "schema": {
+              "default": "conflict",
+              "enum": [
+                "conflict",
+                "recent"
+              ],
+              "title": "Order",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "link_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Link Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 20,
+              "maximum": 100,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Queue"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Visits worth labelling, most disagreement first",
+        "tags": [
+          "ground-truth"
+        ]
+      }
+    },
+    "/api/v1/ground-truth/runs": {
+      "get": {
+        "operationId": "list_runs_api_v1_ground_truth_runs_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/RunOut"
+                  },
+                  "title": "Response List Runs Api V1 Ground Truth Runs Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Recorded measurements, newest first",
+        "tags": [
+          "ground-truth"
+        ]
+      },
+      "post": {
+        "operationId": "record_run_api_v1_ground_truth_runs_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RunIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RunDetail"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Score the active version now and record it (owner only)",
+        "tags": [
+          "ground-truth"
+        ]
+      }
+    },
+    "/api/v1/ground-truth/runs/{run_id}": {
+      "get": {
+        "operationId": "get_run_api_v1_ground_truth_runs__run_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "run_id",
+            "required": true,
+            "schema": {
+              "title": "Run Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RunDetail"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "One recorded measurement",
+        "tags": [
+          "ground-truth"
+        ]
+      }
+    },
+    "/api/v1/ground-truth/{label_id}": {
+      "delete": {
+        "operationId": "delete_label_api_v1_ground_truth__label_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "label_id",
+            "required": true,
+            "schema": {
+              "title": "Label Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Delete a label (owner only, audited)",
+        "tags": [
+          "ground-truth"
+        ]
+      },
+      "patch": {
+        "operationId": "update_label_api_v1_ground_truth__label_id__patch",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "label_id",
+            "required": true,
+            "schema": {
+              "title": "Label Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LabelPatch"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LabelOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Change a label (owner only, audited)",
+        "tags": [
+          "ground-truth"
         ]
       }
     },

@@ -46,6 +46,7 @@ from sqlalchemy import (
 )
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from tracelet.accuracy import store as accuracy_store
 from tracelet.analytics.filters import (
     AUTOMATED,
     VisitFilter,
@@ -69,6 +70,7 @@ from tracelet.classify.identity import DIGEST_BYTES
 from tracelet.config import Settings
 from tracelet.errors import ValidationFailed
 from tracelet.inference.sources import asn_org
+from tracelet.inference.types import GeoLevel
 
 router = APIRouter(prefix="/api/v1/analytics", tags=["analytics"])
 
@@ -796,12 +798,25 @@ async def funnel(principal: CurrentPrincipal, db: DbSession, settings: Config, f
     )
 
 
+AccuracyLevel = Literal["country", "admin1", "admin2", "city"]
+_ACCURACY_LEVELS: dict[GeoLevel, AccuracyLevel] = {
+    GeoLevel.COUNTRY: "country",
+    GeoLevel.ADMIN1: "admin1",
+    GeoLevel.ADMIN2: "admin2",
+    GeoLevel.CITY: "city",
+}
+
+
 class LevelAccuracy(BaseModel):
-    level: Literal["country", "admin1", "admin2", "city"]
+    level: AccuracyLevel
     # Stated beside every figure (RISKS R9): 30 labels and 3000 are different claims.
     label_count: int
     precision: float | None
+    precision_ci95: tuple[float, float] | None
     coverage: float | None
+    coverage_ci95: tuple[float, float] | None
+    advisory_accuracy: float | None
+    advisory_ci95: tuple[float, float] | None
     # Not accuracy: the share of inferred visits for which strict emitted this level.
     emission_rate: float | None
     reason: str | None
@@ -810,6 +825,9 @@ class LevelAccuracy(BaseModel):
 class Accuracy(BaseModel):
     meta: Meta
     inferred: int
+    settings_version: int
+    inference_version: str
+    population: Literal["network_only"]
     levels: list[LevelAccuracy]
 
 
@@ -818,10 +836,11 @@ class Accuracy(BaseModel):
     response_model=Accuracy,
     summary="Precision and coverage per level, with label counts (F9.AC10)",
     description=(
-        "Precision and coverage need the ground-truth set (F4.AC15), which M8 builds. "
-        "Until then both are null with reason `no_ground_truth_labels` and `label_count` "
-        "is 0. `emission_rate` is reported meanwhile and is explicitly not accuracy: it "
-        "says how often strict answered, not whether it was right."
+        "A replay, under the active settings version, of the labelled visits the filters "
+        "select (ADR-0024), on the network-only population: consented visits are scored "
+        "without their GPS. Every figure has its label count and a 95 % Wilson interval. "
+        "`emission_rate` is how often strict answered over every inferred visit in scope, "
+        "and is explicitly not accuracy."
     ),
 )
 async def accuracy(
@@ -845,18 +864,39 @@ async def accuracy(
     ).one()
     inferred = _int(row[0])
     emitted = dict(zip(("country", "admin1", "admin2", "city"), map(_int, row[1:]), strict=True))
-    levels = [
-        LevelAccuracy(
-            level=level,
-            label_count=0,
-            precision=None,
-            coverage=None,
-            emission_rate=emitted[level] / inferred if inferred else None,
-            reason="no_ground_truth_labels",
+    report = await accuracy_store.report(db, where=[window.range_clause(), *visit_clauses(f)])
+    network = report.population("network_only")
+    levels = []
+    for measured in network.levels:
+        level = _ACCURACY_LEVELS[measured.level]
+        precision = measured.strict_precision
+        reason = None
+        if measured.label_count == 0:
+            reason = "no_ground_truth_labels"
+        elif precision.n == 0:
+            reason = "no_strict_emissions"
+        levels.append(
+            LevelAccuracy(
+                level=level,
+                label_count=measured.label_count,
+                precision=precision.value,
+                precision_ci95=precision.ci95,
+                coverage=measured.strict_coverage.value,
+                coverage_ci95=measured.strict_coverage.ci95,
+                advisory_accuracy=measured.advisory_accuracy.value,
+                advisory_ci95=measured.advisory_accuracy.ci95,
+                emission_rate=emitted[level] / inferred if inferred else None,
+                reason=reason,
+            )
         )
-        for level in ("country", "admin1", "admin2", "city")
-    ]
-    return Accuracy(meta=await _meta(db, window, cells, cells), inferred=inferred, levels=levels)
+    return Accuracy(
+        meta=await _meta(db, window, cells, cells),
+        inferred=inferred,
+        settings_version=report.settings_version or 0,
+        inference_version=report.inference_version,
+        population="network_only",
+        levels=levels,
+    )
 
 
 # ---------------------------------------------------------------------------
