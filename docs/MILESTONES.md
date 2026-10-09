@@ -1042,10 +1042,12 @@ F8.AC12 (amended), SPEC §11 row 29, ADR-0023. Branch `feat/m7.7-workflow`, stac
       (`test_a_replay_reproduces_what_the_engine_decided`); 9 integration, 22 unit and 6
       vitest tests; QA in Chromium, Firefox and WebKit with 0 CSP violations and the 3 × 3
       matrix (2026-10-09)
-- [ ] CI job fails on a deliberately-regressed threshold — *built: job 13 runs
-      `tracelet accuracy check`. A lowered admin1 threshold fails precision and a raised one
-      fails coverage on the synthetic fixture (`test_accuracy_gate.py`; the CLI exits 1).
-      Ticks once job 13 is seen red on a regressed config in CI*
+- [x] CI job fails on a deliberately-regressed threshold — job 13 runs
+      `tracelet accuracy check`. On a throwaway branch (`ci/m8-regressed-threshold`, deleted
+      after) with the admin1 threshold lowered from 0.75 to 0.30, CI run 37930522895 failed
+      job 13: `admin1.strict_precision` 95.6 % (n=45) against ≥ 99 %, `FAILED`, exit code 1
+      (2026-10-09). Locally, a lowered threshold fails precision and a raised one fails
+      coverage (`test_accuracy_gate.py`)
 - [ ] Per-source accuracy reported; any consistently-wrong source down-weighted **with
       evidence from `visit_candidates`**, not intuition — *reported (F4.AC17: API `sources`,
       the Sources tab); any down-weighting waits for real labels*
