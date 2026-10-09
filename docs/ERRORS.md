@@ -2518,6 +2518,35 @@ accidentally optional password field is the worse failure.
 
 **Related:** F4.AC15, DESIGN §16 M8, UI-7.
 
+### E77 — A NordVPN visit was classified "broadband", not datacenter
+
+**Status:** Fixed in M8 (feat/m8-accuracy). **Milestone:** M8. **Date:** 2026-10-09.
+
+**Symptom.** The owner labelled a visit made from their phone with NordVPN on. The visit
+showed best guess Seattle, US, with `asn_type = broadband`, `is_datacenter = false` and
+classification `unknown`.
+
+**Root cause.** The exit network was AS147049, **PacketHub S.A.**, the company that runs
+NordVPN's servers. It was in neither the curated `hosting` list in `asn_classes.json` nor
+matched by `hosting_org_keywords` ("PacketHub" contains none of them). So suppression rule (c)
+did not fire, and the classifier never saw a hosting network. Other defences held: the
+timezone contradiction (S11, `xcheck.tz_country`) kept the US below the threshold, so nothing
+was confirmed; and the same fingerprint on a third network within 24 hours
+(`net.fingerprint_across_asns`) set `is_proxy_suspected` and a spoof score of 45. Those depend
+on luck: a visitor whose timezone matches the VPN's country, or a first visit with no history,
+would have been taken as broadband.
+
+**Fix.** AS147049 added to `hosting`, and `packethub` to `hosting_org_keywords` for its other
+networks. A PacketHub visit is now hosting: rule (c) abstains on every strict level, and it is
+classified `datacenter`.
+
+**Prevention.** `tests/unit/test_asn_classes.py` pins PacketHub, the earlier VPN egresses
+(M247, Datacamp) and that Indian carriers are not mistaken for hosting. Labelled VPN visits
+(M8) are the ongoing check: a VPN label whose visit reads `broadband` means a VPN network is
+missing from the list.
+
+**Related:** F4.AC12(c), F5.AC9, ADR-0011, M8 ground truth.
+
 ---
 
 Add entries here as bugs are found and fixed. Use the next available `E<n>` identifier and
