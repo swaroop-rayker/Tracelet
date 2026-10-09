@@ -434,7 +434,9 @@ absent, never `false`),
 **`signals jsonb`** — array of fired rules `[{rule_id, category, weight, detail}]`, and
 the reasons for absent client values (F3.AC5), which use `category: "absence"` and
 weight 0. M2 records three: `ua.link_preview_fetcher`, `edge.unverified_cf_header` and
-`client.geolocation_absent`. M3 adds `inference.source_absent` — one per source that
+`client.geolocation_absent`. M8 adds `edge.dev_tunnel_address` (category `network`, weight 0):
+the address came from the development tunnel's `CF-Connecting-IP` (ADR-0025), so a label's
+provenance is visible. M3 adds `inference.source_absent` — one per source that
 produced no candidate, with `{source, status, latency_ms, reason}`, where `status` is
 `empty`, `disabled`, `timeout`, `unavailable` or `error` — and `inference.engine_error`.
 `inference.street_address_absent` records why a consented visit has no street address

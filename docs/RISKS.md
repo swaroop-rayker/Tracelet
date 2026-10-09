@@ -33,6 +33,7 @@ Severity is `impact × likelihood` at the time of writing, reassessed after each
 | R26 | Geofence drawing (M6) has no street-level basemap | Medium | **Closed 2026-10-06 — accepted: no basemap, region geofences (ADR-0020)** |
 | R27 | The UI redesign (M5.5) regresses accessibility, the CSP or behaviour | Medium | **Mitigated 2026-10-03 — 0 CSP violations in Chromium, Firefox and WebKit (after E44), filters unchanged, a11y sweep clean, 72-image matrix; hand keyboard pass by the owner 2026-10-07, nothing failed** |
 | R28 | The real-data accuracy gate is only as current as its last export | Low | Accepted, mitigated: export ends a labelling session (ADR-0024) |
+| R29 | The development tunnel trust could reach production, or trust too much | Medium | Mitigated: refused outside development, a private /29 only, warned at startup (ADR-0025) |
 
 ---
 
@@ -316,6 +317,24 @@ the network targets. **The gate itself is a point comparison**, and at this size
 country miss is 96.7 % of 30, under a 99.5 % target. That is deliberate (a wrong strict
 country is the error ADR-0005 forbids), and SPEC §11 row 30 has the targets re-set from
 data in the amendment that follows the first real labels.
+
+---
+
+## R29 — The development tunnel trust could reach production, or trust too much · MEDIUM
+
+**Risk.** `TRACELET_DEV_TRUSTED_TUNNEL` believes a header-supplied address, which F13.AC6
+exists to forbid. Set in production, or set to a wide range, it would let a visitor choose
+their own address and defeat rate limiting and geolocation together.
+
+**Mitigation (ADR-0025):** Settings refuse to load with it set unless `TRACELET_ENV` is
+`development`. The value must be a private network of at most 256 addresses. Only
+`cloudflared` and Caddy join the `tunnel` network it names, so the compose `default` network
+(the api, the database, the tools) is never trusted. The app logs `dev_tunnel_trusted` at
+every start. Every visit that used it carries `edge.dev_tunnel_address`. Unit tests cover
+each refusal, and an integration test covers the capture path both ways.
+
+**Residual.** While it is on, anything that reaches the `tunnel` network can pick its
+address. On a development PC that is only `cloudflared`.
 
 ---
 

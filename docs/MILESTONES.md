@@ -1057,7 +1057,15 @@ F8.AC12 (amended), SPEC §11 row 29, ADR-0023. Branch `feat/m7.7-workflow`, stac
       (row 30)*
 - [ ] Docs: SPEC F4.AC13 reconciled with measured reality
 
-**A labelling session (the owner; ADR-0024, RISKS R28)**
+**A labelling session (the owner; ADR-0024, ADR-0025, RISKS R28)**
+0. On the development stack: `TRACELET_DEV_TRUSTED_TUNNEL=172.31.254.0/29` in `.env` (see
+   `.env.example`; restart the api), then `./scripts/tl tunnel`, which prints a
+   `https://….trycloudflare.com` address. On the phone, open `<that address>/r/<slug>`: type
+   it, or send it to yourself. The dashboard stays at `https://localhost` on the PC; signing
+   in through the tunnel is refused by the CSRF origin check, by design (F8.AC11). A QR code
+   from the link builder there encodes `localhost`, which a phone cannot open. Without the
+   setting, a tunnelled visit records the tunnel, not your network (SPEC §11 row 31). Stop
+   with `./scripts/tl tunnel-stop`; the address changes on every start.
 1. On one network and connection (say Jio, mobile data, VPN off), open one of your links on
    your phone. A link with *ask for location* lets you allow it, and the GPS fix pre-fills
    the label.

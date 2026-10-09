@@ -430,6 +430,9 @@ the previous located visit of the same fingerprint). Weights and thresholds are 
              Including CF-Connecting-IP unless the peer is a verified
              Cloudflare address. Including the enrichment payload, which is
              attacker-controlled and only ever treated as a claim.       [F13.AC6]
+             Development only: CF-Connecting-IP from the `tunnel` network's
+             cloudflared, when TRACELET_DEV_TRUSTED_TUNNEL names it; the
+             address only, never the edge's colo or country.  [ADR-0025]
   ─────────────────────────────────────────────────────────────────────────────
   SEMI       admin session: authenticated, but role-checked server-side on
              every route, CSRF-validated, and audit-logged.            [F8.AC12]
@@ -798,6 +801,14 @@ not a dependency (ADR-0003 amendment).
 (only its two Latin font files are referenced, declared in `index.css`) and `lucide-react`
 (imported only through `components/icons.ts`, enforced by ESLint). Production memory cost:
 **zero** -- static assets. Download cost: 48 KB for the Latin font face on first load, cached.
+
+**M8 adds one development-only image and no runtime dependency** (ADR-0025):
+`cloudflare/cloudflared:2026.8.0`, the `tunnel` compose service, pulled only with the
+`tunnel` profile, so a phone can reach the development stack for labelling. Considered
+instead: an ngrok-style service (an account and a third party in the request path), and
+waiting for the M9 deploy (declined by the owner). Production memory cost: **zero** (never
+started there); 96 MiB `mem_limit` where it runs. M8's accuracy code is plain Python on
+existing dependencies (no numpy, CLAUDE.md §5).
 
 ### Python
 
