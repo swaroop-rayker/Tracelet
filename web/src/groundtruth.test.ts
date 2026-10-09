@@ -21,6 +21,7 @@ function target(over: Partial<TargetCheck>): TargetCheck {
     level: 'admin1',
     metric: 'strict_precision',
     target: 0.99,
+    direction: 'at_least',
     value: 1,
     n: 31,
     gated: true,
@@ -48,6 +49,12 @@ describe('figures', () => {
     expect(targetText(target({ target: 0.995, status: 'unmeasured', value: null }))).toBe(
       '≥ 99.5% · not measured yet',
     );
+    // A ceiling (SPEC §11 row 32): nothing may be confirmed through a VPN.
+    expect(
+      targetText(
+        target({ population: 'vpn', target: 0, direction: 'at_most', value: 0, status: 'met' }),
+      ),
+    ).toBe('≤ 0% · target met ✓');
     expect(targetText(target({ target: null, gated: false, status: 'reported' }))).toBe(
       'Reported; no target yet',
     );

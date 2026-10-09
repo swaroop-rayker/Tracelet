@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import gzip
 import json
+from dataclasses import replace
 from pathlib import Path
 
 import pytest
@@ -62,15 +63,52 @@ def test_a_raised_threshold_abstains_and_fails_coverage() -> None:
     assert _status(report, "admin1.strict_coverage") == "missed"
 
 
-def test_targets_stated_only_in_words_are_reported_not_gated() -> None:
+def test_targets_without_a_number_are_reported_not_gated() -> None:
+    """SPEC section 11 row 32: city best guess and coverage, and consented city, are
+    reported; country coverage now has a number (>= 95 %) and is gated."""
     report = _check(DEFAULT_CONFIG)
-    words = {t.id: t for t in report.targets if not t.gated}
-    assert set(words) == {
-        "country.strict_coverage",
+    reported = {t.id: t for t in report.targets if not t.gated}
+    assert set(reported) == {
         "city.strict_coverage",
+        "city.advisory_accuracy",
         "consented.city.advisory_accuracy",
     }
-    assert all(t.status == "reported" and t.target is None for t in words.values())
+    assert all(t.status == "reported" and t.target is None for t in reported.values())
+    country = next(t for t in report.targets if t.id == "country.strict_coverage")
+    assert country.gated and country.target == 0.95
+
+
+def test_vpn_labels_are_scored_apart_and_must_confirm_nothing() -> None:
+    report = _check(DEFAULT_CONFIG)
+    vpn = report.population("vpn")
+    assert vpn.label_count == 2
+    assert report.population("network_only").label_count == report.label_count - 2
+    checks = {t.id: t for t in report.targets if t.population == "vpn"}
+    assert set(checks) == {"vpn.country.strict_coverage", "vpn.admin1.strict_coverage"}
+    for check in checks.values():
+        assert check.direction == "at_most" and check.target == 0.0
+        assert check.status == "met", check
+
+
+def test_a_vpn_location_confirmed_is_a_failure() -> None:
+    """The threat E77 describes: a VPN network the hosting list lacks, and a visitor whose
+    timezone agrees with the VPN's country. Seattle is then confirmed, and the gate says so."""
+    loaded = fixture.read(SYNTHETIC)
+    unflagged = [
+        replace(c, asn=replace(c.asn, is_hosting=False), tz_countries=frozenset({"US"}))
+        if c.vpn_used
+        else c
+        for c in loaded.cases
+    ]
+    report = score(
+        unflagged,
+        DEFAULT_CONFIG,
+        settings_version=None,
+        inference_version="test",
+        classifier_version="test",
+    )
+    assert _status(report, "vpn.country.strict_coverage") == "missed"
+    assert report.passed is False
 
 
 def test_nothing_measurable_is_neither_a_pass_nor_a_fail() -> None:

@@ -40,7 +40,7 @@ const source = z.enum([
   'latency',
   'timezone',
 ]) satisfies z.ZodType<S['InferenceSource']>;
-export const population = z.enum(['all', 'consented', 'non_consented', 'network_only']);
+export const population = z.enum(['all', 'consented', 'non_consented', 'network_only', 'vpn']);
 export type Population = z.infer<typeof population>;
 const metric = z.enum(['strict_precision', 'strict_coverage', 'advisory_accuracy']);
 
@@ -67,6 +67,7 @@ const targetCheck: z.ZodType<S['TargetCheck']> = z.object({
   level: geoLevel,
   metric,
   target: z.number().nullable(),
+  direction: z.enum(['at_least', 'at_most']),
   value: z.number().nullable(),
   n: z.number(),
   gated: z.boolean(),

@@ -68,6 +68,7 @@ def case(
     candidates: list[Candidate],
     *,
     mobile: bool = False,
+    vpn: bool = False,
     consented: bool = False,
     path: str = "direct",
     network: str | None = None,
@@ -77,12 +78,13 @@ def case(
         truth=Truth(country_code="IN", admin1=admin1, city=city),
         consented=consented,
         path="cloudflare" if path == "cloudflare" else "direct",
-        asn=AsnInfo(is_mobile=mobile),
+        asn=AsnInfo(is_mobile=mobile, is_hosting=vpn),
         tz_countries=INDIA,
-        candidates=(country_only(S.IPINFO), *candidates),
+        # Through a VPN IPinfo sees the VPN too; the case passes its own.
+        candidates=tuple(candidates) if vpn else (country_only(S.IPINFO), *candidates),
         network=network,
         connection_kind=kind,
-        vpn_used=False,
+        vpn_used=vpn,
     )
 
 
@@ -192,6 +194,35 @@ def build() -> list[Case]:
                 [db(S.IP2LOCATION, wrong_admin1, wrong_city, 0.8)],
                 network="other",
                 kind="wifi",
+            )
+        )
+    for _ in range(2):
+        # A VPN (SPEC section 11 row 32): every source sees the VPN's server in Seattle on a
+        # hosting network. Rule (c) confirms nothing, which is the only right answer.
+        cases.append(
+            case(
+                "Karnataka",
+                "Bengaluru",
+                [
+                    Candidate(source=S.IPINFO, level=GeoLevel.COUNTRY, country_code="US"),
+                    Candidate(
+                        source=S.GEOLITE2,
+                        level=GeoLevel.CITY,
+                        country_code="US",
+                        admin1="Washington",
+                        city="Seattle",
+                    ),
+                    Candidate(
+                        source=S.DBIP,
+                        level=GeoLevel.CITY,
+                        country_code="US",
+                        admin1="Washington",
+                        city="Seattle",
+                    ),
+                ],
+                vpn=True,
+                network="jio",
+                kind="mobile_data",
             )
         )
     return cases

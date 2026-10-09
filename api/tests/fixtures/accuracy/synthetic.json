@@ -111,6 +111,114 @@
   {
    "asn": {
     "is_cgnat": false,
+    "is_hosting": true,
+    "is_mobile": false,
+    "is_tor": false,
+    "modal_admin1": null,
+    "modal_city": null,
+    "modal_share": null
+   },
+   "candidates": [
+    {
+     "admin1": null,
+     "admin2": null,
+     "city": null,
+     "country_code": "US",
+     "level": "country",
+     "raw_confidence": 1.0,
+     "source": "ipinfo"
+    },
+    {
+     "admin1": "Washington",
+     "admin2": null,
+     "city": "Seattle",
+     "country_code": "US",
+     "level": "city",
+     "raw_confidence": 1.0,
+     "source": "geolite2"
+    },
+    {
+     "admin1": "Washington",
+     "admin2": null,
+     "city": "Seattle",
+     "country_code": "US",
+     "level": "city",
+     "raw_confidence": 1.0,
+     "source": "dbip"
+    }
+   ],
+   "connection_kind": "mobile_data",
+   "consented": false,
+   "network": "jio",
+   "path": "direct",
+   "truth": {
+    "admin1": "Karnataka",
+    "admin2": null,
+    "city": "Bengaluru",
+    "country_code": "IN"
+   },
+   "tz_countries": [
+    "IN"
+   ],
+   "vpn_used": true
+  },
+  {
+   "asn": {
+    "is_cgnat": false,
+    "is_hosting": true,
+    "is_mobile": false,
+    "is_tor": false,
+    "modal_admin1": null,
+    "modal_city": null,
+    "modal_share": null
+   },
+   "candidates": [
+    {
+     "admin1": null,
+     "admin2": null,
+     "city": null,
+     "country_code": "US",
+     "level": "country",
+     "raw_confidence": 1.0,
+     "source": "ipinfo"
+    },
+    {
+     "admin1": "Washington",
+     "admin2": null,
+     "city": "Seattle",
+     "country_code": "US",
+     "level": "city",
+     "raw_confidence": 1.0,
+     "source": "geolite2"
+    },
+    {
+     "admin1": "Washington",
+     "admin2": null,
+     "city": "Seattle",
+     "country_code": "US",
+     "level": "city",
+     "raw_confidence": 1.0,
+     "source": "dbip"
+    }
+   ],
+   "connection_kind": "mobile_data",
+   "consented": false,
+   "network": "jio",
+   "path": "direct",
+   "truth": {
+    "admin1": "Karnataka",
+    "admin2": null,
+    "city": "Bengaluru",
+    "country_code": "IN"
+   },
+   "tz_countries": [
+    "IN"
+   ],
+   "vpn_used": true
+  },
+  {
+   "asn": {
+    "is_cgnat": false,
     "is_hosting": false,
     "is_mobile": false,
     "is_tor": false,

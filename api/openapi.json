@@ -5680,7 +5680,8 @@
               "all",
               "consented",
               "non_consented",
-              "network_only"
+              "network_only",
+              "vpn"
             ],
             "title": "Population",
             "type": "string"
@@ -7659,6 +7660,14 @@
       },
       "TargetCheck": {
         "properties": {
+          "direction": {
+            "enum": [
+              "at_least",
+              "at_most"
+            ],
+            "title": "Direction",
+            "type": "string"
+          },
           "gated": {
             "title": "Gated",
             "type": "boolean"
@@ -7688,7 +7697,8 @@
               "all",
               "consented",
               "non_consented",
-              "network_only"
+              "network_only",
+              "vpn"
             ],
             "title": "Population",
             "type": "string"
@@ -7732,6 +7742,7 @@
           "level",
           "metric",
           "target",
+          "direction",
           "value",
           "n",
           "gated",

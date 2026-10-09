@@ -3629,7 +3629,7 @@ export interface components {
              * Population
              * @enum {string}
              */
-            population: "all" | "consented" | "non_consented" | "network_only";
+            population: "all" | "consented" | "non_consented" | "network_only" | "vpn";
         };
         /**
          * PreferencesRequest
@@ -4362,6 +4362,11 @@ export interface components {
         };
         /** TargetCheck */
         TargetCheck: {
+            /**
+             * Direction
+             * @enum {string}
+             */
+            direction: "at_least" | "at_most";
             /** Gated */
             gated: boolean;
             /** Id */
@@ -4378,7 +4383,7 @@ export interface components {
              * Population
              * @enum {string}
              */
-            population: "all" | "consented" | "non_consented" | "network_only";
+            population: "all" | "consented" | "non_consented" | "network_only" | "vpn";
             /**
              * Status
              * @enum {string}

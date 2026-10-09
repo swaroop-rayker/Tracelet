@@ -41,7 +41,8 @@ export function interval(ci: readonly [number, number] | null): string {
 export function targetText(t: TargetCheck | undefined): string | null {
   if (t === undefined) return null;
   if (t.target === null) return 'Reported; no target yet';
-  const goal = `≥ ${pct(t.target, t.target * 100 === Math.round(t.target * 100) ? 0 : 1)}`;
+  const sign = t.direction === 'at_most' ? '≤' : '≥';
+  const goal = `${sign} ${pct(t.target, t.target * 100 === Math.round(t.target * 100) ? 0 : 1)}`;
   switch (t.status) {
     case 'met':
       return `${goal} · target met ✓`;

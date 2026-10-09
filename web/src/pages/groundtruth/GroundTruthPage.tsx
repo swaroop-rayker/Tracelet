@@ -52,14 +52,16 @@ const POPULATION_LABEL: Readonly<Record<Population, string>> = {
   consented: 'Consented',
   non_consented: 'Not consented',
   all: 'All',
+  vpn: 'VPN',
 };
 
 const POPULATION_HINT: Readonly<Record<Population, string>> = {
   network_only:
-    'Every label, scored on what the network alone says: a consented visit’s GPS is set aside. F4.AC13’s targets are gated here.',
+    'Every label without a VPN, scored on what the network alone says: a consented visit’s GPS is set aside. F4.AC13’s targets are gated here.',
   consented: 'Visits whose visitor allowed location, scored with their GPS.',
   non_consented: 'Visits without consent, as recorded.',
   all: 'Every label as recorded, GPS included where it was given.',
+  vpn: 'Visits labelled VPN on. The address is the VPN’s, so the right answer is to confirm nothing: any confirmed country or state here fails (SPEC §11 row 32).',
 };
 
 function asTab(raw: string | null): Tab {

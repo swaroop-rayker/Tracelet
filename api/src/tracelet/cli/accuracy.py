@@ -252,7 +252,8 @@ def _print(result: Report) -> None:
             )
     print("\nTargets (F4.AC13)")
     for t in result.targets:
-        target = f">= {t.target:.1%}" if t.target is not None else "no target yet"
+        sign = ">=" if t.direction == "at_least" else "<="
+        target = f"{sign} {t.target:.1%}" if t.target is not None else "no target yet"
         value = f"{t.value:.1%}" if t.value is not None else "-"
         print(f"  {t.status:<10} {t.id:<36} {value:>7} {target} (n={t.n})")
     verdict = {True: "PASSED", False: "FAILED", None: "NOTHING GATED WAS MEASURABLE"}

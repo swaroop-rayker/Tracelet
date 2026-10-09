@@ -8,8 +8,12 @@ has no room for numpy (CLAUDE.md section 5), and one formula does not need it.
 
 * ``all`` -- every label, replayed as recorded (consented visits keep their GPS);
 * ``consented`` / ``non_consented`` -- ``all`` split by consent;
-* ``network_only`` -- every label replayed with the GPS candidate removed. The network
-  targets of F4.AC13 are gated here.
+* ``network_only`` -- every label *without a VPN* replayed with the GPS candidate removed.
+  The network targets of F4.AC13 are gated here;
+* ``vpn`` -- the labels made with a VPN on, network path. The address describes the VPN, so
+  the only right answer is to confirm nothing, and that is what is gated (SPEC section 11
+  row 32). Kept out of ``network_only``, the per-path figures and the per-source figures,
+  where an unavoidable VPN location would count against the sources.
 """
 
 from __future__ import annotations
@@ -28,7 +32,13 @@ from tracelet.inference.config import InferenceConfig
 from tracelet.inference.types import LEVELS, Candidate, GeoLevel, InferenceSource
 
 Population = PopulationName
-POPULATIONS: tuple[Population, ...] = ("network_only", "all", "consented", "non_consented")
+POPULATIONS: tuple[Population, ...] = (
+    "network_only",
+    "all",
+    "consented",
+    "non_consented",
+    "vpn",
+)
 
 # z for a two-sided 95 % interval.
 _Z = 1.959963984540054
@@ -240,11 +250,13 @@ def score(
     chosen = [c for c in cases if only is None or only(c)]
     recorded = [_Scored(c, decide(c, config)) for c in chosen]
     network = [_Scored(c, decide(c, config, without_gps=True)) for c in chosen]
+    plain = [s for s in network if s.case.vpn_used is not True]
     populations = [
-        _population("network_only", network),
+        _population("network_only", plain),
         _population("all", recorded),
         _population("consented", [s for s in recorded if s.case.consented]),
         _population("non_consented", [s for s in recorded if not s.case.consented]),
+        _population("vpn", [s for s in network if s.case.vpn_used is True]),
     ]
     targets = _check(populations)
     gated = [t for t in targets if t.gated and t.status != "unmeasured"]
@@ -257,8 +269,8 @@ def score(
         cant_tell=cant_tell,
         pending=pending,
         populations=populations,
-        paths=_paths(network),
-        sources=_sources(recorded),
+        paths=_paths(plain),
+        sources=_sources([s for s in recorded if s.case.vpn_used is not True]),
         matrix=_matrix(chosen),
         targets=targets,
         passed=passed,
