@@ -222,6 +222,34 @@ task_openapi_check() {
     return 0
 }
 
+# The development tunnel (ADR-0025): a Cloudflare quick tunnel to this stack, so a phone
+# can reach it for M8's labelling. Development only; the address changes on every start.
+task_tunnel() {
+    require_env
+    if ! grep -q '^TRACELET_DEV_TRUSTED_TUNNEL=' .env; then
+        ylw "TRACELET_DEV_TRUSTED_TUNNEL is not set in .env: visits through the tunnel will"
+        ylw "record the tunnel, not your phone's network. Set it (see .env.example), then"
+        ylw "restart the api:  docker compose up -d api"
+    fi
+    $DC --profile tunnel up -d tunnel
+    step "Waiting for the tunnel's address"
+    i=0
+    while [ $i -lt 45 ]; do
+        url="$($DC --profile tunnel logs tunnel 2>/dev/null | grep -o 'https://[a-z0-9-]*\.trycloudflare\.com' | tail -1 || true)"
+        if [ -n "$url" ]; then
+            grn "$url"
+            echo "  Your links are at $url/r/<slug>. Stop with: ./scripts/tl tunnel-stop"
+            return 0
+        fi
+        i=$((i + 1))
+        sleep 1
+    done
+    red "No address yet. See: docker compose --profile tunnel logs tunnel"
+    exit 1
+}
+
+task_tunnel_stop() { $DC --profile tunnel rm -sf tunnel; grn "Tunnel stopped."; }
+
 task_help() {
     cat <<'EOF'
 tl — Tracelet task runner
@@ -239,6 +267,8 @@ tl — Tracelet task runner
   psql        open a psql shell on the database
   db-setup    one-time superuser setup for the restore check (ADR-0022)
   shell       open a shell in the api container
+  tunnel      development only: a public address for a phone (ADR-0025)
+  tunnel-stop stop it
   help        this
 
 Same tasks are available as `make <target>` where make is installed.
@@ -265,6 +295,8 @@ case "$cmd" in
     psql)          task_psql ;;
     db-setup)      task_db_setup ;;
     shell)         task_shell ;;
+    tunnel)        task_tunnel ;;
+    tunnel-stop)   task_tunnel_stop ;;
     waitdb)        task_waitdb ;;
     help|-h|--help) task_help ;;
     *) red "Unknown task: $cmd"; echo; task_help; exit 1 ;;

@@ -124,12 +124,46 @@ services:
     volumes:
       - caddy_data:/data
       - caddy_config:/config
+    # `tunnel` carries nothing unless the development tunnel below is started (ADR-0025).
+    networks: [default, tunnel]
     healthcheck:
       test: ["CMD", "wget", "-qO-", "--timeout=3", "http://127.0.0.1:2019/config/"]
       interval: 15s
       timeout: 5s
       retries: 4
       start_period: 15s
+
+  # --- development tunnel (ADR-0025, SPEC section 11 row 31) ------------------
+  # A Cloudflare quick tunnel, so a phone can reach this stack for M8's labelling:
+  # `./scripts/tl tunnel` starts it and prints the *.trycloudflare.com address. It
+  # alone shares the `tunnel` network with Caddy; TRACELET_DEV_TRUSTED_TUNNEL names that
+  # network so the visitor's real address is believed from it -- development only.
+  # The certs mount is the local TLS-inspection root (docs/ERRORS.md E21); harmless
+  # where nothing intercepts.
+  tunnel:
+    image: cloudflare/cloudflared:2026.8.0
+    profiles: ["tunnel"]
+    restart: "no"
+    mem_limit: 96m
+    command:
+      - tunnel
+      - --no-autoupdate
+      - --url
+      - https://caddy:443
+      - --http-host-header
+      - localhost
+      - --origin-server-name
+      - localhost
+      # Caddy's local CA signs the origin's certificate; the public side is Cloudflare's.
+      - --no-tls-verify
+    environment:
+      SSL_CERT_DIR: /certs:/etc/ssl/certs
+    volumes:
+      - ./api/certs:/certs:ro
+    networks: [tunnel]
+    depends_on:
+      caddy:
+        condition: service_started
 
   # --- toolchain containers -------------------------------------------------
   # Neither of these is part of the running stack. Both sit behind the "tools"
@@ -167,6 +201,15 @@ services:
     volumes:
       - ./:/work:rw
     command: ["true"]
+
+networks:
+  default:
+  # Only Caddy and the development tunnel join it; its range is what
+  # TRACELET_DEV_TRUSTED_TUNNEL names (ADR-0025).
+  tunnel:
+    ipam:
+      config:
+        - subnet: 172.31.254.0/29
 
 volumes:
   db_data:

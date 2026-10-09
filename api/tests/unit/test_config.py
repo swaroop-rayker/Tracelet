@@ -120,3 +120,24 @@ def test_public_base_url_is_always_https(site_address: str) -> None:
     url = Settings(site_address=site_address).public_base_url
     assert url == f"https://{site_address}"
     assert not url.startswith("http://")
+
+
+# --- the development tunnel (ADR-0025) -------------------------------------------
+
+
+def test_the_tunnel_trust_is_refused_outside_development() -> None:
+    with pytest.raises(ValidationError, match="development-only"):
+        Settings(env="production", dev_trusted_tunnel="172.31.254.0/29")
+
+
+@pytest.mark.parametrize("value", ["0.0.0.0/0", "8.8.8.0/24", "10.0.0.0/8", "not-a-network"])
+def test_the_tunnel_network_must_be_small_and_private(value: str) -> None:
+    with pytest.raises(ValidationError, match="TRACELET_DEV_TRUSTED_TUNNEL"):
+        Settings(dev_trusted_tunnel=value)
+
+
+def test_the_tunnel_network_parses_in_development(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv("TRACELET_DEV_TRUSTED_TUNNEL", raising=False)
+    settings = Settings(dev_trusted_tunnel="172.31.254.0/29")
+    assert str(settings.trusted_tunnel) == "172.31.254.0/29"
+    assert Settings().trusted_tunnel is None

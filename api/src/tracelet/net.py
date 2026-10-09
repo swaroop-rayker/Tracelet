@@ -126,12 +126,15 @@ class ClientAddress:
     ip: str | None
     edge_verified: bool
     forged_edge_header: bool
+    # The address came from the development tunnel's CF-Connecting-IP (ADR-0025).
+    via_dev_tunnel: bool = False
 
     def __repr__(self) -> str:
         # Never render the address itself.
         return (
             f"ClientAddress(ip=<{'set' if self.ip else 'none'}>, "
-            f"edge_verified={self.edge_verified}, forged={self.forged_edge_header})"
+            f"edge_verified={self.edge_verified}, forged={self.forged_edge_header}, "
+            f"tunnel={self.via_dev_tunnel})"
         )
 
 
@@ -140,13 +143,30 @@ def resolve_client(
     peer: str | None,
     cf_connecting_ip: str | None,
     behind_cloudflare: bool,
+    trusted_tunnel: ipaddress.IPv4Network | ipaddress.IPv6Network | None = None,
 ) -> ClientAddress:
-    """Decide which address a request belongs to (F13.AC6)."""
+    """Decide which address a request belongs to (F13.AC6).
+
+    ``trusted_tunnel`` is the development-only exception (ADR-0025): a peer inside that
+    network -- the cloudflared container's own -- is believed for the address, and only
+    the address: ``edge_verified`` stays false, so CF-Ray and CF-IPCountry are not.
+    """
     peer_addr = parse_ip(peer)
     claimed = parse_ip(cf_connecting_ip)
 
     if behind_cloudflare and claimed is not None and is_cloudflare(peer_addr):
         return ClientAddress(ip=str(claimed), edge_verified=True, forged_edge_header=False)
+
+    if (
+        trusted_tunnel is not None
+        and claimed is not None
+        and peer_addr is not None
+        and peer_addr.version == trusted_tunnel.version
+        and peer_addr in trusted_tunnel
+    ):
+        return ClientAddress(
+            ip=str(claimed), edge_verified=False, forged_edge_header=False, via_dev_tunnel=True
+        )
 
     return ClientAddress(
         ip=str(peer_addr) if peer_addr is not None else None,

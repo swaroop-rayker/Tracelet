@@ -60,6 +60,13 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         # R10). Worth seeing in the log at every boot rather than forgetting.
         edge="cloudflare" if settings.behind_cloudflare else "origin-only",
     )
+    if settings.dev_trusted_tunnel is not None:
+        # ADR-0025: development only (Settings refuse it elsewhere), never silent.
+        log.warning(
+            "dev_tunnel_trusted",
+            network=settings.dev_trusted_tunnel,
+            meaning="CF-Connecting-IP from this network is taken as the visitor's address",
+        )
 
     # The engine is not connected to here at startup on purpose. A database that
     # is slow to accept connections must not prevent the process from starting --

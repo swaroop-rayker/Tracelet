@@ -68,6 +68,7 @@ def client_address(request: Request, settings: Settings) -> ClientAddress:
         peer=peer,
         cf_connecting_ip=request.headers.get("cf-connecting-ip"),
         behind_cloudflare=settings.behind_cloudflare,
+        trusted_tunnel=settings.trusted_tunnel,
     )
 
 

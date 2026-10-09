@@ -17,6 +17,7 @@ once at boot (F14.AC5). Two rules shape this module:
 from __future__ import annotations
 
 import functools
+import ipaddress
 import zoneinfo
 from pathlib import Path
 from typing import Any, Literal
@@ -51,6 +52,12 @@ class Settings(BaseSettings):
     # only when the TCP peer is a verified Cloudflare address (F13.AC6). The
     # header alone is never trusted.
     behind_cloudflare: bool = False
+
+    # DEVELOPMENT ONLY (ADR-0025, SPEC section 11 row 31). The private network of the
+    # `tunnel` compose service (cloudflared). A peer inside it is believed for the
+    # visitor's address in CF-Connecting-IP -- the address only; CF-Ray and CF-IPCountry
+    # stay unbelieved. Refused outside `development`.
+    dev_trusted_tunnel: str | None = None
 
     # --- database ----------------------------------------------------------
     database_url: SecretStr = SecretStr(
@@ -201,8 +208,42 @@ class Settings(BaseSettings):
             raise ValueError(msg) from exc
         return value
 
+    @field_validator("dev_trusted_tunnel")
+    @classmethod
+    def _tunnel_network(cls, value: str | None) -> str | None:
+        """A small private network, never "anything" (ADR-0025)."""
+        if value is None:
+            return None
+        try:
+            network = ipaddress.ip_network(value.strip(), strict=True)
+        except ValueError as exc:
+            msg = f"TRACELET_DEV_TRUSTED_TUNNEL={value!r} is not a network such as 172.31.254.0/29."
+            raise ValueError(msg) from exc
+        if not network.is_private or network.num_addresses > 256:
+            msg = (
+                f"TRACELET_DEV_TRUSTED_TUNNEL={value!r} must be a private network of at most "
+                "256 addresses: the tunnel's own Docker network, never a wide range."
+            )
+            raise ValueError(msg)
+        return str(network)
+
+    @property
+    def trusted_tunnel(self) -> ipaddress.IPv4Network | ipaddress.IPv6Network | None:
+        """The development tunnel's network, parsed (validated above)."""
+        if self.dev_trusted_tunnel is None:
+            return None
+        return ipaddress.ip_network(self.dev_trusted_tunnel)
+
     @model_validator(mode="after")
     def _check_cross_field_invariants(self) -> Settings:
+        # A header-chosen address in production is the attack F13.AC6 exists to stop.
+        if self.dev_trusted_tunnel is not None and self.env != "development":
+            msg = (
+                "TRACELET_DEV_TRUSTED_TUNNEL is set but TRACELET_ENV is "
+                f"{self.env!r}: the tunnel trust is development-only (ADR-0025). Unset it."
+            )
+            raise ValueError(msg)
+
         if self.db_pool_max < self.db_pool_min:
             msg = (
                 f"TRACELET_DB_POOL_MAX ({self.db_pool_max}) must be >= "
