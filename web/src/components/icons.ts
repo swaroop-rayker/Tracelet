@@ -94,6 +94,7 @@ import {
   Repeat2,
   Share2,
   StickyNote,
+  Target,
 } from 'lucide-react';
 
 export const Icon = {
@@ -193,6 +194,8 @@ export const Icon = {
   Edit: Pencil,
   SaveView: Bookmark,
   QrCode,
+  // M8: ground truth (DESIGN §16 M8)
+  GroundTruth: Target,
 } as const satisfies Record<string, LucideIcon>;
 
 export type IconName = keyof typeof Icon;

@@ -27,6 +27,7 @@ import {
   Loading,
 } from '@/components/ui';
 import { countryName, label, pct, when } from '@/format';
+import { GroundTruthCard } from '@/components/groundtruth/GroundTruthCard';
 import { placeOf } from '@/visits';
 
 const LEVELS = ['country', 'admin1', 'admin2', 'city'] as const;
@@ -241,6 +242,8 @@ function Detail({
         />
       </Card>
 
+      <GroundTruthCard visit={visit} />
+
       <Card
         title="Derivation: every candidate"
         description="Each source's proposal, its weight, and whether consensus accepted it (F4.AC11)."
@@ -256,54 +259,7 @@ function Detail({
             reason="The reasons each source gave are listed below."
           />
         ) : (
-          <DataTable
-            caption="Candidates"
-            compact
-            rowKey={(_, i) => String(i)}
-            rows={visit.candidates}
-            columns={[
-              { key: 'source', header: 'Source', render: (c) => label(c.source) },
-              { key: 'level', header: 'Level', render: (c) => label(c.level) },
-              {
-                key: 'proposed',
-                header: 'Proposed',
-                render: (c) =>
-                  [c.city, c.admin2, c.admin1, c.country_code]
-                    .filter((x) => x !== null)
-                    .join(', ') || '—',
-              },
-              {
-                key: 'raw',
-                header: 'Raw',
-                numeric: true,
-                render: (c) => c.raw_confidence.toFixed(2),
-              },
-              { key: 'w', header: 'Weight', numeric: true, render: (c) => c.weight.toFixed(2) },
-              {
-                key: 'eff',
-                header: 'Effective',
-                numeric: true,
-                render: (c) => c.effective_weight.toFixed(2),
-              },
-              {
-                key: 'outcome',
-                header: 'Outcome',
-                render: (c) =>
-                  c.accepted ? (
-                    <Badge tone="ok">Accepted</Badge>
-                  ) : (
-                    <Badge tone="warn">{`Suppressed: ${label(c.suppressed_reason ?? 'unknown')}`}</Badge>
-                  ),
-              },
-              {
-                key: 'evidence',
-                header: 'Evidence',
-                className: 'evidence',
-                render: (c) => <span className="t-mono">{evidence(c.evidence)}</span>,
-              },
-              { key: 'ms', header: 'ms', numeric: true, render: (c) => c.latency_ms },
-            ]}
-          />
+          <CandidatesTable candidates={visit.candidates} />
         )}
         {absent.length > 0 && (
           <div className="subsection">
@@ -413,5 +369,62 @@ function Detail({
         </pre>
       </details>
     </div>
+  );
+}
+
+/** Every candidate with its weight and outcome (F4.AC11); also the labelling queue's left side. */
+export function CandidatesTable({
+  candidates,
+}: {
+  readonly candidates: VisitDetail['candidates'];
+}): React.JSX.Element {
+  return (
+    <DataTable
+      caption="Candidates"
+      compact
+      rowKey={(_, i) => String(i)}
+      rows={candidates}
+      columns={[
+        { key: 'source', header: 'Source', render: (c) => label(c.source) },
+        { key: 'level', header: 'Level', render: (c) => label(c.level) },
+        {
+          key: 'proposed',
+          header: 'Proposed',
+          render: (c) =>
+            [c.city, c.admin2, c.admin1, c.country_code].filter((x) => x !== null).join(', ') ||
+            '—',
+        },
+        {
+          key: 'raw',
+          header: 'Raw',
+          numeric: true,
+          render: (c) => c.raw_confidence.toFixed(2),
+        },
+        { key: 'w', header: 'Weight', numeric: true, render: (c) => c.weight.toFixed(2) },
+        {
+          key: 'eff',
+          header: 'Effective',
+          numeric: true,
+          render: (c) => c.effective_weight.toFixed(2),
+        },
+        {
+          key: 'outcome',
+          header: 'Outcome',
+          render: (c) =>
+            c.accepted ? (
+              <Badge tone="ok">Accepted</Badge>
+            ) : (
+              <Badge tone="warn">{`Suppressed: ${label(c.suppressed_reason ?? 'unknown')}`}</Badge>
+            ),
+        },
+        {
+          key: 'evidence',
+          header: 'Evidence',
+          className: 'evidence',
+          render: (c) => <span className="t-mono">{evidence(c.evidence)}</span>,
+        },
+        { key: 'ms', header: 'ms', numeric: true, render: (c) => c.latency_ms },
+      ]}
+    />
   );
 }

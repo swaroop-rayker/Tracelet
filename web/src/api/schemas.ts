@@ -148,15 +148,25 @@ export const funnelSchema: z.ZodType<S['Funnel']> = z.object({
   ),
 });
 
+/** A 95 % Wilson interval (ADR-0024), or null when nothing was measured. */
+export const interval = z.tuple([z.number(), z.number()]).nullable();
+
 export const accuracySchema: z.ZodType<S['Accuracy']> = z.object({
   meta: metaSchema,
   inferred: z.number(),
+  settings_version: z.number(),
+  inference_version: z.string(),
+  population: z.literal('network_only'),
   levels: z.array(
     z.object({
       level,
       label_count: z.number(),
       precision: z.number().nullable(),
+      precision_ci95: interval,
       coverage: z.number().nullable(),
+      coverage_ci95: interval,
+      advisory_accuracy: z.number().nullable(),
+      advisory_ci95: interval,
       emission_rate: z.number().nullable(),
       reason: z.string().nullable(),
     }),
@@ -225,6 +235,46 @@ export const visitPageSchema: z.ZodType<S['VisitPage']> = z.object({
   next_cursor: z.string().nullable(),
 });
 
+export const consentState = z.enum([
+  'granted',
+  'denied',
+  'unavailable',
+  'not_asked',
+  'blocked_by_webview',
+]) satisfies z.ZodType<S['ConsentState']>;
+
+const place = z.record(z.string(), z.string().nullable());
+
+/** A ground-truth label (docs/API.md section 11); here because the visit detail carries one. */
+export const labelSchema: z.ZodType<S['LabelOut']> = z.object({
+  id: z.string(),
+  visit_id: z.string(),
+  occurred_at: z.string(),
+  link: z.object({ id: z.string(), slug: z.string(), label: z.string() }),
+  consent_state: consentState,
+  cant_tell: z.boolean(),
+  truth: z.object({
+    country_code: z.string().nullable(),
+    admin1: z.string().nullable(),
+    admin2: z.string().nullable(),
+    city: z.string().nullable(),
+  }),
+  has_coordinates: z.boolean(),
+  connection_kind: z.string().nullable(),
+  vpn_used: z.boolean().nullable(),
+  network: z.string().nullable(),
+  notes: z.string().nullable(),
+  labeled_by: z.object({ id: z.string(), name: z.string() }).nullable(),
+  labeled_at: z.string(),
+  updated_at: z.string(),
+  recorded: z.object({
+    inference_version: z.string().nullable(),
+    strict: place,
+    advisory: place,
+  }),
+});
+export type GroundTruthLabel = S['LabelOut'];
+
 export const visitDetailSchema: z.ZodType<S['VisitDetail']> = z.object({
   ...visitSummaryShape,
   finalized_at: z.string().nullable(),
@@ -258,6 +308,7 @@ export const visitDetailSchema: z.ZodType<S['VisitDetail']> = z.object({
   referer: z.string().nullable(),
   utm: z.record(z.string(), z.string()).nullable(),
   honeypot_tripped: z.boolean(),
+  ground_truth_label: labelSchema.nullable(),
 });
 
 export const visitorViewSchema: z.ZodType<S['VisitorView']> = z.object({

@@ -4,7 +4,7 @@
  *
  * Slots for later milestones are added here when they ship -- never before, because a link
  * to nothing is a dead control (UI-12). Geofences and Alerts shipped in M6, System health in
- * M7.
+ * M7, Ground truth in M8.
  */
 
 import type { IconName } from '@/components/icons';
@@ -114,6 +114,14 @@ export const NAV_GROUPS: readonly NavGroup[] = [
         filtered: true,
         key: 'd',
         hint: 'Bot and spoofing rules',
+      },
+      {
+        to: '/ground-truth',
+        label: 'Ground truth',
+        icon: 'GroundTruth',
+        filtered: false,
+        key: 't',
+        hint: 'Label visits; measured accuracy per level and per source',
       },
     ],
   },
