@@ -993,10 +993,11 @@ F8.AC12 (amended), SPEC §11 row 29, ADR-0023. Branch `feat/m7.7-workflow`, stac
       included), and in the browser a view saved on Sources reopened from the sidebar
 - [x] Compare: both sides are the existing endpoints; the URL reproduces the comparison --
       two links and two periods walked in three engines; "Choose two links" when unset
-- [ ] Link builder: only `utm_*` keys; the QR code encodes exactly the URL shown; the SVG
-      download opens in a scanner -- *the keys, the URL and the QR's own text are tested
-      (vitest and the browser: the image's text is the URL shown), and the SVG downloads; a
-      phone scan of the printed code is the owner's check, not yet done*
+- [x] Link builder: only `utm_*` keys; the QR code encodes exactly the URL shown; the SVG
+      download opens in a scanner -- the keys, the URL and the QR's own text are tested
+      (vitest and the browser: the image's text is the URL shown), and the SVG downloads;
+      **the owner scanned a link-builder QR code with a phone and it opened the link
+      (2026-10-09)**
 - [x] The vendored file's licence, origin and commit recorded; gzipped size stated; loaded
       only on a link's page -- ADR-0023, ledger; 5.5 KB gzipped in its own lazy chunk
 - [x] New screens: four states, 3 themes × 3 widths, zero CSP violations in three engines --
