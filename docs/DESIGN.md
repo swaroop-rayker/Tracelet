@@ -991,7 +991,8 @@ one line with "Show 3".
 - **Inference:** the source-flow sankey as the primary card (400 px), then the confidence
   distribution and accuracy side by side. Accuracy shows a compact EmptyState ("Accuracy needs
   ground-truth labels — arrives in M8") instead of a table of nulls; the existing reason codes
-  drive the text.
+  drive the text. *Since M8 (§12 E39):* the card shows the replayed figures with their
+  intervals, and the EmptyState remains only for a period with no labels.
 - **Detection:** "Rules that fire most" as a RankedList with category badges; supporting charts
   as cards.
 

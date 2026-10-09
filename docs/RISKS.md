@@ -106,6 +106,12 @@ coverage is unreachable as designed. **Decision, 2026-09-29 (repository owner):*
 precision ≥ 95 %, drop the coverage floor until M8 sets one from ground truth, and report
 coverage per path. SPEC section 11 row 9.
 
+**As measured in M8 (2026-10-09, SPEC section 11 row 32).** The first ground truth bore this
+out: on 6 labelled network-path visits in Hubballi, no strict city at all (0 of 6; four on Jio
+mobile, where rule (b) withholds city by design), with the state right every time it was
+confirmed. City strict coverage stays unfloored, and city best guess is now reported rather
+than gated, until about 30 labels.
+
 ---
 
 ## R5 — Instagram webview enrichment survival · MEDIUM (was HIGH) · Android closed, iOS open

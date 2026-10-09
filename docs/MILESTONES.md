@@ -27,8 +27,8 @@ then open the PR (CLAUDE.md section 2).
 | M7 | System health and operations | L | **[x] done** — merged to `main` 2026-10-08 (#9); 10 of 10 items, plus the owner's additions (SPEC §11 rows 24–25) and F10.AC1's per-admin refresh interval; CSP 0 in three engines; ADR-0022; bugs E66–E71 (E69 cleared 164 dev IP ciphertexts) |
 | M7.5 | Alert types (owner-approved 2026-10-08; ENHANCEMENTS-PLAN Phase B, SPEC §11 row 27) | S | **[x] done** — merged 2026-10-08 (#10); 8 of 8 items; 4 types, all off by default; CSP 0 in three engines; no new dependency |
 | M7.6 | Sources, returning visitors, carriers, capture quality (owner-approved 2026-10-08; Phase C without C2; SPEC §11 row 28) | M | **[x] done** — merged 2026-10-08 (#11); 8 of 8 items; referrers cut to their origin (stored rows too); CSP 0 in three engines; bugs E74–E75 |
-| M7.7 | Annotations, saved views, compare, link builder (owner-approved 2026-10-08; Phase D; SPEC §11 row 29, ADR-0023) | M | **[x] done** — merged 2026-10-08 (#12); 7 of 8 items; **outstanding: the owner's phone scan of a printed QR code** (the last checklist item below); CSP 0 in three engines |
-| M8 | Accuracy hardening and ground truth | M | [ ] |
+| M7.7 | Annotations, saved views, compare, link builder (owner-approved 2026-10-08; Phase D; SPEC §11 row 29, ADR-0023) | M | **[x] done** — merged 2026-10-08 (#12); 8 of 8 items (the owner's phone scan of a link-builder QR code, 2026-10-09, closed the last); CSP 0 in three engines |
+| M8 | Accuracy hardening and ground truth | M | **[x] done** — merged to `main` 2026-10-09 (#13); 5 of 7 items, S10 not applicable; **carried forward as ongoing labelling** (no code left): 30+ labels across the networks (8 so far, Hubballi: Jio mobile, Airtel Wi-Fi, two with a VPN) and per-source down-weighting, which waits for those labels; F4.AC13 amended as interim targets until about 30 labels (SPEC §11 row 32); accuracy by replay (ADR-0024), development tunnel trust (ADR-0025, row 31); the real-label CI gate passes; CSP 0 in three engines; bugs E76–E77 |
 | M9 | Production hardening and deploy | M | [ ] |
 
 **Spikes (run during M0/M1, before the milestones that depend on them):**
@@ -1033,8 +1033,11 @@ F8.AC12 (amended), SPEC §11 row 29, ADR-0023. Branch `feat/m7.7-workflow`, stac
 
 **Done checklist**
 - [ ] 30+ labels collected across Airtel, Jio, ACT, BSNL, Vi; Wi-Fi and mobile data;
-      VPN on and off — *the owner's labelling sessions (below); Ground truth › Coverage counts
-      the matrix*
+      VPN on and off — ***carried forward** (M8 closed 2026-10-09 by the owner): ongoing
+      labelling sessions (below). 8 at closing, all in Hubballi: Jio mobile ×4, Airtel Wi-Fi
+      ×2, Airtel Wi-Fi with a VPN ×2. Ground truth › Coverage counts the matrix. At about 30
+      labels, the interim F4.AC13 targets of SPEC §11 row 32 are revisited and any retuning
+      done*
 - [x] Accuracy metrics computed, stored, and displayed with sample size — a replay of the
       consensus over stored candidates (ADR-0024): `/ground-truth/metrics`, `accuracy_runs`
       (append-only, migration 0018), the Ground truth page and the Inference card, every
@@ -1050,7 +1053,10 @@ F8.AC12 (amended), SPEC §11 row 29, ADR-0023. Branch `feat/m7.7-workflow`, stac
       coverage (`test_accuracy_gate.py`)
 - [ ] Per-source accuracy reported; any consistently-wrong source down-weighted **with
       evidence from `visit_candidates`**, not intuition — *reported (F4.AC17: API `sources`,
-      the Sources tab); any down-weighting waits for real labels*
+      the Sources tab; VPN labels excluded). **Carried forward** with the labels above: on 8
+      labels no source is consistently wrong enough to justify a weight change. A first
+      pattern to watch: on Jio mobile, ipwho.is and GeoLite2 named Bengaluru while
+      IP2Location and DB-IP named towns nearer the owner*
 - [x] ~~S10 measured~~ — not applicable: S10 dropped in M3 (SPEC §11 row 12, RISKS R23)
 - [x] **F4.AC13 targets either met or formally amended in SPEC section 11 with data** —
       amended by SPEC §11 row 32 (2026-10-09) from the owner's first 8 labels, as **interim**
