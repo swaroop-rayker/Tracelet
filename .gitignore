@@ -68,3 +68,7 @@ tmp/
 # See api/certs/README.md.
 api/certs/*.crt
 api/certs/*.pem
+
+# M8: an exported accuracy fixture is the owner's real labels, and the repository is public
+# (ADR-0024). It goes to the ACCURACY_FIXTURE Actions secret, never into git.
+*.json.gz

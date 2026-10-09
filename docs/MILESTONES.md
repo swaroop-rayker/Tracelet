@@ -1032,14 +1032,42 @@ F8.AC12 (amended), SPEC §11 row 29, ADR-0023. Branch `feat/m7.7-workflow`, stac
 
 **Done checklist**
 - [ ] 30+ labels collected across Airtel, Jio, ACT, BSNL, Vi; Wi-Fi and mobile data;
-      VPN on and off
-- [ ] Accuracy metrics computed, stored, and displayed with sample size
-- [ ] CI job fails on a deliberately-regressed threshold
+      VPN on and off — *the owner's labelling sessions (below); Ground truth › Coverage counts
+      the matrix*
+- [x] Accuracy metrics computed, stored, and displayed with sample size — a replay of the
+      consensus over stored candidates (ADR-0024): `/ground-truth/metrics`, `accuracy_runs`
+      (append-only, migration 0018), the Ground truth page and the Inference card, every
+      proportion `k of n` with a 95 % Wilson interval. Replay equals the engine's own answer
+      (`test_a_replay_reproduces_what_the_engine_decided`); 9 integration, 22 unit and 6
+      vitest tests; QA in Chromium, Firefox and WebKit with 0 CSP violations and the 3 × 3
+      matrix (2026-10-09)
+- [ ] CI job fails on a deliberately-regressed threshold — *built: job 13 runs
+      `tracelet accuracy check`. A lowered admin1 threshold fails precision and a raised one
+      fails coverage on the synthetic fixture (`test_accuracy_gate.py`; the CLI exits 1).
+      Ticks once job 13 is seen red on a regressed config in CI*
 - [ ] Per-source accuracy reported; any consistently-wrong source down-weighted **with
-      evidence from `visit_candidates`**, not intuition
+      evidence from `visit_candidates`**, not intuition — *reported (F4.AC17: API `sources`,
+      the Sources tab); any down-weighting waits for real labels*
 - [x] ~~S10 measured~~ — not applicable: S10 dropped in M3 (SPEC §11 row 12, RISKS R23)
-- [ ] **F4.AC13 targets either met or formally amended in SPEC section 11 with data**
+- [ ] **F4.AC13 targets either met or formally amended in SPEC section 11 with data** —
+      *after the labels: retune by new settings versions first, then amend what still misses
+      (row 30)*
 - [ ] Docs: SPEC F4.AC13 reconciled with measured reality
+
+**A labelling session (the owner; ADR-0024, RISKS R28)**
+1. On one network and connection (say Jio, mobile data, VPN off), open one of your links on
+   your phone. A link with *ask for location* lets you allow it, and the GPS fix pre-fills
+   the label.
+2. Ground truth › Queue › **Newest**: check the visit is yours (time, network), then say
+   where you were: state, then city. Choose the connection, VPN and network, then save. They
+   carry over to the next label.
+3. Repeat across Airtel, Jio, Vi, BSNL and ACT, on Wi-Fi and mobile data, with a VPN on and
+   off, until Coverage has no "none yet" where it matters and there are 30+ labels.
+4. End the session: **Record this measurement**, then refresh the CI secret:
+   `docker compose exec api tracelet accuracy export --out /tmp/gt.json.gz`,
+   `docker compose cp api:/tmp/gt.json.gz ./gt.json.gz`,
+   `base64 -w0 gt.json.gz | gh secret set ACCURACY_FIXTURE`, then delete `gt.json.gz`.
+   It is never committed: the repository is public.
 
 ---
 

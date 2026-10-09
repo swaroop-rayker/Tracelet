@@ -2495,6 +2495,29 @@ days start 30 minutes off UTC's (SPEC section 11 row 17 cuts days the same way).
 
 **Related:** F12.AC9, E70, E72.
 
+### E76 — "Save label" did nothing: an optional field was required
+
+**Status:** Fixed in M8 (feat/m8-accuracy). **Milestone:** M8. **Date:** 2026-10-09.
+
+**Symptom.** In the Playwright QA walk, saving a label from the queue showed no toast and sent
+no request. The screenshot showed the browser's own bubble, "Please fill out this field", on
+**District (optional)**, which had been left empty.
+
+**Root cause.** The `Field` primitive defaults `required` to `true` (it was written for the
+sign-in forms, where every field is required). The label form's three optional text fields,
+District, a typed City and Notes, used the default. So native form validation blocked the
+submit before React's handler ran, and nothing on the page explained it. The same default would
+have caught the note in "Record this measurement".
+
+**Fix.** The four optional fields pass `required={false}`.
+
+**Prevention.** The QA walk submits the form with District left empty and asserts the success
+toast. Any new form with an optional `Field` must say `required={false}`. Flipping the
+primitive's default was considered and declined: every existing form relies on it, and an
+accidentally optional password field is the worse failure.
+
+**Related:** F4.AC15, DESIGN §16 M8, UI-7.
+
 ---
 
 Add entries here as bugs are found and fixed. Use the next available `E<n>` identifier and

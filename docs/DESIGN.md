@@ -1713,9 +1713,11 @@ Scored under [v3 · active ▾]   m3.4+s3 · 41 labels · 2 can't tell
 [Queue] [Labels] [Sources] [Coverage] [Runs]          (tab in the URL: ?tab=queue)
 ```
 
-- A level card is three Stats: strict precision, strict coverage, best-guess accuracy. Each
-  shows `k of n`, the 95 % interval, and the target as text with ✓ / ✗ / "unmeasured" in
-  words (colour is never the only cue). An ungated target reads "reported, no target yet".
+- A level card is a Card with a KeyValue of three figures: confirmed precision, confirmed
+  coverage, best-guess accuracy. Each shows `k of n`, the 95 % interval, and the target as
+  text with ✓ / ✗ / "not measured yet" in words (colour is never the only cue). An ungated
+  target reads "Reported; no target yet". (As built: KeyValue, not Stat. Stat's four-across
+  row does not fit three figures inside a half-width card.) The cards sit in `grid-2`.
 - The page header's summary Alert: `passed` in words ("Every gated target met", "2 gated
   targets missed", "Nothing gated could be measured yet").
 - Population and settings version are URL keys (`population`, `settings_version`, UI-9).
@@ -1725,7 +1727,7 @@ Scored under [v3 · active ▾]   m3.4+s3 · 41 labels · 2 can't tell
 **Queue tab:** one visit at a time.
 
 ```
-Order (•) Most disagreement ( ) Newest     Link [All ▾]           12 of 40 labelled
+Order (•) Most disagreement ( ) Newest                             12 of 40 labelled
 ┌ Derivation ─────────────────────────────┐ ┌ Where was this visit really? ──────────┐
 │ 7 Oct, 19:31 · demo-ig · Jio · mobile   │ │ Country [India ▾]                       │
 │ Engine: Karnataka (strict) · Bengaluru  │ │ State   [Karnataka ▾]                   │
@@ -1742,6 +1744,8 @@ Order (•) Most disagreement ( ) Newest     Link [All ▾]           12 of 40 l
 - `j` / `k` move, `s` skips (this session only; nothing is stored), `Enter` in the form saves
   and moves on, and "Can't tell" stores a can't-tell label. Shortcuts are inert while typing
   in a text field, except `Enter`.
+- No link picker in M8: "Newest" finds the test visit just made, which is what a labelling
+  session needs. `GET /ground-truth/queue?link_id=` exists for when one is wanted.
 - The form pre-fills from the visit's GPS candidate when the visit was consented ("Pre-filled
   from this visit's GPS fix -- check it"), and from the previous label's connection, VPN and
   network, since a test session runs on one network.
