@@ -57,11 +57,12 @@ capture that overruns a deadline is answered the same way and finishes recording
    `rate_limited` row it would have written (link, time, network prefix, HMAC; never a raw
    IP, invariant 4), and the buffer is written in batches once the worker recovers. Beyond
    `TRACELET_OVERLOAD_BUFFER` rows (5 000 per worker) visits are only counted, and the count
-   is logged and shown. A slug the cache does not know is a 404 as now (F1.AC4). *(Settled
-   while building:)* a cache that has never loaded (a worker that has just started) cannot
-   answer from memory, so that capture takes the deadline path of item 4 instead of
-   answering 503: asking the database, bounded, is better than stranding the visitor. The
-   integration test of memory-pressure shedding found the gap.
+   is logged and shown. *(Settled while building, found twice by the memory-pressure
+   degradation test:)* **a slug the cache does not know is never answered from memory**,
+   neither as a 404 nor as "unavailable": it may be a link newer than the cache's last load,
+   or the worker may have just started, and only the database can say a link does not exist.
+   That capture takes the deadline path of item 4 and the database decides, bounded. A
+   cached link that is not live is a 404 (F1.AC4).
 4. **Not overloaded: a deadline.** A normal capture that has not produced its response
    after `TRACELET_CAPTURE_DEADLINE_MS` (1 000) is answered from the cache, as in item 3,
    and its recording task is **not cancelled**: it finishes in the background (shielded,

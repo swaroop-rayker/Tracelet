@@ -145,3 +145,11 @@ the owner approved it: production runs **one worker**, and `api` and `caddy` car
 `memswap_limit` equal to `mem_limit`, so the redirect path is never swapped. The topology is
 otherwise unchanged; raising `shared_buffers` and a larger host remain the next steps, in
 that order.
+
+## Amended 2026-10-10 (M9): Caddy can answer a capture on its own
+
+ADR-0029 gives Caddy one more job: when the api does not answer `/r/...` within 3 s, or
+cannot be reached, Caddy serves a redirect page the api prepared for that link, from a new
+read-only `fallback` volume shared with the api. Still three containers; no new process;
+under 1 KB of disk per link. The baseline security headers became a Caddyfile snippet so
+these error-path responses carry them too.

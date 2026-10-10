@@ -542,6 +542,17 @@ the cache and finishes recording behind. Telemetry degrades in visible stages (f
 unenriched, buffered, counted); the journey is the same in all of them. A worker whose cache
 has never loaded still asks the database, bounded.
 
+**And when the api cannot answer at all** (ADR-0029): saturated, wedged, restarting during a
+deploy, or down. The api keeps one small redirect page per live link in the `fallback`
+volume (`capture/fallback_pages.py`; rewritten with the link cache every 30 s and at once
+after any link edit, so a deactivated link loses its page immediately). Caddy proxies `/r` with
+a 3 s response timeout, against the api's own 1 s deadline; on a refused connection or that
+timeout, `handle_errors` serves the link's page (503, a `meta refresh` to the stored
+destination, the baseline security headers and a no-script CSP), the default link's page for
+bare `/r`, or "temporarily unavailable". Nothing in a page comes from the request but the slug,
+which names a file only through the app's own pattern. Those visits are not recorded; Caddy's
+access log shows them. This is the last stage, and the only one the api takes no part in.
+
 Missing configuration degrades a column, not the visit: no stable pepper means no
 `ip_hmac`, no key file means no `ip_enc`, no session secret means no enrichment nonce. Each
 is logged on every request, and the visit is still recorded and redirected.
