@@ -87,3 +87,25 @@ have the VM only pull.**
 - A local root can no longer silently reach production. The check in item 2 is what makes
   that true, not the comment.
 - The host baseline lives in the runbook and in `tl deploy`'s checks; a new VM repeats it.
+
+## Amended 2026-10-10 (M9, E79): two guards for the redirect under memory pressure
+
+The first deploy's `asn_profiles` rebuild (ERRORS E79) showed two ways the box itself, not
+the app, failed requests under memory pressure. The owner approved both guards.
+
+1. **Caddy reaches the api by a fixed address.** One 502 during the rebuild was Caddy's
+   `dial tcp: lookup api: i/o timeout`: Docker's embedded DNS is answered by `dockerd` on the
+   host, and `dockerd` had been partly swapped out. The compose `default` network now has a
+   fixed subnet, `172.31.253.0/24`, with automatic addresses only from `172.31.253.128/25`;
+   the api holds `172.31.253.10`, and Caddy's upstream is `TRACELET_API_UPSTREAM` (that
+   address; `api:8000` when unset). No name is resolved on the redirect path. The api's own
+   connections to `db` still resolve by name, but the pool keeps them open, so a lookup
+   happens only on a new connection.
+2. **`vm.swappiness = 10`** in the host baseline (`deploy/host/sysctl-tracelet.conf`, applied
+   and checked by `tl host-setup` and `tl host-check`). At Debian's default of 60 each worker
+   had about 40 % of its memory swapped to the network disk while 426 MB was page cache.
+   Measured during the rebuild, it lowered the median `/healthz` from 1.0 s to 0.76 s; it is
+   not the fix on its own (E79's is), but it keeps program memory resident in general.
+
+Changing the default network's subnet makes compose recreate it: the first deploy after this
+needs `docker compose down` once, said in the runbook.

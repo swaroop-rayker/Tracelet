@@ -371,6 +371,7 @@ task_host_check() {
     [ "${swap_kb:-0}" -ge 1900000 ] || warn "swap is under 2 GB (ADR-0012)"
     [ -f /etc/systemd/journald.conf.d/50-tracelet.conf ] || warn "journald is not capped"
     grep -q 'maxsize 100M' /etc/logrotate.d/rsyslog 2>/dev/null || warn "rsyslog rotation is Debian's weekly default"
+    [ "$(cat /proc/sys/vm/swappiness 2>/dev/null)" = "10" ] || warn "vm.swappiness is not 10"
     if systemctl is-active --quiet google-cloud-ops-agent 2>/dev/null; then
         warn "the Ops Agent is running (stopped by owner decision, ADR-0026)"
     fi
@@ -391,6 +392,9 @@ task_host_setup() {
     sudo systemctl restart systemd-journald
     step "rsyslog: daily or at 100 MB, four kept"
     sudo install -m 0644 deploy/host/logrotate-rsyslog /etc/logrotate.d/rsyslog
+    step "vm.swappiness: 10 (drop page cache before swapping program memory)"
+    sudo install -m 0644 deploy/host/sysctl-tracelet.conf /etc/sysctl.d/60-tracelet.conf
+    echo 10 | sudo tee /proc/sys/vm/swappiness > /dev/null
     step "Ops Agent: stopped and disabled, kept installed"
     if systemctl list-unit-files google-cloud-ops-agent.service >/dev/null 2>&1; then
         sudo systemctl disable --now google-cloud-ops-agent.service 2>/dev/null || true

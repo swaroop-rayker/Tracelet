@@ -110,6 +110,12 @@ services:
     # No published ports. Caddy is the only ingress.
     expose:
       - "8000"
+    # A fixed address, so Caddy reaches the api without a DNS lookup. Docker's embedded
+    # DNS is answered by dockerd on the host, and under memory pressure on the e2-micro a
+    # lookup of `api` timed out and the request became a 502 (docs/ERRORS.md E79, ADR-0026).
+    networks:
+      default:
+        ipv4_address: 172.31.253.10
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/healthz', timeout=3).status==200 else 1)"]
       interval: 10s
@@ -126,6 +132,8 @@ services:
     logging: *logging
     environment:
       TRACELET_SITE_ADDRESS: ${TRACELET_SITE_ADDRESS:-localhost}
+      # The api's fixed address on the default network (below): no DNS on the redirect path.
+      TRACELET_API_UPSTREAM: 172.31.253.10:8000
     depends_on:
       api:
         condition: service_started
@@ -216,7 +224,14 @@ services:
     command: ["true"]
 
 networks:
+  # A fixed subnet so the api can hold a fixed address (ADR-0026). Docker hands out
+  # automatic addresses only from ip_range, the upper half, so a container started first
+  # (a tools run, the database) can never take the api's .10.
   default:
+    ipam:
+      config:
+        - subnet: 172.31.253.0/24
+          ip_range: 172.31.253.128/25
   # Only Caddy and the development tunnel join it; its range is what
   # TRACELET_DEV_TRUSTED_TUNNEL names (ADR-0025).
   tunnel:

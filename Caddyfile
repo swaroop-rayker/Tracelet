@@ -84,7 +84,10 @@
 	# request (B6, F2.AC11). A CI test asserts this.
 	@app path /api/* /r /r/* /privacy /healthz /readyz
 	handle @app {
-		reverse_proxy api:8000 {
+		# By address, not by name, when compose provides one (ADR-0026): a name is resolved
+		# by Docker's DNS in dockerd on the host, and under memory pressure that lookup
+		# timed out and became a 502 (docs/ERRORS.md E79). `api:8000` is the fallback.
+		reverse_proxy {$TRACELET_API_UPSTREAM:api:8000} {
 			# The actual TCP peer as Caddy sees it, overwriting anything the
 			# client sent. The app uses this to decide whether CF-Connecting-IP
 			# may be trusted: only when this address is a verified Cloudflare
