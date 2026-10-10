@@ -49,24 +49,63 @@
 	}
 }
 
+# Baseline security headers (F13.AC1, F13.AC2). A snippet because Caddy does not apply a
+# site's `header` directive to `handle_errors` responses, and the fallback pages served
+# there (ADR-0029) are responses like any other.
+(security_headers) {
+header {
+	Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+	X-Content-Type-Options "nosniff"
+	Referrer-Policy "strict-origin-when-cross-origin"
+	Cross-Origin-Opener-Policy "same-origin"
+	X-Frame-Options "DENY"
+
+	# geolocation=(self) is deliberate and load-bearing: F4.AC1 reads the
+	# visitor's location on the capture page where they have already
+	# granted it. A restrictive value here would silently disable it.
+	Permissions-Policy "geolocation=(self), camera=(), microphone=(), payment=(), usb=(), magnetometer=(), gyroscope=()"
+
+	-Server
+}
+}
+
+# The api upstream, shared by the capture handler and the rest of the app (ADR-0029).
+# One argument: how long to wait for the api's response headers.
+(to_api) {
+	# By address, not by name, when compose provides one (ADR-0026): a name is resolved
+	# by Docker's DNS in dockerd on the host, and under memory pressure that lookup
+	# timed out and became a 502 (docs/ERRORS.md E79). `api:8000` is the fallback.
+	reverse_proxy {$TRACELET_API_UPSTREAM:api:8000} {
+		# The actual TCP peer as Caddy sees it, overwriting anything the
+		# client sent. The app uses this to decide whether CF-Connecting-IP
+		# may be trusted: only when this address is a verified Cloudflare
+		# range (F13.AC6). Because Caddy sets it from {remote_host} rather
+		# than copying a request header, it cannot be forged.
+		header_up X-Tracelet-Peer-IP {remote_host}
+
+		# The client's own protocol and TLS version (F3.AC1). The application
+		# only ever sees HTTP/1.1 from Caddy, so without these both would be
+		# unobservable. Set, not copied, so a client cannot choose them.
+		header_up X-Tracelet-Proto {http.request.proto}
+		header_up X-Tracelet-TLS {http.request.tls.version}
+
+		header_up X-Forwarded-Proto {scheme}
+		header_up Host {host}
+
+		# The redirect must never fail (CLAUDE.md invariant 1). Fail fast
+		# rather than hanging a visitor on a wedged upstream.
+		transport http {
+			dial_timeout 3s
+			response_header_timeout {args[0]}
+		}
+	}
+}
+
 {$TRACELET_SITE_ADDRESS:localhost} {
 	encode zstd gzip
 
 	# --- Baseline security headers, every response (F13.AC1, F13.AC2) -------
-	header {
-		Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
-		X-Content-Type-Options "nosniff"
-		Referrer-Policy "strict-origin-when-cross-origin"
-		Cross-Origin-Opener-Policy "same-origin"
-		X-Frame-Options "DENY"
-
-		# geolocation=(self) is deliberate and load-bearing: F4.AC1 reads the
-		# visitor's location on the capture page where they have already
-		# granted it. A restrictive value here would silently disable it.
-		Permissions-Policy "geolocation=(self), camera=(), microphone=(), payment=(), usb=(), magnetometer=(), gyroscope=()"
-
-		-Server
-	}
+	import security_headers
 
 	# --- Layer 1 limits (ADR-0010) ------------------------------------------
 	request_body {
@@ -82,33 +121,58 @@
 	# query key containing track, collect, analytics, pixel, beacon or
 	# telemetry — content blockers match those substrings and silently kill the
 	# request (B6, F2.AC11). A CI test asserts this.
-	@app path /api/* /r /r/* /privacy /healthz /readyz
+	# --- Capture: /r/* (ADR-0029) --------------------------------------------
+	# Its own handler for one reason: a shorter wait. The api answers a capture within its
+	# own 1 s deadline (ADR-0028), so 3 s without response headers means the api is
+	# saturated or wedged; a refused connection means it is restarting or down. Either way
+	# handle_errors below sends the visitor on with the page the api prepared.
+	@capture path /r /r/*
+	handle @capture {
+		import to_api 3s
+	}
+
+	@app path /api/* /privacy /healthz /readyz
 	handle @app {
-		# By address, not by name, when compose provides one (ADR-0026): a name is resolved
-		# by Docker's DNS in dockerd on the host, and under memory pressure that lookup
-		# timed out and became a 502 (docs/ERRORS.md E79). `api:8000` is the fallback.
-		reverse_proxy {$TRACELET_API_UPSTREAM:api:8000} {
-			# The actual TCP peer as Caddy sees it, overwriting anything the
-			# client sent. The app uses this to decide whether CF-Connecting-IP
-			# may be trusted: only when this address is a verified Cloudflare
-			# range (F13.AC6). Because Caddy sets it from {remote_host} rather
-			# than copying a request header, it cannot be forged.
-			header_up X-Tracelet-Peer-IP {remote_host}
+		import to_api 10s
+	}
 
-			# The client's own protocol and TLS version (F3.AC1). The application
-			# only ever sees HTTP/1.1 from Caddy, so without these both would be
-			# unobservable. Set, not copied, so a client cannot choose them.
-			header_up X-Tracelet-Proto {http.request.proto}
-			header_up X-Tracelet-TLS {http.request.tls.version}
-
-			header_up X-Forwarded-Proto {scheme}
-			header_up Host {host}
-
-			# The redirect must never fail (CLAUDE.md invariant 1). Fail fast
-			# rather than hanging a visitor on a wedged upstream.
-			transport http {
-				dial_timeout 3s
-				response_header_timeout 10s
+	# --- When the api cannot answer a capture (ADR-0029) ---------------------------
+	# Upstream failures only (refused, timed out): a 503 the api itself returns is a
+	# response, not an error, and passes through untouched. The pages live in the
+	# `fallback` volume, written by the api: one per live link, each a meta refresh to a
+	# destination an admin stored, so nothing here comes from the request but the slug,
+	# and the slug names a file only through the app's own pattern. Not recorded: Caddy
+	# has no database. Its access log still shows each one.
+	handle_errors 502 503 504 {
+		import security_headers
+		@fallback_slug path_regexp fb ^/r/([a-z0-9-]{4,32})/?$
+		@fallback_bare path /r /r/
+		@fallback_other path /r/*
+		handle @fallback_slug {
+			root * /srv/fallback
+			header Content-Security-Policy "default-src 'none'; img-src data:; base-uri 'none'; form-action 'none'; frame-ancestors 'none'"
+			header Cache-Control "no-store"
+			try_files /{re.fb.1}.html /_unavailable.html
+			file_server {
+				status 503
+			}
+		}
+		handle @fallback_bare {
+			root * /srv/fallback
+			header Content-Security-Policy "default-src 'none'; img-src data:; base-uri 'none'; form-action 'none'; frame-ancestors 'none'"
+			header Cache-Control "no-store"
+			try_files /_default.html /_unavailable.html
+			file_server {
+				status 503
+			}
+		}
+		handle @fallback_other {
+			root * /srv/fallback
+			header Content-Security-Policy "default-src 'none'; img-src data:; base-uri 'none'; form-action 'none'; frame-ancestors 'none'"
+			header Cache-Control "no-store"
+			rewrite * /_unavailable.html
+			file_server {
+				status 503
 			}
 		}
 	}

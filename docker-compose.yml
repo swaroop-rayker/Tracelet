@@ -69,6 +69,9 @@ x-api: &api
     - ./secrets/ip_key:/run/secrets/ip_key:ro
     - geo_data:/data/geoip
     - backups:/data/backups
+    # Redirect pages Caddy serves when the api cannot answer a capture (ADR-0029).
+    # Written here; read-only in Caddy.
+    - fallback:/data/fallback
 
 services:
   db:
@@ -167,6 +170,8 @@ services:
     volumes:
       - caddy_data:/data
       - caddy_config:/config
+      # The api's redirect pages, for when it cannot answer (ADR-0029). Read-only.
+      - fallback:/srv/fallback:ro
     # `tunnel` carries nothing unless the development tunnel below is started (ADR-0025).
     networks: [default, tunnel]
     healthcheck:
@@ -294,3 +299,4 @@ volumes:
   caddy_config:
   geo_data:
   backups:
+  fallback:

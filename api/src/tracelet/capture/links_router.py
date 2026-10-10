@@ -22,7 +22,7 @@ import uuid
 from typing import Annotated, Literal
 
 import structlog
-from fastapi import APIRouter, Query, Request, Response, status
+from fastapi import APIRouter, BackgroundTasks, Depends, Query, Request, Response, status
 from pydantic import BaseModel, BeforeValidator, Field, StringConstraints
 from sqlalchemy import func, select, text, update
 from sqlalchemy.exc import IntegrityError
@@ -34,10 +34,11 @@ from tracelet.auth.dependencies import (
     DbSession,
     OwnerPrincipal,
     client_ip,
+    get_config,
 )
 from tracelet.capture.links import validate_destination
 from tracelet.capture.models import Link, Visit
-from tracelet.capture.service import link_cache
+from tracelet.capture.service import link_cache, refresh_after_link_change
 from tracelet.errors import (
     DefaultLinkRequired,
     FieldError,
@@ -49,7 +50,20 @@ from tracelet.net import prefix_of
 
 log = structlog.get_logger(__name__)
 
-router = APIRouter(prefix="/api/v1/links", tags=["links"])
+
+def _pages_after_change(request: Request, background: BackgroundTasks) -> None:
+    """After any change to links -- create, edit, clone, default, archive, delete -- the
+    link cache and Caddy's fallback pages are rebuilt (ADR-0029). As a background task it
+    runs after the response, which is after the commit (db/request_session.py), so it
+    reads what was saved; a deactivated or archived link stops redirecting at once.
+    Router-wide, so a new mutating endpoint cannot forget it."""
+    if request.method not in ("GET", "HEAD", "OPTIONS"):
+        background.add_task(refresh_after_link_change, get_config(request))
+
+
+router = APIRouter(
+    prefix="/api/v1/links", tags=["links"], dependencies=[Depends(_pages_after_change)]
+)
 
 
 def _normalise_slug(value: object) -> object:

@@ -52,15 +52,11 @@ def _fresh(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
     overload.reset_for_tests()
     overload.configure(SETTINGS)
     monkeypatch.setattr(pressure, "shedding", lambda _settings: False)
-    saved = (service.link_cache.entries, service.link_cache.default, service.link_cache.loaded)
-    service.link_cache.entries, service.link_cache.default, service.link_cache.loaded = (
-        {},
-        None,
-        False,
-    )
+    saved = (service.link_cache.entries, service.link_cache.default)
+    service.link_cache.entries, service.link_cache.default = {}, None
     yield
     overload.reset_for_tests()
-    service.link_cache.entries, service.link_cache.default, service.link_cache.loaded = saved
+    service.link_cache.entries, service.link_cache.default = saved
 
 
 # --- when a worker is overloaded --------------------------------------------------------
@@ -149,17 +145,13 @@ def test_the_buffer_is_bounded_and_counts_what_it_drops() -> None:
 # --- what the cache can answer alone ----------------------------------------------------
 
 
-def test_before_the_cache_has_loaded_an_unknown_slug_cannot_be_answered() -> None:
-    assert service.from_memory("spring-sale", FACTS, record=True).outcome is (
-        service.Outcome.UNAVAILABLE
-    )
-
-
-def test_after_it_has_loaded_an_unknown_slug_is_a_404() -> None:
+def test_a_slug_the_cache_does_not_know_cannot_be_answered_from_memory() -> None:
+    """Never a 404 from memory: the link may be newer than the cache's last load, and only
+    the database can say a slug does not exist (the caller asks it, bounded)."""
     service.link_cache.replace([LINK], None)
-    assert service.from_memory("other-link", FACTS, record=True).outcome is (
-        service.Outcome.NOT_FOUND
-    )
+    result = service.from_memory("other-link", FACTS, record=True)
+    assert result.outcome is service.Outcome.UNAVAILABLE
+    assert overload.current().buffered == 0
 
 
 def test_a_known_live_link_is_answered_and_its_visit_kept() -> None:

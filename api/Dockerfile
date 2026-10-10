@@ -127,9 +127,10 @@ RUN --mount=type=cache,target=/root/.cache/pip \
         [ -e "$crt" ] && cat "$crt" >> "$(python -m certifi)"; \
     done; true
 
-# Non-root. The only writable paths are the two mounted data volumes.
+# Non-root. The only writable paths are the three mounted data volumes (the third,
+# /data/fallback, holds the pages Caddy serves when the api cannot answer, ADR-0029).
 RUN useradd --system --create-home --uid 10001 tracelet \
- && mkdir -p /data/geoip /data/backups \
+ && mkdir -p /data/geoip /data/backups /data/fallback \
  && chown -R tracelet:tracelet /data
 USER tracelet
 

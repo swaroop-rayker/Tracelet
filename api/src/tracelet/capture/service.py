@@ -36,8 +36,8 @@ from sqlalchemy import func, literal, literal_column, select, text, update
 from sqlalchemy.dialects import postgresql as pg
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from tracelet.capture import fallback_pages, overload, useragent
 from tracelet.capture import nonce as nonces
-from tracelet.capture import overload, useragent
 from tracelet.capture import signals as sig
 from tracelet.capture.models import (
     Classification,
@@ -48,7 +48,7 @@ from tracelet.capture.models import (
     uuid7,
 )
 from tracelet.capture.schemas import EnrichmentPayload
-from tracelet.config import Settings
+from tracelet.config import Settings, get_settings
 from tracelet.crypto.envelope import EnvelopeError, seal_str
 from tracelet.crypto.hashing import hmac_sha256
 from tracelet.db.dml import execute_rowcount
@@ -129,14 +129,10 @@ class _LinkCache:
     # database is unreachable, or (ADR-0028) when this worker is overloaded or a capture
     # overran its deadline.
     default: LinkSnapshot | None = None
-    # True once a whole-set load has succeeded (``refresh_link_cache``). Before that a
-    # slug the cache does not know may still exist; after it, it does not.
-    loaded: bool = False
 
     def replace(self, snapshots: list[LinkSnapshot], default: LinkSnapshot | None) -> None:
         self.entries = {s.slug: s for s in snapshots[:_MAX_CACHED_LINKS]}
         self.default = default
-        self.loaded = True
 
     def put(self, snapshot: LinkSnapshot) -> None:
         if snapshot.slug not in self.entries and len(self.entries) >= _MAX_CACHED_LINKS:
@@ -162,29 +158,37 @@ link_cache = _LinkCache()
 LINK_CACHE_REFRESH_S: Final = 30.0
 
 
-async def refresh_link_cache() -> int:
-    """Load every unarchived link into this worker's cache (ADR-0028). Returns the count.
+async def refresh_link_cache(settings: Settings | None = None) -> int:
+    """Load every unarchived link into this worker's cache (ADR-0028), and rewrite the
+    redirect pages Caddy falls back to (ADR-0029). Returns the count.
 
     One small query: links are few. An edit through the API still invalidates the cache
-    of the worker that made it at once; this bounds the other worker's staleness.
+    of the worker that made it at once, and schedules this after its commit (the links
+    router); the 30 s cycle bounds any other worker's staleness.
     """
     async with session_scope() as db:
         links = (await db.execute(select(Link).where(Link.archived_at.is_(None)))).scalars().all()
         snapshots = [LinkSnapshot.of(link) for link in links]
         default = next((LinkSnapshot.of(link) for link in links if link.is_default), None)
     link_cache.replace(snapshots, default)
+    fallback_pages.sync((settings or get_settings()).fallback_dir, snapshots, default)
     return len(snapshots)
 
 
-async def keep_link_cache_warm(stop: asyncio.Event) -> None:
+async def refresh_after_link_change(settings: Settings) -> None:
+    """Run after a link edit has committed. Never raises: the edit has already succeeded."""
+    try:
+        await refresh_link_cache(settings)
+    except Exception as exc:  # noqa: BLE001 - the 30 s cycle tries again
+        log.warning("link_cache_refresh_failed", error_type=type(exc).__name__)
+
+
+async def keep_link_cache_warm(settings: Settings, stop: asyncio.Event) -> None:
     """At start, then every 30 s; skipped while this worker is overloaded, when the
     cache is exactly what must not wait on a query."""
     while not stop.is_set():
         if not overload.is_overloaded():
-            try:
-                await refresh_link_cache()
-            except Exception as exc:  # noqa: BLE001 - the last good set stays in use
-                log.warning("link_cache_refresh_failed", error_type=type(exc).__name__)
+            await refresh_after_link_change(settings)
         with contextlib.suppress(TimeoutError):
             await asyncio.wait_for(stop.wait(), timeout=LINK_CACHE_REFRESH_S)
 
@@ -485,8 +489,10 @@ def from_memory(slug: str | None, facts: RequestFacts, *, record: bool) -> Captu
 
     ``record`` keeps the minimal ``rate_limited`` row in this worker's buffer: true when
     the worker is overloaded, false behind a deadline, where the capture task still
-    running records the visit itself. A slug the cache does not know is a 404 once the
-    cache has loaded, and UNAVAILABLE before that, the only case that cannot redirect.
+    running records the visit itself. A slug the cache does not know is UNAVAILABLE --
+    "cannot say" -- never a 404: it may be newer than the last load, and only the
+    database can say a link does not exist. The caller then asks the database,
+    bounded. A cached link that is not live is a 404 (F1.AC4).
     """
     normalised: str | None = None
     if slug is not None:
@@ -495,9 +501,7 @@ def from_memory(slug: str | None, facts: RequestFacts, *, record: bool) -> Captu
             return CaptureResult(outcome=Outcome.NOT_FOUND)
     link = link_cache.get(normalised) if normalised is not None else link_cache.default
     if link is None:
-        return CaptureResult(
-            outcome=Outcome.NOT_FOUND if link_cache.loaded else Outcome.UNAVAILABLE
-        )
+        return CaptureResult(outcome=Outcome.UNAVAILABLE)
     if not link.is_live:
         return CaptureResult(outcome=Outcome.NOT_FOUND)
     if record:

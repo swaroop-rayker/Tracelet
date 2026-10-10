@@ -162,6 +162,9 @@ class Settings(BaseSettings):
     overload_inflight: int = Field(default=8, ge=1, le=1_000)
     overload_buffer: int = Field(default=5_000, ge=0, le=100_000)
     capture_deadline_ms: int = Field(default=1_000, ge=50, le=9_000)
+    # Redirect pages Caddy serves when the api cannot answer a capture (ADR-0029). The
+    # `fallback` volume: read-write here, read-only in Caddy at /srv/fallback.
+    fallback_dir: Path = Path("/data/fallback")
 
     # --- analytics (ADR-0016) ----------------------------------------------
     # Days and hours are bucketed in this zone. India is UTC+05:30, so UTC buckets

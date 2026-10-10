@@ -94,7 +94,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     monitor.start()
     stop_warming = asyncio.Event()
     warming = asyncio.create_task(
-        capture_service.keep_link_cache_warm(stop_warming), name="link-cache"
+        capture_service.keep_link_cache_warm(settings, stop_warming), name="link-cache"
     )
 
     try:

@@ -29,10 +29,10 @@ from . import capture_helpers as ch
 @pytest.fixture(autouse=True)
 def _fresh_state() -> Iterator[None]:
     overload.reset_for_tests()
-    saved = (service.link_cache.entries, service.link_cache.default, service.link_cache.loaded)
+    saved = (service.link_cache.entries, service.link_cache.default)
     yield
     overload.reset_for_tests()
-    service.link_cache.entries, service.link_cache.default, service.link_cache.loaded = saved
+    service.link_cache.entries, service.link_cache.default = saved
 
 
 @pytest.fixture
@@ -93,17 +93,14 @@ async def test_an_overloaded_worker_redirects_without_the_database(
     assert row.finalized_at is not None
 
 
-async def test_overloaded_before_the_cache_has_loaded_falls_back_to_the_database(
+async def test_overloaded_a_link_the_cache_does_not_know_falls_back_to_the_database(
     db_client: AsyncClient, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """A worker that has just started cannot answer from memory yet; stranding the visitor
-    would be worse than asking the database, bounded by the deadline."""
-    link = await ch.create_link()
-    service.link_cache.entries, service.link_cache.default, service.link_cache.loaded = (
-        {},
-        None,
-        False,
-    )
+    """A link newer than the cache's last load (or a worker that has just started): a 404
+    from memory would strand a visitor of a live link; the database, bounded, decides.
+    Found by the memory-pressure degradation test, ERRORS E82."""
+    await service.refresh_link_cache()
+    link = await ch.create_link()  # after the load
     monkeypatch.setattr(overload, "evaluate", lambda _settings: True)
 
     response = await ch.visit(db_client, link.slug)
@@ -180,7 +177,6 @@ async def test_the_link_cache_loads_live_links_and_the_default_not_archived_ones
 
     count = await service.refresh_link_cache()
 
-    assert service.link_cache.loaded
     assert count >= 1
     assert service.link_cache.get(live.slug) is not None
     assert service.link_cache.get(archived.slug) is None

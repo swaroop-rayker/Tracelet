@@ -84,8 +84,9 @@ async def capture_default(request: Request, settings: Config) -> Response:
 _behind: set[asyncio.Task[service.CaptureResult]] = set()
 
 # Past the deadline, a slug the cache cannot answer waits for its capture this long in
-# all, below Caddy's 10 s response timeout, so the database still gets to say.
-LAST_WAIT_S: Final = 8.0
+# all: inside Caddy's 3 s for /r (ADR-0029), after which Caddy serves the link's prepared
+# page itself, so waiting longer would only be wasted.
+LAST_WAIT_S: Final = 2.5
 
 
 async def _within_deadline(
@@ -104,7 +105,8 @@ async def _within_deadline(
         return task.result()
     answer = service.from_memory(slug, facts, record=False)
     if answer.outcome is not service.Outcome.FROM_MEMORY:
-        # The cache cannot say (a link newer than its last load, or not loaded yet).
+        # The cache cannot say (a link newer than its last load, or a slug that does
+        # not exist): the database decides, within what is left before Caddy's 3 s.
         done, _ = await asyncio.wait({task}, timeout=max(0.0, LAST_WAIT_S - deadline))
         if task in done:
             return task.result()
@@ -123,8 +125,9 @@ async def _capture(slug: str | None, request: Request, settings: Settings) -> Re
             # ADR-0028: no database, no await -- the redirect needs only memory.
             result = service.from_memory(slug, facts, record=True)
             if result.outcome is service.Outcome.UNAVAILABLE:
-                # The cache has never loaded (a worker just started): the database,
-                # bounded by the deadline, is better than no answer.
+                # The cache cannot say (a newer link, a worker just started, or a slug
+                # that does not exist): the database, bounded, decides -- a cache miss
+                # must never 404 a live link.
                 result = None
         if result is None:
             result = await _within_deadline(settings, slug, facts)
