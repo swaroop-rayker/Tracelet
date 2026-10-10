@@ -117,3 +117,8 @@ an `x-api` anchor shared by `api` (the server, with the address) and `cli` (one-
 it, behind a `cli` profile). `tl migrate`, `tl bootstrap` and the documented break-glass
 `docker compose run --rm cli tracelet admin reset-password` use it, whether the api is up or
 not.
+
+**The GCP OS-config agent joins the baseline (2026-10-10, ADR-0028 amendment).** After the load
+test the owner approved stopping and disabling `google-osconfig-agent` (19-63 MB), kept
+installed like the Ops Agent; `tl host-setup` applies it and `tl host-check` warns if it runs.
+Patching remains `unattended-upgrades`'; the guest agent stays, because it installs SSH keys.

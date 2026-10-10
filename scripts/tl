@@ -377,6 +377,9 @@ task_host_check() {
     if systemctl is-active --quiet google-cloud-ops-agent 2>/dev/null; then
         warn "the Ops Agent is running (stopped by owner decision, ADR-0026)"
     fi
+    if systemctl is-active --quiet google-osconfig-agent 2>/dev/null; then
+        warn "the OS-config agent is running (stopped by owner decision, ADR-0026)"
+    fi
     if grep -q '^TRACELET_SITE_ADDRESS=.*\.duckdns\.org' .env 2>/dev/null \
         && [ ! -f /etc/cron.d/tracelet-duckdns ]; then
         warn "the DuckDNS name is not kept pointed at this VM"
@@ -397,9 +400,13 @@ task_host_setup() {
     step "vm.swappiness: 10 (drop page cache before swapping program memory)"
     sudo install -m 0644 deploy/host/sysctl-tracelet.conf /etc/sysctl.d/60-tracelet.conf
     echo 10 | sudo tee /proc/sys/vm/swappiness > /dev/null
-    step "Ops Agent: stopped and disabled, kept installed"
+    step "Ops Agent and OS-config agent: stopped and disabled, kept installed"
     if systemctl list-unit-files google-cloud-ops-agent.service >/dev/null 2>&1; then
         sudo systemctl disable --now google-cloud-ops-agent.service 2>/dev/null || true
+    fi
+    # Patching is unattended-upgrades', not VM Manager's; the guest agent stays (SSH keys).
+    if systemctl list-unit-files google-osconfig-agent.service >/dev/null 2>&1; then
+        sudo systemctl disable --now google-osconfig-agent.service 2>/dev/null || true
     fi
     if grep -q '^TRACELET_SITE_ADDRESS=.*\.duckdns\.org' .env 2>/dev/null; then
         step "DuckDNS: re-pointed at boot and every five minutes"

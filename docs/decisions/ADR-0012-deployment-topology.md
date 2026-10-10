@@ -136,3 +136,12 @@ limiting and geolocation.
 - Egress approaches the free-tier limit.
 - The owner reconsiders Oracle Always Free — at which point the ARM64 multi-arch build is
   the main piece of work, and every other decision in this ADR set carries over unchanged.
+
+## Amended 2026-10-10 (M9): the first lever, pulled
+
+"Revisit if" above named one Uvicorn worker as the first response to the M9 load test
+breaching NFR1, NFR2 or NFR6 on this hardware. It did (ERRORS E82, ADR-0028 amendment), and
+the owner approved it: production runs **one worker**, and `api` and `caddy` carry
+`memswap_limit` equal to `mem_limit`, so the redirect path is never swapped. The topology is
+otherwise unchanged; raising `shared_buffers` and a larger host remain the next steps, in
+that order.

@@ -102,3 +102,24 @@ capture that overruns a deadline is answered the same way and finishes recording
   1-2 MB per worker; the lag ticker is one task. Within the api's budget.
 - The load test is repeated (ADR-0027) with the pass condition **no visitor left
   un-redirected at any load**, and SPEC §11 row 35's burst test for NFR1.
+
+## Amended 2026-10-10 (M9, after the re-test): the memory the redirect path needs
+
+The re-test on the box with items 1-5 in place: the **burst** test (SPEC §11 row 35) sent on
+910 of 910 visitors with time to first byte p95 860 ms, no worker lost. The **stress** flood
+ran four times the earlier throughput (13.7/s) and answered 12 409 visits from memory, yet
+**718 visitors (2.3 %) still waited past Caddy's 10 s**, and gunicorn killed 9 workers. The
+app logged requests stalled up to 24 s inside the process with swap near 200 MB: a worker
+whose own pages are swapped out runs no code at all, not even the answer from memory. The
+host averaged 741-792 MB in use against NFR6.AC1's 700.
+
+Offered with those figures, the owner approved three changes, all configuration:
+
+1. **No swap for the redirect path.** `memswap_limit` equals `mem_limit` for `api` (and so
+   `cli`, through the shared anchor) and `caddy`: the kernel can no longer swap them out, so
+   memory pressure lands on page cache, the database and Docker's daemons instead.
+2. **One gunicorn worker** (`TRACELET_WEB_CONCURRENCY=1`), ADR-0012's documented first memory
+   lever, about 110 MB. The box is granted about 0.8 of a vCPU under load (ARCHITECTURE §6.5),
+   so the second worker cost memory without adding throughput.
+3. **The GCP OS-config agent stopped and disabled** (ADR-0026 host baseline), 19-63 MB.
+   Patching stays with `unattended-upgrades`; the guest agent stays, for SSH keys.

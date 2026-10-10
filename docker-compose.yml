@@ -36,6 +36,10 @@ x-api: &api
     # profiled api-tools service below.
     target: production
   mem_limit: 420m
+  # No swap for the redirect path (ADR-0028 amendment): equal to mem_limit, so the
+  # kernel never swaps this container out. M9's stress test saw workers stall on
+  # swap-ins until gunicorn killed them, dropping every request they held.
+  memswap_limit: 420m
   logging: *logging
   env_file: .env
   environment:
@@ -146,6 +150,8 @@ services:
       dockerfile: web/Dockerfile
     restart: unless-stopped
     mem_limit: 64m
+    # On the redirect path too: never swapped (ADR-0028 amendment).
+    memswap_limit: 64m
     logging: *logging
     environment:
       TRACELET_SITE_ADDRESS: ${TRACELET_SITE_ADDRESS:-localhost}
