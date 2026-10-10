@@ -751,6 +751,24 @@ the e2-micro ran into the 900 s timeout and starved the workers. The e2-micro fi
 Before merging anything that adds a dependency, a container, or a long-lived in-process
 cache, state its expected RSS. That is a review gate, not a suggestion.
 
+### 6.5 Measured on the e2-micro — M9
+
+The first figures from the real box (`us-central1-a`, Debian 12, `pd-standard` 30 GB,
+2 GB swap). The load test's figures (NFR6.AC1 under NFR1 load) are added in M9's load test.
+
+| What | Measured | Note |
+|---|---|---|
+| Host, no container running, after cleanup and reboot | ~195 MB unreclaimable (166 MB anon) | Against §6's ~180 MB. GCP's guest agent (~88 MB) and OS-config agent (~63 MB) are most of it; the Ops Agent is stopped (ADR-0026) |
+| Containers idle after deploy | api 159 MiB, db 65 MiB, caddy 23 MiB | Host `available` 335 MB |
+| Disk, cache-cold | 37–121 MB/s sequential, 185–311 random 4 KiB reads/s (3–5 ms) | Better than `pd-standard`'s per-GB figures suggest, but every swapped page costs milliseconds |
+| CPU | ~0.8 of 2 vCPUs accounted over a 400 s busy window, almost no "steal" | Shared-core throttling; burst credits make back-to-back runs differ |
+| `asn_profiles` rebuild | 387 s, `nice 19`, mapped pages bounded (E79) | No request failed; `/healthz` median 0.77 s during it against 0.063 s idle |
+
+Two consequences shape operations. A background job's duration on this box is a
+measurement here, not a projection from the development PC (E79). And memory pressure first
+shows as swapped program memory and a slow `dockerd`, so the redirect path does not depend on
+`dockerd`'s DNS (ADR-0026 amendment).
+
 ---
 
 ## 7. Disk budget

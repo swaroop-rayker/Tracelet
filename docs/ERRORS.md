@@ -2603,9 +2603,24 @@ on the same PC with **identical output** (3,303 profiles, compared field by fiel
 The download validator keeps the pure-Python reader on purpose: it opens untrusted files and
 does a handful of lookups.
 
+That alone was not enough on the box: the rebuild finished (380 s) but `/healthz` failed once
+and its median rose from 0.064 s idle to 1.0 s. Measured further, three more changes, each
+deployed and re-measured with a `/healthz` probe once a second:
+- **Bounded mapped pages.** Of the rebuild's 131 MB only 18 MB is its own; 113 MB is mapped
+  city-database pages charged to the api container. Every 20,000 networks the readers are now
+  closed and the pages dropped (`posix_fadvise DONTNEED`): identical output, 64 MB peak.
+- **No DNS on the redirect path.** The remaining 502s were Caddy's `lookup api: i/o timeout`,
+  Docker's DNS served by a partly swapped `dockerd`. Caddy now dials the api's fixed address
+  (ADR-0026 amendment).
+- **`vm.swappiness = 10`** in the host baseline (ADR-0026 amendment).
+
+Final, on the e2-micro: rebuild **387 s**, **0 failures in 211 probes**, Caddy errors 0,
+`/healthz` median 0.77 s, p95 1.48 s, max 2.26 s, against 0.063 s idle. So the weekly rebuild
+no longer fails a request, but it slows every request about tenfold for six or seven minutes.
+
 **Prevention.** `tests/unit/test_geodb_reader_mode.py` fails if the C extension is missing,
-the only case in which `MODE_AUTO` silently falls back. ARCHITECTURE §6.3 now carries measured
-figures for the rebuild, on both machines. And the M9 lesson stands: a duration stated for a
+the only case in which `MODE_AUTO` silently falls back. ARCHITECTURE §6.3 and §6.5 now carry
+measured figures for the rebuild, on both machines. And the M9 lesson stands: a duration stated for a
 background job on a 1 GB, one-vCPU box is a measurement on that box, or it is a guess.
 
 **Related:** R4, R6, ADR-0005 (`asn_profiles`), ADR-0026, ARCHITECTURE §6.3, B1.
