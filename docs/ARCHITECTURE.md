@@ -844,6 +844,18 @@ waiting for the M9 deploy (declined by the owner). Production memory cost: **zer
 started there); 96 MiB `mem_limit` where it runs. M8's accuracy code is plain Python on
 existing dependencies (no numpy, CLAUDE.md §5).
 
+**M9 adds two workstation-only images and no runtime dependency.**
+- `mcr.microsoft.com/playwright/python:v1.63.0-noble` with `playwright==1.63.0`
+  (`qa/Dockerfile`, the `live-check` service, its own `live` profile so `tl verify` never
+  pulls 3.5 GB): `tl live-check <url>` tests headers and CSP against a deployed URL in
+  Chromium, Firefox and WebKit, which F13.AC2 asks for by test, not inspection. The same
+  method was the owner-approved QA approach since M5.5; M9 commits it. Considered instead:
+  `curl` header checks alone (no browser enforcement, so no proof the policy blocks
+  anything) and a hosted scanner (a third party, and no positive controls).
+- `grafana/k6` for the load test, ADR-0027.
+
+Production memory cost of both: **zero**. Neither is ever started on the VM.
+
 ### Python
 
 | Dependency | Justification | Considered instead |

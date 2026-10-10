@@ -229,6 +229,19 @@ services:
       - ./secrets/ip_key:/run/secrets/ip_key:ro
     command: ["true"]
 
+  # Live check (M9): security headers and CSP against a deployed URL in three browser
+  # engines -- `./scripts/tl live-check https://<site>`. Its own profile, not `tools`:
+  # `tl verify` builds every tools image, and nobody running the quickstart should pull a
+  # 3.5 GB browser image for it. Never started on the production box.
+  live-check:
+    build:
+      context: ./qa
+    profiles: ["live"]
+    working_dir: /qa
+    volumes:
+      - ./qa:/qa:rw
+    command: ["true"]
+
   # Frontend toolchain: eslint, prettier, tsc, openapi-typescript.
   web-tools:
     build:

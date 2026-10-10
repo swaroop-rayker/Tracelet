@@ -522,6 +522,19 @@ task_deploy() {
     exit 1
 }
 
+# Security headers and CSP against a deployed URL, three browser engines (qa/live_check.py).
+# No sign-in, no visit. On a machine that re-signs HTTPS (a local root in api/certs/), the
+# browsers must ignore certificate errors, and the report says the certificate was not
+# verified.
+task_live_check() {
+    url="${1:-}"
+    if [ -z "$url" ]; then red "Usage: tl live-check https://<site>"; exit 1; fi
+    insecure=0
+    ls api/certs/*.crt >/dev/null 2>&1 && insecure=1
+    MSYS_NO_PATHCONV=1 $DC --profile live run --rm --no-deps -T \
+        -e TRACELET_LIVE_INSECURE="$insecure" live-check python /qa/live_check.py "$url"
+}
+
 task_help() {
     cat <<'EOF'
 tl — Tracelet task runner
@@ -545,6 +558,7 @@ tl — Tracelet task runner
   host-setup        on the VM: apply the host baseline (deploy/host/, needs sudo)
   host-check        on the VM: check the host baseline, read-only
   deploy            on the VM: pull this commit's images, migrate, start
+  live-check URL    headers and CSP against a deployed URL, three engines
   tunnel-stop stop it
   help        this
 
@@ -579,6 +593,7 @@ case "$cmd" in
     host-setup)    task_host_setup ;;
     host-check)    task_host_check ;;
     deploy)        task_deploy ;;
+    live-check)    task_live_check "$@" ;;
     waitdb)        task_waitdb ;;
     help|-h|--help) task_help ;;
     *) red "Unknown task: $cmd"; echo; task_help; exit 1 ;;

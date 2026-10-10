@@ -75,3 +75,6 @@ api/certs/*.pem
 
 # Deploy history on a release host (ADR-0026): which image digests ran, and when.
 .deploy/
+
+# Live check output (qa/live_check.py): screenshots and report.json.
+qa/out/
