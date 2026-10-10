@@ -2572,6 +2572,46 @@ override (ADR-0026).
 
 ---
 
+### E79 — The first production boot starved the box for 15 minutes; enrollment failed
+
+**Status:** Fixed in M9 (feat/m9-deploy). **Milestone:** M9. **Date:** 2026-10-10.
+
+**Symptom.** Minutes after the first deploy to the e2-micro, the owner's enrollment returned
+"The server could not complete the request". The log showed gunicorn killing a worker that
+had not answered for 30 s (`SIGABRT`), scheduler jobs timing out on a bare
+`pg_try_advisory_xact_lock`, a retried enrollment taking 28 s, and at 07:04
+`asn_profiles_failed reason=timeout`. Over five minutes the host's IO was stalled 35 % of the
+time and 309 MB had gone to swap. The retry succeeded, but a second click spent the one-time
+link before the secret and recovery codes could be shown, leaving the owner
+`pending_enrollment`; a fresh link from `tl bootstrap` completed it.
+
+**Root cause.** On first boot the geo job installed all nine databases (480 MB), then rebuilt
+`asn_profiles`: one Python loop over every IPv4 network in GeoLite2-ASN, looking each up in
+two city databases. Every reader was opened with `maxminddb.MODE_MMAP`, which is the
+**pure-Python** reader, although the installed maxminddb 3.2.0 ships its C extension
+(`MODE_MMAP_EXT`; `MODE_AUTO` prefers it). Measured on the 16-core development PC: **130 s of
+single-core CPU**. ARCHITECTURE §6.3's "for under a minute" had never been measured. The
+e2-micro sustains a fraction of one slower vCPU, so the rebuild ran into its 900 s timeout,
+inside the api container's memory limit, beside the workers, on a `pd-standard` disk that
+swap shares. Production was left with no profiles, so suppression rule (a) (B1) could not
+fire, and the next GeoLite2 update, weekly, would have repeated it.
+
+**Fix.** `MODE_AUTO` in the profile build and the live readers: the C extension, still
+memory-mapped, so a database stays page cache (CLAUDE.md §5). The rebuild drops to **13.9 s**
+on the same PC with **identical output** (3,303 profiles, compared field by field) and the same
+131 MB peak. The profile subprocess runs at `nice 19`, so it only uses CPU the workers leave.
+The download validator keeps the pure-Python reader on purpose: it opens untrusted files and
+does a handful of lookups.
+
+**Prevention.** `tests/unit/test_geodb_reader_mode.py` fails if the C extension is missing,
+the only case in which `MODE_AUTO` silently falls back. ARCHITECTURE §6.3 now carries measured
+figures for the rebuild, on both machines. And the M9 lesson stands: a duration stated for a
+background job on a 1 GB, one-vCPU box is a measurement on that box, or it is a guess.
+
+**Related:** R4, R6, ADR-0005 (`asn_profiles`), ADR-0026, ARCHITECTURE §6.3, B1.
+
+---
+
 Add entries here as bugs are found and fixed. Use the next available `E<n>` identifier and
 the same structure: symptom, root cause, fix, **prevention**.
 

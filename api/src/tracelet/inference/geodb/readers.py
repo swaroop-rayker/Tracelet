@@ -1,8 +1,9 @@
 """Readers for the installed databases, and the engine toolkit built from them.
 
-Every reader is opened memory-mapped (``maxminddb.MODE_MMAP``, IP2Location
-``SHARED_MEMORY``), so a database is page cache shared by both workers, not RSS
-(CLAUDE.md section 5). Readers are cached per process and keyed by the real path behind
+Every reader is opened memory-mapped (``maxminddb.MODE_AUTO``: the C extension over a
+memory map; IP2Location ``SHARED_MEMORY``), so a database is page cache shared by both
+workers, not RSS (CLAUDE.md section 5). ``MODE_MMAP`` would also map the file, but with
+the pure-Python reader, about nine times the CPU per lookup (docs/ERRORS.md E79). Readers are cached per process and keyed by the real path behind
 ``current``: when an update swaps the symlink, the next tick opens the new version and
 the old reader is closed. No restart, and no request ever sees a half-written file.
 """
@@ -198,7 +199,7 @@ def _handle(settings: Settings, spec: DatabaseSpec) -> Any | None:
         return cached.handle
     handle: Any
     if spec.kind == "mmdb":
-        handle = maxminddb.open_database(str(real), maxminddb.MODE_MMAP)
+        handle = maxminddb.open_database(str(real), maxminddb.MODE_AUTO)
     elif spec.kind == "ip2location_bin":
         handle = IP2Location.IP2Location(str(real), "SHARED_MEMORY")
     else:

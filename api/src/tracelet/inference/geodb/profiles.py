@@ -26,6 +26,7 @@ from __future__ import annotations
 
 import ipaddress
 import json
+import os
 import resource
 import sys
 from collections import Counter, defaultdict
@@ -71,10 +72,13 @@ def _place(record: Any) -> Key | None:
 def compute(asn_path: str, city_paths: list[str]) -> dict[int, dict[str, Any]]:
     import maxminddb  # noqa: PLC0415 - imported after the memory cap is in place
 
-    cities = [maxminddb.open_database(p, maxminddb.MODE_MMAP) for p in city_paths]
+    # MODE_AUTO is the C extension, memory-mapped. MODE_MMAP, used until M9, is the
+    # pure-Python reader: 130 s of CPU here on a 16-core PC and a 15-minute timeout on the
+    # e2-micro, against 14 s with identical output (docs/ERRORS.md E79).
+    cities = [maxminddb.open_database(p, maxminddb.MODE_AUTO) for p in city_paths]
     weights: dict[int, Counter[Key]] = defaultdict(Counter)
     orgs: dict[int, str] = {}
-    with maxminddb.open_database(asn_path, maxminddb.MODE_MMAP) as asn_db:
+    with maxminddb.open_database(asn_path, maxminddb.MODE_AUTO) as asn_db:
         for network, record in asn_db:
             if not isinstance(network, ipaddress.IPv4Network) or not isinstance(record, dict):
                 continue
@@ -109,6 +113,9 @@ def compute(asn_path: str, city_paths: list[str]) -> dict[int, dict[str, Any]]:
 
 def main(argv: list[str]) -> int:
     resource.setrlimit(resource.RLIMIT_AS, (ADDRESS_SPACE_CAP, ADDRESS_SPACE_CAP))
+    # Lowest CPU priority. It shares the api container's one shared vCPU with the
+    # workers serving redirects, and must only ever use what they leave (E79).
+    os.nice(19)
     asn_path, city_paths = argv[1], argv[2:]
     for profile in compute(asn_path, city_paths).values():
         print(json.dumps(profile))

@@ -733,7 +733,11 @@ load. `TRACELET_DB_MAX_CONNECTIONS` must be kept in step with the
 | rDNS canary state | One boolean, ten-minute TTL | Negligible |
 
 `asn_profiles` computation is **not** in-process: it runs in a subprocess capped at 1.5 GB
-of address space, once after each database update, for under a minute.
+of address space, at `nice 19`, once after each location or ASN database update. *(M9,
+E79:)* measured on the development PC at **13.9 s** of CPU and a 131 MB peak with the
+maxminddb C extension (`MODE_AUTO`); with the pure-Python reader it had been 130 s, which on
+the e2-micro ran into the 900 s timeout and starved the workers. The e2-micro figure is in
+§6.5.
 
 ### 6.4 Two dependency decisions that bought headroom
 
