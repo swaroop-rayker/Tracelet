@@ -1,0 +1,26 @@
+# ---------------------------------------------------------------------------
+# Tracelet — production override (ADR-0026).
+#
+# The VM never builds. It runs the release images that `./scripts/tl release`
+# built from a clean commit on the owner's PC and pushed to Docker Hub, at the
+# tag that commit produced. Everything else -- memory limits, healthchecks,
+# volumes, the secret mount -- comes from docker-compose.yml unchanged.
+#
+# Selected on the VM by its .env, so every `tl` task and every bare
+# `docker compose` command there uses it without a flag:
+#
+#   COMPOSE_FILE=docker-compose.yml:docker-compose.prod.yml
+#   TRACELET_IMAGE_TAG=<the 12-character commit>
+# ---------------------------------------------------------------------------
+
+services:
+  api:
+    image: ${TRACELET_IMAGE_REPO:-swarooprayker}/tracelet-api:${TRACELET_IMAGE_TAG:?TRACELET_IMAGE_TAG is required on a release host}
+    # Never build on the 1 GB box, even by accident.
+    build: !reset null
+    pull_policy: missing
+
+  caddy:
+    image: ${TRACELET_IMAGE_REPO:-swarooprayker}/tracelet-caddy:${TRACELET_IMAGE_TAG:?TRACELET_IMAGE_TAG is required on a release host}
+    build: !reset null
+    pull_policy: missing

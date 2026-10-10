@@ -14,10 +14,18 @@
 # the package's wrapper scripts are Perl, and installing it whole adds ~120 MB
 # for nothing they need. They link the image's libpq5, which is ABI-stable.
 # The repository key is vendored (fingerprint B97B0AFC...ACCC4CF8), not fetched.
+#
+# A release build (ADR-0026) has no root in certs/, so a local root arrives as the
+# BuildKit secret `local_ca` instead. This stage never ships -- only two binaries leave
+# it -- so trusting the root here leaks nothing into the runtime image.
 FROM python:3.13-slim AS pgclient
 COPY certs/ /usr/local/share/ca-certificates/
 COPY docker/pgdg.asc /usr/share/keyrings/pgdg.asc
-RUN update-ca-certificates \
+RUN --mount=type=secret,id=local_ca \
+    if [ -s /run/secrets/local_ca ]; then \
+        cp /run/secrets/local_ca /usr/local/share/ca-certificates/zz-build-only.crt; \
+    fi \
+ && update-ca-certificates \
  && . /etc/os-release \
  && echo "deb [signed-by=/usr/share/keyrings/pgdg.asc] https://apt.postgresql.org/pub/repos/apt ${VERSION_CODENAME}-pgdg main" \
       > /etc/apt/sources.list.d/pgdg.list \
@@ -48,8 +56,9 @@ COPY --from=pgclient /usr/lib/postgresql/16/bin/pg_dump /usr/lib/postgresql/16/b
 
 # --- local trust anchors, for a development machine only -------------------
 #
-# Empty in CI and in production, where this whole block is a no-op costing one
-# cached layer. It exists for a machine whose antivirus, VPN or corporate proxy
+# Empty in CI and in a release image, where this whole block is a no-op costing one
+# cached layer. A release is built from `git archive`, where certs/*.crt cannot exist
+# (git-ignored), and `tl release` checks the result (ADR-0026). It exists for a machine whose antivirus, VPN or corporate proxy
 # performs TLS interception: browsers trust the re-signing root because the OS
 # does, but a container carries its own CA bundle and does not — so every
 # outbound HTTPS request fails, starting with pip in the next stage.
@@ -103,8 +112,17 @@ COPY src ./src
 COPY alembic ./alembic
 COPY alembic.ini ./
 
+# The `local_ca` secret (a release build on a machine that re-signs HTTPS, ADR-0026) is
+# trusted by pip for this one step only: the combined bundle is deleted in the same
+# layer, and the secret itself is never written to one.
 RUN --mount=type=cache,target=/root/.cache/pip \
-    pip install --no-cache-dir . \
+    --mount=type=secret,id=local_ca \
+    if [ -s /run/secrets/local_ca ]; then \
+        cat /etc/ssl/certs/ca-certificates.crt /run/secrets/local_ca > /tmp/build-ca.pem; \
+        export PIP_CERT=/tmp/build-ca.pem; \
+    fi \
+ && pip install --no-cache-dir . \
+ && rm -f /tmp/build-ca.pem \
  && for crt in /usr/local/share/ca-certificates/*.crt; do \
         [ -e "$crt" ] && cat "$crt" >> "$(python -m certifi)"; \
     done; true

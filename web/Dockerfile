@@ -16,7 +16,9 @@ WORKDIR /build
 # Local TLS-inspection roots (api/certs/README.md), for npm only. Empty in CI and in
 # production, so the fallback is the image's own bundle; on a development machine
 # whose antivirus re-signs HTTPS, npm cannot reach the registry without it. Scoped to
-# the install step: nothing that runs later inherits the extra trust.
+# the install step: nothing that runs later inherits the extra trust. A release build
+# (ADR-0026) has no root in api/certs/ and passes it as the BuildKit secret `local_ca`
+# instead, which is never written to a layer. This stage never ships either way.
 COPY api/certs/ /tmp/local-ca/
 RUN if ls /tmp/local-ca/*.crt >/dev/null 2>&1; \
       then cat /tmp/local-ca/*.crt > /tmp/npm-ca.pem; \
@@ -24,8 +26,10 @@ RUN if ls /tmp/local-ca/*.crt >/dev/null 2>&1; \
 
 # Lockfile-aware install, so a dependency cannot drift between builds.
 COPY web/package.json web/package-lock.json* ./
-RUN if [ -f package-lock.json ]; then NODE_EXTRA_CA_CERTS=/tmp/npm-ca.pem npm ci; \
-    else NODE_EXTRA_CA_CERTS=/tmp/npm-ca.pem npm install; fi
+RUN --mount=type=secret,id=local_ca \
+    ca=/tmp/npm-ca.pem; [ -s /run/secrets/local_ca ] && ca=/run/secrets/local_ca; \
+    if [ -f package-lock.json ]; then NODE_EXTRA_CA_CERTS="$ca" npm ci; \
+    else NODE_EXTRA_CA_CERTS="$ca" npm install; fi
 
 COPY web/ ./
 

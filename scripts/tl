@@ -43,8 +43,17 @@ require_env() {
 
 task_bootstrap() {
     require_env
-    step "Building images"
-    $DCT build
+    if is_release_host; then
+        # A release host never builds (ADR-0026): `tl deploy` has pulled the images,
+        # started the stack and migrated. What is left is the first owner.
+        if ! grep -q '^TRACELET_IMAGE_TAG=..*' .env; then
+            red "Release host with no image yet. Run ./scripts/tl deploy first."
+            exit 1
+        fi
+    else
+        step "Building images"
+        $DCT build
+    fi
     step "Starting database"
     $DC up -d db
     step "Waiting for database to become healthy"
@@ -250,6 +259,258 @@ task_tunnel() {
 
 task_tunnel_stop() { $DC --profile tunnel rm -sf tunnel; grn "Tunnel stopped."; }
 
+# --- release and deploy (ADR-0026) -----------------------------------------
+#
+# The production VM never builds. `release` runs on the owner's PC: it builds both
+# images from a clean `git archive` of HEAD, proves no local TLS-inspection root is in
+# them, and (with --push) pushes them to Docker Hub. `deploy` runs on the VM, in a
+# checkout of the same commit, and pulls them. A release host is one whose .env names
+# an image tag; there, COMPOSE_FILE in .env adds docker-compose.prod.yml to every
+# compose command.
+
+IMAGE_REPO="${TRACELET_IMAGE_REPO:-swarooprayker}"
+
+is_release_host() { [ -f .env ] && grep -q '^TRACELET_IMAGE_TAG=' .env; }
+
+# A path docker.exe on Windows can read; unchanged elsewhere.
+native_path() {
+    if command -v cygpath >/dev/null 2>&1; then cygpath -m "$1"; else printf '%s' "$1"; fi
+}
+
+# Fails if a release image carries a local root (ADR-0026, item 2). Two checks: no
+# extra anchor installed, and no trust file anywhere in the image containing any
+# local root's body. The second is the one that matters; it is what catches an
+# anchor appended to certifi's bundle.
+release_check() {
+    image="$1"
+    anchors="$(docker run --rm --entrypoint sh "$image" -c \
+        'ls /usr/local/share/ca-certificates/ 2>/dev/null | grep "\.crt$" || true')"
+    if [ -n "$anchors" ]; then
+        red "$image installs a local trust anchor: $anchors"
+        return 1
+    fi
+    for crt in api/certs/*.crt; do
+        [ -f "$crt" ] || continue
+        # A full body line of the PEM (64 or 76 characters, as exported): unique to
+        # that root, and copied verbatim by update-ca-certificates and by the certifi
+        # append, so it appears unchanged in any bundle that absorbed it. Verified
+        # against a development image, which carries the root, on 2026-10-10.
+        line1="$(tr -d '\r' < "$crt" | sed -n '3p')"
+        if [ ${#line1} -lt 64 ]; then
+            red "Cannot read a PEM body from $crt"
+            return 1
+        fi
+        hits="$(docker run --rm -e M="$line1" --entrypoint sh "$image" -c \
+            'grep -rlsF -e "$M" /etc /usr /srv /app /tmp /root /home 2>/dev/null || true')"
+        if [ -n "$hits" ]; then
+            red "$image trusts the local root $crt, in:"
+            echo "$hits"
+            return 1
+        fi
+    done
+    grn "$image: no local root."
+}
+
+task_release() {
+    push=""
+    [ "${1:-}" = "--push" ] && push=1
+    if [ -n "$(git status --porcelain --untracked-files=no)" ]; then
+        red "Uncommitted changes. A release is exactly a commit: commit or stash first."
+        exit 1
+    fi
+    tag="$(git rev-parse --short=12 HEAD)"
+    api_image="$IMAGE_REPO/tracelet-api:$tag"
+    caddy_image="$IMAGE_REPO/tracelet-caddy:$tag"
+
+    work="$(mktemp -d)"
+    trap 'rm -rf "$work"' EXIT
+    step "Exporting $tag (git archive: no untracked or ignored file can reach an image)"
+    mkdir -p "$work/src"
+    git archive HEAD | tar -x -C "$work/src"
+
+    # A machine that re-signs HTTPS needs its root to download while building; it goes
+    # in as a BuildKit secret, never a file in the context (api/certs/README.md).
+    secret=""
+    if ls api/certs/*.crt >/dev/null 2>&1; then
+        cat api/certs/*.crt > "$work/local-ca.pem"
+        secret="--secret id=local_ca,src=$(native_path "$work/local-ca.pem")"
+        echo "  local root passed as a build secret: $(ls api/certs/*.crt | tr '\n' ' ')"
+    fi
+
+    step "Building $api_image"
+    # shellcheck disable=SC2086
+    MSYS_NO_PATHCONV=1 docker build --target production $secret \
+        -t "$api_image" "$(native_path "$work/src/api")"
+    step "Building $caddy_image"
+    # shellcheck disable=SC2086
+    MSYS_NO_PATHCONV=1 docker build $secret \
+        -f "$(native_path "$work/src/web/Dockerfile")" \
+        -t "$caddy_image" "$(native_path "$work/src")"
+
+    step "Checking the images for a local root"
+    release_check "$api_image"
+    release_check "$caddy_image"
+
+    if [ -z "$push" ]; then
+        grn "Built and checked $tag. Push with: ./scripts/tl release --push"
+        return 0
+    fi
+    step "Pushing to Docker Hub"
+    docker push "$api_image"
+    docker push "$caddy_image"
+    grn "Released $tag."
+    echo "  On the VM:  git fetch && git checkout $(git rev-parse HEAD) && ./scripts/tl deploy"
+}
+
+# Read-only. Warns rather than fails: a deploy onto an unprepared host should still
+# be possible, and the warning says what `host-setup` would change.
+task_host_check() {
+    ok=1
+    warn() { ylw "  ! $1"; ok=""; }
+    swap_kb="$(awk '/SwapTotal/ {print $2}' /proc/meminfo 2>/dev/null || echo 0)"
+    [ "${swap_kb:-0}" -ge 1900000 ] || warn "swap is under 2 GB (ADR-0012)"
+    [ -f /etc/systemd/journald.conf.d/50-tracelet.conf ] || warn "journald is not capped"
+    grep -q 'maxsize 100M' /etc/logrotate.d/rsyslog 2>/dev/null || warn "rsyslog rotation is Debian's weekly default"
+    if systemctl is-active --quiet google-cloud-ops-agent 2>/dev/null; then
+        warn "the Ops Agent is running (stopped by owner decision, ADR-0026)"
+    fi
+    if grep -q '^TRACELET_SITE_ADDRESS=.*\.duckdns\.org' .env 2>/dev/null \
+        && [ ! -f /etc/cron.d/tracelet-duckdns ]; then
+        warn "the DuckDNS name is not kept pointed at this VM"
+    fi
+    used="$(df -P / | awk 'NR==2 {print $5}' | tr -d '%')"
+    [ "${used:-0}" -lt 80 ] || warn "the root disk is ${used}% full"
+    if [ -n "$ok" ]; then grn "Host baseline: OK"; else ylw "Run: ./scripts/tl host-setup"; fi
+}
+
+# Applies the host baseline (ADR-0026, deploy/host/). Idempotent; needs sudo.
+task_host_setup() {
+    step "journald: capped at 200 MB"
+    sudo install -D -m 0644 deploy/host/journald-tracelet.conf \
+        /etc/systemd/journald.conf.d/50-tracelet.conf
+    sudo systemctl restart systemd-journald
+    step "rsyslog: daily or at 100 MB, four kept"
+    sudo install -m 0644 deploy/host/logrotate-rsyslog /etc/logrotate.d/rsyslog
+    step "Ops Agent: stopped and disabled, kept installed"
+    if systemctl list-unit-files google-cloud-ops-agent.service >/dev/null 2>&1; then
+        sudo systemctl disable --now google-cloud-ops-agent.service 2>/dev/null || true
+    fi
+    if grep -q '^TRACELET_SITE_ADDRESS=.*\.duckdns\.org' .env 2>/dev/null; then
+        step "DuckDNS: re-pointed at boot and every five minutes"
+        sudo install -d -m 0700 /etc/tracelet
+        sudo install -d -m 0755 /var/lib/tracelet
+        if ! sudo test -f /etc/tracelet/duckdns.curl; then
+            ylw "  Create /etc/tracelet/duckdns.curl (root, 0600) with one line:"
+            ylw "    url = \"https://www.duckdns.org/update?domains=<name>&token=<token>&ip=\""
+            ylw "  then re-run host-setup."
+        else
+            sudo chmod 0600 /etc/tracelet/duckdns.curl
+            sudo install -m 0644 deploy/host/duckdns-cron /etc/cron.d/tracelet-duckdns
+            sudo sh -c 'curl -fsS --max-time 20 -K /etc/tracelet/duckdns.curl -o /var/lib/tracelet/duckdns.last'
+            echo "  DuckDNS answered: $(cat /var/lib/tracelet/duckdns.last)"
+        fi
+    fi
+    task_host_check
+}
+
+# Generates fresh production secrets on the VM (ADR-0026, item 7). Writes .env from
+# .env.example and secrets/ip_key; prints the NAMES of what it made, never a value.
+task_secrets() {
+    site="${1:-}"
+    if [ -z "$site" ]; then red "Usage: tl secrets <site address>   e.g. tl secrets tracelet.duckdns.org"; exit 1; fi
+    if [ -e .env ] || [ -e secrets/ip_key ]; then
+        red ".env or secrets/ip_key already exists. Refusing to overwrite a secret."
+        exit 1
+    fi
+    command -v openssl >/dev/null 2>&1 || { red "openssl is required"; exit 1; }
+    hex() { openssl rand -hex "$1"; }
+    umask 077
+    pg="$(hex 24)"; app="$(hex 24)"; maint="$(hex 24)"; mig="$(hex 24)"
+    cp .env.example .env
+    # Values are hex, so they need no escaping in sed.
+    sed -i \
+        -e "s|^TRACELET_ENV=.*|TRACELET_ENV=production|" \
+        -e "s|^TRACELET_SITE_ADDRESS=.*|TRACELET_SITE_ADDRESS=$site|" \
+        -e "s|^TRACELET_BEHIND_CLOUDFLARE=.*|TRACELET_BEHIND_CLOUDFLARE=false|" \
+        -e "s|^POSTGRES_PASSWORD=.*|POSTGRES_PASSWORD=$pg|" \
+        -e "s|^TRACELET_DB_APP_PASSWORD=.*|TRACELET_DB_APP_PASSWORD=$app|" \
+        -e "s|^TRACELET_DB_MAINT_PASSWORD=.*|TRACELET_DB_MAINT_PASSWORD=$maint|" \
+        -e "s|^TRACELET_DB_MIGRATE_PASSWORD=.*|TRACELET_DB_MIGRATE_PASSWORD=$mig|" \
+        -e "s|tracelet_app:change-me-app@|tracelet_app:$app@|" \
+        -e "s|tracelet_migrate:change-me-migrate@|tracelet_migrate:$mig@|" \
+        -e "s|^TRACELET_SESSION_SECRET=.*|TRACELET_SESSION_SECRET=$(hex 32)|" \
+        -e "s|^TRACELET_PEPPER_STABLE=.*|TRACELET_PEPPER_STABLE=$(hex 32)|" \
+        -e "s|^TRACELET_PEPPER_ROTATING=.*|TRACELET_PEPPER_ROTATING=$(hex 32)|" \
+        -e "s|^TRACELET_PEPPER_FP=.*|TRACELET_PEPPER_FP=$(hex 32)|" \
+        .env
+    {
+        echo ""
+        echo "# === Release host (ADR-0026) ==============================================="
+        echo "# Every compose command on this host uses the production override."
+        echo "COMPOSE_FILE=docker-compose.yml:docker-compose.prod.yml"
+        echo "TRACELET_IMAGE_REPO=$IMAGE_REPO"
+        echo "# Set by ./scripts/tl deploy to the checked-out commit."
+        echo "TRACELET_IMAGE_TAG="
+    } >> .env
+    mkdir -p secrets
+    hex 32 > secrets/ip_key
+    # The api runs as uid 10001 (api/Dockerfile) and must read the key; nobody else.
+    chmod 0400 secrets/ip_key
+    if [ "$(uname -s)" = "Linux" ]; then sudo chown 10001:10001 secrets/ip_key; fi
+    grn "Generated: POSTGRES_PASSWORD, the three DB role passwords, TRACELET_SESSION_SECRET,"
+    grn "the three peppers, and secrets/ip_key. .env is mode 0600."
+    ylw "Now, before anything else:"
+    ylw "  1. Fill in by hand: TRACELET_TELEGRAM_BOT_TOKEN (the ROTATED one),"
+    ylw "     TRACELET_TELEGRAM_OWNER_CHAT_ID, MAXMIND_ACCOUNT_ID, MAXMIND_LICENSE_KEY,"
+    ylw "     IP2LOCATION_TOKEN, IPINFO_TOKEN."
+    ylw "  2. Copy .env and secrets/ip_key OFF this VM, into your password manager."
+    ylw "     Without them a backup restores to unreadable ip_enc (ADR-0007, R11)."
+}
+
+task_deploy() {
+    require_env
+    if ! is_release_host; then
+        red "Not a release host: .env has no TRACELET_IMAGE_TAG. See ./scripts/tl secrets."
+        exit 1
+    fi
+    if [ -n "$(git status --porcelain --untracked-files=no)" ]; then
+        red "The checkout has local changes. Deploy a clean commit."
+        exit 1
+    fi
+    tag="$(git rev-parse --short=12 HEAD)"
+    step "Host baseline"
+    task_host_check
+    step "Deploying $tag"
+    sed -i "s|^TRACELET_IMAGE_TAG=.*|TRACELET_IMAGE_TAG=$tag|" .env
+    $DC pull api caddy
+    # Tags are mutable on Docker Hub; the digest is what actually ran.
+    mkdir -p .deploy
+    {
+        printf '%s %s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$tag"
+        docker image inspect --format '  {{index .RepoDigests 0}}' \
+            "$IMAGE_REPO/tracelet-api:$tag" "$IMAGE_REPO/tracelet-caddy:$tag"
+    } >> .deploy/history
+    $DC up -d db
+    task_waitdb
+    step "Migrations (the new image)"
+    task_migrate
+    step "Starting"
+    $DC up -d --remove-orphans db api caddy
+    i=0
+    while [ $i -lt 60 ]; do
+        if [ "$($DC ps --format '{{.Health}}' api 2>/dev/null)" = "healthy" ]; then
+            grn "Deployed $tag. https://$(grep '^TRACELET_SITE_ADDRESS=' .env | cut -d= -f2)"
+            tail -n 3 .deploy/history
+            return 0
+        fi
+        i=$((i + 1))
+        sleep 2
+    done
+    red "The api did not become healthy within 120 s."
+    $DC logs --tail=60 api
+    exit 1
+}
+
 task_help() {
     cat <<'EOF'
 tl — Tracelet task runner
@@ -268,6 +529,11 @@ tl — Tracelet task runner
   db-setup    one-time superuser setup for the restore check (ADR-0022)
   shell       open a shell in the api container
   tunnel      development only: a public address for a phone (ADR-0025)
+  release [--push]  build release images from HEAD, check, push to Docker Hub (ADR-0026)
+  secrets SITE      on a new VM: fresh production .env and secrets/ip_key
+  host-setup        on the VM: apply the host baseline (deploy/host/, needs sudo)
+  host-check        on the VM: check the host baseline, read-only
+  deploy            on the VM: pull this commit's images, migrate, start
   tunnel-stop stop it
   help        this
 
@@ -297,6 +563,11 @@ case "$cmd" in
     shell)         task_shell ;;
     tunnel)        task_tunnel ;;
     tunnel-stop)   task_tunnel_stop ;;
+    release)       task_release "$@" ;;
+    secrets)       task_secrets "$@" ;;
+    host-setup)    task_host_setup ;;
+    host-check)    task_host_check ;;
+    deploy)        task_deploy ;;
     waitdb)        task_waitdb ;;
     help|-h|--help) task_help ;;
     *) red "Unknown task: $cmd"; echo; task_help; exit 1 ;;

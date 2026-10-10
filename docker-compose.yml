@@ -16,11 +16,21 @@
 
 name: tracelet
 
+# Every container's json-file log is capped (ADR-0026). Docker's default keeps it
+# forever, and on a 30 GB disk that also holds the database and its backups an
+# unbounded log is a slow outage. 3 x 10 MB is days of normal traffic.
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
 services:
   db:
     image: postgis/postgis:16-3.4-alpine
     restart: unless-stopped
     mem_limit: 260m
+    logging: *logging
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-tracelet}
       POSTGRES_USER: ${POSTGRES_USER:-tracelet}
@@ -68,6 +78,7 @@ services:
       target: production
     restart: unless-stopped
     mem_limit: 420m
+    logging: *logging
     env_file: .env
     environment:
       # Set here so the value is correct inside the compose network regardless
@@ -112,6 +123,7 @@ services:
       dockerfile: web/Dockerfile
     restart: unless-stopped
     mem_limit: 64m
+    logging: *logging
     environment:
       TRACELET_SITE_ADDRESS: ${TRACELET_SITE_ADDRESS:-localhost}
     depends_on:
@@ -145,6 +157,7 @@ services:
     profiles: ["tunnel"]
     restart: "no"
     mem_limit: 96m
+    logging: *logging
     command:
       - tunnel
       - --no-autoupdate
