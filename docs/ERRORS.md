@@ -2662,6 +2662,30 @@ checked against it.
 
 ---
 
+### E81 — Firefox still reported a CSP violation on the privacy page (E63, on its siblings)
+
+**Status:** Fixed in M9 (feat/m9-deploy). **Milestone:** M9. **Date:** 2026-10-10.
+
+**Symptom.** M9's live CSP test against `https://tracelet.duckdns.org`, three engines, no
+sign-in and no visit: a natural load of `/privacy` in Firefox reported `img-src` blocking
+`https://tracelet.duckdns.org/favicon.ico`. Chromium and WebKit reported nothing.
+
+**Root cause.** E63's fix, an empty inline icon so Firefox does not fetch `/favicon.ico`
+against `img-src data:`, went into `capture.html` only. The three other server-rendered
+pages (`not_found.html`, `privacy.html`, `unavailable.html`) never had it, and E63's
+prevention ("every server-rendered page declares its icon") was a sentence, not a check.
+The unknown-slug 404 and the "temporarily unavailable" page had the same violation in waiting.
+
+**Fix.** All three declare `<link rel="icon" href="data:,">`.
+
+**Prevention.** `test_every_server_rendered_page_declares_the_empty_icon` reads every
+template in `capture/templates/`, including any added later; it named all three before the
+fix. And the live test is now part of the deploy checklist (MILESTONES M9).
+
+**Related:** E63, F13.AC2, F2.AC12.
+
+---
+
 Add entries here as bugs are found and fixed. Use the next available `E<n>` identifier and
 the same structure: symptom, root cause, fix, **prevention**.
 

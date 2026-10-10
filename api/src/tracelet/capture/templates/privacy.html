@@ -13,6 +13,8 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Privacy notice</title>
+{# An empty icon: without it Firefox fetches /favicon.ico, which the CSP refuses (E63, E81). #}
+<link rel="icon" href="data:,">
 <style nonce="{{ csp_nonce }}">
   :root { color-scheme: light dark; }
   body { margin: 0; font: 15px/1.6 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
