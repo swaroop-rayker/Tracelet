@@ -95,7 +95,9 @@ header {
 		# The redirect must never fail (CLAUDE.md invariant 1). Fail fast
 		# rather than hanging a visitor on a wedged upstream.
 		transport http {
-			dial_timeout 3s
+			# 1 s: on the local Docker network a working dial takes under a millisecond, and a
+			# stopped api's fixed address does not refuse, it just never answers (ADR-0029).
+			dial_timeout 1s
 			response_header_timeout {args[0]}
 		}
 	}
