@@ -555,7 +555,9 @@ characters, and is SQL `NULL` (not JSON `null`) when none did (ERRORS E74).
    F12.AC2.
 8. `stage='rate_limited'` rows carry no client columns and no inference; they exist to
    make shedding visible — F11.AC3. They keep `ip_prefix`, because the network is what
-   was limited, and nothing else about the address. Finalised at birth.
+   was limited, and nothing else about the address. Finalised at birth. *(M9, ADR-0028:)* a
+   row shed by an overloaded worker is kept in memory and inserted later in a batch, with
+   `occurred_at` and `finalized_at` set to the visit's arrival rather than the insert time.
 9. **`(stage = 'server') = (finalized_at IS NULL)`** — `CHECK`, added in M2. `server` means
    "awaiting enrichment or the sweeper" and nothing else. The sweeper's partial index and
    its `UPDATE` both key on `stage = 'server'`; this makes it impossible for them to

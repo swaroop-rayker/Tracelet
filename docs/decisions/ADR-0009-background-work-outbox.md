@@ -216,3 +216,11 @@ by its kind at send time.
 
 The enum values are added with `ALTER TYPE … ADD VALUE` outside the migration's transaction,
 because a value added inside one cannot be used until it commits.
+
+## Amendment: background work yields to redirects under overload — 2026-10-10, M9
+
+The in-process scheduler shares each worker's event loop with the capture path, which on the
+e2-micro's throttled vCPU starved redirects under load (ERRORS E82). ADR-0028: while a worker
+is overloaded, its scheduler skips every job except `outbox` and `sweeper`; inference,
+rollups, updates and backups resume when it recovers. Moving the scheduler into its own
+process stays the structural option if this proves insufficient.

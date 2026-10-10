@@ -153,3 +153,12 @@ All limits are editable without redeployment, and every change is audit-logged (
   the burst allowance rather than the sustained rate.
 - Volumetric attack becomes a real rather than theoretical problem on the free-subdomain
   path, which would make the purchased domain effectively mandatory.
+
+### Amended 2026-10-10 (M9): shedding on latency too, and from memory (ADR-0028)
+
+Memory pressure alone could not see the overload M9's load test produced: a CPU-starved
+event loop with the database nearly idle. ADR-0028 adds event-loop lag and captures in
+flight as overload signals, per worker, and an overloaded worker answers captures from its
+link cache with no database work, buffering the minimal `rate_limited` rows instead of
+writing one per visit. Memory pressure is now one of the three signals; the rate-limited
+response and its row are unchanged.

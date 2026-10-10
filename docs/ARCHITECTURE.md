@@ -530,6 +530,18 @@ has never seen gets an honest "temporarily unavailable". The cache is never the 
 truth while the database is up, so an edited destination takes effect on the next request
 (F1.AC8).
 
+**The case M9 added: the box is too slow** (ADR-0028, ERRORS.md E82). The load test on the
+e2-micro left 500 visitors waiting past Caddy's 10 s: nothing bounded a capture, and the
+redirects shared an event loop with the scheduler on a throttled vCPU. Now each worker loads
+every link into that cache at start and every 30 s, and watches its own event-loop lag,
+captures in flight and memory pressure. **Overloaded**, a capture is answered from the cache
+with no database work, its minimal `rate_limited` row waits in a bounded buffer
+(`capture/overload.py`) until the worker recovers, and the scheduler pauses everything but
+the outbox and the sweeper. **Not overloaded**, a capture slower than 1 s is answered from
+the cache and finishes recording behind. Telemetry degrades in visible stages (full,
+unenriched, buffered, counted); the journey is the same in all of them. A worker whose cache
+has never loaded still asks the database, bounded.
+
 Missing configuration degrades a column, not the visit: no stable pepper means no
 `ip_hmac`, no key file means no `ip_enc`, no session secret means no enrichment nonce. Each
 is logged on every request, and the visit is still recorded and redirected.

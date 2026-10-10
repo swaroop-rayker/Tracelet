@@ -2686,6 +2686,48 @@ fix. And the live test is now part of the deploy checklist (MILESTONES M9).
 
 ---
 
+### E82 — Under load, 500 visitors were never redirected (invariant 1)
+
+**Status:** Fixed in M9 (feat/m9-deploy), ADR-0028. **Milestone:** M9. **Date:** 2026-10-10.
+
+**Symptom.** M9's load test on the e2-micro (ADR-0027: 10 cold visitors back to back for 15
+minutes, then 30 for 3, the owner working the dashboard on two devices) ended with **500
+responses of 504**: Caddy had waited its 10 s `response_header_timeout` for the api and given
+up, so those visitors were never sent on. Capture's own server time: p50 758 ms, p95 8.8 s,
+worst 54 s. Four gunicorn workers were killed for missing their 30 s heartbeat; sixteen
+scheduler jobs timed out; host memory averaged 771 MB (NFR6.AC1: 700).
+
+**Root cause.** The design degraded for every dependency that *fails* (F15.AC6, F15.AC7: a
+database error falls back to a cached link) and for none that is merely *slow*, and the
+slowest was the box itself. The destination needed a query; the link cache was filled only
+by queries that had succeeded and read only after one raised; nothing bounded a capture
+below Caddy's 10 s; the scheduler (ADR-0009) ran inference, classification and rollups on
+the same event loop as the redirects, on a shared vCPU that GCP throttled to about 0.8 of 2
+(ARCHITECTURE §6.5); and shedding watched memory only, so it switched on 16 times without
+touching the CPU queue, and even then wrote a row per visit. A worker whose loop did not run
+for 30 s was killed, dropping every request it held.
+
+**Fix.** ADR-0028, owner-approved: a warm per-worker link cache (every link at start and every
+30 s); overload detection on event-loop lag, captures in flight and memory pressure, with
+hysteresis; overloaded, a capture is answered from the cache with no database work and its
+minimal row buffered (bounded, then counted); not overloaded, a 1 s capture deadline after
+which the visitor is answered from the cache while the capture finishes recording behind; the
+scheduler pauses all but the outbox and the sweeper while overloaded. A worker whose cache has
+never loaded takes the bounded database path rather than answering 503 (found by the
+memory-pressure degradation test while building).
+
+**Prevention.** Unit tests for the overload verdict, its hysteresis, the buffer's bound and
+contents (never a raw IP), the answers the cache can give alone, and the scheduler's pause;
+integration tests that redirect with the database unreachable, answer at the deadline and
+still record the visit, wait for the database when the cache cannot say, and fall back when
+the cache has never loaded. The load test is repeated on the box (SPEC §11 row 35): the
+stress test's pass condition is no visitor left un-redirected.
+
+**Related:** ADR-0028, ADR-0009 and ADR-0010 (amended), ADR-0027, NFR1, NFR2, NFR3.AC2,
+F15.AC6, CLAUDE.md invariant 1, RISKS R6.
+
+---
+
 Add entries here as bugs are found and fixed. Use the next available `E<n>` identifier and
 the same structure: symptom, root cause, fix, **prevention**.
 
