@@ -133,6 +133,11 @@ class Settings(BaseSettings):
     # Local hour (reporting_tz) for the nightly backup; the monthly restore check runs on
     # the first day of the month, an hour later. Off-peak for an Indian audience.
     backup_hour: int = Field(default=3, ge=0, le=23)
+    # Local hour (reporting_tz) in which a stale asn_profiles is rebuilt after a scheduled
+    # geo-database update. On the e2-micro the rebuild slows every request about tenfold
+    # for six or seven minutes (ERRORS E79), so it waits for the quiet night, after the
+    # retention purge and before the backup (SPEC section 11 row 34).
+    geodb_profiles_hour: int = Field(default=2, ge=0, le=23)
 
     # --- system health (F10) -----------------------------------------------
     # The host's /proc and /sys, mounted read-only (F10.AC15). Inside the container,

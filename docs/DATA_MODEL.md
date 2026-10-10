@@ -774,7 +774,11 @@ All of section 8 is in the **must never be lost** set (F12.AC12, NFR5.AC3).
 `is_registry_artifact_source boolean`, `is_mobile boolean`, `is_hosting boolean`,
 `is_cgnat boolean`, `computed_at`, `source_db_versions jsonb`.
 
-**Recomputed after every geo-database update.** A high `modal_share` is the signature of
+**Recomputed after every location or ASN database update:** at once after a manual update,
+and in the owner's quiet hour after a scheduled one (SPEC §11 row 34; `TRACELET_GEODB_PROFILES_HOUR`,
+02:00 India time). Until then the table is stale, which `source_db_versions` shows: a row
+built from other versions than those installed is what the quiet-hour job looks for.
+A high `modal_share` is the signature of
 a registry artifact: it means the database has collapsed a whole ISP onto one point.
 That is exactly the Bangalore-recorded-as-Faridabad failure — F4.AC12(a).
 

@@ -289,7 +289,12 @@ records are never placed: their coordinates are the country's centroid (ERRORS.m
 
 **`asn_profiles`** walk each ASN's IPv4 space through every installed city database,
 counting only records that name a city, and only give an ASN a `modal_share` once it holds
-a /18 or more — below that, one point is not evidence of a registry collapse.
+a /18 or more — below that, one point is not evidence of a registry collapse. *(M9, SPEC §11
+row 34:)* a manual update or `tracelet geodb update` rebuilds them at once; a scheduled
+update leaves them stale, and the `asn_profiles` job rebuilds them in the owner's quiet hour
+(`TRACELET_GEODB_PROFILES_HOUR`, 02:00 India time), because on the e2-micro the rebuild slows
+every request for minutes (ERRORS.md E79). Staleness is derived: the profiles record the
+database versions they were built from.
 
 **Outbound (step 3).** S9 asks ipwho.is — the only external API, ip-api.com having
 failed F4.AC5's HTTPS requirement (RISKS R2) — about the visitor's **/24 network
@@ -733,7 +738,8 @@ load. `TRACELET_DB_MAX_CONNECTIONS` must be kept in step with the
 | rDNS canary state | One boolean, ten-minute TTL | Negligible |
 
 `asn_profiles` computation is **not** in-process: it runs in a subprocess capped at 1.5 GB
-of address space, at `nice 19`, once after each location or ASN database update. *(M9,
+of address space, at `nice 19`, after each location or ASN database update (a scheduled one
+waits for the quiet hour, §3.1). *(M9,
 E79:)* measured on the development PC at **13.9 s** of CPU and a 131 MB peak with the
 maxminddb C extension (`MODE_AUTO`); with the pure-Python reader it had been 130 s, which on
 the e2-micro ran into the 900 s timeout and starved the workers. The e2-micro figure is in

@@ -97,8 +97,12 @@ JOBS: tuple[Job, ...] = (
     # waits on it.
     Job(name="infer", every_seconds=2, run=inference.run_job_once),
     # Offline geo databases (F10.AC3). Checked every six hours, fetched only when due
-    # -- DB-IP monthly, the keyed vendors weekly -- then asn_profiles recomputed.
+    # -- DB-IP monthly, the keyed vendors weekly. The asn_profiles an update makes stale
+    # are rebuilt by the next job, in the quiet hour (SPEC section 11 row 34, E79).
     Job(name="geodb_update", every_seconds=6 * 3600, run=geodb.run_job_once),
+    # Checked every 15 minutes; rebuilds only inside TRACELET_GEODB_PROFILES_HOUR and only
+    # when the profiles were built from other database versions than those installed.
+    Job(name="asn_profiles", every_seconds=900, run=geodb.run_profiles_once),
     # Analytics rollups (ADR-0016): yesterday and today every five minutes, so a visit
     # reaches the charts the same day; the last week and any never-built history daily.
     Job(name="rollup", every_seconds=300, run=rollup.run_live_once),

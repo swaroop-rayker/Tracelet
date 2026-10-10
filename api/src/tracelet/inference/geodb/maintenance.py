@@ -1,9 +1,11 @@
 """Keeping the databases current, and recomputing what depends on them (F10.AC3, ADR-0009).
 
-``update_all`` is both the daily scheduled job and ``tracelet geodb update``. It installs
-whatever is due, and after any location or ASN database changes it recomputes
-``asn_profiles`` -- a profile built from last month's database would flag the wrong
-centroids (ADR-0005: "recomputed after every geo-database update").
+``update_all`` is both the scheduled job and ``tracelet geodb update``. It installs
+whatever is due. After any location or ASN database changes, ``asn_profiles`` must be
+rebuilt -- a profile built from last month's database would flag the wrong centroids --
+at once for a manual update, and for a scheduled one in the quiet hour
+(``run_profiles_once``, SPEC section 11 row 34): on the e2-micro the rebuild slows every
+request for minutes (ERRORS E79).
 """
 
 from __future__ import annotations
@@ -12,6 +14,7 @@ import asyncio
 import datetime as dt
 import json
 import sys
+import zoneinfo
 from dataclasses import dataclass
 from decimal import Decimal
 from typing import Any, Final
@@ -186,11 +189,15 @@ async def update_all(
     only: list[str] | None = None,
     force: bool = False,
     respect_auto_update: bool = False,
+    recompute: bool = True,
 ) -> list[InstallResult]:
     """Install everything due (or everything named, with ``force``). Never raises.
 
     Due: see ``scheduled_due`` (SPEC section 11 rows 24 and 26). ``respect_auto_update`` is the scheduler's: a
     database whose automatic updates are off is left alone; a manual update ignores it.
+    ``recompute`` rebuilds ``asn_profiles`` at once after a location or ASN install: what
+    an owner's manual update and the CLI want. The scheduler passes False and leaves the
+    rebuild to the quiet hour (SPEC section 11 row 34, ERRORS E79).
     """
     settings = settings or get_settings()
     today = dt.datetime.now(dt.UTC).date()
@@ -208,22 +215,61 @@ async def update_all(
         ):
             continue
         results.append(await install(spec, settings, today=today))
-    if any(r.status == "installed" and r.name in LOCATION_OR_ASN for r in results):
+    if recompute and any(r.status == "installed" and r.name in LOCATION_OR_ASN for r in results):
         await recompute_profiles(settings)
     return results
 
 
 async def run_job_once() -> int:
     """The scheduler's entry point (ADR-0009): every six hours, one worker at a time --
-    check for releases, then update what is due and has automatic updates on."""
+    check for releases, then update what is due and has automatic updates on. The
+    profiles it makes stale wait for the quiet hour (``run_profiles_once``)."""
     await check_all()
-    results = await update_all(respect_auto_update=True)
+    results = await update_all(respect_auto_update=True, recompute=False)
+    if any(r.status == "installed" and r.name in LOCATION_OR_ASN for r in results):
+        log.info("asn_profiles_deferred", until_hour=get_settings().geodb_profiles_hour)
     return sum(1 for r in results if r.status == "installed")
+
+
+async def profiles_stale(settings: Settings) -> bool:
+    """True when the stored profiles were not built from the installed databases.
+
+    Derived, not flagged: every profile row records the versions it was built from, so
+    an install, a failed rebuild and an empty table all read as stale with no extra state.
+    """
+    asn_dbs = _installed(settings, ASN_DATABASES)
+    city_dbs = _installed(settings, CITY_DATABASES)
+    if not asn_dbs or not city_dbs:
+        return False
+    async with session_scope() as db:
+        stored = (
+            await db.execute(select(AsnProfile.source_db_versions).limit(1))
+        ).scalar_one_or_none()
+    return stored != _versions(asn_dbs, city_dbs)
+
+
+async def run_profiles_once(
+    settings: Settings | None = None, *, now: dt.datetime | None = None
+) -> int:
+    """The scheduler's quiet-hour rebuild (SPEC section 11 row 34): in the local hour
+    ``geodb_profiles_hour`` of ``reporting_tz``, rebuild ``asn_profiles`` if stale."""
+    settings = settings or get_settings()
+    now = now or dt.datetime.now(dt.UTC)
+    local = now.astimezone(zoneinfo.ZoneInfo(settings.reporting_tz))
+    if local.hour != settings.geodb_profiles_hour:
+        return 0
+    if not await profiles_stale(settings):
+        return 0
+    return await recompute_profiles(settings)
 
 
 # ---------------------------------------------------------------------------
 # asn_profiles
 # ---------------------------------------------------------------------------
+
+
+ASN_DATABASES: Final = ("geolite2-asn", "dbip-asn-lite")
+CITY_DATABASES: Final = ("geolite2-city", "dbip-city-lite")
 
 
 def _installed(settings: Settings, names: tuple[str, ...]) -> list[tuple[str, str]]:
@@ -235,11 +281,16 @@ def _installed(settings: Settings, names: tuple[str, ...]) -> list[tuple[str, st
     return found
 
 
+def _versions(asn_dbs: list[tuple[str, str]], city_dbs: list[tuple[str, str]]) -> dict[str, str]:
+    """The installed version of each input, as stored in ``source_db_versions``."""
+    return {name: path.rsplit("/", 2)[-2] for name, path in [*asn_dbs, *city_dbs]}
+
+
 async def recompute_profiles(settings: Settings | None = None) -> int:
     """Rebuild ``asn_profiles`` from the installed databases. Returns the row count."""
     settings = settings or get_settings()
-    asn_dbs = _installed(settings, ("geolite2-asn", "dbip-asn-lite"))
-    city_dbs = _installed(settings, ("geolite2-city", "dbip-city-lite"))
+    asn_dbs = _installed(settings, ASN_DATABASES)
+    city_dbs = _installed(settings, CITY_DATABASES)
     if not asn_dbs or not city_dbs:
         log.info("asn_profiles_skipped", reason="an ASN and a city database are both required")
         return 0
@@ -266,7 +317,7 @@ async def recompute_profiles(settings: Settings | None = None) -> int:
         return 0
 
     gc = geocoder(settings)
-    versions = {name: path.rsplit("/", 2)[-2] for name, path in [*asn_dbs, *city_dbs]}
+    versions = _versions(asn_dbs, city_dbs)
     rows: list[dict[str, Any]] = []
     for line in out.decode().splitlines():
         p = json.loads(line)
