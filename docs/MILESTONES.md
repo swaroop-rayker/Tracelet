@@ -30,6 +30,7 @@ then open the PR (CLAUDE.md section 2).
 | M7.7 | Annotations, saved views, compare, link builder (owner-approved 2026-10-08; Phase D; SPEC §11 row 29, ADR-0023) | M | **[x] done** — merged 2026-10-08 (#12); 8 of 8 items (the owner's phone scan of a link-builder QR code, 2026-10-09, closed the last); CSP 0 in three engines |
 | M8 | Accuracy hardening and ground truth | M | **[x] done** — merged to `main` 2026-10-09 (#13); 5 of 7 items, S10 not applicable; **carried forward as ongoing labelling** (no code left): 30+ labels across the networks (8 so far, Hubballi: Jio mobile, Airtel Wi-Fi, two with a VPN) and per-source down-weighting, which waits for those labels; F4.AC13 amended as interim targets until about 30 labels (SPEC §11 row 32); accuracy by replay (ADR-0024), development tunnel trust (ADR-0025, row 31); the real-label CI gate passes; CSP 0 in three engines; bugs E76–E77 |
 | M9 | Production hardening and deploy | M | [ ] |
+| M9.1 | Purchased domain behind Cloudflare (SPEC §11 row 33) | S | [ ] — waits for a domain |
 
 **Spikes (run during M0/M1, before the milestones that depend on them):**
 
@@ -433,7 +434,8 @@ F12.AC1–F12.AC4, F11.AC1–F11.AC4, F11.AC8, F11.AC10, F13.AC3, F13.AC6, F15.A
 **Done checklist**
 - [ ] A real visit shows the full derivation table: every source, weight, accepted or
       suppressed with reason, latency
-      — ***deferred to M9** (owner decision 2026-09-29).* Locally the visitor is the Docker
+      — ***deferred to M9** (owner decision 2026-09-29); the Cloudflare-path visit moved on
+      to **M9.1** (SPEC §11 row 33), the direct-path one stays in M9.* Locally the visitor is the Docker
       gateway, because `CF-Connecting-IP` is trusted only from a verified Cloudflare peer
       (F13.AC6) and a quick tunnel's peer is local; a development-only trust setting was
       declined. The same pipeline has run end to end on a real address inside the
@@ -1096,19 +1098,26 @@ F8.AC12 (amended), SPEC §11 row 29, ADR-0023. Branch `feat/m7.7-workflow`, stac
 
 ## M9 — Production hardening and deploy · size M
 
-**Goal:** SC1 and SC2 on the real URL.
-**F/AC-IDs:** F13.AC1–F13.AC8, F14.AC2, F14.AC3, NFR1.AC1–NFR1.AC5, NFR2, NFR6, SC1, SC2
+**Goal:** SC1 and SC2 on the real URL — **on the free-subdomain path** (SPEC §11 row 33).
+The Cloudflare-path checks are M9.1's.
+**F/AC-IDs:** F13.AC1–F13.AC7 (AC5 and AC6 on the direct path), F13.AC8's structural items,
+F14.AC2, F14.AC3, NFR1.AC1–NFR1.AC5, NFR2 (AC2–AC3 at the direct-origin figures), NFR6, SC1, SC2
 
 **Scope**
-- Domain, DNS, Cloudflare setup; `trusted_proxies`; verify `CF-Ray` and `CF-IPCountry`
+- Host baseline on the e2-micro (ADR-0026): logs capped, Ops Agent stopped, firewall 22/80/443,
+  the DuckDNS name following the ephemeral IP
+- Release images built from a clean commit with no local root, pushed to Docker Hub; the VM
+  pulls (ADR-0026); `tl release`, `tl deploy`, `docker-compose.prod.yml`
+- Fresh production secrets, with the owner's off-VM copy; Telegram bot token rotated first
 - Free-subdomain mode verified as the documented degraded path
-- Security headers and CSP verified by test, not inspection
-- **Browser-trust checklist** (F13.AC8): Search Console, Safe Browsing review request,
-  no shortener in the chain, reachable privacy page
-- Load test at NFR1 with headroom; record results
+- Security headers and CSP verified by test against the deployed URL, not inspection
+- F13.AC8's structural items: no shortener in the chain, reachable `/privacy`; the
+  subdomain's Safe Browsing status recorded in R8
+- Load test at NFR1 with headroom, k6 from the owner's PC (ADR-0027); results recorded
 - Degradation drills: DB down, Telegram down, geo-DB update failure, external API timeout,
   disk near-full, swap pressure
-- **One-time manual restore drill onto a fresh VM, including the out-of-band secrets**
+- **One-time manual restore drill: production wiped and rebuilt from a downloaded backup
+  and the out-of-band secrets alone** (owner decision 2026-10-10), before labelling starts
 - Operations runbook; backup-download reminder
 - Final doc reconciliation pass
 
@@ -1116,22 +1125,52 @@ F8.AC12 (amended), SPEC §11 row 29, ADR-0023. Branch `feat/m7.7-workflow`, stac
 - [ ] All in-scope flows work end to end on the deployed URL (**SC1**)
 - [ ] Fresh clone to running in 5 commands (**SC2**)
 - [ ] CI green (**SC2**)
+- [ ] Release images carry no local root: the check in `tl release` passes (ADR-0026)
 - [ ] Load test: 10 concurrent sustained, 500/day, 2 admins — NFR1 met, results recorded
-- [ ] NFR2 p95 targets measured on production hardware
+- [ ] NFR2 p95 targets measured on production hardware (AC2–AC3 at the direct-origin figures)
 - [ ] Steady-state RSS at or below 700 MB; headroom confirmed (NFR6.AC1)
 - [ ] Every degradation drill leaves **the redirect working**
-- [ ] **Restore drill onto a fresh VM succeeds, with `ip_enc` readable** — proving the
-      out-of-band secret backup actually works (ADR-0014)
-- [ ] **Real visits through the Cloudflare path show the full derivation** (deferred from
-      M3, owner decision 2026-09-29): one on mobile data, one on Wi-Fi; every source
-      present in `candidates[]` or `inference.source_absent`, S8 colo populated
+- [ ] **Restore drill succeeds from a downloaded backup and the off-VM secrets alone, with
+      `ip_enc` readable** — proving the out-of-band secret backup actually works (ADR-0014)
+- [ ] **Real visits on the direct path show the full derivation:** one on mobile data, one
+      on Wi-Fi; every source present in `candidates[]` or `inference.source_absent` (S8
+      absent, as the direct path must); `TRACELET_DEV_TRUSTED_TUNNEL` unset
 - [ ] **The production resolver answers PTR** (ERRORS.md E27): S6's canary reports healthy
       on the GCP host, and a real visit's `rdns_ptr` is populated where one exists
-- [ ] Safe Browsing review submitted; outcome recorded in RISKS R8 **whatever it is**
+- [ ] CSP and security headers pass by test against the deployed URL, three engines
+- [ ] No shortener in the chain; `/privacy` reachable; the subdomain's Safe Browsing status
+      recorded in RISKS R8
 - [ ] Every doc reconciled with the deployed system
 - [ ] **SC4**: every ADR still accurately describes what was built
 
 ---
+
+## M9.1 — Purchased domain behind Cloudflare · size S
+
+**Goal:** the supported path (ADR-0012), and the checks the free subdomain cannot make
+(SPEC §11 row 33). Waits for the owner to buy a domain.
+**F/AC-IDs:** F13.AC5 (purchased domain, proxy on), F13.AC6 (real edge), F13.AC8, NFR2.AC2–AC3
+(Cloudflare figures)
+
+**Scope**
+- Domain on Cloudflare (nameservers delegated), proxy on, TLS Full (strict);
+  `TRACELET_BEHIND_CLOUDFLARE=true`; the origin reachable only from Cloudflare's ranges
+- Caddy serves the purchased domain and the DuckDNS name together until links on the old
+  host age out
+- The browser-trust checklist (F13.AC8) on the purchased domain
+
+**Done checklist**
+- [ ] `CF-Connecting-IP` believed only from a verified Cloudflare peer, tested on the real
+      edge with a forged header (F13.AC6)
+- [ ] **Real visits through the Cloudflare path show the full derivation** (deferred from
+      M3, owner decision 2026-09-29): one on mobile data, one on Wi-Fi; every source present
+      in `candidates[]` or `inference.source_absent`, **S8 colo populated**; `CF-IPCountry`
+      voting
+- [ ] NFR2.AC2–AC3 measured at the Cloudflare figures (about 300 ms TTFB, 1.0 s to
+      destination)
+- [ ] Search Console registered; Safe Browsing review submitted; outcome recorded in RISKS R8
+      **whatever it is**
+- [ ] Docs reconciled (ADR-0012's two paths, the runbook's DNS section)
 
 ## Definition of done — applies to every milestone
 
