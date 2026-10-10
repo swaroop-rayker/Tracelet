@@ -20,6 +20,8 @@ telemetry, never the journey. That shapes three decisions here:
 
 from __future__ import annotations
 
+import asyncio
+import contextlib
 import datetime as dt
 import hashlib
 import re
@@ -35,8 +37,8 @@ from sqlalchemy.dialects import postgresql as pg
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from tracelet.capture import nonce as nonces
+from tracelet.capture import overload, useragent
 from tracelet.capture import signals as sig
-from tracelet.capture import useragent
 from tracelet.capture.models import (
     Classification,
     ConsentState,
@@ -124,8 +126,17 @@ _MAX_CACHED_LINKS: Final = 1000
 class _LinkCache:
     entries: dict[str, LinkSnapshot] = field(default_factory=dict)
     # The link behind the bare /r/ (F1.AC3). Like `entries`, read only when the
-    # database is unreachable.
+    # database is unreachable, or (ADR-0028) when this worker is overloaded or a capture
+    # overran its deadline.
     default: LinkSnapshot | None = None
+    # True once a whole-set load has succeeded (``refresh_link_cache``). Before that a
+    # slug the cache does not know may still exist; after it, it does not.
+    loaded: bool = False
+
+    def replace(self, snapshots: list[LinkSnapshot], default: LinkSnapshot | None) -> None:
+        self.entries = {s.slug: s for s in snapshots[:_MAX_CACHED_LINKS]}
+        self.default = default
+        self.loaded = True
 
     def put(self, snapshot: LinkSnapshot) -> None:
         if snapshot.slug not in self.entries and len(self.entries) >= _MAX_CACHED_LINKS:
@@ -147,6 +158,35 @@ class _LinkCache:
 
 
 link_cache = _LinkCache()
+
+LINK_CACHE_REFRESH_S: Final = 30.0
+
+
+async def refresh_link_cache() -> int:
+    """Load every unarchived link into this worker's cache (ADR-0028). Returns the count.
+
+    One small query: links are few. An edit through the API still invalidates the cache
+    of the worker that made it at once; this bounds the other worker's staleness.
+    """
+    async with session_scope() as db:
+        links = (await db.execute(select(Link).where(Link.archived_at.is_(None)))).scalars().all()
+        snapshots = [LinkSnapshot.of(link) for link in links]
+        default = next((LinkSnapshot.of(link) for link in links if link.is_default), None)
+    link_cache.replace(snapshots, default)
+    return len(snapshots)
+
+
+async def keep_link_cache_warm(stop: asyncio.Event) -> None:
+    """At start, then every 30 s; skipped while this worker is overloaded, when the
+    cache is exactly what must not wait on a query."""
+    while not stop.is_set():
+        if not overload.is_overloaded():
+            try:
+                await refresh_link_cache()
+            except Exception as exc:  # noqa: BLE001 - the last good set stays in use
+                log.warning("link_cache_refresh_failed", error_type=type(exc).__name__)
+        with contextlib.suppress(TimeoutError):
+            await asyncio.wait_for(stop.wait(), timeout=LINK_CACHE_REFRESH_S)
 
 
 def normalise_slug(raw: str) -> str | None:
@@ -170,6 +210,9 @@ class Outcome(StrEnum):
     # The visit could not be recorded AND the destination is unknown. The only outcome
     # that cannot redirect, because there is nowhere to redirect to.
     UNAVAILABLE = "unavailable"
+    # ADR-0028: answered from the link cache with no database work, because the worker
+    # is overloaded or the capture overran its deadline. Redirected at once, as F11.AC3.
+    FROM_MEMORY = "from_memory"
 
 
 @dataclass(frozen=True, slots=True)
@@ -435,6 +478,36 @@ async def capture(settings: Settings, slug: str | None, facts: RequestFacts) -> 
         webview_host=agent.webview_host,
         os_family=agent.os_family,
     )
+
+
+def from_memory(slug: str | None, facts: RequestFacts, *, record: bool) -> CaptureResult:
+    """Answer a capture from the link cache alone: no query, no lock, no await (ADR-0028).
+
+    ``record`` keeps the minimal ``rate_limited`` row in this worker's buffer: true when
+    the worker is overloaded, false behind a deadline, where the capture task still
+    running records the visit itself. A slug the cache does not know is a 404 once the
+    cache has loaded, and UNAVAILABLE before that, the only case that cannot redirect.
+    """
+    normalised: str | None = None
+    if slug is not None:
+        normalised = normalise_slug(slug)
+        if normalised is None:
+            return CaptureResult(outcome=Outcome.NOT_FOUND)
+    link = link_cache.get(normalised) if normalised is not None else link_cache.default
+    if link is None:
+        return CaptureResult(
+            outcome=Outcome.NOT_FOUND if link_cache.loaded else Outcome.UNAVAILABLE
+        )
+    if not link.is_live:
+        return CaptureResult(outcome=Outcome.NOT_FOUND)
+    if record:
+        overload.record_shed(
+            link_id=link.id,
+            ip_prefix=prefix_of(facts.client.ip),
+            trace_id=facts.trace_id,
+            classifier_version=CLASSIFIER_VERSION,
+        )
+    return CaptureResult(outcome=Outcome.FROM_MEMORY, link=link)
 
 
 def _nonce_key(settings: Settings) -> bytes | None:

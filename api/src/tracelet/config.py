@@ -153,6 +153,15 @@ class Settings(BaseSettings):
     # fallback, on a kernel without pressure information, is the swap-in rate.
     shed_memory_pressure: float = Field(default=20.0, ge=0, le=100)
     shed_swapin_pages_per_s: int = Field(default=256, ge=1)
+    # A bounded redirect (ADR-0028, capture/overload.py). A worker is overloaded when its
+    # event loop lags this much (smoothed), or it holds more captures than this, or memory
+    # sheds; it then answers captures from memory and buffers their minimal rows, up to
+    # overload_buffer per worker. Otherwise a capture slower than capture_deadline_ms is
+    # answered from memory and finishes recording behind.
+    overload_lag_ms: int = Field(default=250, ge=20, le=10_000)
+    overload_inflight: int = Field(default=8, ge=1, le=1_000)
+    overload_buffer: int = Field(default=5_000, ge=0, le=100_000)
+    capture_deadline_ms: int = Field(default=1_000, ge=50, le=9_000)
 
     # --- analytics (ADR-0016) ----------------------------------------------
     # Days and hours are bucketed in this zone. India is UTC+05:30, so UTC buckets

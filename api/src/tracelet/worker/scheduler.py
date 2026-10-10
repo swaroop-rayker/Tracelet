@@ -23,12 +23,13 @@ import contextlib
 import hashlib
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
+from typing import Final
 
 import structlog
 from sqlalchemy import text
 
 from tracelet.analytics import rollup
-from tracelet.capture import service
+from tracelet.capture import overload, service
 from tracelet.db.engine import session_scope
 from tracelet.inference import engine as inference
 from tracelet.inference.geodb import maintenance as geodb
@@ -73,10 +74,17 @@ async def _run_exclusively(job: Job) -> bool:
         return True
 
 
+# Jobs that keep running while this worker is overloaded (ADR-0028). The outbox carries
+# alerts, which must not wait; the sweeper finalises visits. Everything else -- inference,
+# rollups, updates, backups -- is off the visitor's path (NFR2.AC6) and catches up after.
+RUN_UNDER_OVERLOAD: Final = frozenset({"outbox", "sweeper"})
+
+
 async def _loop(job: Job, stop: asyncio.Event) -> None:
     while not stop.is_set():
         try:
-            await _run_exclusively(job)
+            if job.name in RUN_UNDER_OVERLOAD or not overload.is_overloaded():
+                await _run_exclusively(job)
         except Exception as exc:
             # Deliberately broad: one failed tick must never end the loop. The sweeper
             # is on the correctness path (ADR-0009).

@@ -7,6 +7,8 @@ that is deliberate -- M0's only job is to make M1 through M9 cheap.
 
 from __future__ import annotations
 
+import asyncio
+import contextlib
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
@@ -17,6 +19,8 @@ from tracelet.accuracy.router import router as accuracy_router
 from tracelet.analytics.router import router as analytics_router
 from tracelet.auth.admins_router import router as admins_router
 from tracelet.auth.router import router as auth_router
+from tracelet.capture import overload
+from tracelet.capture import service as capture_service
 from tracelet.capture.links_router import router as links_router
 from tracelet.capture.router import router as capture_router
 from tracelet.capture.visits_router import router as visits_router
@@ -83,10 +87,25 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     scheduler = Scheduler()
     scheduler.start()
 
+    # A bounded redirect (ADR-0028): the event-loop lag ticker and the shed-row flusher,
+    # and the link cache, loaded now and every 30 s, so a capture can be answered from
+    # memory. Started in the background: a slow database must not delay startup.
+    monitor = overload.Monitor(settings)
+    monitor.start()
+    stop_warming = asyncio.Event()
+    warming = asyncio.create_task(
+        capture_service.keep_link_cache_warm(stop_warming), name="link-cache"
+    )
+
     try:
         yield
     finally:
+        stop_warming.set()
+        warming.cancel()
+        with contextlib.suppress(asyncio.CancelledError):
+            await warming
         await scheduler.stop()
+        await monitor.stop()
         await dispose_engine()
         log.info("shutdown")
 

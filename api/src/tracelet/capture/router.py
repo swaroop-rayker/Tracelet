@@ -11,12 +11,15 @@ last line of defence is a fixed string that cannot itself throw.
 
 from __future__ import annotations
 
+import asyncio
+from typing import Final
+
 import structlog
 from fastapi import APIRouter, Request, Response, status
 from pydantic import ValidationError
 
 from tracelet.auth.dependencies import Config, DbSession, client_address
-from tracelet.capture import pages, service
+from tracelet.capture import overload, pages, service
 from tracelet.capture.schemas import MAX_ENRICHMENT_BYTES, EnrichmentPayload
 from tracelet.config import Settings
 from tracelet.errors import (
@@ -62,7 +65,8 @@ def _facts(request: Request, settings: Settings) -> service.RequestFacts:
     summary="Capture a visit and continue to the link's destination",
 )
 async def capture(slug: str, request: Request, settings: Config) -> Response:
-    """F2.AC1: 200 text/html, never a 3xx -- except when rate-limited (F11.AC3)."""
+    """F2.AC1: 200 text/html, never a 3xx -- except when rate-limited (F11.AC3) or answered
+    from memory (ADR-0028), both of which send the visitor on at once."""
     return await _capture(slug, request, settings)
 
 
@@ -75,10 +79,55 @@ async def capture_default(request: Request, settings: Config) -> Response:
     return await _capture(None, request, settings)
 
 
+# Captures still recording behind their deadline (ADR-0028). Held so the event loop does
+# not garbage-collect a running task; each removes itself when it completes.
+_behind: set[asyncio.Task[service.CaptureResult]] = set()
+
+# Past the deadline, a slug the cache cannot answer waits for its capture this long in
+# all, below Caddy's 10 s response timeout, so the database still gets to say.
+LAST_WAIT_S: Final = 8.0
+
+
+async def _within_deadline(
+    settings: Settings, slug: str | None, facts: service.RequestFacts
+) -> service.CaptureResult:
+    """Run the capture; past the deadline, answer from memory and let it finish behind.
+
+    The capture is never cancelled: cancelling it would abandon the visit mid-transaction.
+    """
+    overload.started()
+    task = asyncio.create_task(service.capture(settings, slug, facts))
+    task.add_done_callback(overload.finished)
+    deadline = settings.capture_deadline_ms / 1000
+    done, _ = await asyncio.wait({task}, timeout=deadline)
+    if task in done:
+        return task.result()
+    answer = service.from_memory(slug, facts, record=False)
+    if answer.outcome is not service.Outcome.FROM_MEMORY:
+        # The cache cannot say (a link newer than its last load, or not loaded yet).
+        done, _ = await asyncio.wait({task}, timeout=max(0.0, LAST_WAIT_S - deadline))
+        if task in done:
+            return task.result()
+    _behind.add(task)
+    task.add_done_callback(_behind.discard)
+    log.info("capture_deadline_passed", deadline_ms=settings.capture_deadline_ms)
+    return answer
+
+
 async def _capture(slug: str | None, request: Request, settings: Settings) -> Response:
     destination: str | None = None
     try:
-        result = await service.capture(settings, slug, _facts(request, settings))
+        facts = _facts(request, settings)
+        result = None
+        if overload.evaluate(settings):
+            # ADR-0028: no database, no await -- the redirect needs only memory.
+            result = service.from_memory(slug, facts, record=True)
+            if result.outcome is service.Outcome.UNAVAILABLE:
+                # The cache has never loaded (a worker just started): the database,
+                # bounded by the deadline, is better than no answer.
+                result = None
+        if result is None:
+            result = await _within_deadline(settings, slug, facts)
         destination = result.link.destination_url if result.link else None
 
         if result.outcome is service.Outcome.CAPTURED and result.link is not None:
@@ -90,7 +139,10 @@ async def _capture(slug: str | None, request: Request, settings: Settings) -> Re
                 webview_host=result.webview_host,
                 os_family=result.os_family,
             )
-        if result.outcome is service.Outcome.RATE_LIMITED and result.link is not None:
+        if (
+            result.outcome in (service.Outcome.RATE_LIMITED, service.Outcome.FROM_MEMORY)
+            and result.link is not None
+        ):
             return pages.redirect(result.link.destination_url)
         if result.outcome is service.Outcome.FALLBACK and result.link is not None:
             # Not recorded, but the visitor still gets where they were going.
