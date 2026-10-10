@@ -2549,6 +2549,29 @@ missing from the list.
 
 ---
 
+### E78 — `./scripts/tl` was "Permission denied" on the first Linux checkout
+
+**Status:** Fixed in M9 (feat/m9-deploy). **Milestone:** M9. **Date:** 2026-10-10.
+
+**Symptom.** On the production VM (Debian 12), a fresh clone's `./scripts/tl secrets` failed
+with `bash: ./scripts/tl: Permission denied`.
+
+**Root cause.** `scripts/tl` and `scripts/guard_private_docs.sh` were committed as mode
+`100644`, not executable. Every checkout so far had been on Windows, where Git Bash runs a
+script whatever its mode, and CI called the guard through `sh` and never called `tl` at all.
+So the documented quickstart (KICKOFF §4, SC2) and the `Makefile` (`TL := ./scripts/tl`) had
+never worked on Linux or macOS, and nothing could have said so.
+
+**Fix.** Both files are mode `100755` (`git update-index --chmod=+x`).
+
+**Prevention.** CI job 1 now runs `./scripts/tl help` directly, so a lost executable bit fails
+on Linux, where it matters. The same job's compose check now also validates the production
+override (ADR-0026).
+
+**Related:** SC2, F14.AC3, ADR-0026.
+
+---
+
 Add entries here as bugs are found and fixed. Use the next available `E<n>` identifier and
 the same structure: symptom, root cause, fix, **prevention**.
 

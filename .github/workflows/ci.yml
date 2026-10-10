@@ -52,6 +52,11 @@ jobs:
       - uses: actions/checkout@v4
       - name: Assert nothing under docs/private/ is tracked
         run: sh scripts/guard_private_docs.sh
+      # Run directly, not through `sh`: SC2's quickstart and the Makefile call
+      # ./scripts/tl, which needs the executable bit that Git Bash never checks
+      # (docs/ERRORS.md E78).
+      - name: Assert the task runner is executable
+        run: ./scripts/tl help > /dev/null
 
   # === 2-5, 10. Python =====================================================
   python:
@@ -320,6 +325,9 @@ jobs:
           sed -i 's/^TRACELET_DB_MIGRATE_PASSWORD=.*/TRACELET_DB_MIGRATE_PASSWORD=ci/' .env
           docker compose --profile tools config --quiet
           echo "compose file is valid"
+          # The release host's override (ADR-0026): images instead of builds.
+          TRACELET_IMAGE_TAG=ci docker compose -f docker-compose.yml -f docker-compose.prod.yml config --quiet
+          echo "production override is valid"
 
   # === Conventional commits (ES6) =========================================
   commitlint:
