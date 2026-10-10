@@ -34,6 +34,12 @@ from typing import Any, Final
 
 COUNTRY: Final = "IN"
 ADDRESS_SPACE_CAP: Final = 1536 * 1024 * 1024
+# The city databases are mapped, and the walk touches most of their pages: left alone,
+# about 113 MB of them stay resident, charged to the api container beside the workers,
+# which on the e2-micro pushed the workers into swap (docs/ERRORS.md E79). Every this many
+# networks the readers are closed and their pages dropped. Same lookups in the same order,
+# so the output cannot change; only what is held at once does.
+RELEASE_EVERY: Final = 20_000
 Key = tuple[str | None, str | None, float, float]  # city, admin1, lat, lng
 
 
@@ -69,15 +75,34 @@ def _place(record: Any) -> Key | None:
     )
 
 
+def _release(readers: list[Any], paths: list[str]) -> None:
+    """Unmap the readers, then ask the kernel to drop the files' cached pages.
+
+    Only pages nobody maps are dropped, so the workers' own readers keep what they use.
+    """
+    for reader in readers:
+        reader.close()
+    for path in paths:
+        fd = os.open(path, os.O_RDONLY)
+        try:
+            os.posix_fadvise(fd, 0, 0, os.POSIX_FADV_DONTNEED)
+        finally:
+            os.close(fd)
+
+
 def compute(asn_path: str, city_paths: list[str]) -> dict[int, dict[str, Any]]:
     import maxminddb  # noqa: PLC0415 - imported after the memory cap is in place
 
     # MODE_AUTO is the C extension, memory-mapped. MODE_MMAP, used until M9, is the
     # pure-Python reader: 130 s of CPU here on a 16-core PC and a 15-minute timeout on the
     # e2-micro, against 14 s with identical output (docs/ERRORS.md E79).
-    cities = [maxminddb.open_database(p, maxminddb.MODE_AUTO) for p in city_paths]
+    def open_cities() -> list[Any]:
+        return [maxminddb.open_database(p, maxminddb.MODE_AUTO) for p in city_paths]
+
+    cities = open_cities()
     weights: dict[int, Counter[Key]] = defaultdict(Counter)
     orgs: dict[int, str] = {}
+    seen = 0
     with maxminddb.open_database(asn_path, maxminddb.MODE_AUTO) as asn_db:
         for network, record in asn_db:
             if not isinstance(network, ipaddress.IPv4Network) or not isinstance(record, dict):
@@ -91,8 +116,11 @@ def compute(asn_path: str, city_paths: list[str]) -> dict[int, dict[str, Any]]:
                 if key is not None:
                     weights[number][key] += network.num_addresses
                     orgs.setdefault(number, str(record.get("autonomous_system_organization") or ""))
-    for reader in cities:
-        reader.close()
+            seen += 1
+            if seen % RELEASE_EVERY == 0:
+                _release(cities, city_paths)
+                cities = open_cities()
+    _release(cities, city_paths)
 
     profiles: dict[int, dict[str, Any]] = {}
     for number, counter in weights.items():
