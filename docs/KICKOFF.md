@@ -118,7 +118,7 @@ Two things worth doing immediately afterwards, from the dashboard:
 - **Verify your Telegram chat.** Until you do, the reset-over-Telegram path is not armed
   and your only recovery routes are the codes and the server CLI (ADR-0008).
 - **Check the recovery codes are somewhere you will actually find them.** With no codes and
-  no Telegram, only `docker compose run --rm api tracelet admin reset-password` can recover
+  no Telegram, only `docker compose run --rm cli tracelet admin reset-password` can recover
   the account — which needs shell access to the box (F8.AC8).
 
 ---

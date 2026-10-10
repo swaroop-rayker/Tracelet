@@ -69,6 +69,12 @@ revisiting it.
 | Prometheus + Grafana | ~250 MB | Does not fit. Health API plus structured logs cover the need at this scale | Migration to a host with 4 GB or more |
 | Node.js runtime | ~80 MB | The SPA is static after build | Never for v1; SSR is not required |
 
+*(M9, ADR-0026:)* `cli` in `docker-compose.yml` is not a fourth container but a **one-off**:
+the api's image and settings without its fixed address, behind a `cli` profile so `up`
+never starts it. Migrations, `tracelet admin …` (the break-glass recovery, F8.AC8) and
+`tracelet geodb …` run as `docker compose run --rm cli …`, while the api is up or down
+(ERRORS.md E80).
+
 ---
 
 ## 2. Capture data flow — the load-bearing design

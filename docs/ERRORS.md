@@ -2627,6 +2627,41 @@ background job on a 1 GB, one-vCPU box is a measurement on that box, or it is a 
 
 ---
 
+### E80 — A deploy failed at its migration: "Address already in use"
+
+**Status:** Fixed in M9 (feat/m9-deploy). **Milestone:** M9. **Date:** 2026-10-10.
+
+**Symptom.** `tl deploy` of `2554e28` stopped with `Error response from daemon: failed to set
+up container networking: Address already in use`. Production kept serving the previous
+release, healthy and unmigrated, but `.deploy/history` listed the failed release's digests as
+if deployed.
+
+**Root cause.** E79's fix gave the api a fixed address, 172.31.253.10. `tl migrate` (and
+`tl bootstrap`) ran one-offs as `docker compose run --rm api …`, and a `run` container
+inherits the service's network settings, address included, which the running api already
+held. The deploy of the fix itself had passed only because the stack was down for the network
+change. The documented break-glass recovery, `docker compose run --rm api tracelet admin
+reset-password` (F8.AC8), would have failed the same way whenever the api was up: exactly when
+it is needed. `docker compose run` has no option to drop an address. And `tl deploy` wrote its
+history line before it knew the outcome.
+
+**Fix.** The api's settings moved to an `x-api` anchor shared by `api` (the server, with the
+address) and a new one-off service `cli` (without it, behind a `cli` profile so `up` never
+starts it; the production override pins it to the same release image). `tl migrate`,
+`tl bootstrap`, KICKOFF's break-glass command and `.env.example` use `docker compose run --rm
+cli …`. Verified locally: a migration through `cli` while the api holds the address. `tl
+deploy` now records each attempt with its outcome, `deployed` or `FAILED`.
+
+**Prevention.** The merged `api` service was compared before and after the change: identical
+apart from the explicit image name. CI's compose check now validates the production override
+with the `cli` profile. And the lesson for any fixed resource a service holds (an address, a
+port, a lock file): every way that service is *run*, not only how it is *started*, has to be
+checked against it.
+
+**Related:** E79, ADR-0026 (amended), F8.AC8.
+
+---
+
 Add entries here as bugs are found and fixed. Use the next available `E<n>` identifier and
 the same structure: symptom, root cause, fix, **prevention**.
 

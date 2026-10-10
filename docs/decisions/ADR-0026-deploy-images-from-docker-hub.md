@@ -109,3 +109,11 @@ the app, failed requests under memory pressure. The owner approved both guards.
 
 Changing the default network's subnet makes compose recreate it: the first deploy after this
 needs `docker compose down` once, said in the runbook.
+
+**One-off commands run as the `cli` service (ERRORS E80).** A `docker compose run` of the api
+inherits its fixed address, which the running api holds, so the first deploy after this
+amendment failed at its migration with "Address already in use". The api's settings moved to
+an `x-api` anchor shared by `api` (the server, with the address) and `cli` (one-offs, without
+it, behind a `cli` profile). `tl migrate`, `tl bootstrap` and the documented break-glass
+`docker compose run --rm cli tracelet admin reset-password` use it, whether the api is up or
+not.

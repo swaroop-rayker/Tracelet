@@ -326,7 +326,7 @@ jobs:
           docker compose --profile tools config --quiet
           echo "compose file is valid"
           # The release host's override (ADR-0026): images instead of builds.
-          TRACELET_IMAGE_TAG=ci docker compose -f docker-compose.yml -f docker-compose.prod.yml config --quiet
+          TRACELET_IMAGE_TAG=ci docker compose -f docker-compose.yml -f docker-compose.prod.yml --profile cli config --quiet
           echo "production override is valid"
 
   # === Conventional commits (ES6) =========================================

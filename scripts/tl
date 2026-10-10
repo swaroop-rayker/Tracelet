@@ -24,7 +24,9 @@ API_RUN="$DCT run --rm --no-deps api-tools"
 API_RUN_T="$DCT run --rm --no-deps -T api-tools"
 API_RUN_DB="$DCT run --rm api-tools"
 WEB_RUN="$DCT run --rm --no-deps web-tools"
-API_PROD="$DC run --rm api"
+# One-offs in the production image run as the `cli` service, never `api`: a run of `api`
+# inherits its fixed address, which the running api holds (docs/ERRORS.md E80).
+API_PROD="$DC run --rm cli"
 
 red()  { printf '\033[31m%s\033[0m\n' "$1"; }
 grn()  { printf '\033[32m%s\033[0m\n' "$1"; }
@@ -72,7 +74,7 @@ task_bootstrap() {
         ylw "Set TRACELET_BOOTSTRAP_EMAIL to create the first owner, e.g."
         ylw "  TRACELET_BOOTSTRAP_EMAIL=you@example.com ./scripts/tl bootstrap"
         ylw "Or run it directly:"
-        ylw "  docker compose run --rm api tracelet admin bootstrap --email you@example.com"
+        ylw "  docker compose run --rm cli tracelet admin bootstrap --email you@example.com"
     else
         $API_PROD tracelet admin bootstrap \
             --email "$TRACELET_BOOTSTRAP_EMAIL" \
@@ -487,13 +489,16 @@ task_deploy() {
     step "Deploying $tag"
     sed -i "s|^TRACELET_IMAGE_TAG=.*|TRACELET_IMAGE_TAG=$tag|" .env
     $DC pull api caddy
-    # Tags are mutable on Docker Hub; the digest is what actually ran.
+    # Tags are mutable on Docker Hub; the digest is what actually ran. Recorded with the
+    # outcome, so the history never lists a failed attempt as the running version.
     mkdir -p .deploy
-    {
-        printf '%s %s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$tag"
-        docker image inspect --format '  {{index .RepoDigests 0}}' \
-            "$IMAGE_REPO/tracelet-api:$tag" "$IMAGE_REPO/tracelet-caddy:$tag"
-    } >> .deploy/history
+    digests="$(docker image inspect --format '  {{index .RepoDigests 0}}' \
+        "$IMAGE_REPO/tracelet-api:$tag" "$IMAGE_REPO/tracelet-caddy:$tag")"
+    record() {
+        printf '%s %s %s\n%s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$tag" "$1" "$digests" \
+            >> .deploy/history
+    }
+    trap 'record FAILED' EXIT
     $DC up -d db
     task_waitdb
     step "Migrations (the new image)"
@@ -503,6 +508,8 @@ task_deploy() {
     i=0
     while [ $i -lt 60 ]; do
         if [ "$($DC ps --format '{{.Health}}' api 2>/dev/null)" = "healthy" ]; then
+            trap - EXIT
+            record deployed
             grn "Deployed $tag. https://$(grep '^TRACELET_SITE_ADDRESS=' .env | cut -d= -f2)"
             tail -n 3 .deploy/history
             return 0

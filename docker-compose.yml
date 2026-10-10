@@ -25,6 +25,47 @@ x-logging: &logging
     max-size: "10m"
     max-file: "3"
 
+# The api's settings, shared by the server (`api`) and one-off commands (`cli`), so the
+# two can never drift apart (ERRORS E80).
+x-api: &api
+  image: tracelet-api
+  build:
+    context: ./api
+    # Explicit: the running stack is the production image. No dev toolchain,
+    # no dev dependencies, non-root. Lint, typecheck and tests run in the
+    # profiled api-tools service below.
+    target: production
+  mem_limit: 420m
+  logging: *logging
+  env_file: .env
+  environment:
+    # Set here so the value is correct inside the compose network regardless
+    # of what .env says for host-side tooling.
+    TRACELET_DATABASE_URL: postgresql+asyncpg://tracelet_app:${TRACELET_DB_APP_PASSWORD}@db:5432/${POSTGRES_DB:-tracelet}
+    TRACELET_MIGRATE_DATABASE_URL: postgresql+psycopg://tracelet_migrate:${TRACELET_DB_MIGRATE_PASSWORD}@db:5432/${POSTGRES_DB:-tracelet}
+    # Purges, backups and the restore check (ADR-0022): the only role that may
+    # delete audit rows or create the scratch database.
+    TRACELET_MAINT_DATABASE_URL: postgresql+asyncpg://tracelet_maint:${TRACELET_DB_MAINT_PASSWORD}@db:5432/${POSTGRES_DB:-tracelet}
+  depends_on:
+    db:
+      condition: service_healthy
+  volumes:
+    # The host's own figures for System Health, read-only (F10.AC15). Without
+    # these, CPU, memory and uptime would be the container's, not the VM's.
+    - /proc:/host/proc:ro
+    - /sys:/host/sys:ro
+    # The AES-256-GCM key for encrypted columns, read-only and OUTSIDE the
+    # database volume (F12.AC3, ADR-0007). Loaded into process memory at boot,
+    # never written to the database, never logged, never returned by an API.
+    # A stolen pg_dump therefore yields ciphertext.
+    #
+    # This file is NOT in the database backup, deliberately. Restoring onto a
+    # fresh VM without a separate out-of-band copy leaves every encrypted value
+    # permanently unreadable. See docs/private/07-OPERATIONS-PLAYBOOK.md.
+    - ./secrets/ip_key:/run/secrets/ip_key:ro
+    - geo_data:/data/geoip
+    - backups:/data/backups
+
 services:
   db:
     image: postgis/postgis:16-3.4-alpine
@@ -70,43 +111,8 @@ services:
       start_period: 20s
 
   api:
-    build:
-      context: ./api
-      # Explicit: the running stack is the production image. No dev toolchain,
-      # no dev dependencies, non-root. Lint, typecheck and tests run in the
-      # profiled api-tools service below.
-      target: production
+    <<: *api
     restart: unless-stopped
-    mem_limit: 420m
-    logging: *logging
-    env_file: .env
-    environment:
-      # Set here so the value is correct inside the compose network regardless
-      # of what .env says for host-side tooling.
-      TRACELET_DATABASE_URL: postgresql+asyncpg://tracelet_app:${TRACELET_DB_APP_PASSWORD}@db:5432/${POSTGRES_DB:-tracelet}
-      TRACELET_MIGRATE_DATABASE_URL: postgresql+psycopg://tracelet_migrate:${TRACELET_DB_MIGRATE_PASSWORD}@db:5432/${POSTGRES_DB:-tracelet}
-      # Purges, backups and the restore check (ADR-0022): the only role that may
-      # delete audit rows or create the scratch database.
-      TRACELET_MAINT_DATABASE_URL: postgresql+asyncpg://tracelet_maint:${TRACELET_DB_MAINT_PASSWORD}@db:5432/${POSTGRES_DB:-tracelet}
-    depends_on:
-      db:
-        condition: service_healthy
-    volumes:
-      # The host's own figures for System Health, read-only (F10.AC15). Without
-      # these, CPU, memory and uptime would be the container's, not the VM's.
-      - /proc:/host/proc:ro
-      - /sys:/host/sys:ro
-      # The AES-256-GCM key for encrypted columns, read-only and OUTSIDE the
-      # database volume (F12.AC3, ADR-0007). Loaded into process memory at boot,
-      # never written to the database, never logged, never returned by an API.
-      # A stolen pg_dump therefore yields ciphertext.
-      #
-      # This file is NOT in the database backup, deliberately. Restoring onto a
-      # fresh VM without a separate out-of-band copy leaves every encrypted value
-      # permanently unreadable. See docs/private/07-OPERATIONS-PLAYBOOK.md.
-      - ./secrets/ip_key:/run/secrets/ip_key:ro
-      - geo_data:/data/geoip
-      - backups:/data/backups
     # No published ports. Caddy is the only ingress.
     expose:
       - "8000"
@@ -122,6 +128,17 @@ services:
       timeout: 5s
       retries: 6
       start_period: 20s
+
+  # One-off commands in the production image: migrations, `tracelet admin ...` (the
+  # break-glass recovery, F8.AC8), `tracelet geodb ...`. The api's own settings without
+  # its fixed address: a `run` of the api service inherits 172.31.253.10, which the
+  # running api already holds, and fails with "Address already in use" (ERRORS E80).
+  # Behind a profile so `up` never starts it; `docker compose run --rm cli ...` does.
+  cli:
+    <<: *api
+    profiles: ["cli"]
+    restart: "no"
+    command: ["tracelet", "--help"]
 
   caddy:
     build:

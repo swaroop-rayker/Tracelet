@@ -20,6 +20,12 @@ services:
     build: !reset null
     pull_policy: missing
 
+  # One-off commands run the same release image as the server (ERRORS E80).
+  cli:
+    image: ${TRACELET_IMAGE_REPO:-swarooprayker}/tracelet-api:${TRACELET_IMAGE_TAG:?TRACELET_IMAGE_TAG is required on a release host}
+    build: !reset null
+    pull_policy: missing
+
   caddy:
     image: ${TRACELET_IMAGE_REPO:-swarooprayker}/tracelet-caddy:${TRACELET_IMAGE_TAG:?TRACELET_IMAGE_TAG is required on a release host}
     build: !reset null
