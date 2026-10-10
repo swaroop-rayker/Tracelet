@@ -78,3 +78,7 @@ api/certs/*.pem
 
 # Live check output (qa/live_check.py): screenshots and report.json.
 qa/out/
+
+# Load test summaries (loadtest/capture.js).
+loadtest/out/*
+!loadtest/out/.gitkeep

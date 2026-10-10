@@ -535,6 +535,20 @@ task_live_check() {
         -e TRACELET_LIVE_INSECURE="$insecure" live-check python /qa/live_check.py "$url"
 }
 
+# The M9 load test (ADR-0027), from a workstation. `full` needs the owner to raise the
+# capture limits first and restore them after; `limits` runs at the defaults.
+task_loadtest() {
+    url="${1:-}"; slug="${2:-}"; mode="${3:-full}"
+    if [ -z "$url" ] || [ -z "$slug" ]; then
+        red "Usage: tl loadtest https://<site> <slug> [full|limits]"; exit 1
+    fi
+    # k6's own -e flags: container environment does not reliably reach __ENV.
+    MSYS_NO_PATHCONV=1 $DC --profile live run --rm --no-deps -T k6 run --quiet \
+        -e BASE="$url" -e SLUG="$slug" -e MODE="$mode" \
+        -e DESTINATION="${TRACELET_LOADTEST_DESTINATION:-https://example.com}" \
+        /scripts/capture.js
+}
+
 task_help() {
     cat <<'EOF'
 tl — Tracelet task runner
@@ -559,6 +573,7 @@ tl — Tracelet task runner
   host-check        on the VM: check the host baseline, read-only
   deploy            on the VM: pull this commit's images, migrate, start
   live-check URL    headers and CSP against a deployed URL, three engines
+  loadtest URL SLUG [full|limits]  the M9 load test, from a workstation (ADR-0027)
   tunnel-stop stop it
   help        this
 
@@ -594,6 +609,7 @@ case "$cmd" in
     host-check)    task_host_check ;;
     deploy)        task_deploy ;;
     live-check)    task_live_check "$@" ;;
+    loadtest)      task_loadtest "$@" ;;
     waitdb)        task_waitdb ;;
     help|-h|--help) task_help ;;
     *) red "Unknown task: $cmd"; echo; task_help; exit 1 ;;

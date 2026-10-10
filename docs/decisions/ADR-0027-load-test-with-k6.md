@@ -67,3 +67,23 @@ Three things constrain it:
   NFR2.AC1 figure.
 - The run leaves an audit trail (the limit changes, the link's deletion), which is the
   intended evidence.
+
+## Amended 2026-10-10 (M9, before the run)
+
+1. **The dashboard load is the owner, on two devices.** Item 2's "2 virtual users signed in as a
+   test owner" needs a session k6 can hold. Sessions are bound to the browser that signed in,
+   and creating or signing in to an account on production is the owner's to do, not a tool's.
+   Offered a k6 sign-in fed the owner's credentials at run time, the owner chose to work the
+   dashboard themselves, signed in on a PC and a phone, during the 15 sustained minutes.
+   NFR2.AC4 is read from the api's own `http_request` timings for `/api/v1/` in that window
+   (`loadtest/server_timings.py`), so it is the server's figure whoever generates the load.
+2. **The user agent is `Go-http-client/1.1 (Tracelet load test; k6)`.** k6's own `k6/<version>`
+   is not on the classifier's automation list, so its visits would not be certainly `bot`.
+   k6 is a Go HTTP client, so the string is true, and the listed `go-http-client` scores 80
+   against the bot threshold of 60: no load-test visit can be `human`, so none can alert
+   (CLAUDE.md invariant 6). The classifier is unchanged.
+3. **Two modes** in `loadtest/capture.js`: `full` (10 sustained for 15 minutes, then 30 for
+   3) at raised limits, and `limits` (60 visits in a minute) after the owner restores them.
+   Run by `./scripts/tl loadtest <url> <slug> [full|limits]`; `grafana/k6:1.3.0`, the `k6`
+   service behind the `live` profile. `loadtest/vm_sample.sh` samples the VM's memory every
+   5 s during the run.

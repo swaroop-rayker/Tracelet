@@ -242,6 +242,19 @@ services:
       - ./qa:/qa:rw
     command: ["true"]
 
+  # Load test (ADR-0027): `./scripts/tl loadtest https://<site> <slug> [full|limits]`, from a
+  # workstation only, never on the production box. The certs mount is the local
+  # TLS-inspection root, if any (api/certs/README.md); Go reads SSL_CERT_DIR.
+  k6:
+    image: grafana/k6:1.3.0
+    profiles: ["live"]
+    working_dir: /scripts
+    environment:
+      SSL_CERT_DIR: /etc/ssl/certs:/certs
+    volumes:
+      - ./loadtest:/scripts:rw
+      - ./api/certs:/certs:ro
+
   # Frontend toolchain: eslint, prettier, tsc, openapi-typescript.
   web-tools:
     build:
