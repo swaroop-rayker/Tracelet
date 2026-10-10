@@ -244,6 +244,15 @@ class Settings(BaseSettings):
             )
             raise ValueError(msg)
 
+        # Production refuses a development default rather than booting on it (M9,
+        # ADR-0026). A `change-me` database password works -- which is the danger --
+        # and a missing secret only fails later, on the first visit or sign-in.
+        if self.env == "production":
+            problems = self._production_problems()
+            if problems:
+                msg = "Refusing to start in production: " + "; ".join(problems) + "."
+                raise ValueError(msg)
+
         if self.db_pool_max < self.db_pool_min:
             msg = (
                 f"TRACELET_DB_POOL_MAX ({self.db_pool_max}) must be >= "
@@ -279,6 +288,21 @@ class Settings(BaseSettings):
             raise ValueError(msg)
 
         return self
+
+    def _production_problems(self) -> list[str]:
+        """Every development default still present, named by its variable."""
+        problems: list[str] = []
+        for name in ("session_secret", "pepper_stable", "pepper_rotating", "pepper_fp"):
+            secret: SecretStr | None = getattr(self, name)
+            if secret is None or not secret.get_secret_value():
+                problems.append(f"TRACELET_{name.upper()} is not set")
+        for name in ("database_url", "migrate_database_url", "maint_database_url"):
+            url: SecretStr | None = getattr(self, name)
+            if url is not None and "change-me" in url.get_secret_value():
+                problems.append(f"TRACELET_{name.upper()} still has a change-me password")
+        if self.site_address.split(":")[0] in {"localhost", "127.0.0.1"}:
+            problems.append("TRACELET_SITE_ADDRESS is a local address")
+        return problems
 
     def require(self, field: str, feature: str) -> str:
         """Return a milestone-gated secret, or explain precisely what is missing.

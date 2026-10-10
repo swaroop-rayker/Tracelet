@@ -141,3 +141,50 @@ def test_the_tunnel_network_parses_in_development(monkeypatch: pytest.MonkeyPatc
     settings = Settings(dev_trusted_tunnel="172.31.254.0/29")
     assert str(settings.trusted_tunnel) == "172.31.254.0/29"
     assert Settings().trusted_tunnel is None
+
+
+# --- production refuses development defaults (M9, ADR-0026) ----------------------
+
+_PRODUCTION_SECRETS = {
+    "session_secret": SecretStr("s" * 64),
+    "pepper_stable": SecretStr("a" * 64),
+    "pepper_rotating": SecretStr("b" * 64),
+    "pepper_fp": SecretStr("c" * 64),
+    "database_url": SecretStr("postgresql+asyncpg://tracelet_app:x1@db:5432/tracelet"),
+    "migrate_database_url": SecretStr("postgresql+psycopg://tracelet_migrate:x2@db:5432/tracelet"),
+    "maint_database_url": SecretStr("postgresql+asyncpg://tracelet_maint:x3@db:5432/tracelet"),
+    "site_address": "tracelet.duckdns.org",
+}
+
+
+def test_production_starts_with_every_secret_set() -> None:
+    settings = Settings(env="production", **_PRODUCTION_SECRETS)  # type: ignore[arg-type]  # kwargs typed by the dict, not per field
+    assert settings.is_production
+
+
+@pytest.mark.parametrize(
+    ("field", "value", "named"),
+    [
+        ("pepper_stable", None, "TRACELET_PEPPER_STABLE is not set"),
+        ("session_secret", SecretStr(""), "TRACELET_SESSION_SECRET is not set"),
+        (
+            "database_url",
+            SecretStr("postgresql+asyncpg://tracelet_app:change-me-app@db:5432/tracelet"),
+            "TRACELET_DATABASE_URL still has a change-me password",
+        ),
+        ("site_address", "localhost", "TRACELET_SITE_ADDRESS is a local address"),
+    ],
+)
+def test_production_refuses_a_development_default(field: str, value: object, named: str) -> None:
+    values: dict[str, object] = {**_PRODUCTION_SECRETS, field: value}
+    with pytest.raises(ValidationError, match=named):
+        Settings(env="production", **values)  # type: ignore[arg-type]  # as above
+
+
+def test_development_still_boots_on_the_defaults() -> None:
+    settings = Settings(
+        env="development",
+        database_url=SecretStr("postgresql+asyncpg://tracelet_app:change-me-app@db:5432/x"),
+        session_secret=None,
+    )
+    assert not settings.is_production
