@@ -535,12 +535,13 @@ task_live_check() {
         -e TRACELET_LIVE_INSECURE="$insecure" live-check python /qa/live_check.py "$url"
 }
 
-# The M9 load test (ADR-0027), from a workstation. `full` needs the owner to raise the
-# capture limits first and restore them after; `limits` runs at the defaults.
+# The M9 load test (ADR-0027, SPEC section 11 row 35), from a workstation. `burst` and `stress`
+# need the owner to raise the capture limits first and restore them after; `limits` runs at
+# the defaults.
 task_loadtest() {
-    url="${1:-}"; slug="${2:-}"; mode="${3:-full}"
+    url="${1:-}"; slug="${2:-}"; mode="${3:-burst}"
     if [ -z "$url" ] || [ -z "$slug" ]; then
-        red "Usage: tl loadtest https://<site> <slug> [full|limits]"; exit 1
+        red "Usage: tl loadtest https://<site> <slug> [burst|stress|limits]"; exit 1
     fi
     # k6's own -e flags: container environment does not reliably reach __ENV.
     MSYS_NO_PATHCONV=1 $DC --profile live run --rm --no-deps -T k6 run --quiet \
@@ -573,7 +574,7 @@ tl — Tracelet task runner
   host-check        on the VM: check the host baseline, read-only
   deploy            on the VM: pull this commit's images, migrate, start
   live-check URL    headers and CSP against a deployed URL, three engines
-  loadtest URL SLUG [full|limits]  the M9 load test, from a workstation (ADR-0027)
+  loadtest URL SLUG [burst|stress|limits]  the M9 load test, from a workstation (ADR-0027)
   tunnel-stop stop it
   help        this
 

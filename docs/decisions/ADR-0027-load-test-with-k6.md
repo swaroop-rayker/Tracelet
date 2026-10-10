@@ -87,3 +87,12 @@ Three things constrain it:
    Run by `./scripts/tl loadtest <url> <slug> [full|limits]`; `grafana/k6:1.3.0`, the `k6`
    service behind the `live` profile. `loadtest/vm_sample.sh` samples the VM's memory every
    5 s during the run.
+
+## Amended 2026-10-10 (M9, after the first run)
+
+The first run failed (ERRORS E82) and SPEC §11 row 35 clarified NFR1.AC1. `loadtest/capture.js`
+now has three modes: **`burst`**, the NFR1.AC1 pass test (10 simultaneous visitors every 10 s
+for 15 minutes, meeting NFR2); **`stress`**, the former `full` (10 back to back for 15 minutes,
+then 30 for 3), whose pass condition is CLAUDE.md invariant 1 alone; and **`limits`**,
+unchanged. "Sent on" accepts the F15.AC7 fallback page (a 503 that carries the destination);
+a 504 from Caddy is the failure.
