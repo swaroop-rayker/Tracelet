@@ -111,7 +111,9 @@ services:
       - db_data:/var/lib/postgresql/data
       - ./db/init:/docker-entrypoint-initdb.d:ro
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -q -U ${POSTGRES_USER:-tracelet} -d ${POSTGRES_DB:-tracelet}"]
+      # Over TCP: db/init's temporary first-boot server listens only on the socket, and a
+      # socket check would call it healthy before it is stopped (docs/ERRORS.md E83).
+      test: ["CMD-SHELL", "pg_isready -q -h 127.0.0.1 -U ${POSTGRES_USER:-tracelet} -d ${POSTGRES_DB:-tracelet}"]
       interval: 5s
       timeout: 3s
       retries: 12

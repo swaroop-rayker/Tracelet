@@ -107,7 +107,7 @@ jobs:
           POSTGRES_PASSWORD: ci-postgres
         ports: ["5432:5432"]
         options: >-
-          --health-cmd "pg_isready -U tracelet -d tracelet"
+          --health-cmd "pg_isready -h 127.0.0.1 -U tracelet -d tracelet"
           --health-interval 5s
           --health-timeout 3s
           --health-retries 12

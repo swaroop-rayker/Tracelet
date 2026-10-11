@@ -83,10 +83,13 @@ task_bootstrap() {
     grn "Bootstrap complete. Next: ./scripts/tl up"
 }
 
+# Over TCP, never the socket: on a new volume the image first runs db/init on a temporary
+# server that listens only on the socket, then stops it. A socket check calls that server
+# ready, and work started then is cut off when it stops (docs/ERRORS.md E83).
 task_waitdb() {
     i=0
     while [ "$i" -lt 60 ]; do
-        if $DC exec -T db pg_isready -q -U "${POSTGRES_USER:-tracelet}" 2>/dev/null; then
+        if $DC exec -T db pg_isready -q -h 127.0.0.1 -U "${POSTGRES_USER:-tracelet}" 2>/dev/null; then
             grn "Database ready."
             return 0
         fi

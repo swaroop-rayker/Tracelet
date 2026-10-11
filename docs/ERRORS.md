@@ -2726,6 +2726,35 @@ stress test's pass condition is no visitor left un-redirected.
 **Related:** ADR-0028, ADR-0009 and ADR-0010 (amended), ADR-0027, NFR1, NFR2, NFR3.AC2,
 F15.AC6, CLAUDE.md invariant 1, RISKS R6.
 
+### E83 — The restore drill's `pg_restore` was cut off: "server closed the connection unexpectedly"
+
+**Status:** Fixed in M9 (feat/m9-deploy). **Milestone:** M9. **Date:** 2026-10-11.
+
+**Symptom.** M9's restore drill, on the wiped VM: `tl restore` created the database volume,
+printed "Database ready.", copied the dump in, and `pg_restore` failed partway through the
+`visits` data with `error returned by PQputCopyData: server closed the connection
+unexpectedly`. The server log showed `received fast shutdown request` and `terminating
+connection due to administrator command` during `COPY visits`, then "PostgreSQL init process
+complete; ready for start up". Nothing was left behind: the restore is one transaction. The
+same test on the PC, with a cached image, had passed.
+
+**Root cause.** On an empty volume the postgres image runs `db/init/` on a **temporary
+server that listens only on the Unix socket** (`listen_addresses=''`), then stops it and
+starts the real one. `tl waitdb` and the compose healthcheck both ran `pg_isready` over the
+socket, so they called the temporary server ready; work started then is cut off when the
+entrypoint stops it. Reproduced on the PC by polling a fresh volume every 0.25 s: three polls
+in which the socket check was ready and a TCP check was not. Any first deploy carried the
+same race (migrations over TCP would have failed on "connection refused"), and the api's
+`depends_on: service_healthy` could start it against a server about to stop.
+
+**Fix.** Readiness over TCP, which only the real server answers: `pg_isready -h 127.0.0.1`
+in `tl waitdb`, in the `db` healthcheck, and in CI's service container.
+
+**Prevention.** The restore drill ran again from a fresh volume with the fix. A readiness
+check must ask the endpoint its clients will use, not a side door that is open earlier.
+
+**Related:** ADR-0030, ADR-0026 (`tl deploy`), MILESTONES M9 (the restore drill).
+
 ---
 
 Add entries here as bugs are found and fixed. Use the next available `E<n>` identifier and
