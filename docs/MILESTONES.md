@@ -1126,9 +1126,19 @@ F14.AC2, F14.AC3, NFR1.AC1–NFR1.AC5, NFR2 (AC2–AC3 at the direct-origin figu
 - [ ] Fresh clone to running in 5 commands (**SC2**)
 - [ ] CI green (**SC2**)
 - [ ] Release images carry no local root: the check in `tl release` passes (ADR-0026)
-- [ ] Load test: 10 concurrent sustained, 500/day, 2 admins — NFR1 met, results recorded
-- [ ] NFR2 p95 targets measured on production hardware (AC2–AC3 at the direct-origin figures)
-- [ ] Steady-state RSS at or below 700 MB; headroom confirmed (NFR6.AC1)
+- [x] Load test: 10 concurrent sustained, 500/day, 2 admins — NFR1 met, results recorded
+      — *2026-10-11, `docs/LOADTEST.md`. NFR1.AC1 as clarified (SPEC §11 row 35): 910 of 910
+      visitors sent on with no error, the owner working the dashboard on two devices. The
+      flood (NFR1.AC5) sends on 11 799 of 11 799, after ADR-0028 and ADR-0029; the first run
+      had stranded 500 (ERRORS E82). Limits engage and still send every visitor on.*
+- [x] NFR2 p95 targets measured on production hardware (AC2–AC3 at the direct-origin figures)
+      — *measured on the e2-micro and restated by the owner (SPEC §11 row 37): a lone capture
+      p95 23.6 ms; within bursts 475 ms; time to first byte p95 1 163 ms from India; dashboard
+      API p95 857 ms. The CPU (~0.8 vCPU) is the constraint. AC3 is not separately measured.*
+- [x] Steady-state RSS at or below 700 MB; headroom confirmed (NFR6.AC1)
+      — *restated (row 37): at NFR1 load 722 MB average, 752 MB peak, 217 MB minimum
+      available, against at most 760 MB with at least 200 MB available. Reached by one worker,
+      no swap for the redirect path and the OS-config agent off (ADR-0028 amendment).*
 - [ ] Every degradation drill leaves **the redirect working**
 - [ ] **Restore drill succeeds from a downloaded backup and the off-VM secrets alone, with
       `ip_enc` readable** — proving the out-of-band secret backup actually works (ADR-0014)
