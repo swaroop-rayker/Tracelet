@@ -1123,7 +1123,14 @@ F14.AC2, F14.AC3, NFR1.AC1–NFR1.AC5, NFR2 (AC2–AC3 at the direct-origin figu
 
 **Done checklist**
 - [ ] All in-scope flows work end to end on the deployed URL (**SC1**)
-- [ ] Fresh clone to running in 5 commands (**SC2**)
+- [x] Fresh clone to running in 5 commands (**SC2**)
+      — *2026-10-11, `f82166c`, on the owner's PC with the development stack down and its own
+      project name, so nothing was shared: `git clone`, `cp .env.example .env`, `tl bootstrap`
+      (owner created, key generated), `tl up` (three containers healthy), `tl verify`: **all 14
+      checks passed** (756 unit, 558 integration, 142 dashboard tests), 15 minutes 25 seconds.
+      Only machine preparation outside the five: the PC's antivirus root copied into
+      `api/certs/` (E21). The first two runs found E85 (no key: Docker mounted a directory)
+      and E86 (the web toolchain resolved only through a stale `node_modules`).*
 - [ ] CI green (**SC2**)
 - [x] Release images carry no local root: the check in `tl release` passes (ADR-0026)
       — *every M9 release, both images, last `68d511cec87b` (2026-10-11): no extra trust anchor,
