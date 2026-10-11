@@ -21,11 +21,11 @@ import io
 import uuid
 from collections.abc import AsyncIterator
 from decimal import Decimal
-from typing import Annotated, Any
+from typing import Annotated, Any, Final
 
 import structlog
 from fastapi import APIRouter, Depends, Query, Request
-from fastapi.responses import StreamingResponse
+from fastapi.responses import Response, StreamingResponse
 from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy import ColumnElement, Select, and_, case, null, or_, select
 from sqlalchemy.orm import aliased
@@ -46,6 +46,7 @@ from tracelet.crypto.envelope import DecryptionError, Envelope, open_str
 from tracelet.db.engine import session_scope
 from tracelet.errors import InternalError, IpPurged, NotFound, RateLimited, ValidationFailed
 from tracelet.inference.models import VisitCandidate
+from tracelet.lifecycle import retention
 from tracelet.net import prefix_of
 from tracelet.ratelimit import gcra
 
@@ -174,6 +175,34 @@ class VisitDetail(VisitSummary):
 class DecryptedIp(BaseModel):
     ip: str
     decrypted_at: dt.datetime
+
+
+class ExportRetention(BaseModel):
+    """When what this export describes is deleted, under the policy in force now."""
+
+    visit_deleted_after: dt.datetime
+    encrypted_address_deleted_after: dt.datetime | None
+    policy_visit_days: int
+    policy_ip_days: int
+
+
+class VisitExport(BaseModel):
+    """Everything stored about one visit, for the person it describes (F12.AC14)."""
+
+    exported_at: dt.datetime
+    visit: VisitDetail
+    retention: ExportRetention
+    # Stored about this visit but deliberately not in the file, each with why.
+    withheld: list[str]
+
+
+WITHHELD: Final = (
+    "The full network address. It is stored only encrypted (AES-256-GCM) until the date in "
+    "retention.encrypted_address_deleted_after, and reading it takes an audited request by "
+    "the owner. The network block it belongs to is in visit.network.ip_prefix.",
+    "A keyed one-way hash of the address (ip_hmac), kept for rate limiting and repeat "
+    "detection. It cannot be turned back into the address.",
+)
 
 
 # ---------------------------------------------------------------------------
@@ -706,3 +735,66 @@ async def decrypt_ip(
         trace_id=getattr(request.state, "trace_id", None),
     )
     return DecryptedIp(ip=ip, decrypted_at=dt.datetime.now(dt.UTC))
+
+
+@router.get(
+    "/{visit_id}/export",
+    summary="Everything stored about one visit, as a JSON file (F12.AC14)",
+    description=(
+        "The data-subject export: the visit in full -- what was captured, every location "
+        "candidate and classification signal -- with when each part is deleted, and what is "
+        "stored but withheld from the file, and why. **Never the plaintext address**: the "
+        "network block is the only address-derived value. Any admin, as the bulk export; "
+        "audited, because it is a person's data leaving the system."
+    ),
+    response_model=VisitExport,
+    responses={200: {"content": {"application/json": {}}}},
+)
+async def export_visit(
+    visit_id: str,
+    request: Request,
+    principal: CurrentPrincipal,
+    db: DbSession,
+    settings: Config,
+) -> Response:
+    visit, link, returning = await _load(db, visit_id)
+    candidates = (
+        await db.execute(
+            select(VisitCandidate)
+            .where(VisitCandidate.visit_id == visit.id)
+            .order_by(VisitCandidate.id)
+        )
+    ).scalars()
+    detail = _detail(visit, link, list(candidates), is_returning=returning)
+    detail.ground_truth_label = await label_for_visit(db, visit.id)
+    policy = await retention.current_policy(db)
+    export = VisitExport(
+        exported_at=dt.datetime.now(dt.UTC),
+        visit=detail,
+        retention=ExportRetention(
+            visit_deleted_after=visit.occurred_at + dt.timedelta(days=policy.visit_days),
+            encrypted_address_deleted_after=(
+                visit.ip_purge_after if visit.ip_enc is not None else None
+            ),
+            policy_visit_days=policy.visit_days,
+            policy_ip_days=policy.ip_days,
+        ),
+        withheld=list(WITHHELD),
+    )
+    await audit.record(
+        db,
+        action=audit.Action.VISIT_EXPORTED,
+        actor_admin_id=principal.admin.id,
+        actor_ip_prefix=prefix_of(client_ip(request, settings)),
+        target_type="visit",
+        target_id=str(visit.id),
+        trace_id=getattr(request.state, "trace_id", None),
+    )
+    return Response(
+        content=export.model_dump_json(by_alias=True, indent=2),
+        media_type="application/json",
+        headers={
+            "Content-Disposition": f'attachment; filename="tracelet-visit-{visit.id}.json"',
+            "Cache-Control": "no-store",
+        },
+    )

@@ -88,6 +88,7 @@ class Action:
 
     # visits (M2)
     IP_DECRYPTED: Final = "visit.ip_decrypted"  # F12.AC4
+    VISIT_EXPORTED: Final = "visit.exported"  # one visit's data-subject export, F12.AC14
 
     # ground truth (M8, F4.AC15) -- owner-only, invariant 9; the truth, never coordinates
     GROUND_TRUTH_LABELLED: Final = "ground_truth.labelled"

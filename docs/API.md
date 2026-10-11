@@ -545,6 +545,17 @@ Per-visit data-subject export (F12.AC14), and bulk export honouring active filte
 `csv` or `ndjson`, **streamed** rather than buffered (F9.AC15). Exports contain no
 plaintext IP, ever.
 
+**`GET /api/v1/visits/{id}/export` -- built in M9 (F12.AC14).** Any admin, as the bulk
+export; writes a `visit.exported` audit row. A JSON attachment,
+`tracelet-visit-{id}.json`, `Cache-Control: no-store`:
+`{exported_at, visit: <the detail shape above>, retention: {visit_deleted_after,
+encrypted_address_deleted_after, policy_visit_days, policy_ip_days}, withheld: [..]}`.
+`retention` applies the policy in force now; `encrypted_address_deleted_after` is `null` once
+the ciphertext is gone. `withheld` says, in words, what is stored about the visit but not in
+the file, and why: the encrypted address and the address HMAC. **Never the plaintext
+address**; `visit.network.ip_prefix` is the only address-derived value. `404` for an unknown
+visit.
+
 **As shipped in M5:** the bulk export, `?format=csv|ndjson` (default `csv`) plus every
 list filter and `sort`. Rows are read through a server-side cursor 500 at a time and
 written as they arrive, from the export's own database session (the request's session
@@ -552,8 +563,7 @@ has already committed, ARCHITECTURE 5.8). NDJSON lines are the list's summary sh
 flattens it into 38 columns. The network prefix is the only address-derived column, as
 in the list. **CSV cells that a spreadsheet would read as a formula** (`=`, `+`, `-`,
 `@`, tab, carriage return) are prefixed with `'`: user agents and ISP names are
-attacker-controlled. The per-visit export (F12.AC14) is not in any milestone's scope
-yet and is not built.
+attacker-controlled.
 
 ---
 

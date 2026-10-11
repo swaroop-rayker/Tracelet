@@ -1564,6 +1564,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/visits/{visit_id}/export": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Everything stored about one visit, as a JSON file (F12.AC14)
+         * @description The data-subject export: the visit in full -- what was captured, every location candidate and classification signal -- with when each part is deleted, and what is stored but withheld from the file, and why. **Never the plaintext address**: the network block is the only address-derived value. Any admin, as the bulk export; audited, because it is a person's data leaving the system.
+         */
+        get: operations["export_visit_api_v1_visits__visit_id__export_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/visits/{visit_id}/ip": {
         parameters: {
             query?: never;
@@ -2500,6 +2520,23 @@ export interface components {
          * @enum {string}
          */
         ExportFormat: "csv" | "ndjson";
+        /**
+         * ExportRetention
+         * @description When what this export describes is deleted, under the policy in force now.
+         */
+        ExportRetention: {
+            /** Encrypted Address Deleted After */
+            encrypted_address_deleted_after: string | null;
+            /** Policy Ip Days */
+            policy_ip_days: number;
+            /** Policy Visit Days */
+            policy_visit_days: number;
+            /**
+             * Visit Deleted After
+             * Format: date-time
+             */
+            visit_deleted_after: string;
+        };
         /** FeatureCollectionIn */
         FeatureCollectionIn: {
             /** Features */
@@ -4615,6 +4652,21 @@ export interface components {
             } | null;
             /** Visitor Id */
             visitor_id: string | null;
+        };
+        /**
+         * VisitExport
+         * @description Everything stored about one visit, for the person it describes (F12.AC14).
+         */
+        VisitExport: {
+            /**
+             * Exported At
+             * Format: date-time
+             */
+            exported_at: string;
+            retention: components["schemas"]["ExportRetention"];
+            visit: components["schemas"]["VisitDetail"];
+            /** Withheld */
+            withheld: string[];
         };
         /** VisitPage */
         VisitPage: {
@@ -8002,6 +8054,37 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["VisitDetail"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    export_visit_api_v1_visits__visit_id__export_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                visit_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VisitExport"];
                 };
             };
             /** @description Validation Error */

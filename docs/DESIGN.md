@@ -945,6 +945,11 @@ Every visit, newest first. Open one for its full derivation.
 
 - **Header:** breadcrumb "Visits / 01J9…X4TQ ⧉", then `h1` "Visit at 09:58, 2 Oct" with a class
   badge.
+- **Privacy actions** *(M9, E88)*, above the summary: **Reveal address** -- owner only (an
+  analyst sees it disabled with the reason, UI-17); shows the address once in mono with a copy
+  control and "Recorded in the audit log."; a purged address or the hourly limit is an Alert,
+  not an error -- and **Export this visit**, a download link to the JSON data-subject export
+  (F12.AC14). In the Visits drawer too, since both render in the shared body.
 - **Summary strip:** four KeyValue cells (Location with confidence, Device, Network,
   Classification with scores).
 - **Sections, not tabs:** Location per level, Derivation (every candidate), Classification

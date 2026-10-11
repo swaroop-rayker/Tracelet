@@ -2342,6 +2342,44 @@
         "title": "ExportFormat",
         "type": "string"
       },
+      "ExportRetention": {
+        "description": "When what this export describes is deleted, under the policy in force now.",
+        "properties": {
+          "encrypted_address_deleted_after": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Encrypted Address Deleted After"
+          },
+          "policy_ip_days": {
+            "title": "Policy Ip Days",
+            "type": "integer"
+          },
+          "policy_visit_days": {
+            "title": "Policy Visit Days",
+            "type": "integer"
+          },
+          "visit_deleted_after": {
+            "format": "date-time",
+            "title": "Visit Deleted After",
+            "type": "string"
+          }
+        },
+        "required": [
+          "visit_deleted_after",
+          "encrypted_address_deleted_after",
+          "policy_visit_days",
+          "policy_ip_days"
+        ],
+        "title": "ExportRetention",
+        "type": "object"
+      },
       "FeatureCollectionIn": {
         "properties": {
           "features": {
@@ -8444,6 +8482,37 @@
           "honeypot_tripped"
         ],
         "title": "VisitDetail",
+        "type": "object"
+      },
+      "VisitExport": {
+        "description": "Everything stored about one visit, for the person it describes (F12.AC14).",
+        "properties": {
+          "exported_at": {
+            "format": "date-time",
+            "title": "Exported At",
+            "type": "string"
+          },
+          "retention": {
+            "$ref": "#/components/schemas/ExportRetention"
+          },
+          "visit": {
+            "$ref": "#/components/schemas/VisitDetail"
+          },
+          "withheld": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Withheld",
+            "type": "array"
+          }
+        },
+        "required": [
+          "exported_at",
+          "visit",
+          "retention",
+          "withheld"
+        ],
+        "title": "VisitExport",
         "type": "object"
       },
       "VisitPage": {
@@ -19076,6 +19145,49 @@
           }
         },
         "summary": "One visit, in full",
+        "tags": [
+          "visits"
+        ]
+      }
+    },
+    "/api/v1/visits/{visit_id}/export": {
+      "get": {
+        "description": "The data-subject export: the visit in full -- what was captured, every location candidate and classification signal -- with when each part is deleted, and what is stored but withheld from the file, and why. **Never the plaintext address**: the network block is the only address-derived value. Any admin, as the bulk export; audited, because it is a person's data leaving the system.",
+        "operationId": "export_visit_api_v1_visits__visit_id__export_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "visit_id",
+            "required": true,
+            "schema": {
+              "title": "Visit Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VisitExport"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Everything stored about one visit, as a JSON file (F12.AC14)",
         "tags": [
           "visits"
         ]

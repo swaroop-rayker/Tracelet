@@ -275,3 +275,71 @@ async def test_decryption_is_bound_to_the_row(owner: SignedIn, db_client: AsyncC
     assert response.status_code == 500, "a transplanted ciphertext must not decrypt"
     assert response.json()["code"] == "INTERNAL_ERROR"
     assert ch.VISITOR_IP not in response.text
+
+
+# ---------------------------------------------------------------------------
+# One visit's data-subject export (F12.AC14)
+# ---------------------------------------------------------------------------
+
+
+async def test_one_visit_exports_in_full_without_the_address_and_is_audited(
+    owner: SignedIn, db_client: AsyncClient
+) -> None:
+    link = await ch.create_link()
+    await ch.visit(db_client, link.slug, peer=ch.VISITOR_IP)
+    visit = await ch.latest_visit(link.id)
+
+    response = await owner.client.get(f"{VISITS}/{visit.id}/export")
+
+    assert response.status_code == 200
+    assert response.headers["content-type"].startswith("application/json")
+    assert f'filename="tracelet-visit-{visit.id}.json"' in response.headers["content-disposition"]
+    assert response.headers["cache-control"] == "no-store"
+    assert ch.VISITOR_IP not in response.text, "the plaintext address must never be exported"
+    body = response.json()
+    assert body["visit"]["id"] == str(visit.id)
+    assert body["visit"]["network"]["ip_prefix"] is not None
+    assert {"candidates", "signals", "request", "client"} <= set(body["visit"])
+    assert body["retention"]["encrypted_address_deleted_after"] is not None
+    assert body["retention"]["visit_deleted_after"] > body["visit"]["occurred_at"]
+    assert any("encrypted" in line for line in body["withheld"])
+    async with session_scope() as db:
+        actors = (
+            (
+                await db.execute(
+                    text(
+                        "SELECT actor_admin_id FROM audit_log "
+                        "WHERE action = 'visit.exported' AND target_id = :v"
+                    ),
+                    {"v": str(visit.id)},
+                )
+            )
+            .scalars()
+            .all()
+        )
+    assert list(actors) == [owner.id]
+
+
+async def test_an_analyst_may_export_a_visit_as_the_bulk_export_allows(
+    owner: SignedIn,
+    db_client: AsyncClient,
+    integration_settings: Settings,
+    new_client: ClientFactory,
+    totp_clock: TotpClock,
+) -> None:
+    del owner
+    link = await ch.create_link()
+    await ch.visit(db_client, link.slug)
+    visit = await ch.latest_visit(link.id)
+    invited = await helpers.invite(integration_settings, role=AdminRole.ANALYST)
+    analyst = await helpers.enroll(await new_client(), invited, totp_clock)
+
+    response = await analyst.client.get(f"{VISITS}/{visit.id}/export")
+
+    assert response.status_code == 200
+    assert ch.VISITOR_IP not in response.text
+
+
+async def test_exporting_an_unknown_visit_is_a_404(owner: SignedIn) -> None:
+    response = await owner.client.get(f"{VISITS}/00000000-0000-0000-0000-000000000000/export")
+    assert response.status_code == 404

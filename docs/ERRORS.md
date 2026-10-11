@@ -2867,6 +2867,32 @@ its control.
 
 **Related:** SPEC F1.AC9, F10.AC6, DESIGN §10.11, API.md §6, MILESTONES M9 (SC1).
 
+### E88 — The owner could not reveal an address, and no one could export a visit, from the dashboard
+
+**Status:** Fixed in M9 (feat/m9-deploy). **Milestone:** M9. **Date:** 2026-10-11.
+
+**Symptom.** The same SC1 walk as E87: asked to reveal a visit's address and to export one
+visit, the owner found neither control on the visit page.
+
+**Root cause.** Two of E87's kind. F12.AC4's decryption was built in M2 as
+`GET /api/v1/visits/{id}/ip` and integration-tested, but DESIGN §10.3 never gave it a
+control, so the dashboard never called it. F12.AC14's per-visit data-subject export was never
+built at all: API.md said so ("not in any milestone's scope yet"), and no milestone's checklist
+carried it, so no gate asked for it.
+
+**Fix.** The owner chose to build both in M9: `GET /api/v1/visits/{id}/export` (the visit in
+full, its retention dates, what is withheld and why; never the plaintext address; any admin;
+audited `visit.exported`) and, on the visit detail, **Reveal address** (owner only, audited,
+the hourly limit and a purged address explained) and **Export this visit**. Integration tests:
+the export carries the visit and no address, is audited, is a 404 for an unknown visit, and is
+open to an analyst. Chromium against the real Caddy: the address is revealed, the file
+downloads with the right visit and without the address, 0 CSP violations.
+
+**Prevention.** As E87: the SC1 walk is done through the dashboard. And a requirement no
+milestone owns is a gap to raise at the next milestone's planning, not a line in API.md.
+
+**Related:** SPEC F12.AC4, F12.AC14, DESIGN §10.3, API.md §7, E87.
+
 ---
 
 Add entries here as bugs are found and fixed. Use the next available `E<n>` identifier and
