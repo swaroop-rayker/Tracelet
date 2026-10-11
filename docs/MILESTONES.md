@@ -1139,7 +1139,17 @@ F14.AC2, F14.AC3, NFR1.AC1–NFR1.AC5, NFR2 (AC2–AC3 at the direct-origin figu
       — *restated (row 37): at NFR1 load 722 MB average, 752 MB peak, 217 MB minimum
       available, against at most 760 MB with at least 200 MB available. Reached by one worker,
       no swap for the redirect path and the OS-config agent off (ADR-0028 amendment).*
-- [ ] Every degradation drill leaves **the redirect working**
+- [x] Every degradation drill leaves **the redirect working**
+      — *2026-10-11 on production, `loadtest/drills.sh`, automation user agent (no alerts):
+      database down (503 page carrying the destination, `/readyz` not ready, back in 1 s);
+      Telegram down (test send fails cleanly, outbox clear); geo-database update failing (the
+      install fails, the previous version keeps serving); `ipwho.is` blackholed (sent on; the
+      lookup itself was not exercised on the box, the visits' prefix being private or cached,
+      so S9's breaker rests on its integration tests); disk with 200 MB left and completely
+      full (sent on both times, critical banner); swap and memory pressure (the load test:
+      shedding and overload engaged, every visitor sent on); the api stopped (Caddy's fallback
+      page in 1.4 s, ADR-0029). A first run reported the full disk as a failure: the probe's
+      own files could not be written; the script now keeps them in memory.*
 - [ ] **Restore drill succeeds from a downloaded backup and the off-VM secrets alone, with
       `ip_enc` readable** — proving the out-of-band secret backup actually works (ADR-0014)
 - [ ] **Real visits on the direct path show the full derivation:** one on mobile data, one
