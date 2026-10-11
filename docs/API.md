@@ -120,7 +120,7 @@ claim** — it is cross-checked against server-observed signals, never trusted
 | Status | Meaning |
 |---|---|
 | `204` | Merged. Visit finalised, `stage='enriched'` |
-| `410` | Nonce expired, already consumed, or bound to a different prefix. Logged |
+| `410` | Nonce expired, already consumed, or bound to a different prefix -- unless both prefixes belong to the same mobile carrier (ADR-0032, SPEC §11 row 38). Logged with the reason: `mac_mismatch`, `network_mismatch`, `expired`, `consumed_or_finalised`, `malformed` |
 | `413` | Payload above cap |
 | `422` | Schema violation. Field-level `errors` returned |
 | `429` | Over limit |

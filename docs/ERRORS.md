@@ -2893,6 +2893,37 @@ milestone owns is a gap to raise at the next milestone's planning, not a line in
 
 **Related:** SPEC F12.AC4, F12.AC14, DESIGN §10.3, API.md §7, E87.
 
+### E89 — Most visits on mobile data lost their enrichment: the nonce's /24 had moved
+
+**Status:** Fixed in M9 (feat/m9-deploy), ADR-0032. **Milestone:** M9. **Date:** 2026-10-11.
+
+**Symptom.** Of the owner's eight visits on one Android phone on mobile data, six ended
+`server_only`: no client fingerprint, timezone or GPS consent, and an alert only after the
+sweeper (about 100 s; the owner saw "unclassified, then again with a city" and, in the
+dashboard meanwhile, "Location unknown"). Every Wi-Fi visit enriched. The api logged
+`enrichment_rejected reason=mac_mismatch` two to four seconds after each page, so not expiry
+and not a replay.
+
+**Root cause.** F2.AC6 binds the nonce to the visitor's /24, recomputed from the address the
+POST arrives from. A carrier's CGNAT sent the follow-up request from another /24 than the page
+load, so the MAC could not verify. `capture/nonce.py` had recorded the risk only for a
+dual-stack switch, and expected it to be rare because browsers reuse the page's connection;
+on a carrier network the address changed anyway. The same pool behaviour broke visitor
+identity (ADR-0031), which made it worse: an unenriched visit cannot be carrier-keyed.
+
+**Fix.** ADR-0032 (SPEC §11 row 38, owner-approved): on `mac_mismatch` the token is verified
+against its visit's own stored prefix and accepted only if both addresses resolve to the same
+ASN and it is a curated mobile or CGNAT carrier; single use and the 60 s lifetime are
+unchanged; an accepted re-bound adds `capture.enrichment_other_prefix`. Integration tests:
+the same carrier from another /24 enriches (once), another carrier and broadband are refused,
+and a token edited to name another visit is refused.
+
+**Prevention.** A capability bound to the network needs testing on the networks the audience
+uses: M9's real phone visits on mobile data were the first, and caught it. The nonce
+module's docstring now records the mobile case.
+
+**Related:** ADR-0032, ADR-0031, SPEC F2.AC6, F2.AC7, RISKS R5, R17.
+
 ---
 
 Add entries here as bugs are found and fixed. Use the next available `E<n>` identifier and

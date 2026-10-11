@@ -36,7 +36,7 @@ from sqlalchemy import func, literal, literal_column, select, text, update
 from sqlalchemy.dialects import postgresql as pg
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from tracelet.capture import fallback_pages, overload, useragent
+from tracelet.capture import carrier, fallback_pages, overload, useragent
 from tracelet.capture import nonce as nonces
 from tracelet.capture import signals as sig
 from tracelet.capture.models import (
@@ -661,16 +661,29 @@ async def enrich(
     client_ip: str | None,
     payload: EnrichmentPayload,
 ) -> uuid.UUID:
-    """Apply one enrichment. Single-use, prefix-bound, 60 s (F2.AC6, F11.AC4)."""
+    """Apply one enrichment. Single-use, prefix-bound, 60 s (F2.AC6, F11.AC4) -- or, on a
+    mobile carrier, bound to the carrier when its CGNAT moved the request (ADR-0032)."""
     key = _nonce_key(settings)
     if key is None:
         raise EnrichmentRejected("not_configured")
+    rebound: int | None = None
     try:
         verified = nonces.verify(key, token, ip_prefix=prefix_of(client_ip))
     except nonces.NonceRejectedError as exc:
-        raise EnrichmentRejected(exc.reason) from exc
+        if exc.reason != "mac_mismatch":
+            raise EnrichmentRejected(exc.reason) from exc
+        verified, rebound = await _same_carrier(db, settings, key, token, client_ip)
 
     values, absences = enrichment_values(payload)
+    if rebound is not None:
+        absences.append(
+            {
+                "rule_id": "capture.enrichment_other_prefix",
+                "category": "capture",
+                "weight": 0,
+                "detail": {"asn": rebound},
+            }
+        )
     if absences:
         # Appended, not replaced: the capture path may already have recorded
         # server-side evidence in `signals`.
@@ -697,6 +710,30 @@ async def enrich(
     if row is None:
         raise EnrichmentRejected("consumed_or_finalised")
     return verified.visit_id
+
+
+async def _same_carrier(
+    db: AsyncSession, settings: Settings, key: bytes, token: str, client_ip: str | None
+) -> tuple[nonces.Verified, int]:
+    """ADR-0032: the token verified against its visit's own prefix, and the request from the
+    same mobile carrier as that prefix. Anything else is the original refusal."""
+    visit_id = nonces.claimed_visit(token)
+    if visit_id is None:
+        raise EnrichmentRejected("mac_mismatch")
+    stored = (
+        await db.execute(select(Visit.ip_prefix).where(Visit.id == visit_id))
+    ).scalar_one_or_none()
+    if stored is None:
+        raise EnrichmentRejected("mac_mismatch")
+    network = stored.network
+    try:
+        verified = nonces.verify(key, token, ip_prefix=str(network))
+    except nonces.NonceRejectedError as exc:
+        raise EnrichmentRejected(exc.reason) from exc
+    here = carrier.carrier_of(settings, client_ip)
+    if here is None or here != carrier.carrier_of(settings, str(network.network_address)):
+        raise EnrichmentRejected("network_mismatch")
+    return verified, here
 
 
 async def trip_honeypot(

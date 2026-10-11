@@ -21,6 +21,11 @@ load the page over IPv4 and send the POST over IPv6. Browsers reuse the connecti
 same-origin request fired within a second of page load, so this should be rare; it would
 surface as a 410 rate on the enrichment endpoint, and the visit is recorded regardless
 (the sweeper finalises it as ``server_only``).
+
+**On mobile data it was not rare** (ADR-0032): a carrier's CGNAT sent the follow-up from
+another /24 for six of eight visits. ``claimed_visit`` lets the caller re-verify the MAC
+against the visit's own stored prefix, and ``capture.service`` then accepts it only from the
+same mobile carrier.
 """
 
 from __future__ import annotations
@@ -84,6 +89,16 @@ class NonceRejectedError(ValueError):
     def __init__(self, reason: str) -> None:
         super().__init__(reason)
         self.reason = reason
+
+
+def claimed_visit(token: str) -> uuid.UUID | None:
+    """The visit a token names, **unauthenticated**: only for loading the prefix to verify it
+    against (ADR-0032). None if the token is not even well formed."""
+    try:
+        raw = base64.urlsafe_b64decode(token + "=" * (-len(token) % 4))
+    except (binascii.Error, ValueError):
+        return None
+    return uuid.UUID(bytes=raw[:16]) if len(raw) == 16 + 4 + _MAC_BYTES else None
 
 
 def verify(

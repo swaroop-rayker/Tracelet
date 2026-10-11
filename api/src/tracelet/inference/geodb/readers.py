@@ -258,6 +258,11 @@ def _asn_lookup(settings: Settings) -> Callable[[IPAddress], tuple[int | None, s
     return lookup
 
 
+def asn_lookup(settings: Settings) -> Callable[[IPAddress], tuple[int | None, str | None]] | None:
+    """The installed ASN databases as one lookup, or None when none is installed."""
+    return _asn_lookup(settings)
+
+
 async def build_toolkit(db: AsyncSession) -> Toolkit:
     """The engine's toolkit from whatever is installed right now."""
     settings = get_settings()

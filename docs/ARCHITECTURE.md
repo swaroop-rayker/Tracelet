@@ -137,6 +137,8 @@ GET /r/{slug}        (bare /r and /r/ resolve the default link instead — F1.AC
    ▼ enrichment ARRIVES               ▼ enrichment NEVER ARRIVES
    POST /api/v1/s/{nonce}             (webview blocked it, uBlock killed it,
    • nonce single-use, else 410        JS disabled, tab closed immediately)
+   • another /24 of the same mobile
+     carrier is accepted (ADR-0032)
    • merge client signals             sweeper, every 30 s:
    • stage='enriched'                 • claims visits older than 90 s
    │                                  • stage='server_only'
