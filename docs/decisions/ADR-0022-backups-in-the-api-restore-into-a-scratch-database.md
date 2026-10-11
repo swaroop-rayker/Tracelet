@@ -1,6 +1,8 @@
 # ADR-0022 — Backups run from the API; restore-verification uses a scratch database
 
-**Status:** Accepted (2026-10-07). The owner chose the scratch database.
+**Status:** Accepted (2026-10-07). The owner chose the scratch database. **Extended
+2026-10-11 by ADR-0030:** the bare-metal rebuild left to M9 below is `tl restore`; its
+`--no-owner --no-privileges` restore is for the scratch check only.
 **Deciders:** repository owner
 **Amends:** ADR-0014 (restore verification), F12.AC10 (SPEC §11 row 22); DATA_MODEL §12
 **Relates to:** ADR-0009 (scheduler), ADR-0012 (one VM), ARCHITECTURE §6.3, RISKS R11
