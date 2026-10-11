@@ -555,6 +555,13 @@ task_restore() {
         sed -i "s|^TRACELET_IMAGE_TAG=.*|TRACELET_IMAGE_TAG=$tag|" .env
         $DC pull api
     fi
+    # Before the database is touched: a .env pasted from a note can carry a line Docker
+    # rejects, and the adoption step would then fail after the restore (ERRORS E84).
+    step "Checking .env in the api image"
+    if ! $DC run --rm --no-deps -T cli tracelet check-config; then
+        red ".env is not usable by the api (above). Nothing was restored."
+        exit 1
+    fi
     $DC up -d db
     task_waitdb
     own="$($DC exec -T db psql -U "$u" -d "$d" -Atc "SELECT count(*) FROM pg_class c

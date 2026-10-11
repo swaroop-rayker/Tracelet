@@ -2755,6 +2755,38 @@ check must ask the endpoint its clients will use, not a side door that is open e
 
 **Related:** ADR-0030, ADR-0026 (`tl deploy`), MILESTONES M9 (the restore drill).
 
+### E84 — The restore drill's adoption failed: "invalid environment variable: === .env ==="
+
+**Status:** Fixed in M9 (feat/m9-deploy). **Milestone:** M9. **Date:** 2026-10-11.
+
+**Symptom.** Second attempt of the restore drill, after E83: `tl restore` restored the dump,
+then the adoption step (`docker compose run cli tracelet backup adopt`) failed at once with
+`Error response from daemon: invalid environment variable: === .env ===`. The database was
+restored and the api not started, so the adoption was run by hand and the drill continued.
+Comparing the pasted `.env` with the pre-wipe original also showed two lines that had changed
+since the owner's copy was made: `TRACELET_WEB_CONCURRENCY` (2, not 1) and
+`TRACELET_DB_POOL_MAX` (10, not 20), the values from before the ADR-0028 amendment.
+
+**Root cause.** The owner's password-manager note held the `.env` under a heading line,
+`=== .env ===`, and the whole note was pasted. Compose's own `.env` loading (interpolation)
+tolerates the line, so `docker compose up db` worked; `env_file:` does not, so the first
+container to receive the file -- the adoption, after the restore -- refused to start.
+`tl restore` checked the database before restoring but not the environment it would run in.
+The stale values: `.env` was tuned on the VM during the load test and the note was not
+updated.
+
+**Fix.** The heading line was removed and the two values restored on the VM (the drill's
+comparison of every line with a pre-wipe digest found them). `tl restore` now runs
+`tracelet check-config` in the api image before touching the database, so a `.env` the api
+cannot use fails first, with nothing restored. Tested with a heading line in a `.env`: the
+same Docker error, exit 1.
+
+**Prevention.** The runbook's restore section says to paste only the file's lines, and to
+re-copy `.env` into the note after **any** change on the VM. The owner was asked to fix the
+note.
+
+**Related:** ADR-0030, E83, RISKS R11.
+
 ---
 
 Add entries here as bugs are found and fixed. Use the next available `E<n>` identifier and
