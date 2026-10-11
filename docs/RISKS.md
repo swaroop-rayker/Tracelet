@@ -302,6 +302,14 @@ networks block them outright.
 **Record the M9 outcome here whatever it is**, including a negative result, because a
 negative result changes how the link can be used.
 
+**M9 outcome, 2026-10-11 (free-subdomain path, SPEC §11 row 33).** Google's Safe Browsing
+transparency report: `tracelet.duckdns.org` — *"No available data"*: not flagged, and too
+new to have a record. The parent `duckdns.org` — *"Check a specific URL"*, the report's
+wording when parts of a site have been found unsafe: the inherited reputation this risk and
+R10 describe. No review was requested: Search Console and a review concern the domain links
+will live on, which is M9.1's purchased domain. Re-check after real links are shared, and at
+M9.1.
+
 ---
 
 ## R9 — Small ground-truth set, wide confidence intervals

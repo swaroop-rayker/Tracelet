@@ -1155,8 +1155,11 @@ F14.AC2, F14.AC3, NFR1.AC1–NFR1.AC5, NFR2 (AC2–AC3 at the direct-origin figu
 - [ ] **Real visits on the direct path show the full derivation:** one on mobile data, one
       on Wi-Fi; every source present in `candidates[]` or `inference.source_absent` (S8
       absent, as the direct path must); `TRACELET_DEV_TRUSTED_TUNNEL` unset
-- [ ] **The production resolver answers PTR** (ERRORS.md E27): S6's canary reports healthy
+- [x] **The production resolver answers PTR** (ERRORS.md E27): S6's canary reports healthy
       on the GCP host, and a real visit's `rdns_ptr` is populated where one exists
+      — *2026-10-11: `resolver_answers_ptr()` in the production image is true (8.8.8.8 →
+      `dns.google` through GCP's metadata resolver), and 16 visits from the owner's home
+      network (the load test) carry `rdns_ptr`. The phone visits add mobile and Wi-Fi.*
 - [x] CSP and security headers pass by test against the deployed URL, three engines
       — *2026-10-10, `adf6e80`, no sign-in and no visit (production: 0 visits, 0 links before
       and after). Headers on `/`, `/login`, a hashed asset, `/privacy` (fresh nonce per
@@ -1168,8 +1171,11 @@ F14.AC2, F14.AC3, NFR1.AC1–NFR1.AC5, NFR2 (AC2–AC3 at the direct-origin figu
       the VM (the PC's antivirus downgrades to HTTP/1.1; headers otherwise identical). Found
       and fixed E81. Not testable this way: `eval`, because Playwright's evaluate is
       debugger code, exempt from CSP; the policies carry no `'unsafe-eval'`.*
-- [ ] No shortener in the chain; `/privacy` reachable; the subdomain's Safe Browsing status
+- [x] No shortener in the chain; `/privacy` reachable; the subdomain's Safe Browsing status
       recorded in RISKS R8
+      — *2026-10-11: links are `https://tracelet.duckdns.org/r/<slug>`, answered directly
+      (no third-party hop); `/privacy` passes the live check in three engines; Safe Browsing:
+      the subdomain "No available data", the parent "Check a specific URL" (R8).*
 - [ ] Every doc reconciled with the deployed system
 - [ ] **SC4**: every ADR still accurately describes what was built
 
