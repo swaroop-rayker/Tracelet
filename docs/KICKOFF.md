@@ -100,18 +100,17 @@ made by `tl release` on a workstation, and `tl restore` to rebuild from a backup
 everywhere, including Git Bash on a stock Windows host where `make` is absent. Both call
 the same implementation — `docs/ARCHITECTURE.md` §9.1.
 
-**Step 2 needs editing before step 3:** the database passwords, the three HMAC peppers,
-the session secret, the domain mode, and the Telegram bot token. Every variable is
-documented in `.env.example`. You also need the AES-256 key that encrypts the TOTP secret
-and, from M2, visitor IPs:
+**Step 2 runs as is for local development**: `.env.example`'s `change-me` passwords and
+empty secrets are accepted in development and refused in production. Edit it before step 3
+for anything you will keep -- the database passwords, the three HMAC peppers, the session
+secret, the domain mode, the Telegram bot token; every variable is documented there.
 
-```bash
-mkdir -p secrets && openssl rand -hex 32 > secrets/ip_key
-```
-
-Keep a copy of that file somewhere outside the machine. It is deliberately **not** in the
-database backup, so restoring onto a fresh VM without it leaves every encrypted value
-permanently unreadable (ADR-0007).
+**Step 3 also creates `secrets/ip_key`** if it is missing: the AES-256 key that encrypts the
+TOTP secret and visitor IPs. Without the file, Docker would mount an empty directory in its
+place and every encryption would fail (found by the M9 SC2 run). Keep a copy of the key
+outside the machine if the data matters. It is deliberately **not** in the database backup,
+so restoring without it leaves every encrypted value permanently unreadable (ADR-0007). A
+release host never generates one: there, a missing key stops `tl deploy` and `tl restore`.
 
 **Step 3 prints a one-time enrollment URL.** Open it, set a password, add the shown base32
 secret to an authenticator app, type a code — and then **save the 10 recovery codes**,

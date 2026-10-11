@@ -2787,6 +2787,32 @@ note.
 
 **Related:** ADR-0030, E83, RISKS R11.
 
+### E85 — A fresh clone came up "healthy" with no encryption key: `secrets/ip_key` was a directory
+
+**Status:** Fixed in M9 (feat/m9-deploy). **Milestone:** M9. **Date:** 2026-10-11.
+
+**Symptom.** M9's SC2 run -- a fresh clone, then KICKOFF §4's five commands -- reached
+"Bootstrap complete" and `tl up` with all three containers healthy, but `secrets/ip_key` was
+an **empty directory**. Every encryption would fail: the first owner's TOTP enrolment
+first, since the TOTP secret is sealed with that key (ADR-0007).
+
+**Root cause.** KICKOFF listed the key as a sixth command (`openssl rand -hex 32 >
+secrets/ip_key`) outside the five. Skipped, the compose bind mount `./secrets/ip_key`
+finds no file and Docker creates a directory in its place. Nothing checked for it: the api
+reads the key lazily, at the first encryption, so healthchecks pass. On a release host the
+same omission, in `tl deploy` or `tl restore`, would have started a system that could not
+read its own data.
+
+**Fix.** `tl` checks for the key before `bootstrap`, `up`, `deploy` and `restore`; an empty
+directory left by Docker is removed first. On a development host a missing key is generated
+(and the operator told to keep a copy if the data matters); on a release host the command
+stops and points at the runbook, because a new key there would make every restored value
+unreadable. KICKOFF §4 says step 3 creates it.
+
+**Prevention.** SC2 was re-run from a fresh clone with the fix: five commands, nothing else.
+
+**Related:** ADR-0007, ADR-0026, ADR-0030, SPEC F14.AC3 (SC2), RUNBOOK §6.
+
 ---
 
 Add entries here as bugs are found and fixed. Use the next available `E<n>` identifier and

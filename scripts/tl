@@ -41,10 +41,34 @@ require_env() {
     fi
 }
 
+# The AES-256 key for encrypted columns (ADR-0007). Without the file, Docker bind-mounts a
+# new empty DIRECTORY in its place, the stack still reports healthy, and every encryption
+# fails -- TOTP enrolment first (SC2, 2026-10-11). A development host gets a fresh key; a
+# release host never does, because a new key there makes every restored value unreadable.
+ensure_ip_key() {
+    if [ -d secrets/ip_key ] && [ -z "$(ls -A secrets/ip_key)" ]; then
+        rmdir secrets/ip_key
+    fi
+    [ -f secrets/ip_key ] && return 0
+    if is_release_host; then
+        red "secrets/ip_key is missing. Put the owner's copy back first (docs/RUNBOOK.md §6)."
+        exit 1
+    fi
+    mkdir -p secrets
+    if command -v openssl >/dev/null 2>&1; then
+        (umask 077; openssl rand -hex 32 > secrets/ip_key)
+    else
+        (umask 077; od -An -tx1 -N32 /dev/urandom | tr -d ' \n' > secrets/ip_key)
+    fi
+    ylw "Generated secrets/ip_key (development). If this data will matter, keep a copy"
+    ylw "outside this machine: the backups deliberately do not contain it (ADR-0007)."
+}
+
 # --- tasks -----------------------------------------------------------------
 
 task_bootstrap() {
     require_env
+    ensure_ip_key
     if is_release_host; then
         # A release host never builds (ADR-0026): `tl deploy` has pulled the images,
         # started the stack and migrated. What is left is the first owner.
@@ -101,7 +125,7 @@ task_waitdb() {
     exit 1
 }
 
-task_up()      { require_env; $DC up -d; grn "Up. https://${TRACELET_SITE_ADDRESS:-localhost}"; }
+task_up()      { require_env; ensure_ip_key; $DC up -d; grn "Up. https://${TRACELET_SITE_ADDRESS:-localhost}"; }
 task_down()    { $DC down; }
 task_logs()    { $DC logs -f "$@"; }
 task_ps()      { $DC ps; }
@@ -485,6 +509,7 @@ task_secrets() {
 
 task_deploy() {
     require_env
+    ensure_ip_key
     if ! is_release_host; then
         red "Not a release host: .env has no TRACELET_IMAGE_TAG. See ./scripts/tl secrets."
         exit 1
@@ -544,6 +569,7 @@ task_restore() {
         exit 1
     fi
     require_env
+    ensure_ip_key
     if [ -n "$($DC ps --status running -q api 2>/dev/null)" ]; then
         red "The api is running. tl restore fills a new, empty database: run it before tl deploy."
         exit 1
