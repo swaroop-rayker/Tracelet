@@ -5,7 +5,10 @@ from __future__ import annotations
 import datetime as dt
 import uuid
 
+import pytest
+
 from tracelet.lifecycle import backups, retention
+from tracelet.lifecycle.models import BackupKind
 from tracelet.lifecycle.models import BackupStatus as B
 
 IST = "Asia/Kolkata"
@@ -102,3 +105,35 @@ def test_tonights_backup_is_due_until_one_completes() -> None:
     assert backups.nightly_due([B.OK]) is False
     # E70: rotation pruned it in favour of a newer backup the same day; it still ran.
     assert backups.nightly_due([B.PRUNED]) is False
+
+
+def test_an_adopted_file_keeps_the_jobs_name_with_or_without_the_download_prefix() -> None:
+    for given in ("tracelet-20261011T053012Z-manual.dump", "20261011T053012Z-manual.dump"):
+        name = backups.adopted_name(given)
+        assert name.file_name == "20261011T053012Z-manual.dump"
+        assert name.stamp == dt.datetime(2026, 10, 11, 5, 30, 12, tzinfo=dt.UTC)
+        assert name.kind is BackupKind.MANUAL
+    assert backups.adopted_name("20261010T213508Z-scheduled.dump").kind is BackupKind.SCHEDULED
+
+
+def test_a_file_the_job_could_not_have_written_is_not_adopted() -> None:
+    for bad in (
+        "backup.dump",
+        "tracelet-20261011T053012Z-manual (1).dump",  # a browser's second copy
+        "20261011T053012Z-weekly.dump",
+        "20261011T053012Z-manual.dump.partial",
+        "../20261011T053012Z-manual.dump",
+    ):
+        with pytest.raises(backups.JobFailedError):
+            backups.adopted_name(bad)
+
+
+def test_the_own_row_is_the_running_one_of_that_kind_started_just_before_the_stamp() -> None:
+    name = backups.adopted_name("20261011T053012Z-manual.dump")
+    started = dt.datetime(2026, 10, 11, 5, 30, 11, 900_000, tzinfo=dt.UTC)
+    assert backups.is_own_row(name, BackupKind.MANUAL, started)
+    assert not backups.is_own_row(name, BackupKind.SCHEDULED, started)
+    # Queued for a while is fine; a row from long before, or after the stamp, is not.
+    assert backups.is_own_row(name, BackupKind.MANUAL, started - dt.timedelta(minutes=30))
+    assert not backups.is_own_row(name, BackupKind.MANUAL, started - dt.timedelta(hours=3))
+    assert not backups.is_own_row(name, BackupKind.MANUAL, started + dt.timedelta(minutes=1))

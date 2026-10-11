@@ -27,7 +27,7 @@ from tracelet.auth.models import AdminRole
 from tracelet.config import Settings
 from tracelet.db.engine import session_scope
 from tracelet.lifecycle import backups
-from tracelet.lifecycle.models import BackupKind
+from tracelet.lifecycle.models import Backup, BackupKind, BackupStatus
 from tracelet.lifecycle.retention import local_boundary
 
 pytestmark = pytest.mark.integration
@@ -234,3 +234,78 @@ async def test_backup_writes_are_the_owners(
     ):
         response = await analyst.client.request(method, path, headers=analyst.headers())
         assert response.status_code == 403, (method, path, response.text)
+
+
+async def test_adoption_after_a_bare_metal_restore_makes_the_history_true(
+    integration_settings: Settings, tmp_path: Path
+) -> None:
+    own = await backups.begin_backup(BackupKind.MANUAL, None)
+    done = await backups.run_backup(own, integration_settings)
+    assert done.status.value == "ok", done.error
+    # What `tl restore` leaves (ADR-0030): the dump's own row as the dump holds it --
+    # running -- and the file only in the owner's download.
+    stored = integration_settings.backup_dir / str(done.file_name)
+    downloaded = tmp_path / "download" / f"tracelet-{done.file_name}"
+    downloaded.parent.mkdir()
+    stored.rename(downloaded)
+    async with session_scope() as db:
+        await db.execute(
+            text(
+                "UPDATE backups SET status = 'running', finished_at = NULL, file_name = NULL, "
+                "size_bytes = NULL, sha256 = NULL, row_counts = NULL WHERE id = :id"
+            ),
+            {"id": own},
+        )
+        # Every other ok row's file is elsewhere (the shared database's own, or another
+        # test's directory): on the old volume, as far as this restore is concerned.
+        others = [
+            r for (r,) in await db.execute(text("SELECT id FROM backups WHERE status = 'ok'"))
+        ]
+    try:
+        adopted = await backups.adopt_restored(downloaded, integration_settings)
+        assert adopted.backup_id == own
+        assert adopted.file_name == done.file_name
+        assert adopted.pruned == len(others)
+        assert stored.is_file()
+        assert not list(integration_settings.backup_dir.glob("*.partial"))
+        async with session_scope() as db:
+            row = await db.get(Backup, own)
+            assert row is not None
+            assert row.status is BackupStatus.OK
+            assert row.sha256 == hashlib.sha256(downloaded.read_bytes()).hexdigest()
+            assert row.size_bytes == downloaded.stat().st_size
+            # Counted before anything was written: exactly the dump's own counts.
+            assert row.row_counts == done.row_counts
+            still_ok = (
+                await db.execute(
+                    text("SELECT count(*) FROM backups WHERE id = ANY(:ids) AND status = 'ok'"),
+                    {"ids": others},
+                )
+            ).scalar_one()
+            assert still_ok == 0
+            audited = (
+                await db.execute(
+                    text("SELECT count(*) FROM audit_log WHERE action = :a AND target_id = :id"),
+                    {"a": audit.Action.BACKUP_ADOPTED, "id": str(own)},
+                )
+            ).scalar_one()
+            assert audited == 1
+        # The rebuilt system verifies the backup it came from.
+        check_id = await backups.begin_restore_check(own, BackupKind.MANUAL, None)
+        result = await backups.run_restore_check(check_id, integration_settings)
+        assert result.status.value == "passed", (result.error, result.mismatches)
+    finally:
+        async with session_scope() as db:
+            await db.execute(
+                text("UPDATE backups SET status = 'ok' WHERE id = ANY(:ids)"), {"ids": others}
+            )
+
+
+async def test_adoption_refuses_a_file_this_database_did_not_come_from(
+    integration_settings: Settings, tmp_path: Path
+) -> None:
+    stray = tmp_path / "20200101T000000Z-manual.dump"
+    stray.write_bytes(b"not a dump")
+    with pytest.raises(backups.JobFailedError, match="not the backup it was restored from"):
+        await backups.adopt_restored(stray, integration_settings)
+    assert not integration_settings.backup_dir.exists()

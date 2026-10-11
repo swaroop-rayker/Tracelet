@@ -745,6 +745,7 @@ load. `TRACELET_DB_MAX_CONNECTIONS` must be kept in step with the
 | Argon2id verification | 32 MB × concurrent logins | **Pinned to `m=32MiB, t=3, p=1`. Library defaults of 64 MiB to 1 GiB would OOM the box on one login.** Logins are serialised by rate limit |
 | `pg_dump` | ~40 MB | Scheduled off-peak, streamed and compressed. A subprocess of the API, inside its `mem_limit` (ADR-0022) |
 | `pg_restore` into `tracelet_verify` | ~40 MB, plus the database's size on disk while it exists | Monthly, off-peak; refuses to start without the free disk; the scratch database is dropped whatever the outcome (ADR-0022) |
+| `tl restore` (bare-metal) | `pg_restore` inside the `db` container's limit; the dump twice on disk (the copy and the container's `/tmp`) | By hand, once, before the api starts, into a new volume only; the copies are removed afterwards (ADR-0030) |
 | Geo database update | ~150 MB | **The riskiest one.** Streams to disk, validates in a memory-capped subprocess, atomic symlink swap, off-peak. A failed update must never take down capture — RISKS R4 |
 | Analytics aggregate | `work_mem` bounded | Dashboard reads rollups, not raw rows — F9.AC19 |
 

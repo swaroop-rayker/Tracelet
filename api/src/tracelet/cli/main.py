@@ -24,6 +24,7 @@ from tracelet import __version__
 from tracelet.cli import accuracy as accuracy_cli
 from tracelet.cli import admin as admin_cli
 from tracelet.cli import analytics as analytics_cli
+from tracelet.cli import backup as backup_cli
 from tracelet.cli import geodb as geodb_cli
 from tracelet.cli import inference as inference_cli
 
@@ -47,8 +48,9 @@ PLANNED: dict[str, tuple[str, str]] = {
     "accuracy check": ("M8", "SHIPPED — the CI accuracy gate over a fixture, no database"),
     "retention preview": ("M7", "dry run: exactly what a purge would delete"),
     "retention purge": ("M7", "execute a purge, batched and audit-logged"),
-    "backup create": ("M7", "create a compressed dump with a checksum manifest"),
-    "backup verify": ("M7", "restore into a scratch schema and assert row counts"),
+    "backup create": ("M7", "not a command: System Health's 'Back up now' (ADR-0022)"),
+    "backup verify": ("M7", "not a command: System Health's 'Verify now' (ADR-0022)"),
+    "backup adopt": ("M9", "SHIPPED — after tl restore, record the restored-from backup"),
 }
 
 
@@ -68,6 +70,7 @@ def _build_parser() -> argparse.ArgumentParser:
     inference_cli.register(sub)
     analytics_cli.register(sub)
     accuracy_cli.register(sub)
+    backup_cli.register(sub)
     return parser
 
 
@@ -135,6 +138,8 @@ def main(argv: list[str] | None = None) -> int:
         return analytics_cli.dispatch(args)
     if args.command == "accuracy":
         return accuracy_cli.dispatch(args)
+    if args.command == "backup":
+        return backup_cli.dispatch(args)
 
     parser.print_help()
     return 0

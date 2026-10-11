@@ -529,6 +529,66 @@ task_deploy() {
     exit 1
 }
 
+# A downloaded backup into a NEW, empty database volume, before `tl deploy` (ADR-0030).
+# pg_restore runs as the PostgreSQL superuser and keeps owners and privileges: restored as
+# tracelet_migrate, db/init's default privileges would quietly give tracelet_app UPDATE and
+# DELETE on audit_log. Then the api image adopts the backup, so the restored history is true.
+# Refuses a database that already has tables: it never overwrites data.
+task_restore() {
+    file="${1:-}"
+    if [ -z "$file" ] || [ ! -f "$file" ]; then
+        red "Usage: tl restore <file.dump>   (a backup downloaded from System Health)"
+        exit 1
+    fi
+    require_env
+    if [ -n "$($DC ps --status running -q api 2>/dev/null)" ]; then
+        red "The api is running. tl restore fills a new, empty database: run it before tl deploy."
+        exit 1
+    fi
+    u="${POSTGRES_USER:-tracelet}"; d="${POSTGRES_DB:-tracelet}"
+    if is_release_host; then
+        # The adoption runs in this commit's api image, the one `tl deploy` will start.
+        tag="$(git rev-parse --short=12 HEAD)"
+        sed -i "s|^TRACELET_IMAGE_TAG=.*|TRACELET_IMAGE_TAG=$tag|" .env
+        $DC pull api
+    fi
+    $DC up -d db
+    task_waitdb
+    own="$($DC exec -T db psql -U "$u" -d "$d" -Atc "SELECT count(*) FROM pg_class c
+        JOIN pg_namespace n ON n.oid = c.relnamespace
+        WHERE n.nspname = 'public' AND c.relkind IN ('r', 'p') AND NOT EXISTS (
+          SELECT 1 FROM pg_depend x WHERE x.classid = 'pg_class'::regclass
+          AND x.objid = c.oid AND x.deptype = 'e')")"
+    if [ "$own" != "0" ]; then
+        red "The database already has $own tables. tl restore only fills a new, empty volume."
+        echo "  To rebuild from the backup, delete this database first:  docker compose down -v"
+        exit 1
+    fi
+
+    name="$(basename "$file")"
+    # A copy the api's uid (10001) can read, whatever the download's mode; removed after.
+    stage="$(mktemp -d)"
+    trap 'rm -rf "$stage"; $DC exec -T db rm -f /tmp/tracelet-restore.dump >/dev/null 2>&1 || true' EXIT
+    cp "$file" "$stage/$name"
+    chmod 0644 "$stage/$name"
+
+    step "Restoring $name (all or nothing, owners and privileges kept)"
+    MSYS_NO_PATHCONV=1 $DC cp "$(native_path "$stage/$name")" db:/tmp/tracelet-restore.dump
+    MSYS_NO_PATHCONV=1 $DC exec -T db pg_restore -U "$u" -d "$d" \
+        --exit-on-error --single-transaction /tmp/tracelet-restore.dump
+    grn "Restored."
+
+    step "Adopting the backup (tracelet backup adopt)"
+    if ! MSYS_NO_PATHCONV=1 $DC run --rm -v "$(native_path "$stage/$name"):/restore/$name:ro" \
+        cli tracelet backup adopt "/restore/$name"; then
+        red "The database is restored, but the backup history was not adopted (above)."
+        echo "  Fix the cause, then: docker compose run --rm -v <file>:/restore/<name>:ro cli \\"
+        echo "      tracelet backup adopt /restore/<name>      -- before the api starts."
+        exit 1
+    fi
+    grn "Restored and adopted. Next: ./scripts/tl deploy"
+}
+
 # Security headers and CSP against a deployed URL, three browser engines (qa/live_check.py).
 # No sign-in, no visit. On a machine that re-signs HTTPS (a local root in api/certs/), the
 # browsers must ignore certificate errors, and the report says the certificate was not
@@ -580,6 +640,7 @@ tl — Tracelet task runner
   host-setup        on the VM: apply the host baseline (deploy/host/, needs sudo)
   host-check        on the VM: check the host baseline, read-only
   deploy            on the VM: pull this commit's images, migrate, start
+  restore FILE      a downloaded backup into a new, empty database, before deploy (ADR-0030)
   live-check URL    headers and CSP against a deployed URL, three engines
   loadtest URL SLUG [burst|stress|limits]  the M9 load test, from a workstation (ADR-0027)
   tunnel-stop stop it
@@ -616,6 +677,7 @@ case "$cmd" in
     host-setup)    task_host_setup ;;
     host-check)    task_host_check ;;
     deploy)        task_deploy ;;
+    restore)       task_restore "$@" ;;
     live-check)    task_live_check "$@" ;;
     loadtest)      task_loadtest "$@" ;;
     waitdb)        task_waitdb ;;

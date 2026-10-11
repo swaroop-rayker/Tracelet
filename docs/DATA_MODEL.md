@@ -941,6 +941,11 @@ admins `ON DELETE SET NULL`.
    shows. `error` never contains a password or a connection string.
 4. A restore check passes only if every table's restored count **equals** the backup's
    `row_counts` (ADR-0022) -- no tolerance.
+5. **After a bare-metal restore** (`tl restore`, ADR-0030) the dump's own row, which the dump
+   holds as `running`, is **adopted** by `tracelet backup adopt`: it becomes `ok` with the
+   file (copied into the new volume), its size and SHA-256, and the restored database's counts
+   taken before anything is written; `finished_at` is the adoption time. Every other `ok` row
+   whose file stayed on the old volume becomes `pruned`. One `backup.adopted` audit row.
 
 ## 9. Derived and cached data
 
