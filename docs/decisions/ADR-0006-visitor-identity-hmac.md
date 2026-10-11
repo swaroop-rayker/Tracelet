@@ -1,6 +1,9 @@
 # ADR-0006 — Visitor identity: HMAC pseudonymisation with a split pepper strategy
 
-**Status:** Accepted (Gate 2, 2026-09-25)
+**Status:** Accepted (Gate 2, 2026-09-25). **Amended 2026-10-11 by ADR-0031:** on a mobile
+network an enriched visit's `visitor_id` and `session_fp` use the carrier's ASN instead of the
+/24 (a carrier pool changes the /24 per connection), and a re-sent request takes the identity
+of the tap it repeats.
 **Deciders:** repository owner
 **Relates to:** F5.AC7, F7.AC2, F9.AC12, F12.AC6, OOS4
 
