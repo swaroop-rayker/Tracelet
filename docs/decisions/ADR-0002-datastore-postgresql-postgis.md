@@ -1,6 +1,8 @@
 # ADR-0002 — Datastore: PostgreSQL 16 + PostGIS
 
-**Status:** Accepted (Gate 2, 2026-09-25)
+**Status:** Accepted (Gate 2, 2026-09-25). **Amended 2026-10-10 (M9):** production runs one
+worker with a pool of 20 (ADR-0028 amendment); the connection arithmetic below, 20 at peak
+with 4 reserved, is unchanged.
 **Deciders:** repository owner
 **Relates to:** C3, C4, F6, NFR5, NFR6, SC4
 

@@ -1,6 +1,7 @@
 # ADR-0028 — A bounded redirect: answered from memory when the box is overloaded
 
-**Status:** Accepted (2026-10-10). The owner approved the direction (a destination cache, a
+**Status:** Accepted (2026-10-10), amended the same day (below). **Extended by ADR-0029:**
+when the app cannot answer at all, Caddy serves a prepared redirect page. The owner approved the direction (a destination cache, a
 deadline, shedding on latency) and asked for this ADR before the code.
 **Deciders:** repository owner
 **Amends:** ADR-0010 (shedding, M7 amendment), ADR-0009 (the in-process scheduler, under load)

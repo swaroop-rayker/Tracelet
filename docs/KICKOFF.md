@@ -37,7 +37,7 @@ on free-tier infrastructure: one GCP e2-micro, 1 vCPU, 1 GB RAM, 2 GB swap, 30 G
 | Background work | Transactional outbox + in-process asyncio worker. **No Celery, no ARQ** | ADR-0009 |
 | Rate limiting | Layered: Cloudflare, Caddy, Postgres-backed GCRA, bounded pool | ADR-0010 |
 | Bot detection | Rules-based weighted scoring. **Explicitly not ML** | ADR-0011 |
-| Deploy | 3 containers, hard `mem_limit`s, domain-agnostic config | ADR-0012 |
+| Deploy | 3 containers, hard `mem_limit`s, domain-agnostic config; release images built off the box and pulled from Docker Hub, one worker on the e2-micro (M9) | ADR-0012, ADR-0026, ADR-0028 |
 | Errors | RFC 9457 Problem Details + ULID `trace_id` + structlog. **No Prometheus** | ADR-0013 |
 | Cache / queue store | **Postgres only. No Redis / Valkey** | ADR-0009, ADR-0010 |
 | Backups | Nightly `pg_dump`, 7d + 4w rotation, monthly automated restore-verify | ADR-0014 |
@@ -90,6 +90,11 @@ TRACELET_BOOTSTRAP_EMAIL=you@example.com ./scripts/tl bootstrap
 ./scripts/tl up
 ./scripts/tl verify
 ```
+
+**This is the development stack**: it builds the images locally. **Production is a
+release host** that never builds: `tl secrets`, `tl host-setup`, `tl deploy` of images
+made by `tl release` on a workstation, and `tl restore` to rebuild from a backup -- all in
+`docs/RUNBOOK.md` (ADR-0026, ADR-0030).
 
 `make <task>` does the same thing where `make` exists; `./scripts/tl <task>` works
 everywhere, including Git Bash on a stock Windows host where `make` is absent. Both call

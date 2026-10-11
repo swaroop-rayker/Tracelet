@@ -37,7 +37,9 @@ destination.**
    once when a link is created, edited, deactivated, archived or made the default, so a
    deactivated or archived link stops redirecting immediately (F1.AC4).
 2. **Caddy's `/r` handler gets its own upstream timeout of 3 s** (the app's capture deadline
-   is 1 s, so a working app always answers first), and **`handle_errors` for 502, 503 and
+   is 1 s, so a working app always answers first) and a **1 s dial timeout**, so an api that
+   is stopped or unreachable is given up on at once rather than after the 3 s (`203f477`; the
+   drill measured the fallback page at 1.4 s with the api stopped), and **`handle_errors` for 502, 503 and
    504 on `/r` paths serves the matching page** with status 503, `Cache-Control: no-store`,
    and a CSP of `default-src 'none'; img-src data:; base-uri 'none'; form-action 'none';
    frame-ancestors 'none'`. The slug reaches the file name only through the same pattern

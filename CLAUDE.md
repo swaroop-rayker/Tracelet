@@ -171,3 +171,4 @@ Fresh clone to running, in 5 commands — see `docs/KICKOFF.md` §Quickstart.
 | What could go wrong? | `docs/RISKS.md` |
 | How should it look and behave? | `docs/DESIGN.md` |
 | Has this bug happened before? | `docs/ERRORS.md` |
+| How do I deploy, roll back or restore production? | `docs/RUNBOOK.md` |

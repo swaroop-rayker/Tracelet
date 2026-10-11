@@ -1,7 +1,7 @@
 # ARCHITECTURE — Tracelet
 
 **Status:** approved at Gate 3, 2026-09-25.
-Decisions here are recorded individually in `docs/decisions/ADR-0001` through `ADR-0014`.
+Decisions here are recorded individually in `docs/decisions/ADR-0001` through `ADR-0030`.
 This document says **what the parts are and how data moves between them**. The ADRs say
 **why**. If you change anything in this file, the ADR comes first — CLAUDE.md section 2.
 
@@ -32,10 +32,11 @@ revisiting it.
                        │ • L1: conn limits, body cap, slow-loris      │
                        │ • trusted_proxies (Cloudflare mode)          │
                        │ • serves the built SPA as static files       │
+                       │ • fallback redirect pages (ADR-0029)         │
                        └───┬──────────────────────────────────────┬───┘
             /r/* /api/*    │                                      │  / (SPA)
                        ┌───▼──────────────────────────────────────┴───┐
-                       │ api    gunicorn → 2 × uvicorn   mem_limit 420M│
+                       │ api    gunicorn → 1 × uvicorn   mem_limit 420M│
                        │                                              │
                        │  ┌────────────────────────────────────────┐  │
                        │  │ capture     → classify → infer →       │  │
@@ -685,13 +686,16 @@ colours, and the dashboard makes no third-party request (ADR-0017).
 
 ## 6. Memory budget
 
-The binding constraint. NFR6 requires steady state at or below 700 MB of 1024 MB.
+The binding constraint. NFR6 requires steady state at or below 700 MB of 1024 MB;
+**restated in M9** (SPEC §11 row 37) to what the e2-micro measures at NFR1 load: at most
+760 MB in use with at least 200 MB available. The table is the design budget; §6.5 has
+the measured figures, which supersede it where they differ.
 
 | Component | Tuning | Expected RSS |
 |---|---|---|
-| Debian minimal host + dockerd | | ~180 MB |
+| Debian minimal host + dockerd | Ops Agent and OS-config agent stopped (ADR-0026) | ~180 MB (measured ~195, §6.5) |
 | `db` PostgreSQL 16 + PostGIS | `shared_buffers=96MB`, `max_connections=24`, `work_mem=4MB`, `effective_cache_size=256MB`, `maintenance_work_mem=32MB` | ~210 MB |
-| `api` gunicorn + 2 × uvicorn | pydantic-core, asyncpg, SQLAlchemy; `.mmdb` files `mmap`'d read-only so they are page cache, **not** RSS | ~230 MB |
+| `api` gunicorn + **1** uvicorn worker (ADR-0028 amendment: two did not fit under load) | pydantic-core, asyncpg, SQLAlchemy; `.mmdb` files `mmap`'d read-only so they are page cache, **not** RSS | ~230 MB |
 | `caddy` | static file serving + TLS | ~25 MB |
 | **Steady state** | | **~645 MB** |
 | **Headroom** | | **~379 MB** |
@@ -727,7 +731,8 @@ The pool is **per process**, so the peak is `pool_max x workers`, and the
 maintenance reserve comes out of the same `max_connections`:
 
 ```
-  10 pool_max  x  2 workers   =  20 peak application connections
+  20 pool_max  x  1 worker    =  20 peak application connections   (production, M9)
+  10 pool_max  x  2 workers   =  20                                 (the alternative)
   24 max_connections  -  4 reserved  =  20 available
 ```
 
@@ -790,7 +795,7 @@ cache, state its expected RSS. That is a review gate, not a suggestion.
 ### 6.5 Measured on the e2-micro — M9
 
 The first figures from the real box (`us-central1-a`, Debian 12, `pd-standard` 30 GB,
-2 GB swap). The load test's figures (NFR6.AC1 under NFR1 load) are added in M9's load test.
+2 GB swap), and the load test's (`docs/LOADTEST.md`).
 
 | What | Measured | Note |
 |---|---|---|
@@ -798,6 +803,8 @@ The first figures from the real box (`us-central1-a`, Debian 12, `pd-standard` 3
 | Containers idle after deploy | api 159 MiB, db 65 MiB, caddy 23 MiB | Host `available` 335 MB |
 | Disk, cache-cold | 37–121 MB/s sequential, 185–311 random 4 KiB reads/s (3–5 ms) | Better than `pd-standard`'s per-GB figures suggest, but every swapped page costs milliseconds |
 | CPU | ~0.8 of 2 vCPUs accounted over a 400 s busy window, almost no "steal" | Shared-core throttling; burst credits make back-to-back runs differ |
+| Host memory at NFR1 load (the final burst test) | 722 MB average, 752 MB peak, 217 MB minimum available | One worker, no swap for `api` and `caddy`, OS-config agent off (ADR-0028 amendment). NFR6.AC1 as restated (SPEC §11 row 37) |
+| Containers after the restore drill, idle | host 688 MB used, 281 MB available | 2026-10-11, the rebuilt box with every geo database reinstalled |
 | `asn_profiles` rebuild | 387 s, `nice 19`, mapped pages bounded (E79) | No request failed; `/healthz` median 0.77 s during it against 0.063 s idle |
 
 Two consequences shape operations. A background job's duration on this box is a
@@ -946,87 +953,82 @@ tracelet/
 ├── CLAUDE.md
 ├── Makefile                        # thin wrapper; delegates to scripts/tl
 ├── scripts/
-│   ├── tl                          # THE task runner. Single implementation
+│   ├── tl                          # THE task runner. Single implementation: dev tasks,
+│   │                               #   release / deploy / restore (ADR-0026, ADR-0030)
 │   └── guard_private_docs.sh       # CI: fails if docs/private/ is ever tracked
-├── docker-compose.yml              # caddy, api, db + profiled *-tools services
+├── docker-compose.yml              # caddy, api, db; one-off `cli`; profiled tools:
+│                                   #   api-tools, web-tools, tunnel, live-check, k6
+├── docker-compose.prod.yml         # release host: image tags instead of builds (ADR-0026)
 ├── .env.example
-├── .gitignore                      # includes docs/private/
+├── .gitignore                      # includes docs/private/ and secrets/
 ├── .dockerignore
-├── Caddyfile
+├── Caddyfile                       # TLS, headers and CSP, fallback pages (ADR-0029)
 ├── commitlint.config.cjs
-├── db/
-│   └── init/01-extensions-and-roles.sh   # first-boot: PostGIS, citext, 3 roles
+├── secrets/ip_key                  # GITIGNORED: the AES-256 key (ADR-0007)
+├── db/init/
+│   ├── 01-extensions-and-roles.sh  # first boot: PostGIS, citext, 3 roles, grants
+│   └── 02-restore-check.sh         # the scratch-database template (ADR-0022)
+├── deploy/host/                    # the VM's baseline: journald, rsyslog, sysctl,
+│                                   #   DuckDNS cron (ADR-0026; tl host-setup)
+├── qa/                             # live_check.py: headers and CSP against a deployed
+│                                   #   URL, three engines (tl live-check)
+├── loadtest/                       # k6 capture.js, drills.sh, VM samplers (ADR-0027)
 ├── api/
 │   ├── Dockerfile                  # stages: deps → dev (toolchain) → production
 │   ├── pyproject.toml
 │   ├── openapi.json                # GENERATED, committed; CI fails on drift
-│   ├── alembic/
-│   └── src/tracelet/
-│       ├── main.py                 # app factory, middleware, lifespan
-│       ├── config.py               # pydantic-settings
-│       ├── errors.py               # typed hierarchy → RFC 9457
-│       ├── db/                     # engine, pool, models, repositories
-│       │                           #   request_session.py owns the per-request
-│       │                           #   transaction and commits BEFORE the
-│       │                           #   response leaves (5.8)
-│       ├── net.py                  # which client address to believe; Cloudflare
-│       │                           #   range verification (F13.AC6)
-│       ├── capture/                # /r/{slug}, enrichment, honeypot, /privacy,
-│       │                           #   links and visits APIs (list, detail,
-│       │                           #   export), templates/
-│       ├── analytics/              # M5, ADR-0016: filters.py (F9.AC13, shared
-│       │                           #   with visits), projection.py, rollup.py
-│       │                           #   (jobs), sources.py, router.py
-│       ├── inference/              # sources/ S1..S11, consensus, suppression,
-│       │                           #   engine.py (the ADR-0015 job), router.py
-│       │                           #   (settings versions), data/ seed files
-│       ├── classification/         # rules/, scoring, cross-checks, honeypot
-│       ├── identity/               # HMAC fingerprint, visitor_id
-│       ├── geofence/               # PostGIS evaluation, GeoJSON import/export
-│       ├── notify/                 # outbox, Telegram client, formatters
-│       ├── audit/                  # the append-only audit writer
-│       ├── auth/                   # sessions, TOTP, recovery, CSRF, challenges,
-│       │                           #   and the owner-only admins router
-│       ├── ratelimit/              # GCRA in PostgreSQL
-│       ├── admin_api/              # dashboard routers (M2+; M1 routers live
-│       │                           #   beside the feature they serve, e.g.
-│       │                           #   auth/admins_router.py)
-│       ├── health/                 # psutil, geo DB freshness, flow diagram
-│       ├── lifecycle/              # retention, purge, backup, restore-verify
-│       ├── crypto/                 # AES-GCM envelope, key loading, rotation
-│       ├── worker/                 # scheduler: sweeper, IP purge (M2), infer
-│       │                           #   (M3); outbox M6
-│       └── cli/                    # tracelet admin …, database update, labelling
-│   ├── spikes/                     # measurement scripts + raw results (Spike A);
-│   │                               #   linted and typed, never in the image
+│   ├── alembic/                    # forward-only migrations
+│   ├── src/tracelet/
+│   │   ├── main.py                 # app factory, middleware, lifespan
+│   │   ├── config.py               # pydantic-settings
+│   │   ├── errors.py               # typed hierarchy → RFC 9457
+│   │   ├── db/                     # engine, pool; request_session.py owns the
+│   │   │                           #   per-request transaction and commits BEFORE
+│   │   │                           #   the response leaves (5.8)
+│   │   ├── net.py                  # which client address to believe (F13.AC6)
+│   │   ├── capture/                # /r/{slug}, enrichment, honeypot, /privacy, the
+│   │   │                           #   link cache and overload (ADR-0028), fallback
+│   │   │                           #   pages (ADR-0029), links and visits APIs
+│   │   ├── analytics/              # ADR-0016: filters, projection, rollups, sources
+│   │   ├── inference/              # sources/ S1..S11, consensus, suppression,
+│   │   │                           #   engine.py (ADR-0015), geodb/ updates, data/
+│   │   ├── classify/               # rules and scoring (ADR-0011), visitor identity
+│   │   │                           #   (ADR-0006)
+│   │   ├── accuracy/               # ground truth and replay (ADR-0024)
+│   │   ├── geofence/               # PostGIS evaluation, regions, GeoJSON
+│   │   ├── notify/                 # outbox, Telegram client, alert types
+│   │   ├── workflow/               # annotations, saved views
+│   │   ├── audit/                  # the append-only audit writer
+│   │   ├── auth/                   # sessions, TOTP, recovery, CSRF, admins
+│   │   ├── ratelimit/              # GCRA in PostgreSQL
+│   │   ├── health/                 # host metrics, geo DB status, degradation
+│   │   ├── lifecycle/              # retention, purge, backup, restore check,
+│   │   │                           #   adoption after a restore (ADR-0030)
+│   │   ├── crypto/                 # AES-GCM envelope, Argon2id, HMAC
+│   │   ├── worker/                 # the scheduler (ADR-0009)
+│   │   └── cli/                    # tracelet admin | geodb | inference | analytics |
+│   │                               #   accuracy | backup
+│   ├── spikes/                     # measurement scripts (Spike A); never in the image
 │   └── tests/
-│       ├── unit/                   # inference, scoring, GCRA, crypto, policy
-│       └── integration/            # API + real PostgreSQL + PostGIS
-│                                   #   helpers.py drives the real auth flow;
-│                                   #   never a database double (ES3)
+│       ├── unit/
+│       └── integration/            # API + real PostgreSQL + PostGIS, never a double
 ├── web/
 │   ├── Dockerfile                  # builds the SPA, then serves it from Caddy
 │   ├── Dockerfile.tools            # eslint/prettier/tsc/openapi-typescript
-│   ├── package.json
+│   ├── scripts/build-boundaries.mjs  # public/geo/ outlines (ADR-0017)
 │   └── src/
-│       ├── api/                    # hand-written clients, schemas.ts (zod, typed
-│       │                           #   against generated/), query.ts (React Query)
-│       ├── components/             # Panel (F9.AC18), EChart + chartkit, FilterBar,
-│       │                           #   Layout, ui primitives
-│       ├── pages/                  # sign-in pages, AccountPage; dashboard/ holds the
-│       │                           #   M5 pages (overview, visits, geography, …)
-│       ├── charts.ts filters.ts    # chart builders; URL filter state (F9.AC13)
-│       ├── router.ts               # sign-in routes only; react-router owns the rest
-│       ├── features/               # visits, analytics, geofences, health, admins
-│       └── theme.ts                # semi-dark default, light, dark (tokens in
-│                                   #   index.css; contrast tested in theme.test.ts)
-│   ├── public/geo/                 # countries.json + admin1/<CC>.json, built by
-│   │                               #   scripts/build-boundaries.mjs (ADR-0017)
-├── data/                           # geo databases + GeoNames (gitignored)
+│       ├── api/                    # clients, zod schemas over generated/, React Query
+│       ├── components/             # Panel (F9.AC18), EChart, map, shell, ui primitives
+│       ├── pages/                  # sign-in, dashboard/, configure/, health/,
+│       │                           #   settings/, groundtruth/
+│       ├── styles/                 # tokens and primitives (DESIGN.md)
+│       ├── vendor/qrcodegen.ts     # vendored encoder (ADR-0023)
+│       └── theme.ts                # semi-dark default, light, dark
 └── docs/
-    ├── KICKOFF.md SPEC.md ARCHITECTURE.md DATA_MODEL.md API.md
-    ├── MILESTONES.md RISKS.md ERRORS.md
-    ├── decisions/ADR-0001..0014
+    ├── KICKOFF.md SPEC.md ARCHITECTURE.md DATA_MODEL.md API.md DESIGN.md
+    ├── MILESTONES.md RISKS.md ERRORS.md RUNBOOK.md LOADTEST.md
+    ├── plans/                      # owner-approved enhancement plans (M5.6-M7.7)
+    ├── decisions/ADR-0001..0030
     └── private/                    # GITIGNORED — owner explainer track
 ```
 

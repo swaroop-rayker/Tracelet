@@ -1,6 +1,8 @@
 # ADR-0012 — Deployment: three containers, Cloudflare edge, dual domain paths
 
-**Status:** Accepted (Gate 1 and Gate 2, 2026-09-25)
+**Status:** Accepted (Gate 1 and Gate 2, 2026-09-25). **Amended 2026-10-10 (M9)**, twice (at the
+end): one worker, and Caddy answering a capture the api cannot (ADR-0029). Releases are
+built off the box and pulled from Docker Hub (ADR-0026).
 **Deciders:** repository owner
 **Relates to:** C4, C6, F13, F14, B4, NFR1, NFR2, NFR6
 

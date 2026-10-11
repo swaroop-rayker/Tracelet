@@ -1,13 +1,14 @@
 # ---------------------------------------------------------------------------
 # Tracelet — three containers, hard memory limits (ADR-0012).
 #
-# Budget on the 1 GB target (docs/ARCHITECTURE.md §6):
-#   host + dockerd  ~180 MB
+# Budget on the 1 GB target (docs/ARCHITECTURE.md §6; measured in §6.5):
+#   host + dockerd  ~180 MB   (~195 measured on the e2-micro)
 #   db               ~210 MB   limit 260 M
-#   api              ~230 MB   limit 420 M
+#   api              ~230 MB   limit 420 M, ONE worker (ADR-0028 amendment)
 #   caddy             ~25 MB   limit  64 M
 #   ------------------------------------------
-#   steady state     ~645 MB of 1024 MB, ~379 MB headroom
+#   design steady state ~645 MB of 1024 MB. Measured at NFR1 load (M9): 722 MB
+#   average, 752 MB peak, 217 MB available -- NFR6.AC1 as restated, SPEC §11 row 37.
 #
 # mem_limit is not a formality. It converts the failure mode from "the kernel
 # OOM-killer picks a victim, possibly PostgreSQL mid-write" into "one container
@@ -65,7 +66,7 @@ x-api: &api
     #
     # This file is NOT in the database backup, deliberately. Restoring onto a
     # fresh VM without a separate out-of-band copy leaves every encrypted value
-    # permanently unreadable. See docs/private/07-OPERATIONS-PLAYBOOK.md.
+    # permanently unreadable. See docs/RUNBOOK.md (the password-manager note, the restore).
     - ./secrets/ip_key:/run/secrets/ip_key:ro
     - geo_data:/data/geoip
     - backups:/data/backups

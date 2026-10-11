@@ -39,7 +39,10 @@ have the VM only pull.**
 2. **No local root in a release image.** A local root reaches a build only as a BuildKit
    secret, mounted for the steps that download and never written to a layer. The release
    check fails if the runtime image's trust stores (system and certifi) differ from the
-   base image's. Development keeps working: the dev stack gets the root at **run time**
+   base image's. *As built (`tl release`):* it fails if the image installs any extra trust
+   anchor, or if any file under `/etc`, `/usr`, `/srv`, `/app`, `/tmp`, `/root` or `/home`
+   contains a body line of a local root from `api/certs/` -- which catches the root
+   appended to certifi's bundle, the case that matters. Checked on every M9 release. Development keeps working: the dev stack gets the root at **run time**
    from a read-only mount, not baked into the image.
 3. **A production compose override**, `docker-compose.prod.yml`, replaces `build:` with
    `image:` at `${TRACELET_IMAGE_TAG}` for `api` and `caddy`. The VM holds a checkout of the

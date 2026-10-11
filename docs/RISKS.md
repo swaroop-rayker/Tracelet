@@ -10,12 +10,12 @@ Severity is `impact × likelihood` at the time of writing, reassessed after each
 | R3 | **rDNS city-code coverage may be too low to carry the accuracy plan** | **High** | **Spike A run 2026-09-29: 2.0 %. F4.AC13 amended (SPEC §11 row 9); M3 unblocked** |
 | R4 | Geo-database update memory spike could OOM the box | Medium | Open, mitigated by design |
 | R5 | `fetch(keepalive)` may not survive Instagram webview navigation | Medium | **Android: survives (Spike B, 2026-09-28). iOS: unmeasured — open** |
-| R6 | 1 GB steady state under real load; swap thrash | Medium | Open, verified in M9 |
+| R6 | 1 GB steady state under real load; swap thrash | Medium | **Materialised in M9 (E82) and mitigated: one worker, no swap for the redirect path, ADR-0028/0029; NFR6.AC1 restated (SPEC §11 row 37)** |
 | R7 | Bot-detection ceiling without JA4 | **High** | **Accepted with a weaker substitute: header set (R19, SPEC §11 row 7)** |
 | R8 | Safe Browsing may flag the site regardless | Medium | Accepted, no guaranteed remedy |
 | R9 | 30–60 ground-truth labels give wide confidence intervals | Medium | Accepted, disclosed — Wilson intervals on every figure since M8 |
-| R10 | Free-subdomain path is materially weaker than documented parity suggests | Medium | Accepted, owner-chosen |
-| R11 | **VM loss loses everything since the last manual backup download** | **High** | **Accepted, owner-chosen** |
+| R10 | Free-subdomain path is materially weaker than documented parity suggests | Medium | **Accepted, owner-chosen; production runs on it since 2026-10-10, measured (SPEC §11 rows 33, 37); M9.1 retires it** |
+| R11 | **VM loss loses everything since the last manual backup download** | **High** | **Accepted, owner-chosen; restore drill passed 2026-10-11 (ADR-0030)** |
 | R12 | Solo developer: no review, no bus factor | Medium | Accepted, mitigated by CI and docs |
 | R13 | GeoLite2 licence terms and account continuity | Low | Open, monitor |
 | R14 | CARTO basemap tile availability and usage policy | Low | **Materialised 2026-10-02 (CARTO now requires a key); closed by ADR-0017: no tiles** |
@@ -265,6 +265,15 @@ host's memory pressure (PSI "some avg10" at 20 %), visitors still redirected; th
 thresholds are checked against the real e2-micro in M9. **Escalation order if breached:** reduce to one Uvicorn worker (roughly
 110 MB), then lower `shared_buffers`, then revisit the host — **not** the database.
 
+> **M9 (2026-10-10/11): materialised and mitigated.** The first load test averaged 771 MB and
+> stranded 500 visitors (ERRORS E82): workers stalled on swap-ins. The first escalation step
+> was taken -- one worker -- with `memswap_limit` equal to `mem_limit` for `api` and `caddy`
+> and the OS-config agent off (ADR-0028 amendment), plus a bounded redirect (ADR-0028) and
+> Caddy's fallback pages (ADR-0029). Measured at NFR1 load: 722 MB average, 752 MB peak,
+> 217 MB available; every visitor sent on in the burst test and the flood (docs/LOADTEST.md).
+> NFR6.AC1 was restated to that (SPEC §11 row 37). Next steps, in order, are unchanged:
+> `shared_buffers`, then the host.
+
 ---
 
 ## R7 — Bot-detection ceiling without JA4
@@ -383,6 +392,11 @@ equivalent**. The free-subdomain path cannot sit behind Cloudflare, so it forfei
 
 **Accepted as an owner choice.** Documented in ADR-0012, KICKOFF section 3, and here so it
 cannot quietly be treated as a like-for-like option.
+
+> **M9 (2026-10-10/11): in production, measured.** Production runs on
+> `tracelet.duckdns.org` until a domain is bought (SPEC §11 row 33). Time to first byte from
+> India measured p95 1 163 ms under load (row 37); S8 is absent on every real visit, as it
+> must be. M9.1 moves to a purchased domain behind Cloudflare and retires this risk.
 
 ---
 
