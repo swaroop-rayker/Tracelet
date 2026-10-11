@@ -1150,16 +1150,39 @@ F14.AC2, F14.AC3, NFR1.AC1–NFR1.AC5, NFR2 (AC2–AC3 at the direct-origin figu
       shedding and overload engaged, every visitor sent on); the api stopped (Caddy's fallback
       page in 1.4 s, ADR-0029). A first run reported the full disk as a failure: the probe's
       own files could not be written; the script now keeps them in memory.*
-- [ ] **Restore drill succeeds from a downloaded backup and the off-VM secrets alone, with
+- [x] **Restore drill succeeds from a downloaded backup and the off-VM secrets alone, with
       `ip_enc` readable** — proving the out-of-band secret backup actually works (ADR-0014)
-- [ ] **Real visits on the direct path show the full derivation:** one on mobile data, one
+      — *2026-10-11, owner-confirmed wipe of production: `docker compose down -v` (every
+      volume, Let's Encrypt included), `/opt/tracelet` removed, every image pruned; host
+      baseline and DuckDNS kept. Rebuilt from a fresh clone, the owner's note (`.env`,
+      `ip_key`) and the dashboard download (SHA-256 equal to its row) with `tl restore`
+      (ADR-0030, new) then `tl deploy` of `62b27938d615`. Proven: all 33 tables' counts equal
+      the dump's own record taken before the wipe (`visits` 43 207); every owner and
+      privilege equal to the pre-wipe fingerprint (`audit_log` still append-only); **9 504 of
+      9 504 `ip_enc` decrypt with the restored key and lie inside their own `ip_prefix`**;
+      the owner signed in with their password and TOTP (sealed with the same key); "Verify
+      now" passed on the adopted backup; Telegram alerts arrived; Let's Encrypt re-issued,
+      fallback pages and all nine geo databases came back by themselves; `tl live-check`
+      passed. Found and fixed: E83 (readiness asked over the socket; the first restore was cut
+      off, all or nothing) and E84 (a heading line in the note's `.env`; two values stale).*
+- [x] **Real visits on the direct path show the full derivation:** one on mobile data, one
       on Wi-Fi; every source present in `candidates[]` or `inference.source_absent` (S8
       absent, as the direct path must); `TRACELET_DEV_TRUSTED_TUNNEL` unset
+      — *2026-10-11, link `phn-test` (asks for location), the owner's Android Chrome: four
+      rows on mobile data, one on Wi-Fi. Every row: GeoLite2, IP2Location, IPinfo, DB-IP and
+      S9 as candidates (timezone too when enriched); GPS, ASN-org, `cf_colo` (S8) and rDNS
+      absent with a reason. State Karnataka on all five (strict on the three mobile rows that
+      cleared the threshold). `TRACELET_DEV_TRUSTED_TUNNEL` is not in the production `.env`.
+      Seen: three of four mobile rows were never enriched and were finalised by the sweeper
+      (~100 s later, then alerted); one tap made two rows because Chrome abandoned its first
+      request (499) and re-sent it.*
 - [x] **The production resolver answers PTR** (ERRORS.md E27): S6's canary reports healthy
       on the GCP host, and a real visit's `rdns_ptr` is populated where one exists
       — *2026-10-11: `resolver_answers_ptr()` in the production image is true (8.8.8.8 →
       `dns.google` through GCP's metadata resolver), and 16 visits from the owner's home
-      network (the load test) carry `rdns_ptr`. The phone visits add mobile and Wi-Fi.*
+      network (the load test) carry `rdns_ptr`. The phone visits (2026-10-11): on Wi-Fi the
+      resolver answered "no PTR record" in 41 ms; on mobile data every lookup reached S6's
+      1.2 s timeout and was recorded as unavailable, not as "no record".*
 - [x] CSP and security headers pass by test against the deployed URL, three engines
       — *2026-10-10, `adf6e80`, no sign-in and no visit (production: 0 visits, 0 links before
       and after). Headers on `/`, `/login`, a hashed asset, `/privacy` (fresh nonce per

@@ -185,8 +185,11 @@ are not separately preserved out-of-band, then even a successful restore leaves 
 **A backup without those secrets is a partial backup.**
 
 **Mitigations in place:** dashboard reminder when the last download exceeds a configurable
-age; a one-time M9 restore drill onto a fresh VM that explicitly includes the out-of-band
-secrets; backups are safe to store anywhere because IP values are ciphertext.
+age; backups are safe to store anywhere because IP values are ciphertext; `tl restore`
+(ADR-0030). **The M9 restore drill passed on 2026-10-11**: production wiped and rebuilt from
+a download and the owner's note alone, every `ip_enc` readable. It also showed how the
+compounding factor really fails: the note had drifted from the VM (two tuned values, ERRORS
+E84). The note must be re-copied after any change to `.env`.
 
 **Retirement path.** Adding a free-tier object-storage target (Cloudflare R2, Backblaze B2)
 is a small integration and **the single highest-value change available in this document.**
