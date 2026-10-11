@@ -21,7 +21,7 @@ Severity is `impact × likelihood` at the time of writing, reassessed after each
 | R14 | CARTO basemap tile availability and usage policy | Low | **Materialised 2026-10-02 (CARTO now requires a key); closed by ADR-0017: no tiles** |
 | R15 | Nominatim usage policy compliance | Low | Mitigated by design |
 | R16 | GCP free-tier egress ceiling (1 GB/month) | Low | Open, monitor |
-| R17 | Fingerprint instability inflates unique-visitor counts | Medium | Accepted, disclosed |
+| R17 | Fingerprint instability inflates unique-visitor counts | Medium | Accepted, disclosed; **on mobile, mitigated by ADR-0031 (2026-10-11), with identical phones on one carrier merging instead** |
 | R18 | Telegram becomes a security dependency, not just a notifier | Medium | Accepted, mitigated |
 | R19 | **Header order and HTTP/2 detail are unobservable behind Caddy** | **High** | **Closed: header set + re-weighting built in M4 (SPEC §11 row 7)** |
 | R20 | A first-visit location prompt cannot be answered inside the interstitial | Medium | **Revisited 2026-10-06 — per-link opt-in, 15 s ceiling (ADR-0021)** |
@@ -750,6 +750,14 @@ admins. Monitored on the System Health page.
 `visitor_id` for the same person, inflating unique-visitor counts and occasionally producing
 a duplicate first-visit alert. Bucketing tolerance reduces this (ADR-0006); it cannot
 eliminate it. Unique-visitor figures are presented as estimates.
+
+> **M9 (2026-10-11): it materialised on mobile data, and was mitigated (ADR-0031).** On
+> production one phone on a carrier network made six requests from five /24s in three hours
+> and was six "new visitors", six alerts. An enriched mobile visit is now keyed by the
+> carrier's ASN, and a re-sent request takes the identity of the tap it repeats. **The
+> converse now carries more weight:** two people with the identical phone, browser,
+> language, timezone and screen on the same carrier become one visitor on a link that day,
+> and the second gets no alert. Accepted by the owner.
 
 **R18 — Telegram as a security dependency.** Because Gate 1 declined email, Telegram is both
 the notification channel *and* a password-recovery channel (ADR-0008). Compromise of the

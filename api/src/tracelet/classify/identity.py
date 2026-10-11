@@ -14,6 +14,14 @@ two tags -- so a browser minor version or a zoom change does not mint a new visi
 no ``fingerprint_id`` (ADR-0006 amendment, item 2): every Chrome 131 user with ``en-IN``
 would share one, and the collision rule would read ordinary people as one device on many
 networks.
+
+**The network part** (ADR-0031) is the /24 or /48 prefix, except for an **enriched visit on a
+mobile network with a known ASN**, where it is the carrier: a carrier's CGNAT pool hands one
+phone a different /24 on almost every connection (six requests, five prefixes, on
+2026-10-11). Carrier-keyed identifiers carry their own HMAC labels (``visitor.v2``,
+``session.v2``); prefix-keyed ones keep v1, so Wi-Fi and broadband history is unbroken. A
+server-only mobile visit keeps the prefix here; ``classify.job`` may give it its enriched
+sibling's identity instead (the same tap, re-sent).
 """
 
 from __future__ import annotations
@@ -50,6 +58,8 @@ class IdentityInput:
     headers: dict[str, str]
     ip_prefix: str | None
     enriched: bool
+    asn: int | None = None
+    mobile: bool = False
     screen_w: int | None = None
     screen_h: int | None = None
     dpr: float | None = None
@@ -70,6 +80,10 @@ class Identity:
     fingerprint_id: bytes | None
     server_only: bool
     missing_peppers: tuple[str, ...]
+    # The carrier's ASN when it stood in for the prefix (ADR-0031), else None.
+    carrier_asn: int | None = None
+    # The enriched visit whose identity this server-only visit took (ADR-0031, point 2).
+    same_tap: str | None = None
 
 
 def _bucket_dpr(dpr: float | None) -> str:
@@ -119,6 +133,13 @@ def day_key(rotating_pepper: bytes, day: dt.date) -> bytes:
     ).digest()
 
 
+def network_part(inp: IdentityInput) -> tuple[bytes, int | None]:
+    """The network component and, when it is the carrier, its ASN (ADR-0031)."""
+    if inp.enriched and inp.mobile and inp.asn is not None:
+        return f"asn:{inp.asn}".encode(), inp.asn
+    return (inp.ip_prefix or "").encode(), None
+
+
 def derive(
     inp: IdentityInput,
     *,
@@ -128,7 +149,8 @@ def derive(
     day: dt.date,
 ) -> Identity:
     fp = canonical(inp)
-    prefix = (inp.ip_prefix or "").encode()
+    network, carrier = network_part(inp)
+    version = b"v2" if carrier is not None else b"v1"
     missing = tuple(
         name
         for name, pepper in (
@@ -139,9 +161,11 @@ def derive(
         if not pepper
     )
     return Identity(
-        visitor_id=_mac(pepper_stable, b"visitor.v1", fp, prefix) if pepper_stable else None,
+        visitor_id=(
+            _mac(pepper_stable, b"visitor." + version, fp, network) if pepper_stable else None
+        ),
         session_fp=(
-            _mac(day_key(pepper_rotating, day), b"session.v1", fp, prefix)
+            _mac(day_key(pepper_rotating, day), b"session." + version, fp, network)
             if pepper_rotating
             else None
         ),
@@ -150,4 +174,5 @@ def derive(
         ),
         server_only=not inp.enriched,
         missing_peppers=missing,
+        carrier_asn=carrier,
     )

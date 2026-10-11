@@ -771,6 +771,25 @@ def _classification_values(result: Inferred, signals: list[dict[str, Any]]) -> d
                 "detail": {"reason": "no_client_enrichment"},
             }
         )
+    # ADR-0031: say which network the identity was keyed on, and whose tap this repeats.
+    if c.identity.carrier_asn is not None:
+        signals.append(
+            {
+                "rule_id": "identity.carrier",
+                "category": "identity",
+                "weight": 0,
+                "detail": {"asn": c.identity.carrier_asn},
+            }
+        )
+    if c.identity.same_tap is not None:
+        signals.append(
+            {
+                "rule_id": "identity.same_tap",
+                "category": "identity",
+                "weight": 0,
+                "detail": {"visit_id": c.identity.same_tap},
+            }
+        )
     return {
         "classification": v.classification,
         "bot_score": v.bot_score,

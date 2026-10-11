@@ -401,7 +401,10 @@ after inference and in the same write, with four small reads for context (distin
 per fingerprint, distinct fingerprints per prefix, visits per prefix in the rate window,
 the previous located visit of the same fingerprint). Weights and thresholds are the
 `classifier` section of the versioned `inference_settings`; `classifier_version` is
-`m4.1+s<version>`. See the ADR-0011 and ADR-0006 amendments for the decisions.
+`m9.1+s<version>` (`m4.1` until M9). See the ADR-0011 and ADR-0006 amendments for the decisions.
+**Since M9 (ADR-0031)**, an enriched visit on a mobile network keys its `visitor_id` on the
+carrier's ASN rather than the /24, and a server-only mobile visit within 60 s of an enriched
+one from the same carrier and browser takes that visit's identity (a fifth read).
 
 - **Header set, not order** (SPEC §11 row 7): Fetch Metadata is required of any modern
   browser, `Sec-CH-UA*` of Chromium; the UA-CH platform, mobile flag, brand and major

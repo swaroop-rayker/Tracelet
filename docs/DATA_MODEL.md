@@ -403,7 +403,7 @@ evidence for the visitor's address. Without this, S6 would be a plaintext-IP col
 
 | Column | Type | Notes |
 |---|---|---|
-| `visitor_id` | `bytea` NULL | HMAC, **stable** pepper. New-vs-returning |
+| `visitor_id` | `bytea` NULL | HMAC, **stable** pepper. New-vs-returning. Over the canonical fingerprint and the network part: the /24 or /48, or **the carrier's ASN for an enriched visit on a mobile network** (ADR-0031, label `visitor.v2`); a server-only mobile visit within 60 s of an enriched one from the same carrier and browser takes that visit's value (`identity.same_tap`) |
 | `session_fp` | `bytea` NULL | HMAC, **rotating** pepper. Limits long-term linkability |
 | `fingerprint_id` | `bytea` NULL | Canonical fingerprint hash, for collision detection — F5.AC7 |
 
