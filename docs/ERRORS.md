@@ -2840,6 +2840,33 @@ machine that built it has not been tested; the SC2 run is the check that catches
 
 **Related:** E85, SPEC F14.AC3, F14.AC7 (SC2), ARCHITECTURE §9.1.
 
+### E87 — The dashboard could not clone a link, though its edit dialog said to
+
+**Status:** Fixed in M9 (feat/m9-deploy). **Milestone:** M9. **Date:** 2026-10-11.
+
+**Symptom.** During M9's SC1 walk on production the owner asked how to clone a link. There
+was no way: the Links page's row menu offered Edit, Make default, Archive and Delete, while
+the Edit dialog, on a slug change, warned "To keep it working, clone the link instead".
+
+**Root cause.** F1.AC9's clone was built in M2 as an API (`POST /api/v1/links/{id}/clone`,
+API.md §6, integration-tested) before the dashboard had any link writes. M7 added the writes
+to `/links` from DESIGN §10.11, whose list of row actions did not include Clone, and the
+warning text was written against the API's description. Every test exercised the endpoint;
+none asked whether an owner could reach it.
+
+**Fix.** A **Clone…** row action and Dialog on the Links page (new slug, optional label; the
+copy keeps destination, wait, location question and alert settings, starts with no visits;
+the old address keeps working), `cloneLink` in `web/src/api/links.ts`, DESIGN §10.11. Tested in
+Chromium against the real Caddy (production CSP): the copy's `cloned_from`, destination,
+policy and wait match the original, it is active and not the default, the original is
+untouched, `link.cloned` audited, a reused slug refused on the field, 0 CSP violations.
+
+**Prevention.** SC1's walk is done through the dashboard, not the API, so it finds a flow the
+owner cannot reach. When an API capability is specified as an owner action, DESIGN must name
+its control.
+
+**Related:** SPEC F1.AC9, F10.AC6, DESIGN §10.11, API.md §6, MILESTONES M9 (SC1).
+
 ---
 
 Add entries here as bugs are found and fixed. Use the next available `E<n>` identifier and

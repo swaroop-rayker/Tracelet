@@ -1,8 +1,9 @@
 /**
  * Links (DESIGN §10.11, §12 E20; F1, F10.AC6, SPEC §11 row 25): every tracking link, where it
  * sends visitors, and its all-time visit count, each opening its own dashboard -- and the
- * owner's writes: **New link**, and per row Edit, Make default, Archive and **Delete
- * permanently** (which first shows exactly what would go, and wants the slug typed, UI-16).
+ * owner's writes: **New link**, and per row Edit, **Clone** (a new slug with the same
+ * configuration, F1.AC9), Make default, Archive and **Delete permanently** (which first shows
+ * exactly what would go, and wants the slug typed, UI-16).
  * Archived links keep only Delete permanently. An analyst sees every write disabled with the
  * reason (UI-17). The one-click setting is still "Asks for location" (F1.AC11, ADR-0021).
  *
@@ -16,6 +17,7 @@ import { Link, useLocation } from 'react-router';
 import type { ApiError } from '@/api/client';
 import {
   archiveLink,
+  cloneLink,
   createLink,
   deleteLink,
   deletePreviewSchema,
@@ -133,6 +135,7 @@ export default function LinksPage(): React.JSX.Element {
     linksFullSchema,
   );
   const [editing, setEditing] = useState<Editing | null>(null);
+  const [cloning, setCloning] = useState<LinkFull | null>(null);
   const [archiving, setArchiving] = useState<LinkFull | null>(null);
   const [deleting, setDeleting] = useState<LinkFull | null>(null);
   const [busy, setBusy] = useState(false);
@@ -265,6 +268,17 @@ export default function LinksPage(): React.JSX.Element {
                             >
                               Edit…
                             </MenuItem>
+                            <MenuItem
+                              icon="Link"
+                              disabled={!owner}
+                              {...(owner ? {} : { hint: 'Owner only' })}
+                              onSelect={() => {
+                                close();
+                                setCloning(l);
+                              }}
+                            >
+                              Clone…
+                            </MenuItem>
                             {!l.is_default && (
                               <MenuItem
                                 icon="Verified"
@@ -324,6 +338,16 @@ export default function LinksPage(): React.JSX.Element {
         />
       )}
 
+      {cloning !== null && (
+        <CloneDialog
+          link={cloning}
+          onClose={() => {
+            setCloning(null);
+          }}
+          onCloned={() => void refresh()}
+        />
+      )}
+
       <ConfirmDialog
         open={archiving !== null}
         title={archiving === null ? '' : `Archive ${archiving.label}?`}
@@ -354,6 +378,93 @@ export default function LinksPage(): React.JSX.Element {
         />
       )}
     </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Clone (F1.AC9): rotate a burned slug and keep the old one working
+// ---------------------------------------------------------------------------
+
+function CloneDialog({
+  link,
+  onClose,
+  onCloned,
+}: {
+  readonly link: LinkFull;
+  readonly onClose: () => void;
+  readonly onCloned: () => void;
+}): React.JSX.Element {
+  const { me } = useSession();
+  const [slug, setSlug] = useState('');
+  const [label, setLabel] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<ApiError | null>(null);
+  const fieldError = (name: string): string | null =>
+    error?.fields.find((f) => f.field === name || f.field.endsWith(`.${name}`))?.message ?? null;
+
+  async function clone(): Promise<void> {
+    const named = label.trim();
+    setBusy(true);
+    const result = await cloneLink(me.csrf_token, link.id, {
+      slug: slug.trim().toLowerCase(),
+      ...(named === '' ? {} : { label: named }),
+    });
+    setBusy(false);
+    if (!result.ok) {
+      setError(result.error);
+      return;
+    }
+    toast(`${result.data.label} created: ${result.data.capture_url}`);
+    onCloned();
+    onClose();
+  }
+
+  return (
+    <Dialog
+      open
+      size="md"
+      onClose={onClose}
+      dismissible={!busy}
+      title={`Clone ${link.label}`}
+      footer={
+        <>
+          <Button variant="ghost" disabled={busy} onClick={onClose}>
+            Cancel
+          </Button>
+          <Button variant="primary" busy={busy} busyLabel="Cloning…" onClick={() => void clone()}>
+            Create copy
+          </Button>
+        </>
+      }
+    >
+      <div className="stack">
+        <p>
+          A new link with the same destination, wait, location question and alert settings, starting
+          with no visits. <span className="t-mono">/r/{link.slug}</span> keeps working and keeps its
+          visits; deactivate or archive it separately when it should stop.
+        </p>
+        <div className="form-grid">
+          <Field
+            label="New slug"
+            value={slug}
+            onChange={setSlug}
+            mono
+            maxLength={32}
+            hint={`4–32 of a–z, 0–9 and -. The address is ${window.location.origin}/r/${slug.trim().toLowerCase() || '…'}`}
+            error={fieldError('slug')}
+          />
+          <Field
+            label="Label"
+            value={label}
+            onChange={setLabel}
+            maxLength={120}
+            hint={`Optional. Empty keeps “${link.label}”.`}
+            error={fieldError('label')}
+          />
+        </div>
+        {error !== null && error.fields.length === 0 && <ErrorNotice error={error} />}
+      </div>
+    </Dialog>
   );
 }
 
@@ -465,8 +576,8 @@ function LinkDialog({
         </div>
         {slugChanged && (
           <Alert tone="warn">
-            The old address /r/{existing.slug} stops working at once. To keep it working, clone the
-            link instead.
+            The old address /r/{existing.slug} stops working at once. To keep it working, use Clone…
+            in the link’s menu instead.
           </Alert>
         )}
         <Field

@@ -1063,10 +1063,13 @@ error boundary renders an Alert with the trace id when one exists. No illustrati
 
 `/links` lists every tracking link; `/links/:slug` is one link's dashboard. *M7 (F10.AC6,
 SPEC §11 row 25) adds the writes to `/links`:* **[＋ New link]** in the header; a **•••
-menu** per row with Edit…, Make default, Archive, and **Delete permanently…**; archived links
+menu** per row with Edit…, **Clone…** *(M9: F1.AC9 had an API and no control; found by SC1)*,
+Make default, Archive, and **Delete permanently…**; archived links
 (Show archived) keep only Delete permanently…. **New** and **Edit** share one Dialog: label,
 slug (with the capture URL it gives), destination, active, interstitial (ms), asks for
-location, and the three alert priorities. **Delete permanently** is a danger Dialog that first
+location, and the three alert priorities. **Clone** is a small Dialog: the new slug (with its
+capture URL) and an optional label, saying that the copy keeps the configuration and starts
+with no visits while the old address keeps working. **Delete permanently** is a danger Dialog that first
 loads the preview -- "Deletes demo-ig, 164 visits and their 812 location candidates, 37 days
 of figures; geofence *Campus* will be switched off" -- and is enabled only when the slug is
 typed (UI-16). Every write is the owner's; an analyst sees the actions disabled with the
