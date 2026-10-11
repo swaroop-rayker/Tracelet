@@ -1125,7 +1125,10 @@ F14.AC2, F14.AC3, NFR1.AC1–NFR1.AC5, NFR2 (AC2–AC3 at the direct-origin figu
 - [ ] All in-scope flows work end to end on the deployed URL (**SC1**)
 - [ ] Fresh clone to running in 5 commands (**SC2**)
 - [ ] CI green (**SC2**)
-- [ ] Release images carry no local root: the check in `tl release` passes (ADR-0026)
+- [x] Release images carry no local root: the check in `tl release` passes (ADR-0026)
+      — *every M9 release, both images, last `68d511cec87b` (2026-10-11): no extra trust anchor,
+      and no file anywhere in the image holds a body line of the PC's antivirus root. The
+      check as built is recorded in ADR-0026 item 2.*
 - [x] Load test: 10 concurrent sustained, 500/day, 2 admins — NFR1 met, results recorded
       — *2026-10-11, `docs/LOADTEST.md`. NFR1.AC1 as clarified (SPEC §11 row 35): 910 of 910
       visitors sent on with no error, the owner working the dashboard on two devices. The
@@ -1199,8 +1202,19 @@ F14.AC2, F14.AC3, NFR1.AC1–NFR1.AC5, NFR2 (AC2–AC3 at the direct-origin figu
       — *2026-10-11: links are `https://tracelet.duckdns.org/r/<slug>`, answered directly
       (no third-party hop); `/privacy` passes the live check in three engines; Safe Browsing:
       the subdomain "No available data", the parent "Check a specific URL" (R8).*
-- [ ] Every doc reconciled with the deployed system
-- [ ] **SC4**: every ADR still accurately describes what was built
+- [x] Every doc reconciled with the deployed system
+      — *2026-10-11: `docs/RUNBOOK.md` (new; every procedure in it done on the box); the
+      compose header and ARCHITECTURE §6 (one worker, the measured figures), §6.2, §9 layout
+      and the diagram; KICKOFF §2 and §4 (the release host, the generated key, E85);
+      `.env.example` and compose point operators at the runbook, not `docs/private/`;
+      DATA_MODEL §8.8 (adoption); RISKS R6, R10, R11; CLAUDE.md's table names the runbook.*
+- [x] **SC4**: every ADR still accurately describes what was built
+      — *2026-10-11, all 30 ADRs: each one a later decision changed now says so in its status
+      (0001 and 0002: one worker; 0012: its two M9 amendments and ADR-0026; 0014 and 0022:
+      ADR-0030; 0028: ADR-0029), joining those already marked (0003, 0005, 0009, 0010,
+      0016). Two descriptions corrected to what was built: ADR-0026's release check, and
+      ADR-0029's 1 s dial timeout. Each ADR has Context, Decision, Alternatives,
+      Consequences and Status.*
 
 ---
 

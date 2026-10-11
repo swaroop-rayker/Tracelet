@@ -2813,6 +2813,33 @@ unreadable. KICKOFF §4 says step 3 creates it.
 
 **Related:** ADR-0007, ADR-0026, ADR-0030, SPEC F14.AC3 (SC2), RUNBOOK §6.
 
+### E86 — `tl verify` failed eslint, tsc and vitest on a fresh clone: "failed to load config"
+
+**Status:** Fixed in M9 (feat/m9-deploy). **Milestone:** M9. **Date:** 2026-10-11.
+
+**Symptom.** The SC2 run's fifth command, `./scripts/tl verify` on a fresh clone, failed
+three of fourteen checks: vitest with `failed to load config from /work/web/vite.config.ts`
+after "Module not found, treating it as an external dependency", and eslint and tsc. The
+same command passed in the development checkout, and CI was green.
+
+**Root cause.** `web/Dockerfile.tools` installs the toolchain into
+`/toolchain/node_modules` and points `NODE_PATH` at it, then the repository is bind-mounted at
+`/work`. `NODE_PATH` is honoured by CommonJS `require` only. ES modules -- `vite.config.ts`,
+`eslint.config.js` and the plugins they import -- and tsc's package and type lookup resolve by
+walking up from the importing file through `node_modules` directories: `/work/web`, `/work`,
+`/`. None existed in a fresh clone. The development checkout had a `web/node_modules` left on
+the host from earlier work, which silently satisfied every lookup; CI runs `npm ci` on the
+runner, so it never used this container's resolution at all.
+
+**Fix.** `RUN ln -s /toolchain/node_modules /node_modules` in `web/Dockerfile.tools`, so the
+upward walk from any file under `/work` ends at the toolchain. Verified in the fresh clone:
+eslint, tsc and vitest pass with no `web/node_modules`.
+
+**Prevention.** SC2 re-run from a fresh clone with the fix. A gate that passes only on the
+machine that built it has not been tested; the SC2 run is the check that catches that.
+
+**Related:** E85, SPEC F14.AC3, F14.AC7 (SC2), ARCHITECTURE §9.1.
+
 ---
 
 Add entries here as bugs are found and fixed. Use the next available `E<n>` identifier and
