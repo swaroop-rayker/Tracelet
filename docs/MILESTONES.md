@@ -29,7 +29,7 @@ then open the PR (CLAUDE.md section 2).
 | M7.6 | Sources, returning visitors, carriers, capture quality (owner-approved 2026-10-08; Phase C without C2; SPEC §11 row 28) | M | **[x] done** — merged 2026-10-08 (#11); 8 of 8 items; referrers cut to their origin (stored rows too); CSP 0 in three engines; bugs E74–E75 |
 | M7.7 | Annotations, saved views, compare, link builder (owner-approved 2026-10-08; Phase D; SPEC §11 row 29, ADR-0023) | M | **[x] done** — merged 2026-10-08 (#12); 8 of 8 items (the owner's phone scan of a link-builder QR code, 2026-10-09, closed the last); CSP 0 in three engines |
 | M8 | Accuracy hardening and ground truth | M | **[x] done** — merged to `main` 2026-10-09 (#13); 5 of 7 items, S10 not applicable; **carried forward as ongoing labelling** (no code left): 30+ labels across the networks (8 so far, Hubballi: Jio mobile, Airtel Wi-Fi, two with a VPN) and per-source down-weighting, which waits for those labels; F4.AC13 amended as interim targets until about 30 labels (SPEC §11 row 32); accuracy by replay (ADR-0024), development tunnel trust (ADR-0025, row 31); the real-label CI gate passes; CSP 0 in three engines; bugs E76–E77 |
-| M9 | Production hardening and deploy | M | [ ] |
+| M9 | Production hardening and deploy | M | **[x] done** — on the free subdomain (SPEC §11 row 33); every item ticked: load test and drills on the e2-micro, live CSP in three engines, the restore drill (production wiped and rebuilt from a download and the owner's note, every `ip_enc` readable), SC1 walked on production, SC2 from a fresh clone, SC4; ADRs 0026–0032, SPEC rows 35–38, bugs E78–E89, `docs/RUNBOOK.md`; residual R30. Production runs `30238ea466fc` |
 | M9.1 | Purchased domain behind Cloudflare (SPEC §11 row 33) | S | [ ] — waits for a domain |
 
 **Spikes (run during M0/M1, before the milestones that depend on them):**
@@ -432,8 +432,13 @@ F12.AC1–F12.AC4, F11.AC1–F11.AC4, F11.AC8, F11.AC10, F13.AC3, F13.AC6, F15.A
 - ~~S10 latency triangulation, implemented and flag-off~~ — **dropped** (SPEC §11 row 12)
 
 **Done checklist**
-- [ ] A real visit shows the full derivation table: every source, weight, accepted or
+- [x] A real visit shows the full derivation table: every source, weight, accepted or
       suppressed with reason, latency
+      — *direct path: done in M9, 2026-10-11 -- the owner's phone visits on mobile data and Wi-Fi
+      (M9's "Real visits on the direct path" item): five sources as candidates with weights, the
+      rest as `inference.source_absent` with status, reason and latency (rDNS: 1.2 s timeout on
+      mobile, 41 ms "no PTR" on Wi-Fi), read in the visit's detail on production. The
+      Cloudflare-path visit is M9.1's (S8's colo, SPEC §11 row 33).*
       — ***deferred to M9** (owner decision 2026-09-29); the Cloudflare-path visit moved on
       to **M9.1** (SPEC §11 row 33), the direct-path one stays in M9.* Locally the visitor is the Docker
       gateway, because `CF-Connecting-IP` is trusted only from a verified Cloudflare peer
@@ -1151,7 +1156,10 @@ F14.AC2, F14.AC3, NFR1.AC1–NFR1.AC5, NFR2 (AC2–AC3 at the direct-origin figu
       Only machine preparation outside the five: the PC's antivirus root copied into
       `api/certs/` (E21). The first two runs found E85 (no key: Docker mounted a directory)
       and E86 (the web toolchain resolved only through a stale `node_modules`).*
-- [ ] CI green (**SC2**)
+- [x] CI green (**SC2**)
+      — *2026-10-12, run 38246030855 on `6f27def`: all 14 jobs green, integration against a
+      real PostgreSQL + PostGIS service (commitlint runs on the PR). Locally `tl verify`: 763
+      unit, 566 integration, 142 dashboard tests.*
 - [x] Release images carry no local root: the check in `tl release` passes (ADR-0026)
       — *every M9 release, both images, last `68d511cec87b` (2026-10-11): no extra trust anchor,
       and no file anywhere in the image holds a body line of the PC's antivirus root. The
