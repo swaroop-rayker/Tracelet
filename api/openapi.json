@@ -8459,6 +8459,7 @@
           "link",
           "stage",
           "classification",
+          "inferred_at",
           "bot_score",
           "spoof_score",
           "location",
@@ -8468,7 +8469,6 @@
           "visitor_id",
           "is_returning",
           "finalized_at",
-          "inferred_at",
           "trace_id",
           "classifier_version",
           "inference_version",
@@ -8580,6 +8580,18 @@
             "title": "Id",
             "type": "string"
           },
+          "inferred_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Inferred At"
+          },
           "is_returning": {
             "anyOf": [
               {
@@ -8637,6 +8649,7 @@
           "link",
           "stage",
           "classification",
+          "inferred_at",
           "bot_score",
           "spoof_score",
           "location",

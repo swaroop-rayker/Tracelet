@@ -114,6 +114,8 @@ async def test_later_milestone_fields_are_null_not_zero(
     assert item["geofence"]["state"] is None
     assert item["geofence"]["matched"] == []
     assert item["device"]["class"] == "mobile", "the documented wire name, not class_"
+    # Not inferred yet: the dashboard says "Processing…", not "Location unknown" (M9).
+    assert item["inferred_at"] is None
 
 
 async def test_the_list_needs_a_session(new_client: ClientFactory) -> None:

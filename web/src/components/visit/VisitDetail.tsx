@@ -40,7 +40,7 @@ import {
 import { countryName, label, pct, when } from '@/format';
 import { GroundTruthCard } from '@/components/groundtruth/GroundTruthCard';
 import { useSession } from '@/session';
-import { placeOf } from '@/visits';
+import { isProcessing, PROCESSING, placeOf } from '@/visits';
 
 const LEVELS = ['country', 'admin1', 'admin2', 'city'] as const;
 
@@ -161,6 +161,7 @@ function Detail({
     (s) => s.category === 'absence' && s.rule_id !== 'inference.source_absent',
   );
   const place = placeOf(visit);
+  const processing = isProcessing(visit);
   const sum = (category: string): number =>
     scoring.filter((s) => s.category === category).reduce((n, s) => n + s.weight, 0);
 
@@ -172,15 +173,21 @@ function Detail({
           <span className="t-meta">Location</span>
           <strong>{place.text}</strong>
           <span className="t-meta">
-            {place.confidence === null
-              ? 'No source placed it'
-              : `${place.confirmed ? 'Confirmed' : 'Best guess'}, ${pct(place.confidence)} confidence`}
+            {processing
+              ? 'Locating and classifying; usually seconds, up to about 2 minutes'
+              : place.confidence === null
+                ? 'No source placed it'
+                : `${place.confirmed ? 'Confirmed' : 'Best guess'}, ${pct(place.confidence)} confidence`}
           </span>
         </li>
         <li>
           <span className="t-meta">Class</span>
           <strong>
-            <Badge dot={visit.classification}>{label(visit.classification)}</Badge>
+            {processing ? (
+              <Badge>{PROCESSING}</Badge>
+            ) : (
+              <Badge dot={visit.classification}>{label(visit.classification)}</Badge>
+            )}
           </strong>
           <span className="t-meta">
             bot {visit.bot_score ?? '—'} · spoof {visit.spoof_score ?? '—'}
@@ -199,7 +206,7 @@ function Detail({
         </li>
         <li>
           <span className="t-meta">Network</span>
-          <strong>{visit.network.asn_org ?? 'Unknown network'}</strong>
+          <strong>{visit.network.asn_org ?? (processing ? PROCESSING : 'Unknown network')}</strong>
           <span className="t-meta">
             {visit.network.asn === null ? 'unknown ASN' : `AS${String(visit.network.asn)}`} ·{' '}
             {label(visit.network.connection_class)}

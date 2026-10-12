@@ -951,7 +951,9 @@ Every visit, newest first. Open one for its full derivation.
   not an error -- and **Export this visit**, a download link to the JSON data-subject export
   (F12.AC14). In the Visits drawer too, since both render in the shared body.
 - **Summary strip:** four KeyValue cells (Location with confidence, Device, Network,
-  Classification with scores).
+  Classification with scores). *(M9)* Until the visit is inferred (`inferred_at` null, not
+  rate-limited) Location, Class and an absent Network read **"Processing…"** -- here and in
+  the Visits list rows -- because "Location unknown" and "Unknown network" read as findings.
 - **Sections, not tabs:** Location per level, Derivation (every candidate), Classification
   signals, and Raw device and request fields (collapsed, as today). There is a sticky "On this
   page" index on the right at

@@ -461,6 +461,7 @@ chart and the table under it cannot disagree about what a filter means. Specific
   "link": { "id": "018f…", "slug": "ig-bio", "label": "Instagram bio" },
   "stage": "enriched",
   "classification": "human",
+  "inferred_at": "2026-09-25T14:03:14.020+00:00",
   "bot_score": 4,
   "spoof_score": 0,
   "location": {
@@ -505,8 +506,10 @@ exists.
 effective_weight, accepted, suppressed_reason, evidence, latency_ms}` (DATA_MODEL 5.4).
 A source that produced **no** candidate appears in `signals[]` as
 `inference.source_absent` with its status and reason — together the two lists cover
-every source for every visit. `inferred_at` is added beside `finalized_at`; `null` means
-the visit is still in the inference queue (ADR-0015), not that inference failed.
+every source for every visit. `inferred_at` -- **in the summary since M9**, so the list
+and every other summary shape carry it too -- is `null` while the visit is still in the
+inference queue (ADR-0015), not because inference failed; the dashboard then says
+"Processing…" instead of "Location unknown". A `rate_limited` visit is never inferred.
 `location.primary_source` names the source behind the deepest advisory value.
 
 **As shipped in M4:** `classification`, `bot_score` and `spoof_score` are the classifier's

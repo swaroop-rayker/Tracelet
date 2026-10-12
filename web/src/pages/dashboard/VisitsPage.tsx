@@ -33,7 +33,7 @@ import { parseFilters, serializeFilters, withParams } from '@/filters';
 import { label, pct, when } from '@/format';
 import { connectionGlyph, deviceGlyph } from '@/glyphs';
 import { useFilters, useSession } from '@/session';
-import { placeLabel, placeOf } from '@/visits';
+import { isProcessing, PROCESSING, placeLabel, placeOf } from '@/visits';
 
 const PAGE = 100;
 
@@ -280,6 +280,7 @@ function VisitRow({
   const [open, setOpen] = useState(false);
   const detailId = useId();
   const place = placeOf(visit);
+  const processing = isProcessing(visit);
   const time = new Date(visit.occurred_at).toLocaleTimeString('en-IN', {
     timeZone: zone,
     hour: '2-digit',
@@ -305,7 +306,11 @@ function VisitRow({
           </button>
         </td>
         <td>
-          <Badge dot={visit.classification}>{label(visit.classification)}</Badge>
+          {processing ? (
+            <Badge>{PROCESSING}</Badge>
+          ) : (
+            <Badge dot={visit.classification}>{label(visit.classification)}</Badge>
+          )}
         </td>
         <td className="visit-row__place">{placeLabel(place)}</td>
         <td className="muted">
@@ -314,7 +319,7 @@ function VisitRow({
         </td>
         <td className="muted visit-row__net">
           <Glyph name={connectionGlyph(visit.network.connection_class)} />
-          {visit.network.asn_org ?? 'Unknown network'}
+          {visit.network.asn_org ?? (processing ? PROCESSING : 'Unknown network')}
         </td>
         <td className="visit-row__actions">
           <Button

@@ -118,6 +118,9 @@ class VisitSummary(BaseModel):
     link: LinkRef
     stage: VisitStage
     classification: Classification
+    # NULL until the inference job has located and classified the visit: the dashboard
+    # shows "Processing…" meanwhile rather than "Location unknown" (M9).
+    inferred_at: dt.datetime | None
     bot_score: int | None
     spoof_score: int | None
     location: LocationBlock
@@ -155,7 +158,6 @@ class CandidateOut(BaseModel):
 
 class VisitDetail(VisitSummary):
     finalized_at: dt.datetime | None
-    inferred_at: dt.datetime | None
     trace_id: str | None
     classifier_version: str | None
     inference_version: str | None
@@ -226,6 +228,7 @@ def summarize(visit: Visit, link: Link, *, is_returning: bool | None) -> VisitSu
         link=LinkRef(id=str(link.id), slug=link.slug, label=link.label),
         stage=visit.stage,
         classification=visit.classification,
+        inferred_at=visit.inferred_at,
         bot_score=visit.bot_score,
         spoof_score=visit.spoof_score,
         location=LocationBlock(
@@ -333,7 +336,6 @@ def _detail(
     return VisitDetail(
         **base,
         finalized_at=visit.finalized_at,
-        inferred_at=visit.inferred_at,
         trace_id=visit.trace_id,
         classifier_version=visit.classifier_version,
         inference_version=visit.inference_version,

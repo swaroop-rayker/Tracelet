@@ -4693,6 +4693,8 @@ export interface components {
             geofence: components["schemas"]["GeofenceBlock"];
             /** Id */
             id: string;
+            /** Inferred At */
+            inferred_at: string | null;
             /** Is Returning */
             is_returning: boolean | null;
             link: components["schemas"]["LinkRef"];
