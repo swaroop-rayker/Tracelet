@@ -1120,9 +1120,29 @@ F14.AC2, F14.AC3, NFR1.AC1–NFR1.AC5, NFR2 (AC2–AC3 at the direct-origin figu
   and the out-of-band secrets alone** (owner decision 2026-10-10), before labelling starts
 - Operations runbook; backup-download reminder
 - Final doc reconciliation pass
+- *Added by the SC1 walk (owner-approved 2026-10-11):* Clone on the Links page (E87); Reveal
+  address and the per-visit data-subject export, F12.AC14 (E88); one visitor per phone on
+  mobile data (ADR-0031); the enrichment nonce across a carrier's pool (ADR-0032, SPEC §11
+  row 38, E89)
 
 **Done checklist**
-- [ ] All in-scope flows work end to end on the deployed URL (**SC1**)
+- [x] All in-scope flows work end to end on the deployed URL (**SC1**)
+      — *2026-10-11/12 on https://tracelet.duckdns.org, by the owner through the dashboard
+      (the owner's actions confirmed in the audit log) and by server-side checks. **F1**: create,
+      edit, make default, clone, deactivate (its address answers "not available"), archive,
+      delete with visits, link builder and QR. **F2-F5**: real visits on mobile data and Wi-Fi
+      with the full derivation (above); bots never notify. **F6**: a region geofence, the
+      coordinate test, GeoJSON export; a phone visit *inside* it. **F7**: the high-priority
+      inside alert (the same-day upgrade), the test message, one alert per visitor per day on
+      mobile after ADR-0031. **F8**: TOTP sign-in after the restore, sign-out and in.
+      **F9**: every dashboard page, CSV export, an annotation, a saved view. **F10**: System
+      Health, an S9 switch off and on (`inference.settings_changed` v2, v3), backups and
+      Verify now. **F11**: the load test's limits run. **F12**: Reveal address (audited, the
+      restored key), Export this visit (audited, no address), retention preview and purge; no
+      stored field wider than a /24 or /48, no public address in the api log. **F13**:
+      `tl live-check`. **F14**: release and deploy, SC2. **F15**: the drills. The walk found
+      four gaps, all fixed and deployed in M9: E87, E88 (F12.AC14 had never been built), E89
+      and the mobile identity of ADR-0031. Residual: R30 (enrichment on Indian mobile data).*
 - [x] Fresh clone to running in 5 commands (**SC2**)
       — *2026-10-11, `f82166c`, on the owner's PC with the development stack down and its own
       project name, so nothing was shared: `git clone`, `cp .env.example .env`, `tl bootstrap`

@@ -34,6 +34,7 @@ Severity is `impact × likelihood` at the time of writing, reassessed after each
 | R27 | The UI redesign (M5.5) regresses accessibility, the CSP or behaviour | Medium | **Mitigated 2026-10-03 — 0 CSP violations in Chromium, Firefox and WebKit (after E44), filters unchanged, a11y sweep clean, 72-image matrix; hand keyboard pass by the owner 2026-10-07, nothing failed** |
 | R28 | The real-data accuracy gate is only as current as its last export | Low | Accepted, mitigated: export ends a labelling session (ADR-0024) |
 | R29 | The development tunnel trust could reach production, or trust too much | Medium | Mitigated: refused outside development, a private /29 only, warned at startup (ADR-0025) |
+| R30 | **Client enrichment is unreliable on Indian mobile data to a US-hosted origin** | **Medium** | **Measured 2026-10-11; partly mitigated (ADR-0031, ADR-0032); M9.1's Cloudflare edge is the remedy** |
 
 ---
 
@@ -343,6 +344,31 @@ the network targets. **The gate itself is a point comparison**, and at this size
 country miss is 96.7 % of 30, under a 99.5 % target. That is deliberate (a wrong strict
 country is the error ADR-0005 forbids), and SPEC §11 row 30 has the targets re-set from
 data in the amendment that follows the first real labels.
+
+---
+
+## R30 — Client enrichment is unreliable on Indian mobile data to a US-hosted origin · MEDIUM
+
+**Risk.** The capture page's follow-up request -- the client fingerprint, timezone, screen
+and consented GPS -- has to leave the phone and reach a server in `us-central1` before the
+page moves on. On the owner's phone on Jio mobile data (2026-10-11, M9's real visits) it
+often did not: some requests left the carrier's CGNAT from another /24 and were refused
+(fixed, ERRORS E89, ADR-0032); others were never seen by the server at all; and the phone
+also reported `ERR_CONNECTION_CLOSED` and `ERR_NETWORK_CHANGED` while loading. A headless
+browser and every Wi-Fi visit enriched within a second. An unenriched visit still records,
+locates and alerts from the server side (invariant 2), but about 100 s later, after the
+sweeper (F2.AC7), and without the client facts.
+
+**Measured.** Of thirteen mobile visits from one phone on 2026-10-11, three enriched; after
+ADR-0032, the one that enriched alerted in 5 s, and a repeat within a minute was recognised
+as the same visitor (ADR-0031). One phone, one carrier, one evening: a sample, not a rate.
+
+**Mitigation.** ADR-0032 (refusals across the carrier's pool), ADR-0031 (one visitor per
+phone even when a repeat is unenriched). The page already sends as soon as the facts are
+collected, not at the end of its timer. **Remedy: M9.1** -- Cloudflare terminates TLS in
+Mumbai or Bangalore, so the phone's new connection is set up a few milliseconds away
+instead of across the Pacific. Measure the enriched share on mobile again then (F9.AC24's
+capture-quality panel shows it).
 
 ---
 
@@ -789,7 +815,7 @@ involve Telegram at all.
 | **B** | `fetch(keepalive)` survival in the Instagram webview | M2 | M0/M1 | _pending_ |
 | C | `CF-Ray` colo assignment stability for India | — | M3 | _pending_ |
 | D | Latency-triangulation accuracy contribution over S8 | RW-6 decision | M8 | **Retired 2026-09-29** — S10 dropped before it could be measured (SPEC §11 row 12, R23) |
-| E | Load behaviour and swap pressure at NFR1 on real hardware | NFR1, NFR6 | M9 | _pending_ |
+| E | Load behaviour and swap pressure at NFR1 on real hardware | NFR1, NFR6 | M9 | **Run 2026-10-10/11** -- `docs/LOADTEST.md`: the first flood stranded 500 visitors (E82); after ADR-0028/0029 and one worker every visitor was sent on; NFR2/NFR6 restated to the measured figures (SPEC §11 row 37) |
 
 Record every result here, **including negative ones.** A spike that reports "this does not
 work" has done its job and saved the milestone that would have assumed otherwise.
