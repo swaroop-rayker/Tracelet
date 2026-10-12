@@ -2549,6 +2549,383 @@ missing from the list.
 
 ---
 
+### E78 — `./scripts/tl` was "Permission denied" on the first Linux checkout
+
+**Status:** Fixed in M9 (feat/m9-deploy). **Milestone:** M9. **Date:** 2026-10-10.
+
+**Symptom.** On the production VM (Debian 12), a fresh clone's `./scripts/tl secrets` failed
+with `bash: ./scripts/tl: Permission denied`.
+
+**Root cause.** `scripts/tl` and `scripts/guard_private_docs.sh` were committed as mode
+`100644`, not executable. Every checkout so far had been on Windows, where Git Bash runs a
+script whatever its mode, and CI called the guard through `sh` and never called `tl` at all.
+So the documented quickstart (KICKOFF §4, SC2) and the `Makefile` (`TL := ./scripts/tl`) had
+never worked on Linux or macOS, and nothing could have said so.
+
+**Fix.** Both files are mode `100755` (`git update-index --chmod=+x`).
+
+**Prevention.** CI job 1 now runs `./scripts/tl help` directly, so a lost executable bit fails
+on Linux, where it matters. The same job's compose check now also validates the production
+override (ADR-0026).
+
+**Related:** SC2, F14.AC3, ADR-0026.
+
+---
+
+### E79 — The first production boot starved the box for 15 minutes; enrollment failed
+
+**Status:** Fixed in M9 (feat/m9-deploy). **Milestone:** M9. **Date:** 2026-10-10.
+
+**Symptom.** Minutes after the first deploy to the e2-micro, the owner's enrollment returned
+"The server could not complete the request". The log showed gunicorn killing a worker that
+had not answered for 30 s (`SIGABRT`), scheduler jobs timing out on a bare
+`pg_try_advisory_xact_lock`, a retried enrollment taking 28 s, and at 07:04
+`asn_profiles_failed reason=timeout`. Over five minutes the host's IO was stalled 35 % of the
+time and 309 MB had gone to swap. The retry succeeded, but a second click spent the one-time
+link before the secret and recovery codes could be shown, leaving the owner
+`pending_enrollment`; a fresh link from `tl bootstrap` completed it.
+
+**Root cause.** On first boot the geo job installed all nine databases (480 MB), then rebuilt
+`asn_profiles`: one Python loop over every IPv4 network in GeoLite2-ASN, looking each up in
+two city databases. Every reader was opened with `maxminddb.MODE_MMAP`, which is the
+**pure-Python** reader, although the installed maxminddb 3.2.0 ships its C extension
+(`MODE_MMAP_EXT`; `MODE_AUTO` prefers it). Measured on the 16-core development PC: **130 s of
+single-core CPU**. ARCHITECTURE §6.3's "for under a minute" had never been measured. The
+e2-micro sustains a fraction of one slower vCPU, so the rebuild ran into its 900 s timeout,
+inside the api container's memory limit, beside the workers, on a `pd-standard` disk that
+swap shares. Production was left with no profiles, so suppression rule (a) (B1) could not
+fire, and the next GeoLite2 update, weekly, would have repeated it.
+
+**Fix.** `MODE_AUTO` in the profile build and the live readers: the C extension, still
+memory-mapped, so a database stays page cache (CLAUDE.md §5). The rebuild drops to **13.9 s**
+on the same PC with **identical output** (3,303 profiles, compared field by field) and the same
+131 MB peak. The profile subprocess runs at `nice 19`, so it only uses CPU the workers leave.
+The download validator keeps the pure-Python reader on purpose: it opens untrusted files and
+does a handful of lookups.
+
+That alone was not enough on the box: the rebuild finished (380 s) but `/healthz` failed once
+and its median rose from 0.064 s idle to 1.0 s. Measured further, three more changes, each
+deployed and re-measured with a `/healthz` probe once a second:
+- **Bounded mapped pages.** Of the rebuild's 131 MB only 18 MB is its own; 113 MB is mapped
+  city-database pages charged to the api container. Every 20,000 networks the readers are now
+  closed and the pages dropped (`posix_fadvise DONTNEED`): identical output, 64 MB peak.
+- **No DNS on the redirect path.** The remaining 502s were Caddy's `lookup api: i/o timeout`,
+  Docker's DNS served by a partly swapped `dockerd`. Caddy now dials the api's fixed address
+  (ADR-0026 amendment).
+- **`vm.swappiness = 10`** in the host baseline (ADR-0026 amendment).
+
+Final, on the e2-micro: rebuild **387 s**, **0 failures in 211 probes**, Caddy errors 0,
+`/healthz` median 0.77 s, p95 1.48 s, max 2.26 s, against 0.063 s idle. So the weekly rebuild
+no longer fails a request, but it slows every request about tenfold for six or seven minutes.
+
+**Prevention.** `tests/unit/test_geodb_reader_mode.py` fails if the C extension is missing,
+the only case in which `MODE_AUTO` silently falls back. ARCHITECTURE §6.3 and §6.5 now carry
+measured figures for the rebuild, on both machines. And the M9 lesson stands: a duration stated for a
+background job on a 1 GB, one-vCPU box is a measurement on that box, or it is a guess.
+
+**Related:** R4, R6, ADR-0005 (`asn_profiles`), ADR-0026, ARCHITECTURE §6.3, B1.
+
+---
+
+### E80 — A deploy failed at its migration: "Address already in use"
+
+**Status:** Fixed in M9 (feat/m9-deploy). **Milestone:** M9. **Date:** 2026-10-10.
+
+**Symptom.** `tl deploy` of `2554e28` stopped with `Error response from daemon: failed to set
+up container networking: Address already in use`. Production kept serving the previous
+release, healthy and unmigrated, but `.deploy/history` listed the failed release's digests as
+if deployed.
+
+**Root cause.** E79's fix gave the api a fixed address, 172.31.253.10. `tl migrate` (and
+`tl bootstrap`) ran one-offs as `docker compose run --rm api …`, and a `run` container
+inherits the service's network settings, address included, which the running api already
+held. The deploy of the fix itself had passed only because the stack was down for the network
+change. The documented break-glass recovery, `docker compose run --rm api tracelet admin
+reset-password` (F8.AC8), would have failed the same way whenever the api was up: exactly when
+it is needed. `docker compose run` has no option to drop an address. And `tl deploy` wrote its
+history line before it knew the outcome.
+
+**Fix.** The api's settings moved to an `x-api` anchor shared by `api` (the server, with the
+address) and a new one-off service `cli` (without it, behind a `cli` profile so `up` never
+starts it; the production override pins it to the same release image). `tl migrate`,
+`tl bootstrap`, KICKOFF's break-glass command and `.env.example` use `docker compose run --rm
+cli …`. Verified locally: a migration through `cli` while the api holds the address. `tl
+deploy` now records each attempt with its outcome, `deployed` or `FAILED`.
+
+**Prevention.** The merged `api` service was compared before and after the change: identical
+apart from the explicit image name. CI's compose check now validates the production override
+with the `cli` profile. And the lesson for any fixed resource a service holds (an address, a
+port, a lock file): every way that service is *run*, not only how it is *started*, has to be
+checked against it.
+
+**Related:** E79, ADR-0026 (amended), F8.AC8.
+
+---
+
+### E81 — Firefox still reported a CSP violation on the privacy page (E63, on its siblings)
+
+**Status:** Fixed in M9 (feat/m9-deploy). **Milestone:** M9. **Date:** 2026-10-10.
+
+**Symptom.** M9's live CSP test against `https://tracelet.duckdns.org`, three engines, no
+sign-in and no visit: a natural load of `/privacy` in Firefox reported `img-src` blocking
+`https://tracelet.duckdns.org/favicon.ico`. Chromium and WebKit reported nothing.
+
+**Root cause.** E63's fix, an empty inline icon so Firefox does not fetch `/favicon.ico`
+against `img-src data:`, went into `capture.html` only. The three other server-rendered
+pages (`not_found.html`, `privacy.html`, `unavailable.html`) never had it, and E63's
+prevention ("every server-rendered page declares its icon") was a sentence, not a check.
+The unknown-slug 404 and the "temporarily unavailable" page had the same violation in waiting.
+
+**Fix.** All three declare `<link rel="icon" href="data:,">`.
+
+**Prevention.** `test_every_server_rendered_page_declares_the_empty_icon` reads every
+template in `capture/templates/`, including any added later; it named all three before the
+fix. And the live test is now part of the deploy checklist (MILESTONES M9).
+
+**Related:** E63, F13.AC2, F2.AC12.
+
+---
+
+### E82 — Under load, 500 visitors were never redirected (invariant 1)
+
+**Status:** Fixed in M9 (feat/m9-deploy), ADR-0028. **Milestone:** M9. **Date:** 2026-10-10.
+
+**Symptom.** M9's load test on the e2-micro (ADR-0027: 10 cold visitors back to back for 15
+minutes, then 30 for 3, the owner working the dashboard on two devices) ended with **500
+responses of 504**: Caddy had waited its 10 s `response_header_timeout` for the api and given
+up, so those visitors were never sent on. Capture's own server time: p50 758 ms, p95 8.8 s,
+worst 54 s. Four gunicorn workers were killed for missing their 30 s heartbeat; sixteen
+scheduler jobs timed out; host memory averaged 771 MB (NFR6.AC1: 700).
+
+**Root cause.** The design degraded for every dependency that *fails* (F15.AC6, F15.AC7: a
+database error falls back to a cached link) and for none that is merely *slow*, and the
+slowest was the box itself. The destination needed a query; the link cache was filled only
+by queries that had succeeded and read only after one raised; nothing bounded a capture
+below Caddy's 10 s; the scheduler (ADR-0009) ran inference, classification and rollups on
+the same event loop as the redirects, on a shared vCPU that GCP throttled to about 0.8 of 2
+(ARCHITECTURE §6.5); and shedding watched memory only, so it switched on 16 times without
+touching the CPU queue, and even then wrote a row per visit. A worker whose loop did not run
+for 30 s was killed, dropping every request it held.
+
+**Fix.** ADR-0028, owner-approved: a warm per-worker link cache (every link at start and every
+30 s); overload detection on event-loop lag, captures in flight and memory pressure, with
+hysteresis; overloaded, a capture is answered from the cache with no database work and its
+minimal row buffered (bounded, then counted); not overloaded, a 1 s capture deadline after
+which the visitor is answered from the cache while the capture finishes recording behind; the
+scheduler pauses all but the outbox and the sweeper while overloaded. A worker whose cache has
+never loaded takes the bounded database path rather than answering 503 (found by the
+memory-pressure degradation test while building).
+
+**Prevention.** Unit tests for the overload verdict, its hysteresis, the buffer's bound and
+contents (never a raw IP), the answers the cache can give alone, and the scheduler's pause;
+integration tests that redirect with the database unreachable, answer at the deadline and
+still record the visit, wait for the database when the cache cannot say, and fall back when
+the cache has never loaded. The load test is repeated on the box (SPEC §11 row 35): the
+stress test's pass condition is no visitor left un-redirected.
+
+**Related:** ADR-0028, ADR-0009 and ADR-0010 (amended), ADR-0027, NFR1, NFR2, NFR3.AC2,
+F15.AC6, CLAUDE.md invariant 1, RISKS R6.
+
+### E83 — The restore drill's `pg_restore` was cut off: "server closed the connection unexpectedly"
+
+**Status:** Fixed in M9 (feat/m9-deploy). **Milestone:** M9. **Date:** 2026-10-11.
+
+**Symptom.** M9's restore drill, on the wiped VM: `tl restore` created the database volume,
+printed "Database ready.", copied the dump in, and `pg_restore` failed partway through the
+`visits` data with `error returned by PQputCopyData: server closed the connection
+unexpectedly`. The server log showed `received fast shutdown request` and `terminating
+connection due to administrator command` during `COPY visits`, then "PostgreSQL init process
+complete; ready for start up". Nothing was left behind: the restore is one transaction. The
+same test on the PC, with a cached image, had passed.
+
+**Root cause.** On an empty volume the postgres image runs `db/init/` on a **temporary
+server that listens only on the Unix socket** (`listen_addresses=''`), then stops it and
+starts the real one. `tl waitdb` and the compose healthcheck both ran `pg_isready` over the
+socket, so they called the temporary server ready; work started then is cut off when the
+entrypoint stops it. Reproduced on the PC by polling a fresh volume every 0.25 s: three polls
+in which the socket check was ready and a TCP check was not. Any first deploy carried the
+same race (migrations over TCP would have failed on "connection refused"), and the api's
+`depends_on: service_healthy` could start it against a server about to stop.
+
+**Fix.** Readiness over TCP, which only the real server answers: `pg_isready -h 127.0.0.1`
+in `tl waitdb`, in the `db` healthcheck, and in CI's service container.
+
+**Prevention.** The restore drill ran again from a fresh volume with the fix. A readiness
+check must ask the endpoint its clients will use, not a side door that is open earlier.
+
+**Related:** ADR-0030, ADR-0026 (`tl deploy`), MILESTONES M9 (the restore drill).
+
+### E84 — The restore drill's adoption failed: "invalid environment variable: === .env ==="
+
+**Status:** Fixed in M9 (feat/m9-deploy). **Milestone:** M9. **Date:** 2026-10-11.
+
+**Symptom.** Second attempt of the restore drill, after E83: `tl restore` restored the dump,
+then the adoption step (`docker compose run cli tracelet backup adopt`) failed at once with
+`Error response from daemon: invalid environment variable: === .env ===`. The database was
+restored and the api not started, so the adoption was run by hand and the drill continued.
+Comparing the pasted `.env` with the pre-wipe original also showed two lines that had changed
+since the owner's copy was made: `TRACELET_WEB_CONCURRENCY` (2, not 1) and
+`TRACELET_DB_POOL_MAX` (10, not 20), the values from before the ADR-0028 amendment.
+
+**Root cause.** The owner's password-manager note held the `.env` under a heading line,
+`=== .env ===`, and the whole note was pasted. Compose's own `.env` loading (interpolation)
+tolerates the line, so `docker compose up db` worked; `env_file:` does not, so the first
+container to receive the file -- the adoption, after the restore -- refused to start.
+`tl restore` checked the database before restoring but not the environment it would run in.
+The stale values: `.env` was tuned on the VM during the load test and the note was not
+updated.
+
+**Fix.** The heading line was removed and the two values restored on the VM (the drill's
+comparison of every line with a pre-wipe digest found them). `tl restore` now runs
+`tracelet check-config` in the api image before touching the database, so a `.env` the api
+cannot use fails first, with nothing restored. Tested with a heading line in a `.env`: the
+same Docker error, exit 1.
+
+**Prevention.** The runbook's restore section says to paste only the file's lines, and to
+re-copy `.env` into the note after **any** change on the VM. The owner was asked to fix the
+note.
+
+**Related:** ADR-0030, E83, RISKS R11.
+
+### E85 — A fresh clone came up "healthy" with no encryption key: `secrets/ip_key` was a directory
+
+**Status:** Fixed in M9 (feat/m9-deploy). **Milestone:** M9. **Date:** 2026-10-11.
+
+**Symptom.** M9's SC2 run -- a fresh clone, then KICKOFF §4's five commands -- reached
+"Bootstrap complete" and `tl up` with all three containers healthy, but `secrets/ip_key` was
+an **empty directory**. Every encryption would fail: the first owner's TOTP enrolment
+first, since the TOTP secret is sealed with that key (ADR-0007).
+
+**Root cause.** KICKOFF listed the key as a sixth command (`openssl rand -hex 32 >
+secrets/ip_key`) outside the five. Skipped, the compose bind mount `./secrets/ip_key`
+finds no file and Docker creates a directory in its place. Nothing checked for it: the api
+reads the key lazily, at the first encryption, so healthchecks pass. On a release host the
+same omission, in `tl deploy` or `tl restore`, would have started a system that could not
+read its own data.
+
+**Fix.** `tl` checks for the key before `bootstrap`, `up`, `deploy` and `restore`; an empty
+directory left by Docker is removed first. On a development host a missing key is generated
+(and the operator told to keep a copy if the data matters); on a release host the command
+stops and points at the runbook, because a new key there would make every restored value
+unreadable. KICKOFF §4 says step 3 creates it.
+
+**Prevention.** SC2 was re-run from a fresh clone with the fix: five commands, nothing else.
+
+**Related:** ADR-0007, ADR-0026, ADR-0030, SPEC F14.AC3 (SC2), RUNBOOK §6.
+
+### E86 — `tl verify` failed eslint, tsc and vitest on a fresh clone: "failed to load config"
+
+**Status:** Fixed in M9 (feat/m9-deploy). **Milestone:** M9. **Date:** 2026-10-11.
+
+**Symptom.** The SC2 run's fifth command, `./scripts/tl verify` on a fresh clone, failed
+three of fourteen checks: vitest with `failed to load config from /work/web/vite.config.ts`
+after "Module not found, treating it as an external dependency", and eslint and tsc. The
+same command passed in the development checkout, and CI was green.
+
+**Root cause.** `web/Dockerfile.tools` installs the toolchain into
+`/toolchain/node_modules` and points `NODE_PATH` at it, then the repository is bind-mounted at
+`/work`. `NODE_PATH` is honoured by CommonJS `require` only. ES modules -- `vite.config.ts`,
+`eslint.config.js` and the plugins they import -- and tsc's package and type lookup resolve by
+walking up from the importing file through `node_modules` directories: `/work/web`, `/work`,
+`/`. None existed in a fresh clone. The development checkout had a `web/node_modules` left on
+the host from earlier work, which silently satisfied every lookup; CI runs `npm ci` on the
+runner, so it never used this container's resolution at all.
+
+**Fix.** `RUN ln -s /toolchain/node_modules /node_modules` in `web/Dockerfile.tools`, so the
+upward walk from any file under `/work` ends at the toolchain. Verified in the fresh clone:
+eslint, tsc and vitest pass with no `web/node_modules`.
+
+**Prevention.** SC2 re-run from a fresh clone with the fix. A gate that passes only on the
+machine that built it has not been tested; the SC2 run is the check that catches that.
+
+**Related:** E85, SPEC F14.AC3, F14.AC7 (SC2), ARCHITECTURE §9.1.
+
+### E87 — The dashboard could not clone a link, though its edit dialog said to
+
+**Status:** Fixed in M9 (feat/m9-deploy). **Milestone:** M9. **Date:** 2026-10-11.
+
+**Symptom.** During M9's SC1 walk on production the owner asked how to clone a link. There
+was no way: the Links page's row menu offered Edit, Make default, Archive and Delete, while
+the Edit dialog, on a slug change, warned "To keep it working, clone the link instead".
+
+**Root cause.** F1.AC9's clone was built in M2 as an API (`POST /api/v1/links/{id}/clone`,
+API.md §6, integration-tested) before the dashboard had any link writes. M7 added the writes
+to `/links` from DESIGN §10.11, whose list of row actions did not include Clone, and the
+warning text was written against the API's description. Every test exercised the endpoint;
+none asked whether an owner could reach it.
+
+**Fix.** A **Clone…** row action and Dialog on the Links page (new slug, optional label; the
+copy keeps destination, wait, location question and alert settings, starts with no visits;
+the old address keeps working), `cloneLink` in `web/src/api/links.ts`, DESIGN §10.11. Tested in
+Chromium against the real Caddy (production CSP): the copy's `cloned_from`, destination,
+policy and wait match the original, it is active and not the default, the original is
+untouched, `link.cloned` audited, a reused slug refused on the field, 0 CSP violations.
+
+**Prevention.** SC1's walk is done through the dashboard, not the API, so it finds a flow the
+owner cannot reach. When an API capability is specified as an owner action, DESIGN must name
+its control.
+
+**Related:** SPEC F1.AC9, F10.AC6, DESIGN §10.11, API.md §6, MILESTONES M9 (SC1).
+
+### E88 — The owner could not reveal an address, and no one could export a visit, from the dashboard
+
+**Status:** Fixed in M9 (feat/m9-deploy). **Milestone:** M9. **Date:** 2026-10-11.
+
+**Symptom.** The same SC1 walk as E87: asked to reveal a visit's address and to export one
+visit, the owner found neither control on the visit page.
+
+**Root cause.** Two of E87's kind. F12.AC4's decryption was built in M2 as
+`GET /api/v1/visits/{id}/ip` and integration-tested, but DESIGN §10.3 never gave it a
+control, so the dashboard never called it. F12.AC14's per-visit data-subject export was never
+built at all: API.md said so ("not in any milestone's scope yet"), and no milestone's checklist
+carried it, so no gate asked for it.
+
+**Fix.** The owner chose to build both in M9: `GET /api/v1/visits/{id}/export` (the visit in
+full, its retention dates, what is withheld and why; never the plaintext address; any admin;
+audited `visit.exported`) and, on the visit detail, **Reveal address** (owner only, audited,
+the hourly limit and a purged address explained) and **Export this visit**. Integration tests:
+the export carries the visit and no address, is audited, is a 404 for an unknown visit, and is
+open to an analyst. Chromium against the real Caddy: the address is revealed, the file
+downloads with the right visit and without the address, 0 CSP violations.
+
+**Prevention.** As E87: the SC1 walk is done through the dashboard. And a requirement no
+milestone owns is a gap to raise at the next milestone's planning, not a line in API.md.
+
+**Related:** SPEC F12.AC4, F12.AC14, DESIGN §10.3, API.md §7, E87.
+
+### E89 — Most visits on mobile data lost their enrichment: the nonce's /24 had moved
+
+**Status:** Fixed in M9 (feat/m9-deploy), ADR-0032. **Milestone:** M9. **Date:** 2026-10-11.
+
+**Symptom.** Of the owner's eight visits on one Android phone on mobile data, six ended
+`server_only`: no client fingerprint, timezone or GPS consent, and an alert only after the
+sweeper (about 100 s; the owner saw "unclassified, then again with a city" and, in the
+dashboard meanwhile, "Location unknown"). Every Wi-Fi visit enriched. The api logged
+`enrichment_rejected reason=mac_mismatch` two to four seconds after each page, so not expiry
+and not a replay.
+
+**Root cause.** F2.AC6 binds the nonce to the visitor's /24, recomputed from the address the
+POST arrives from. A carrier's CGNAT sent the follow-up request from another /24 than the page
+load, so the MAC could not verify. `capture/nonce.py` had recorded the risk only for a
+dual-stack switch, and expected it to be rare because browsers reuse the page's connection;
+on a carrier network the address changed anyway. The same pool behaviour broke visitor
+identity (ADR-0031), which made it worse: an unenriched visit cannot be carrier-keyed.
+
+**Fix.** ADR-0032 (SPEC §11 row 38, owner-approved): on `mac_mismatch` the token is verified
+against its visit's own stored prefix and accepted only if both addresses resolve to the same
+ASN and it is a curated mobile or CGNAT carrier; single use and the 60 s lifetime are
+unchanged; an accepted re-bound adds `capture.enrichment_other_prefix`. Integration tests:
+the same carrier from another /24 enriches (once), another carrier and broadband are refused,
+and a token edited to name another visit is refused.
+
+**Prevention.** A capability bound to the network needs testing on the networks the audience
+uses: M9's real phone visits on mobile data were the first, and caught it. The nonce
+module's docstring now records the mobile case.
+
+**Related:** ADR-0032, ADR-0031, SPEC F2.AC6, F2.AC7, RISKS R5, R17.
+
+---
+
 Add entries here as bugs are found and fixed. Use the next available `E<n>` identifier and
 the same structure: symptom, root cause, fix, **prevention**.
 

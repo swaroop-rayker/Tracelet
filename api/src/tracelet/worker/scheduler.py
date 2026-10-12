@@ -23,12 +23,13 @@ import contextlib
 import hashlib
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
+from typing import Final
 
 import structlog
 from sqlalchemy import text
 
 from tracelet.analytics import rollup
-from tracelet.capture import service
+from tracelet.capture import overload, service
 from tracelet.db.engine import session_scope
 from tracelet.inference import engine as inference
 from tracelet.inference.geodb import maintenance as geodb
@@ -73,10 +74,17 @@ async def _run_exclusively(job: Job) -> bool:
         return True
 
 
+# Jobs that keep running while this worker is overloaded (ADR-0028). The outbox carries
+# alerts, which must not wait; the sweeper finalises visits. Everything else -- inference,
+# rollups, updates, backups -- is off the visitor's path (NFR2.AC6) and catches up after.
+RUN_UNDER_OVERLOAD: Final = frozenset({"outbox", "sweeper"})
+
+
 async def _loop(job: Job, stop: asyncio.Event) -> None:
     while not stop.is_set():
         try:
-            await _run_exclusively(job)
+            if job.name in RUN_UNDER_OVERLOAD or not overload.is_overloaded():
+                await _run_exclusively(job)
         except Exception as exc:
             # Deliberately broad: one failed tick must never end the loop. The sweeper
             # is on the correctness path (ADR-0009).
@@ -97,8 +105,12 @@ JOBS: tuple[Job, ...] = (
     # waits on it.
     Job(name="infer", every_seconds=2, run=inference.run_job_once),
     # Offline geo databases (F10.AC3). Checked every six hours, fetched only when due
-    # -- DB-IP monthly, the keyed vendors weekly -- then asn_profiles recomputed.
+    # -- DB-IP monthly, the keyed vendors weekly. The asn_profiles an update makes stale
+    # are rebuilt by the next job, in the quiet hour (SPEC section 11 row 34, E79).
     Job(name="geodb_update", every_seconds=6 * 3600, run=geodb.run_job_once),
+    # Checked every 15 minutes; rebuilds only inside TRACELET_GEODB_PROFILES_HOUR and only
+    # when the profiles were built from other database versions than those installed.
+    Job(name="asn_profiles", every_seconds=900, run=geodb.run_profiles_once),
     # Analytics rollups (ADR-0016): yesterday and today every five minutes, so a visit
     # reaches the charts the same day; the last week and any never-built history daily.
     Job(name="rollup", every_seconds=300, run=rollup.run_live_once),

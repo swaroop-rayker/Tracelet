@@ -10,18 +10,18 @@ Severity is `impact × likelihood` at the time of writing, reassessed after each
 | R3 | **rDNS city-code coverage may be too low to carry the accuracy plan** | **High** | **Spike A run 2026-09-29: 2.0 %. F4.AC13 amended (SPEC §11 row 9); M3 unblocked** |
 | R4 | Geo-database update memory spike could OOM the box | Medium | Open, mitigated by design |
 | R5 | `fetch(keepalive)` may not survive Instagram webview navigation | Medium | **Android: survives (Spike B, 2026-09-28). iOS: unmeasured — open** |
-| R6 | 1 GB steady state under real load; swap thrash | Medium | Open, verified in M9 |
+| R6 | 1 GB steady state under real load; swap thrash | Medium | **Materialised in M9 (E82) and mitigated: one worker, no swap for the redirect path, ADR-0028/0029; NFR6.AC1 restated (SPEC §11 row 37)** |
 | R7 | Bot-detection ceiling without JA4 | **High** | **Accepted with a weaker substitute: header set (R19, SPEC §11 row 7)** |
 | R8 | Safe Browsing may flag the site regardless | Medium | Accepted, no guaranteed remedy |
 | R9 | 30–60 ground-truth labels give wide confidence intervals | Medium | Accepted, disclosed — Wilson intervals on every figure since M8 |
-| R10 | Free-subdomain path is materially weaker than documented parity suggests | Medium | Accepted, owner-chosen |
-| R11 | **VM loss loses everything since the last manual backup download** | **High** | **Accepted, owner-chosen** |
+| R10 | Free-subdomain path is materially weaker than documented parity suggests | Medium | **Accepted, owner-chosen; production runs on it since 2026-10-10, measured (SPEC §11 rows 33, 37); M9.1 retires it** |
+| R11 | **VM loss loses everything since the last manual backup download** | **High** | **Accepted, owner-chosen; restore drill passed 2026-10-11 (ADR-0030)** |
 | R12 | Solo developer: no review, no bus factor | Medium | Accepted, mitigated by CI and docs |
 | R13 | GeoLite2 licence terms and account continuity | Low | Open, monitor |
 | R14 | CARTO basemap tile availability and usage policy | Low | **Materialised 2026-10-02 (CARTO now requires a key); closed by ADR-0017: no tiles** |
 | R15 | Nominatim usage policy compliance | Low | Mitigated by design |
 | R16 | GCP free-tier egress ceiling (1 GB/month) | Low | Open, monitor |
-| R17 | Fingerprint instability inflates unique-visitor counts | Medium | Accepted, disclosed |
+| R17 | Fingerprint instability inflates unique-visitor counts | Medium | Accepted, disclosed; **on mobile, mitigated by ADR-0031 (2026-10-11), with identical phones on one carrier merging instead** |
 | R18 | Telegram becomes a security dependency, not just a notifier | Medium | Accepted, mitigated |
 | R19 | **Header order and HTTP/2 detail are unobservable behind Caddy** | **High** | **Closed: header set + re-weighting built in M4 (SPEC §11 row 7)** |
 | R20 | A first-visit location prompt cannot be answered inside the interstitial | Medium | **Revisited 2026-10-06 — per-link opt-in, 15 s ceiling (ADR-0021)** |
@@ -34,6 +34,7 @@ Severity is `impact × likelihood` at the time of writing, reassessed after each
 | R27 | The UI redesign (M5.5) regresses accessibility, the CSP or behaviour | Medium | **Mitigated 2026-10-03 — 0 CSP violations in Chromium, Firefox and WebKit (after E44), filters unchanged, a11y sweep clean, 72-image matrix; hand keyboard pass by the owner 2026-10-07, nothing failed** |
 | R28 | The real-data accuracy gate is only as current as its last export | Low | Accepted, mitigated: export ends a labelling session (ADR-0024) |
 | R29 | The development tunnel trust could reach production, or trust too much | Medium | Mitigated: refused outside development, a private /29 only, warned at startup (ADR-0025) |
+| R30 | **Client enrichment is unreliable on Indian mobile data to a US-hosted origin** | **Medium** | **Measured 2026-10-11; partly mitigated (ADR-0031, ADR-0032); M9.1's Cloudflare edge is the remedy** |
 
 ---
 
@@ -185,8 +186,11 @@ are not separately preserved out-of-band, then even a successful restore leaves 
 **A backup without those secrets is a partial backup.**
 
 **Mitigations in place:** dashboard reminder when the last download exceeds a configurable
-age; a one-time M9 restore drill onto a fresh VM that explicitly includes the out-of-band
-secrets; backups are safe to store anywhere because IP values are ciphertext.
+age; backups are safe to store anywhere because IP values are ciphertext; `tl restore`
+(ADR-0030). **The M9 restore drill passed on 2026-10-11**: production wiped and rebuilt from
+a download and the owner's note alone, every `ip_enc` readable. It also showed how the
+compounding factor really fails: the note had drifted from the VM (two tuned values, ERRORS
+E84). The note must be re-copied after any change to `.env`.
 
 **Retirement path.** Adding a free-tier object-storage target (Cloudflare R2, Backblaze B2)
 is a small integration and **the single highest-value change available in this document.**
@@ -262,6 +266,15 @@ host's memory pressure (PSI "some avg10" at 20 %), visitors still redirected; th
 thresholds are checked against the real e2-micro in M9. **Escalation order if breached:** reduce to one Uvicorn worker (roughly
 110 MB), then lower `shared_buffers`, then revisit the host — **not** the database.
 
+> **M9 (2026-10-10/11): materialised and mitigated.** The first load test averaged 771 MB and
+> stranded 500 visitors (ERRORS E82): workers stalled on swap-ins. The first escalation step
+> was taken -- one worker -- with `memswap_limit` equal to `mem_limit` for `api` and `caddy`
+> and the OS-config agent off (ADR-0028 amendment), plus a bounded redirect (ADR-0028) and
+> Caddy's fallback pages (ADR-0029). Measured at NFR1 load: 722 MB average, 752 MB peak,
+> 217 MB available; every visitor sent on in the burst test and the flood (docs/LOADTEST.md).
+> NFR6.AC1 was restated to that (SPEC §11 row 37). Next steps, in order, are unchanged:
+> `shared_buffers`, then the host.
+
 ---
 
 ## R7 — Bot-detection ceiling without JA4
@@ -302,6 +315,14 @@ networks block them outright.
 **Record the M9 outcome here whatever it is**, including a negative result, because a
 negative result changes how the link can be used.
 
+**M9 outcome, 2026-10-11 (free-subdomain path, SPEC §11 row 33).** Google's Safe Browsing
+transparency report: `tracelet.duckdns.org` — *"No available data"*: not flagged, and too
+new to have a record. The parent `duckdns.org` — *"Check a specific URL"*, the report's
+wording when parts of a site have been found unsafe: the inherited reputation this risk and
+R10 describe. No review was requested: Search Console and a review concern the domain links
+will live on, which is M9.1's purchased domain. Re-check after real links are shared, and at
+M9.1.
+
 ---
 
 ## R9 — Small ground-truth set, wide confidence intervals
@@ -323,6 +344,31 @@ the network targets. **The gate itself is a point comparison**, and at this size
 country miss is 96.7 % of 30, under a 99.5 % target. That is deliberate (a wrong strict
 country is the error ADR-0005 forbids), and SPEC §11 row 30 has the targets re-set from
 data in the amendment that follows the first real labels.
+
+---
+
+## R30 — Client enrichment is unreliable on Indian mobile data to a US-hosted origin · MEDIUM
+
+**Risk.** The capture page's follow-up request -- the client fingerprint, timezone, screen
+and consented GPS -- has to leave the phone and reach a server in `us-central1` before the
+page moves on. On the owner's phone on Jio mobile data (2026-10-11, M9's real visits) it
+often did not: some requests left the carrier's CGNAT from another /24 and were refused
+(fixed, ERRORS E89, ADR-0032); others were never seen by the server at all; and the phone
+also reported `ERR_CONNECTION_CLOSED` and `ERR_NETWORK_CHANGED` while loading. A headless
+browser and every Wi-Fi visit enriched within a second. An unenriched visit still records,
+locates and alerts from the server side (invariant 2), but about 100 s later, after the
+sweeper (F2.AC7), and without the client facts.
+
+**Measured.** Of thirteen mobile visits from one phone on 2026-10-11, three enriched; after
+ADR-0032, the one that enriched alerted in 5 s, and a repeat within a minute was recognised
+as the same visitor (ADR-0031). One phone, one carrier, one evening: a sample, not a rate.
+
+**Mitigation.** ADR-0032 (refusals across the carrier's pool), ADR-0031 (one visitor per
+phone even when a repeat is unenriched). The page already sends as soon as the facts are
+collected, not at the end of its timer. **Remedy: M9.1** -- Cloudflare terminates TLS in
+Mumbai or Bangalore, so the phone's new connection is set up a few milliseconds away
+instead of across the Pacific. Measure the enriched share on mobile again then (F9.AC24's
+capture-quality panel shows it).
 
 ---
 
@@ -372,6 +418,11 @@ equivalent**. The free-subdomain path cannot sit behind Cloudflare, so it forfei
 
 **Accepted as an owner choice.** Documented in ADR-0012, KICKOFF section 3, and here so it
 cannot quietly be treated as a like-for-like option.
+
+> **M9 (2026-10-10/11): in production, measured.** Production runs on
+> `tracelet.duckdns.org` until a domain is bought (SPEC §11 row 33). Time to first byte from
+> India measured p95 1 163 ms under load (row 37); S8 is absent on every real visit, as it
+> must be. M9.1 moves to a purchased domain behind Cloudflare and retires this risk.
 
 ---
 
@@ -726,6 +777,14 @@ admins. Monitored on the System Health page.
 a duplicate first-visit alert. Bucketing tolerance reduces this (ADR-0006); it cannot
 eliminate it. Unique-visitor figures are presented as estimates.
 
+> **M9 (2026-10-11): it materialised on mobile data, and was mitigated (ADR-0031).** On
+> production one phone on a carrier network made six requests from five /24s in three hours
+> and was six "new visitors", six alerts. An enriched mobile visit is now keyed by the
+> carrier's ASN, and a re-sent request takes the identity of the tap it repeats. **The
+> converse now carries more weight:** two people with the identical phone, browser,
+> language, timezone and screen on the same carrier become one visitor on a link that day,
+> and the second gets no alert. Accepted by the owner.
+
 **R18 — Telegram as a security dependency.** Because Gate 1 declined email, Telegram is both
 the notification channel *and* a password-recovery channel (ADR-0008). Compromise of the
 owner Telegram account enables a password reset. **Mitigation:** the reset flow does **not**
@@ -756,7 +815,7 @@ involve Telegram at all.
 | **B** | `fetch(keepalive)` survival in the Instagram webview | M2 | M0/M1 | _pending_ |
 | C | `CF-Ray` colo assignment stability for India | — | M3 | _pending_ |
 | D | Latency-triangulation accuracy contribution over S8 | RW-6 decision | M8 | **Retired 2026-09-29** — S10 dropped before it could be measured (SPEC §11 row 12, R23) |
-| E | Load behaviour and swap pressure at NFR1 on real hardware | NFR1, NFR6 | M9 | _pending_ |
+| E | Load behaviour and swap pressure at NFR1 on real hardware | NFR1, NFR6 | M9 | **Run 2026-10-10/11** -- `docs/LOADTEST.md`: the first flood stranded 500 visitors (E82); after ADR-0028/0029 and one worker every visitor was sent on; NFR2/NFR6 restated to the measured figures (SPEC §11 row 37) |
 
 Record every result here, **including negative ones.** A spike that reports "this does not
 work" has done its job and saved the milestone that would have assumed otherwise.

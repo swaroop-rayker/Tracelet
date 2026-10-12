@@ -1,13 +1,14 @@
 # ---------------------------------------------------------------------------
 # Tracelet — three containers, hard memory limits (ADR-0012).
 #
-# Budget on the 1 GB target (docs/ARCHITECTURE.md §6):
-#   host + dockerd  ~180 MB
+# Budget on the 1 GB target (docs/ARCHITECTURE.md §6; measured in §6.5):
+#   host + dockerd  ~180 MB   (~195 measured on the e2-micro)
 #   db               ~210 MB   limit 260 M
-#   api              ~230 MB   limit 420 M
+#   api              ~230 MB   limit 420 M, ONE worker (ADR-0028 amendment)
 #   caddy             ~25 MB   limit  64 M
 #   ------------------------------------------
-#   steady state     ~645 MB of 1024 MB, ~379 MB headroom
+#   design steady state ~645 MB of 1024 MB. Measured at NFR1 load (M9): 722 MB
+#   average, 752 MB peak, 217 MB available -- NFR6.AC1 as restated, SPEC §11 row 37.
 #
 # mem_limit is not a formality. It converts the failure mode from "the kernel
 # OOM-killer picks a victim, possibly PostgreSQL mid-write" into "one container
@@ -16,11 +17,69 @@
 
 name: tracelet
 
+# Every container's json-file log is capped (ADR-0026). Docker's default keeps it
+# forever, and on a 30 GB disk that also holds the database and its backups an
+# unbounded log is a slow outage. 3 x 10 MB is days of normal traffic.
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
+# The api's settings, shared by the server (`api`) and one-off commands (`cli`), so the
+# two can never drift apart (ERRORS E80).
+x-api: &api
+  image: tracelet-api
+  build:
+    context: ./api
+    # Explicit: the running stack is the production image. No dev toolchain,
+    # no dev dependencies, non-root. Lint, typecheck and tests run in the
+    # profiled api-tools service below.
+    target: production
+  mem_limit: 420m
+  # No swap for the redirect path (ADR-0028 amendment): equal to mem_limit, so the
+  # kernel never swaps this container out. M9's stress test saw workers stall on
+  # swap-ins until gunicorn killed them, dropping every request they held.
+  memswap_limit: 420m
+  logging: *logging
+  env_file: .env
+  environment:
+    # Set here so the value is correct inside the compose network regardless
+    # of what .env says for host-side tooling.
+    TRACELET_DATABASE_URL: postgresql+asyncpg://tracelet_app:${TRACELET_DB_APP_PASSWORD}@db:5432/${POSTGRES_DB:-tracelet}
+    TRACELET_MIGRATE_DATABASE_URL: postgresql+psycopg://tracelet_migrate:${TRACELET_DB_MIGRATE_PASSWORD}@db:5432/${POSTGRES_DB:-tracelet}
+    # Purges, backups and the restore check (ADR-0022): the only role that may
+    # delete audit rows or create the scratch database.
+    TRACELET_MAINT_DATABASE_URL: postgresql+asyncpg://tracelet_maint:${TRACELET_DB_MAINT_PASSWORD}@db:5432/${POSTGRES_DB:-tracelet}
+  depends_on:
+    db:
+      condition: service_healthy
+  volumes:
+    # The host's own figures for System Health, read-only (F10.AC15). Without
+    # these, CPU, memory and uptime would be the container's, not the VM's.
+    - /proc:/host/proc:ro
+    - /sys:/host/sys:ro
+    # The AES-256-GCM key for encrypted columns, read-only and OUTSIDE the
+    # database volume (F12.AC3, ADR-0007). Loaded into process memory at boot,
+    # never written to the database, never logged, never returned by an API.
+    # A stolen pg_dump therefore yields ciphertext.
+    #
+    # This file is NOT in the database backup, deliberately. Restoring onto a
+    # fresh VM without a separate out-of-band copy leaves every encrypted value
+    # permanently unreadable. See docs/RUNBOOK.md (the password-manager note, the restore).
+    - ./secrets/ip_key:/run/secrets/ip_key:ro
+    - geo_data:/data/geoip
+    - backups:/data/backups
+    # Redirect pages Caddy serves when the api cannot answer a capture (ADR-0029).
+    # Written here; read-only in Caddy.
+    - fallback:/data/fallback
+
 services:
   db:
     image: postgis/postgis:16-3.4-alpine
     restart: unless-stopped
     mem_limit: 260m
+    logging: *logging
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-tracelet}
       POSTGRES_USER: ${POSTGRES_USER:-tracelet}
@@ -53,52 +112,26 @@ services:
       - db_data:/var/lib/postgresql/data
       - ./db/init:/docker-entrypoint-initdb.d:ro
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -q -U ${POSTGRES_USER:-tracelet} -d ${POSTGRES_DB:-tracelet}"]
+      # Over TCP: db/init's temporary first-boot server listens only on the socket, and a
+      # socket check would call it healthy before it is stopped (docs/ERRORS.md E83).
+      test: ["CMD-SHELL", "pg_isready -q -h 127.0.0.1 -U ${POSTGRES_USER:-tracelet} -d ${POSTGRES_DB:-tracelet}"]
       interval: 5s
       timeout: 3s
       retries: 12
       start_period: 20s
 
   api:
-    build:
-      context: ./api
-      # Explicit: the running stack is the production image. No dev toolchain,
-      # no dev dependencies, non-root. Lint, typecheck and tests run in the
-      # profiled api-tools service below.
-      target: production
+    <<: *api
     restart: unless-stopped
-    mem_limit: 420m
-    env_file: .env
-    environment:
-      # Set here so the value is correct inside the compose network regardless
-      # of what .env says for host-side tooling.
-      TRACELET_DATABASE_URL: postgresql+asyncpg://tracelet_app:${TRACELET_DB_APP_PASSWORD}@db:5432/${POSTGRES_DB:-tracelet}
-      TRACELET_MIGRATE_DATABASE_URL: postgresql+psycopg://tracelet_migrate:${TRACELET_DB_MIGRATE_PASSWORD}@db:5432/${POSTGRES_DB:-tracelet}
-      # Purges, backups and the restore check (ADR-0022): the only role that may
-      # delete audit rows or create the scratch database.
-      TRACELET_MAINT_DATABASE_URL: postgresql+asyncpg://tracelet_maint:${TRACELET_DB_MAINT_PASSWORD}@db:5432/${POSTGRES_DB:-tracelet}
-    depends_on:
-      db:
-        condition: service_healthy
-    volumes:
-      # The host's own figures for System Health, read-only (F10.AC15). Without
-      # these, CPU, memory and uptime would be the container's, not the VM's.
-      - /proc:/host/proc:ro
-      - /sys:/host/sys:ro
-      # The AES-256-GCM key for encrypted columns, read-only and OUTSIDE the
-      # database volume (F12.AC3, ADR-0007). Loaded into process memory at boot,
-      # never written to the database, never logged, never returned by an API.
-      # A stolen pg_dump therefore yields ciphertext.
-      #
-      # This file is NOT in the database backup, deliberately. Restoring onto a
-      # fresh VM without a separate out-of-band copy leaves every encrypted value
-      # permanently unreadable. See docs/private/07-OPERATIONS-PLAYBOOK.md.
-      - ./secrets/ip_key:/run/secrets/ip_key:ro
-      - geo_data:/data/geoip
-      - backups:/data/backups
     # No published ports. Caddy is the only ingress.
     expose:
       - "8000"
+    # A fixed address, so Caddy reaches the api without a DNS lookup. Docker's embedded
+    # DNS is answered by dockerd on the host, and under memory pressure on the e2-micro a
+    # lookup of `api` timed out and the request became a 502 (docs/ERRORS.md E79, ADR-0026).
+    networks:
+      default:
+        ipv4_address: 172.31.253.10
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/healthz', timeout=3).status==200 else 1)"]
       interval: 10s
@@ -106,14 +139,30 @@ services:
       retries: 6
       start_period: 20s
 
+  # One-off commands in the production image: migrations, `tracelet admin ...` (the
+  # break-glass recovery, F8.AC8), `tracelet geodb ...`. The api's own settings without
+  # its fixed address: a `run` of the api service inherits 172.31.253.10, which the
+  # running api already holds, and fails with "Address already in use" (ERRORS E80).
+  # Behind a profile so `up` never starts it; `docker compose run --rm cli ...` does.
+  cli:
+    <<: *api
+    profiles: ["cli"]
+    restart: "no"
+    command: ["tracelet", "--help"]
+
   caddy:
     build:
       context: .
       dockerfile: web/Dockerfile
     restart: unless-stopped
     mem_limit: 64m
+    # On the redirect path too: never swapped (ADR-0028 amendment).
+    memswap_limit: 64m
+    logging: *logging
     environment:
       TRACELET_SITE_ADDRESS: ${TRACELET_SITE_ADDRESS:-localhost}
+      # The api's fixed address on the default network (below): no DNS on the redirect path.
+      TRACELET_API_UPSTREAM: 172.31.253.10:8000
     depends_on:
       api:
         condition: service_started
@@ -124,6 +173,8 @@ services:
     volumes:
       - caddy_data:/data
       - caddy_config:/config
+      # The api's redirect pages, for when it cannot answer (ADR-0029). Read-only.
+      - fallback:/srv/fallback:ro
     # `tunnel` carries nothing unless the development tunnel below is started (ADR-0025).
     networks: [default, tunnel]
     healthcheck:
@@ -145,6 +196,7 @@ services:
     profiles: ["tunnel"]
     restart: "no"
     mem_limit: 96m
+    logging: *logging
     command:
       - tunnel
       - --no-autoupdate
@@ -191,6 +243,32 @@ services:
       - ./secrets/ip_key:/run/secrets/ip_key:ro
     command: ["true"]
 
+  # Live check (M9): security headers and CSP against a deployed URL in three browser
+  # engines -- `./scripts/tl live-check https://<site>`. Its own profile, not `tools`:
+  # `tl verify` builds every tools image, and nobody running the quickstart should pull a
+  # 3.5 GB browser image for it. Never started on the production box.
+  live-check:
+    build:
+      context: ./qa
+    profiles: ["live"]
+    working_dir: /qa
+    volumes:
+      - ./qa:/qa:rw
+    command: ["true"]
+
+  # Load test (ADR-0027): `./scripts/tl loadtest https://<site> <slug> [full|limits]`, from a
+  # workstation only, never on the production box. The certs mount is the local
+  # TLS-inspection root, if any (api/certs/README.md); Go reads SSL_CERT_DIR.
+  k6:
+    image: grafana/k6:1.3.0
+    profiles: ["live"]
+    working_dir: /scripts
+    environment:
+      SSL_CERT_DIR: /etc/ssl/certs:/certs
+    volumes:
+      - ./loadtest:/scripts:rw
+      - ./api/certs:/certs:ro
+
   # Frontend toolchain: eslint, prettier, tsc, openapi-typescript.
   web-tools:
     build:
@@ -203,7 +281,14 @@ services:
     command: ["true"]
 
 networks:
+  # A fixed subnet so the api can hold a fixed address (ADR-0026). Docker hands out
+  # automatic addresses only from ip_range, the upper half, so a container started first
+  # (a tools run, the database) can never take the api's .10.
   default:
+    ipam:
+      config:
+        - subnet: 172.31.253.0/24
+          ip_range: 172.31.253.128/25
   # Only Caddy and the development tunnel join it; its range is what
   # TRACELET_DEV_TRUSTED_TUNNEL names (ADR-0025).
   tunnel:
@@ -217,3 +302,4 @@ volumes:
   caddy_config:
   geo_data:
   backups:
+  fallback:

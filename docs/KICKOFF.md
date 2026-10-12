@@ -37,7 +37,7 @@ on free-tier infrastructure: one GCP e2-micro, 1 vCPU, 1 GB RAM, 2 GB swap, 30 G
 | Background work | Transactional outbox + in-process asyncio worker. **No Celery, no ARQ** | ADR-0009 |
 | Rate limiting | Layered: Cloudflare, Caddy, Postgres-backed GCRA, bounded pool | ADR-0010 |
 | Bot detection | Rules-based weighted scoring. **Explicitly not ML** | ADR-0011 |
-| Deploy | 3 containers, hard `mem_limit`s, domain-agnostic config | ADR-0012 |
+| Deploy | 3 containers, hard `mem_limit`s, domain-agnostic config; release images built off the box and pulled from Docker Hub, one worker on the e2-micro (M9) | ADR-0012, ADR-0026, ADR-0028 |
 | Errors | RFC 9457 Problem Details + ULID `trace_id` + structlog. **No Prometheus** | ADR-0013 |
 | Cache / queue store | **Postgres only. No Redis / Valkey** | ADR-0009, ADR-0010 |
 | Backups | Nightly `pg_dump`, 7d + 4w rotation, monthly automated restore-verify | ADR-0014 |
@@ -91,22 +91,26 @@ TRACELET_BOOTSTRAP_EMAIL=you@example.com ./scripts/tl bootstrap
 ./scripts/tl verify
 ```
 
+**This is the development stack**: it builds the images locally. **Production is a
+release host** that never builds: `tl secrets`, `tl host-setup`, `tl deploy` of images
+made by `tl release` on a workstation, and `tl restore` to rebuild from a backup -- all in
+`docs/RUNBOOK.md` (ADR-0026, ADR-0030).
+
 `make <task>` does the same thing where `make` exists; `./scripts/tl <task>` works
 everywhere, including Git Bash on a stock Windows host where `make` is absent. Both call
 the same implementation — `docs/ARCHITECTURE.md` §9.1.
 
-**Step 2 needs editing before step 3:** the database passwords, the three HMAC peppers,
-the session secret, the domain mode, and the Telegram bot token. Every variable is
-documented in `.env.example`. You also need the AES-256 key that encrypts the TOTP secret
-and, from M2, visitor IPs:
+**Step 2 runs as is for local development**: `.env.example`'s `change-me` passwords and
+empty secrets are accepted in development and refused in production. Edit it before step 3
+for anything you will keep -- the database passwords, the three HMAC peppers, the session
+secret, the domain mode, the Telegram bot token; every variable is documented there.
 
-```bash
-mkdir -p secrets && openssl rand -hex 32 > secrets/ip_key
-```
-
-Keep a copy of that file somewhere outside the machine. It is deliberately **not** in the
-database backup, so restoring onto a fresh VM without it leaves every encrypted value
-permanently unreadable (ADR-0007).
+**Step 3 also creates `secrets/ip_key`** if it is missing: the AES-256 key that encrypts the
+TOTP secret and visitor IPs. Without the file, Docker would mount an empty directory in its
+place and every encryption would fail (found by the M9 SC2 run). Keep a copy of the key
+outside the machine if the data matters. It is deliberately **not** in the database backup,
+so restoring without it leaves every encrypted value permanently unreadable (ADR-0007). A
+release host never generates one: there, a missing key stops `tl deploy` and `tl restore`.
 
 **Step 3 prints a one-time enrollment URL.** Open it, set a password, add the shown base32
 secret to an authenticator app, type a code — and then **save the 10 recovery codes**,
@@ -118,7 +122,7 @@ Two things worth doing immediately afterwards, from the dashboard:
 - **Verify your Telegram chat.** Until you do, the reset-over-Telegram path is not armed
   and your only recovery routes are the codes and the server CLI (ADR-0008).
 - **Check the recovery codes are somewhere you will actually find them.** With no codes and
-  no Telegram, only `docker compose run --rm api tracelet admin reset-password` can recover
+  no Telegram, only `docker compose run --rm cli tracelet admin reset-password` can recover
   the account — which needs shell access to the box (F8.AC8).
 
 ---

@@ -20,6 +20,7 @@ import asyncio
 import datetime as dt
 import hashlib
 import os
+import re
 import shutil
 import uuid
 import zoneinfo
@@ -34,6 +35,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncConnection, create_async_engine
 from sqlalchemy.pool import NullPool
 
+from tracelet.audit import log as audit
 from tracelet.config import Settings, get_settings
 from tracelet.db.dml import execute_rowcount
 from tracelet.db.engine import session_scope
@@ -480,6 +482,141 @@ async def run_restore_check(check_id: int, settings: Settings | None = None) -> 
         "restore_check_done", passed=passed, backup_id=str(backup.id), mismatched=len(mismatches)
     )
     return row
+
+
+# ---------------------------------------------------------------------------
+# Adoption after a bare-metal restore (ADR-0030)
+# ---------------------------------------------------------------------------
+
+# How the backup job names a file, and how a download names it (``tracelet-`` + that).
+_FILE_NAME: Final = re.compile(
+    r"^(?:tracelet-)?(?P<name>(?P<stamp>\d{8}T\d{6}Z)-(?P<kind>scheduled|manual)\.dump)$"
+)
+# A backup's stamp is taken just after its row was started; allow for clock rounding.
+_STAMP_SLACK: Final = dt.timedelta(seconds=5)
+
+
+@dataclass(frozen=True, slots=True)
+class AdoptedName:
+    file_name: str
+    stamp: dt.datetime
+    kind: BackupKind
+
+
+@dataclass(frozen=True, slots=True)
+class Adopted:
+    backup_id: uuid.UUID
+    file_name: str
+    tables: int
+    pruned: int
+
+
+def adopted_name(name: str) -> AdoptedName:
+    """The backup job's own file name, from a file the owner downloaded. Raises
+    ``JobFailedError`` for a name the job could not have written."""
+    match = _FILE_NAME.match(name)
+    if match is None:
+        msg = (
+            f"{name!r} is not named like a Tracelet backup "
+            "(<UTC stamp>-<scheduled|manual>.dump, optionally prefixed 'tracelet-')."
+        )
+        raise JobFailedError(msg)
+    stamp = dt.datetime.strptime(match["stamp"], "%Y%m%dT%H%M%SZ").replace(tzinfo=dt.UTC)
+    return AdoptedName(match["name"], stamp, BackupKind(match["kind"]))
+
+
+def is_own_row(name: AdoptedName, kind: BackupKind, started_at: dt.datetime) -> bool:
+    """Whether a ``running`` row is the one that wrote this file: same kind, started
+    before the file's stamp and less than ``ABANDONED_AFTER`` before it."""
+    return kind is name.kind and (
+        started_at - _STAMP_SLACK <= name.stamp <= started_at + ABANDONED_AFTER
+    )
+
+
+def _copy_in(source: Path, target: Path) -> tuple[int, str]:
+    """Copy ``source`` to ``target`` through a ``.partial`` file; the size and SHA-256 of
+    what landed. An existing ``target`` is kept only if it is the same file."""
+    if not source.is_file():
+        msg = f"{source} is not a file."
+        raise JobFailedError(msg)
+    if target.exists():
+        if _sha256(target) != _sha256(source):
+            msg = f"{target.name} already exists in the backup directory and differs."
+            raise JobFailedError(msg)
+        return target.stat().st_size, _sha256(target)
+    partial = target.with_name(f"{target.name}.partial")
+    try:
+        shutil.copyfile(source, partial)
+        checksum = _sha256(partial)
+        partial.rename(target)
+    except OSError:
+        partial.unlink(missing_ok=True)
+        raise
+    return target.stat().st_size, checksum
+
+
+async def adopt_restored(source: Path, settings: Settings | None = None) -> Adopted:
+    """After ``tl restore``: make the restored backup history true (ADR-0030).
+
+    The dump holds its own ``backups`` row as ``running``. That row becomes ``ok`` with the
+    file, now copied into this volume, and the counts of the restored database -- taken
+    before anything is written, so they are the dump's own. Every other ``ok`` row whose
+    file did not come across becomes ``pruned``. Must run before the api starts: its
+    scheduler would mark the old ``running`` row abandoned.
+    """
+    settings = settings or get_settings()
+    name = adopted_name(source.name)
+    async with session_scope() as db:
+        running = list(
+            (
+                await db.execute(select(Backup).where(Backup.status == BackupStatus.RUNNING))
+            ).scalars()
+        )
+    own = [r for r in running if is_own_row(name, r.kind, r.started_at)]
+    if len(own) != 1:
+        msg = (
+            f"This database holds no running {name.kind.value} backup started just before "
+            f"{name.stamp:%Y-%m-%d %H:%M:%S} UTC, so {source.name} is not the backup it was "
+            "restored from."
+        )
+        raise JobFailedError(msg)
+    backup_id = own[0].id
+
+    directory = settings.backup_dir
+    directory.mkdir(parents=True, exist_ok=True)
+    size, checksum = await asyncio.to_thread(_copy_in, source, directory / name.file_name)
+    async with maint_connection(settings) as conn:
+        conn = await conn.execution_options(isolation_level="REPEATABLE READ")
+        async with conn.begin():
+            counts = await _counts(conn, await _tables(conn))
+
+    async with session_scope() as db:
+        row = await db.get(Backup, backup_id)
+        assert row is not None
+        row.status = BackupStatus.OK
+        row.file_name, row.size_bytes, row.sha256 = name.file_name, size, checksum
+        row.row_counts = counts
+        row.error = None
+        row.finished_at = _now()
+        others = (
+            await db.execute(
+                select(Backup).where(Backup.status == BackupStatus.OK, Backup.id != backup_id)
+            )
+        ).scalars()
+        pruned = 0
+        for other in others:
+            if other.file_name and not (directory / other.file_name).is_file():
+                other.status = BackupStatus.PRUNED
+                pruned += 1
+        await audit.record(
+            db,
+            action=audit.Action.BACKUP_ADOPTED,
+            target_type="backup",
+            target_id=str(backup_id),
+            detail={"file_name": name.file_name, "tables": len(counts), "pruned": pruned},
+        )
+    log.info("backup_adopted", backup_id=str(backup_id), tables=len(counts), pruned=pruned)
+    return Adopted(backup_id, name.file_name, len(counts), pruned)
 
 
 # ---------------------------------------------------------------------------

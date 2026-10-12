@@ -1,6 +1,8 @@
 # ADR-0012 — Deployment: three containers, Cloudflare edge, dual domain paths
 
-**Status:** Accepted (Gate 1 and Gate 2, 2026-09-25)
+**Status:** Accepted (Gate 1 and Gate 2, 2026-09-25). **Amended 2026-10-10 (M9)**, twice (at the
+end): one worker, and Caddy answering a capture the api cannot (ADR-0029). Releases are
+built off the box and pulled from Docker Hub (ADR-0026).
 **Deciders:** repository owner
 **Relates to:** C4, C6, F13, F14, B4, NFR1, NFR2, NFR6
 
@@ -136,3 +138,20 @@ limiting and geolocation.
 - Egress approaches the free-tier limit.
 - The owner reconsiders Oracle Always Free — at which point the ARM64 multi-arch build is
   the main piece of work, and every other decision in this ADR set carries over unchanged.
+
+## Amended 2026-10-10 (M9): the first lever, pulled
+
+"Revisit if" above named one Uvicorn worker as the first response to the M9 load test
+breaching NFR1, NFR2 or NFR6 on this hardware. It did (ERRORS E82, ADR-0028 amendment), and
+the owner approved it: production runs **one worker**, and `api` and `caddy` carry
+`memswap_limit` equal to `mem_limit`, so the redirect path is never swapped. The topology is
+otherwise unchanged; raising `shared_buffers` and a larger host remain the next steps, in
+that order.
+
+## Amended 2026-10-10 (M9): Caddy can answer a capture on its own
+
+ADR-0029 gives Caddy one more job: when the api does not answer `/r/...` within 3 s, or
+cannot be reached, Caddy serves a redirect page the api prepared for that link, from a new
+read-only `fallback` volume shared with the api. Still three containers; no new process;
+under 1 KB of disk per link. The baseline security headers became a Caddyfile snippet so
+these error-path responses carry them too.

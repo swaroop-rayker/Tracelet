@@ -20,6 +20,8 @@ telemetry, never the journey. That shapes three decisions here:
 
 from __future__ import annotations
 
+import asyncio
+import contextlib
 import datetime as dt
 import hashlib
 import re
@@ -34,9 +36,9 @@ from sqlalchemy import func, literal, literal_column, select, text, update
 from sqlalchemy.dialects import postgresql as pg
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from tracelet.capture import carrier, fallback_pages, overload, useragent
 from tracelet.capture import nonce as nonces
 from tracelet.capture import signals as sig
-from tracelet.capture import useragent
 from tracelet.capture.models import (
     Classification,
     ConsentState,
@@ -46,7 +48,7 @@ from tracelet.capture.models import (
     uuid7,
 )
 from tracelet.capture.schemas import EnrichmentPayload
-from tracelet.config import Settings
+from tracelet.config import Settings, get_settings
 from tracelet.crypto.envelope import EnvelopeError, seal_str
 from tracelet.crypto.hashing import hmac_sha256
 from tracelet.db.dml import execute_rowcount
@@ -124,8 +126,13 @@ _MAX_CACHED_LINKS: Final = 1000
 class _LinkCache:
     entries: dict[str, LinkSnapshot] = field(default_factory=dict)
     # The link behind the bare /r/ (F1.AC3). Like `entries`, read only when the
-    # database is unreachable.
+    # database is unreachable, or (ADR-0028) when this worker is overloaded or a capture
+    # overran its deadline.
     default: LinkSnapshot | None = None
+
+    def replace(self, snapshots: list[LinkSnapshot], default: LinkSnapshot | None) -> None:
+        self.entries = {s.slug: s for s in snapshots[:_MAX_CACHED_LINKS]}
+        self.default = default
 
     def put(self, snapshot: LinkSnapshot) -> None:
         if snapshot.slug not in self.entries and len(self.entries) >= _MAX_CACHED_LINKS:
@@ -147,6 +154,43 @@ class _LinkCache:
 
 
 link_cache = _LinkCache()
+
+LINK_CACHE_REFRESH_S: Final = 30.0
+
+
+async def refresh_link_cache(settings: Settings | None = None) -> int:
+    """Load every unarchived link into this worker's cache (ADR-0028), and rewrite the
+    redirect pages Caddy falls back to (ADR-0029). Returns the count.
+
+    One small query: links are few. An edit through the API still invalidates the cache
+    of the worker that made it at once, and schedules this after its commit (the links
+    router); the 30 s cycle bounds any other worker's staleness.
+    """
+    async with session_scope() as db:
+        links = (await db.execute(select(Link).where(Link.archived_at.is_(None)))).scalars().all()
+        snapshots = [LinkSnapshot.of(link) for link in links]
+        default = next((LinkSnapshot.of(link) for link in links if link.is_default), None)
+    link_cache.replace(snapshots, default)
+    fallback_pages.sync((settings or get_settings()).fallback_dir, snapshots, default)
+    return len(snapshots)
+
+
+async def refresh_after_link_change(settings: Settings) -> None:
+    """Run after a link edit has committed. Never raises: the edit has already succeeded."""
+    try:
+        await refresh_link_cache(settings)
+    except Exception as exc:  # noqa: BLE001 - the 30 s cycle tries again
+        log.warning("link_cache_refresh_failed", error_type=type(exc).__name__)
+
+
+async def keep_link_cache_warm(settings: Settings, stop: asyncio.Event) -> None:
+    """At start, then every 30 s; skipped while this worker is overloaded, when the
+    cache is exactly what must not wait on a query."""
+    while not stop.is_set():
+        if not overload.is_overloaded():
+            await refresh_after_link_change(settings)
+        with contextlib.suppress(TimeoutError):
+            await asyncio.wait_for(stop.wait(), timeout=LINK_CACHE_REFRESH_S)
 
 
 def normalise_slug(raw: str) -> str | None:
@@ -170,6 +214,9 @@ class Outcome(StrEnum):
     # The visit could not be recorded AND the destination is unknown. The only outcome
     # that cannot redirect, because there is nowhere to redirect to.
     UNAVAILABLE = "unavailable"
+    # ADR-0028: answered from the link cache with no database work, because the worker
+    # is overloaded or the capture overran its deadline. Redirected at once, as F11.AC3.
+    FROM_MEMORY = "from_memory"
 
 
 @dataclass(frozen=True, slots=True)
@@ -437,6 +484,36 @@ async def capture(settings: Settings, slug: str | None, facts: RequestFacts) -> 
     )
 
 
+def from_memory(slug: str | None, facts: RequestFacts, *, record: bool) -> CaptureResult:
+    """Answer a capture from the link cache alone: no query, no lock, no await (ADR-0028).
+
+    ``record`` keeps the minimal ``rate_limited`` row in this worker's buffer: true when
+    the worker is overloaded, false behind a deadline, where the capture task still
+    running records the visit itself. A slug the cache does not know is UNAVAILABLE --
+    "cannot say" -- never a 404: it may be newer than the last load, and only the
+    database can say a link does not exist. The caller then asks the database,
+    bounded. A cached link that is not live is a 404 (F1.AC4).
+    """
+    normalised: str | None = None
+    if slug is not None:
+        normalised = normalise_slug(slug)
+        if normalised is None:
+            return CaptureResult(outcome=Outcome.NOT_FOUND)
+    link = link_cache.get(normalised) if normalised is not None else link_cache.default
+    if link is None:
+        return CaptureResult(outcome=Outcome.UNAVAILABLE)
+    if not link.is_live:
+        return CaptureResult(outcome=Outcome.NOT_FOUND)
+    if record:
+        overload.record_shed(
+            link_id=link.id,
+            ip_prefix=prefix_of(facts.client.ip),
+            trace_id=facts.trace_id,
+            classifier_version=CLASSIFIER_VERSION,
+        )
+    return CaptureResult(outcome=Outcome.FROM_MEMORY, link=link)
+
+
 def _nonce_key(settings: Settings) -> bytes | None:
     secret = settings.session_secret.get_secret_value() if settings.session_secret else None
     return nonces.derive_key(secret) if secret else None
@@ -584,16 +661,29 @@ async def enrich(
     client_ip: str | None,
     payload: EnrichmentPayload,
 ) -> uuid.UUID:
-    """Apply one enrichment. Single-use, prefix-bound, 60 s (F2.AC6, F11.AC4)."""
+    """Apply one enrichment. Single-use, prefix-bound, 60 s (F2.AC6, F11.AC4) -- or, on a
+    mobile carrier, bound to the carrier when its CGNAT moved the request (ADR-0032)."""
     key = _nonce_key(settings)
     if key is None:
         raise EnrichmentRejected("not_configured")
+    rebound: int | None = None
     try:
         verified = nonces.verify(key, token, ip_prefix=prefix_of(client_ip))
     except nonces.NonceRejectedError as exc:
-        raise EnrichmentRejected(exc.reason) from exc
+        if exc.reason != "mac_mismatch":
+            raise EnrichmentRejected(exc.reason) from exc
+        verified, rebound = await _same_carrier(db, settings, key, token, client_ip)
 
     values, absences = enrichment_values(payload)
+    if rebound is not None:
+        absences.append(
+            {
+                "rule_id": "capture.enrichment_other_prefix",
+                "category": "capture",
+                "weight": 0,
+                "detail": {"asn": rebound},
+            }
+        )
     if absences:
         # Appended, not replaced: the capture path may already have recorded
         # server-side evidence in `signals`.
@@ -620,6 +710,30 @@ async def enrich(
     if row is None:
         raise EnrichmentRejected("consumed_or_finalised")
     return verified.visit_id
+
+
+async def _same_carrier(
+    db: AsyncSession, settings: Settings, key: bytes, token: str, client_ip: str | None
+) -> tuple[nonces.Verified, int]:
+    """ADR-0032: the token verified against its visit's own prefix, and the request from the
+    same mobile carrier as that prefix. Anything else is the original refusal."""
+    visit_id = nonces.claimed_visit(token)
+    if visit_id is None:
+        raise EnrichmentRejected("mac_mismatch")
+    stored = (
+        await db.execute(select(Visit.ip_prefix).where(Visit.id == visit_id))
+    ).scalar_one_or_none()
+    if stored is None:
+        raise EnrichmentRejected("mac_mismatch")
+    network = stored.network
+    try:
+        verified = nonces.verify(key, token, ip_prefix=str(network))
+    except nonces.NonceRejectedError as exc:
+        raise EnrichmentRejected(exc.reason) from exc
+    here = carrier.carrier_of(settings, client_ip)
+    if here is None or here != carrier.carrier_of(settings, str(network.network_address)):
+        raise EnrichmentRejected("network_mismatch")
+    return verified, here
 
 
 async def trip_honeypot(

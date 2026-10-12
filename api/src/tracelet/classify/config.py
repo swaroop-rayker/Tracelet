@@ -16,7 +16,9 @@ from typing import Final
 
 from pydantic import BaseModel, ConfigDict, Field
 
-CLASSIFIER_REVISION: Final = "m4.1"
+# m9.1: visitor identity on mobile networks keyed by the carrier, and a re-sent request
+# taking its enriched sibling's identity (ADR-0031). The rules are unchanged.
+CLASSIFIER_REVISION: Final = "m9.1"
 
 
 def classifier_version(settings_version: int) -> str:

@@ -1,6 +1,10 @@
 # ADR-0001 — Backend framework: FastAPI
 
-**Status:** Accepted (Gate 2, 2026-09-25)
+**Status:** Accepted (Gate 2, 2026-09-25). **Amended 2026-10-10 (M9) by the ADR-0028
+amendment:** production runs **one** Uvicorn worker -- "Revisit if" below fired: the e2-micro
+gives about 0.8 of a vCPU under load, so the second worker cost ~110 MB without adding
+throughput. Everything below written for two workers still holds and is still required,
+because `TRACELET_WEB_CONCURRENCY` can return to 2.
 **Deciders:** repository owner
 **Relates to:** C1, ES1, ES4, NFR2, NFR6
 

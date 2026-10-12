@@ -19,6 +19,7 @@ import psutil
 from sqlalchemy import func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from tracelet.capture import overload
 from tracelet.config import Settings
 from tracelet.health import databases, pressure
 from tracelet.health.system import use_host_procfs
@@ -282,9 +283,54 @@ async def _backups(db: AsyncSession, settings: Settings) -> list[Condition]:
     return out
 
 
+REASONS: Final = {
+    "event_loop_lag": "its event loop is running {lag:.0f} ms late",
+    "captures_in_flight": "{inflight} captures are in flight",
+    "memory_pressure": "the host is short of memory",
+}
+
+
+def _overload() -> list[Condition]:
+    """ADR-0028, this worker's view: visits answered from memory, and any not kept."""
+    now = overload.current()
+    out: list[Condition] = []
+    if now.overloaded:
+        why = REASONS.get(now.reason, now.reason).format(lag=now.lag_ms, inflight=now.inflight)
+        out.append(
+            Condition(
+                key="overload",
+                severity="critical",
+                title="Overloaded: visits answered from memory",
+                detail=(
+                    f"This server is overloaded ({why}). Visitors are redirected from the "
+                    f"link cache with no database work ({now.answered} so far); their "
+                    f"minimal records wait in memory ({now.buffered}) and background jobs "
+                    "pause until it recovers."
+                ),
+                still_works="Every visitor to a known link is still redirected.",
+            )
+        )
+    if now.dropped:
+        out.append(
+            Condition(
+                key="overload_dropped",
+                severity="warning",
+                title=f"{now.dropped} shed visits were counted but not recorded",
+                detail=(
+                    "The in-memory buffer of shed visits was full "
+                    "(TRACELET_OVERLOAD_BUFFER). Those visitors were redirected; only their "
+                    "count was kept. Resets when this server process restarts."
+                ),
+                still_works="Every visitor was still redirected.",
+            )
+        )
+    return out
+
+
 async def conditions(db: AsyncSession, settings: Settings) -> list[Condition]:
     found = (
-        _shedding(settings)
+        _overload()
+        + _shedding(settings)
         + _disk_memory(settings)
         + await _backups(db, settings)
         + await _outbox(db)

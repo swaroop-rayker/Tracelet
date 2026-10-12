@@ -1,0 +1,9 @@
+# Tracelet free-subdomain path only (ADR-0026). Installed as /etc/cron.d/tracelet-duckdns
+# by `./scripts/tl host-setup`. The VM's address is ephemeral and changes on a stop and
+# start, so the DuckDNS name is re-pointed at boot and every five minutes. The token
+# lives in /etc/tracelet/duckdns.curl (root, 0600) as a curl config, so it never
+# appears in a process list or in this file. An empty ip= makes DuckDNS use the
+# address the request came from: the VM's own.
+SHELL=/bin/sh
+@reboot      root sleep 30; curl -fsS --max-time 20 -K /etc/tracelet/duckdns.curl -o /var/lib/tracelet/duckdns.last
+*/5 * * * *  root curl -fsS --max-time 20 -K /etc/tracelet/duckdns.curl -o /var/lib/tracelet/duckdns.last

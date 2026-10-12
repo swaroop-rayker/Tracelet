@@ -190,6 +190,7 @@ const visitSummaryShape = {
   link: z.object({ id: z.string(), slug: z.string(), label: z.string() }),
   stage,
   classification,
+  inferred_at: z.string().nullable(),
   bot_score: z.number().nullable(),
   spoof_score: z.number().nullable(),
   location: z.object({
@@ -278,7 +279,6 @@ export type GroundTruthLabel = S['LabelOut'];
 export const visitDetailSchema: z.ZodType<S['VisitDetail']> = z.object({
   ...visitSummaryShape,
   finalized_at: z.string().nullable(),
-  inferred_at: z.string().nullable(),
   trace_id: z.string().nullable(),
   classifier_version: z.string().nullable(),
   inference_version: z.string().nullable(),

@@ -88,6 +88,7 @@ class Action:
 
     # visits (M2)
     IP_DECRYPTED: Final = "visit.ip_decrypted"  # F12.AC4
+    VISIT_EXPORTED: Final = "visit.exported"  # one visit's data-subject export, F12.AC14
 
     # ground truth (M8, F4.AC15) -- owner-only, invariant 9; the truth, never coordinates
     GROUND_TRUTH_LABELLED: Final = "ground_truth.labelled"
@@ -108,6 +109,7 @@ class Action:
     BACKUP_REQUESTED: Final = "backup.requested"
     BACKUP_DOWNLOADED: Final = "backup.downloaded"  # the only off-VM path, F12.AC11
     RESTORE_CHECK_REQUESTED: Final = "backup.restore_check_requested"
+    BACKUP_ADOPTED: Final = "backup.adopted"  # after a bare-metal restore, ADR-0030
     GEO_DB_UPDATE_REQUESTED: Final = "geodb.update_requested"
     GEO_DB_TOGGLED: Final = "geodb.toggled"
 

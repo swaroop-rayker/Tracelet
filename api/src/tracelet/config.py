@@ -133,6 +133,11 @@ class Settings(BaseSettings):
     # Local hour (reporting_tz) for the nightly backup; the monthly restore check runs on
     # the first day of the month, an hour later. Off-peak for an Indian audience.
     backup_hour: int = Field(default=3, ge=0, le=23)
+    # Local hour (reporting_tz) in which a stale asn_profiles is rebuilt after a scheduled
+    # geo-database update. On the e2-micro the rebuild slows every request about tenfold
+    # for six or seven minutes (ERRORS E79), so it waits for the quiet night, after the
+    # retention purge and before the backup (SPEC section 11 row 34).
+    geodb_profiles_hour: int = Field(default=2, ge=0, le=23)
 
     # --- system health (F10) -----------------------------------------------
     # The host's /proc and /sys, mounted read-only (F10.AC15). Inside the container,
@@ -148,6 +153,18 @@ class Settings(BaseSettings):
     # fallback, on a kernel without pressure information, is the swap-in rate.
     shed_memory_pressure: float = Field(default=20.0, ge=0, le=100)
     shed_swapin_pages_per_s: int = Field(default=256, ge=1)
+    # A bounded redirect (ADR-0028, capture/overload.py). A worker is overloaded when its
+    # event loop lags this much (smoothed), or it holds more captures than this, or memory
+    # sheds; it then answers captures from memory and buffers their minimal rows, up to
+    # overload_buffer per worker. Otherwise a capture slower than capture_deadline_ms is
+    # answered from memory and finishes recording behind.
+    overload_lag_ms: int = Field(default=250, ge=20, le=10_000)
+    overload_inflight: int = Field(default=8, ge=1, le=1_000)
+    overload_buffer: int = Field(default=5_000, ge=0, le=100_000)
+    capture_deadline_ms: int = Field(default=1_000, ge=50, le=9_000)
+    # Redirect pages Caddy serves when the api cannot answer a capture (ADR-0029). The
+    # `fallback` volume: read-write here, read-only in Caddy at /srv/fallback.
+    fallback_dir: Path = Path("/data/fallback")
 
     # --- analytics (ADR-0016) ----------------------------------------------
     # Days and hours are bucketed in this zone. India is UTC+05:30, so UTC buckets
@@ -244,6 +261,15 @@ class Settings(BaseSettings):
             )
             raise ValueError(msg)
 
+        # Production refuses a development default rather than booting on it (M9,
+        # ADR-0026). A `change-me` database password works -- which is the danger --
+        # and a missing secret only fails later, on the first visit or sign-in.
+        if self.env == "production":
+            problems = self._production_problems()
+            if problems:
+                msg = "Refusing to start in production: " + "; ".join(problems) + "."
+                raise ValueError(msg)
+
         if self.db_pool_max < self.db_pool_min:
             msg = (
                 f"TRACELET_DB_POOL_MAX ({self.db_pool_max}) must be >= "
@@ -279,6 +305,21 @@ class Settings(BaseSettings):
             raise ValueError(msg)
 
         return self
+
+    def _production_problems(self) -> list[str]:
+        """Every development default still present, named by its variable."""
+        problems: list[str] = []
+        for name in ("session_secret", "pepper_stable", "pepper_rotating", "pepper_fp"):
+            secret: SecretStr | None = getattr(self, name)
+            if secret is None or not secret.get_secret_value():
+                problems.append(f"TRACELET_{name.upper()} is not set")
+        for name in ("database_url", "migrate_database_url", "maint_database_url"):
+            url: SecretStr | None = getattr(self, name)
+            if url is not None and "change-me" in url.get_secret_value():
+                problems.append(f"TRACELET_{name.upper()} still has a change-me password")
+        if self.site_address.split(":")[0] in {"localhost", "127.0.0.1"}:
+            problems.append("TRACELET_SITE_ADDRESS is a local address")
+        return problems
 
     def require(self, field: str, feature: str) -> str:
         """Return a milestone-gated secret, or explain precisely what is missing.

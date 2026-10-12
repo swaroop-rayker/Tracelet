@@ -18,12 +18,25 @@ const SHOWN = [
   ['country_code', 'country'],
 ] as const;
 
+export const PROCESSING = 'Processing…';
+
+/**
+ * Recorded but not yet located and classified: the inference job runs every few seconds,
+ * and a visit whose page never reported back waits for the sweeper first (about 90 s).
+ * Shown as "Processing…", never as "Location unknown" or "Unknown network", which would
+ * read as a finding (M9). A rate-limited visit is never inferred, so it is never pending.
+ */
+export function isProcessing(visit: VisitSummary): boolean {
+  return visit.inferred_at === null && visit.stage !== 'rate_limited';
+}
+
 /**
  * Where a visit was, as text: the best guess at every level -- the highest-confidence
  * value the engine found (ADR-0018). It always agrees with strict wherever strict emitted,
  * so a confirmed level reads the same either way; an unconfirmed one carries its confidence.
  */
 export function placeOf(visit: VisitSummary): Place {
+  if (isProcessing(visit)) return { text: PROCESSING, confidence: null, confirmed: false };
   const { strict, advisory, confidence } = visit.location;
   // Advisory first; strict only as a fallback for a visit inferred before advisory was
   // always populated.

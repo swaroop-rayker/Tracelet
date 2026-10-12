@@ -945,8 +945,15 @@ Every visit, newest first. Open one for its full derivation.
 
 - **Header:** breadcrumb "Visits / 01J9…X4TQ ⧉", then `h1` "Visit at 09:58, 2 Oct" with a class
   badge.
+- **Privacy actions** *(M9, E88)*, above the summary: **Reveal address** -- owner only (an
+  analyst sees it disabled with the reason, UI-17); shows the address once in mono with a copy
+  control and "Recorded in the audit log."; a purged address or the hourly limit is an Alert,
+  not an error -- and **Export this visit**, a download link to the JSON data-subject export
+  (F12.AC14). In the Visits drawer too, since both render in the shared body.
 - **Summary strip:** four KeyValue cells (Location with confidence, Device, Network,
-  Classification with scores).
+  Classification with scores). *(M9)* Until the visit is inferred (`inferred_at` null, not
+  rate-limited) Location, Class and an absent Network read **"Processing…"** -- here and in
+  the Visits list rows -- because "Location unknown" and "Unknown network" read as findings.
 - **Sections, not tabs:** Location per level, Derivation (every candidate), Classification
   signals, and Raw device and request fields (collapsed, as today). There is a sticky "On this
   page" index on the right at
@@ -1063,10 +1070,13 @@ error boundary renders an Alert with the trace id when one exists. No illustrati
 
 `/links` lists every tracking link; `/links/:slug` is one link's dashboard. *M7 (F10.AC6,
 SPEC §11 row 25) adds the writes to `/links`:* **[＋ New link]** in the header; a **•••
-menu** per row with Edit…, Make default, Archive, and **Delete permanently…**; archived links
+menu** per row with Edit…, **Clone…** *(M9: F1.AC9 had an API and no control; found by SC1)*,
+Make default, Archive, and **Delete permanently…**; archived links
 (Show archived) keep only Delete permanently…. **New** and **Edit** share one Dialog: label,
 slug (with the capture URL it gives), destination, active, interstitial (ms), asks for
-location, and the three alert priorities. **Delete permanently** is a danger Dialog that first
+location, and the three alert priorities. **Clone** is a small Dialog: the new slug (with its
+capture URL) and an optional label, saying that the copy keeps the configuration and starts
+with no visits while the old address keeps working. **Delete permanently** is a danger Dialog that first
 loads the preview -- "Deletes demo-ig, 164 visits and their 812 location candidates, 37 days
 of figures; geofence *Campus* will be switched off" -- and is enabled only when the slug is
 typed (UI-16). Every write is the owner's; an analyst sees the actions disabled with the
@@ -1649,7 +1659,9 @@ Add note (Dialog): When [2026-10-06 19:30] · Note [______] (200) · Link [All l
 
 **Saved views.** The filter bar gets **Save view** (bookmark icon) beside the copy-link button:
 a Dialog asks a name and saves the current page and its query. The sidebar shows a **Saved
-views** group under Analytics (collapsed past 8, "Show all"), each a plain link; the command
+views** group under Analytics (collapsed past 8, "Show all"), each a plain link, ending in
+**Manage saved views…** *(M9: the owner looked for delete here)*, which opens the card below
+scrolled into view (`/settings/preferences#saved-views`); the command
 palette lists them under "Saved views". Settings › Preferences gets a **Saved views** card: a
 DataTable of name, page and Rename / Delete. A view whose link no longer exists still opens:
 the page explains the missing link, as an unknown slug does.

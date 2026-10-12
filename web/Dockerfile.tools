@@ -30,6 +30,11 @@ RUN if [ -f package-lock.json ]; then NODE_EXTRA_CA_CERTS=/tmp/npm-ca.pem npm ci
     else NODE_EXTRA_CA_CERTS=/tmp/npm-ca.pem npm install; fi
 
 # Make the toolchain resolvable from any working directory, including /work/web.
+# NODE_PATH serves CommonJS only. ES modules (vite.config.ts, eslint.config.js) and tsc's
+# type lookup resolve by walking up from the file through node_modules directories,
+# /work/web -> /work -> /, so /node_modules must lead here: in a fresh clone there is no
+# web/node_modules to find (ERRORS E86).
+RUN ln -s /toolchain/node_modules /node_modules
 ENV NODE_PATH=/toolchain/node_modules
 ENV PATH="/toolchain/node_modules/.bin:${PATH}"
 

@@ -5,7 +5,8 @@
  * The reporting zone -- where daily buckets are cut -- is the server's and is read-only here.
  */
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { useLocation } from 'react-router';
 import { updatePreferences } from '@/api/auth';
 import type { ApiError } from '@/api/client';
 import { useThemeSwitch } from '@/components/shell/useThemeSwitch';
@@ -52,6 +53,13 @@ export default function PreferencesPage(): React.JSX.Element {
   const { switchTo, error: themeError } = useThemeSwitch();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<ApiError | null>(null);
+  // The sidebar's "Manage saved views" lands here (M9): bring the card into view.
+  const { hash } = useLocation();
+  useEffect(() => {
+    if (hash === '#saved-views') {
+      document.getElementById('saved-views')?.scrollIntoView({ block: 'start' });
+    }
+  }, [hash]);
 
   const save = (change: Parameters<typeof updatePreferences>[1], message: string): void => {
     setBusy(true);
@@ -134,7 +142,9 @@ export default function PreferencesPage(): React.JSX.Element {
         </SettingRow>
       </Card>
 
-      <SavedViewsCard />
+      <div id="saved-views">
+        <SavedViewsCard />
+      </div>
 
       {busy && <p className="t-meta m-0">Saving…</p>}
       {error !== null && <ErrorNotice error={error} />}

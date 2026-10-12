@@ -8,6 +8,7 @@ once" is here rather than in the unit suite.
 from __future__ import annotations
 
 import asyncio
+import base64
 import time
 
 import pytest
@@ -16,8 +17,8 @@ from sqlalchemy import text
 from sqlalchemy.exc import IntegrityError
 
 from tests.integration import capture_helpers as ch
+from tracelet.capture import carrier, service
 from tracelet.capture import nonce as nonces
-from tracelet.capture import service
 from tracelet.capture.models import Classification, ConsentState, Visit, VisitStage
 from tracelet.capture.schemas import MAX_ENRICHMENT_BYTES
 from tracelet.config import Settings
@@ -213,6 +214,62 @@ async def test_another_address_in_the_same_prefix_is_accepted(db_client: AsyncCl
     enrichment."""
     _, token = await _captured(db_client, peer="49.207.12.34")
     assert await _enrich(db_client, token, peer="49.207.12.200") == 204
+
+
+# ADR-0032: a carrier's CGNAT can send the follow-up from another /24. CI has no ASN
+# databases, so the carrier lookup is a fixed map: two Jio pools, one Airtel address, and a
+# broadband network that is nobody's carrier.
+CARRIERS = {"49.36.12.0": 55836, "157.48.201.9": 55836, "106.205.3.4": 45609}
+
+
+@pytest.fixture
+def _carriers(monkeypatch: pytest.MonkeyPatch) -> None:
+    def fixed(settings: Settings, ip: str | None) -> int | None:
+        del settings
+        return CARRIERS.get(ip or "")
+
+    monkeypatch.setattr(carrier, "carrier_of", fixed)
+
+
+@pytest.mark.usefixtures("_carriers")
+async def test_the_same_mobile_carrier_from_another_prefix_is_accepted(
+    db_client: AsyncClient,
+) -> None:
+    slug, token = await _captured(db_client, peer="49.36.12.7")
+    assert await _enrich(db_client, token, peer="157.48.201.9") == 204
+    visit = await _visit_for(slug)
+    assert visit.stage is VisitStage.ENRICHED
+    marks = [s for s in visit.signals or [] if s["rule_id"] == "capture.enrichment_other_prefix"]
+    assert marks and marks[0]["detail"] == {"asn": 55836}
+    # Still single use.
+    assert await _enrich(db_client, token, peer="157.48.201.9") == 410
+
+
+@pytest.mark.usefixtures("_carriers")
+async def test_another_carrier_from_another_prefix_is_refused(db_client: AsyncClient) -> None:
+    _, token = await _captured(db_client, peer="49.36.12.7")
+    assert await _enrich(db_client, token, peer="106.205.3.4") == 410
+
+
+@pytest.mark.usefixtures("_carriers")
+async def test_broadband_from_another_prefix_is_still_refused(db_client: AsyncClient) -> None:
+    """The M2 binding is unchanged where no carrier explains the move."""
+    _, token = await _captured(db_client, peer=ch.VISITOR_IP)
+    assert await _enrich(db_client, token, peer="203.0.113.50") == 410
+
+
+@pytest.mark.usefixtures("_carriers")
+async def test_a_token_for_another_visit_does_not_ride_the_carrier_rule(
+    db_client: AsyncClient,
+) -> None:
+    """The MAC is checked against the named visit's own prefix: a token edited to name
+    another visit on the same carrier fails it."""
+    _, mine = await _captured(db_client, peer="49.36.12.7")
+    _, theirs = await _captured(db_client, peer="49.36.12.7")
+    raw = base64.urlsafe_b64decode(mine + "=" * (-len(mine) % 4))
+    other = base64.urlsafe_b64decode(theirs + "=" * (-len(theirs) % 4))
+    forged = base64.urlsafe_b64encode(other[:16] + raw[16:]).decode().rstrip("=")
+    assert await _enrich(db_client, forged, peer="157.48.201.9") == 410
 
 
 async def test_an_expired_nonce_is_refused(

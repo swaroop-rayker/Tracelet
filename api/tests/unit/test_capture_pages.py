@@ -298,3 +298,15 @@ def test_the_page_declares_an_empty_icon_so_no_favicon_is_fetched() -> None:
     response = _page()
     assert '<link rel="icon" href="data:,">' in _body(response)
     assert "img-src data:;" in response.headers["content-security-policy"]
+
+
+def test_every_server_rendered_page_declares_the_empty_icon() -> None:
+    """E63 fixed the capture page alone; the 404, privacy and unavailable pages still let
+    Firefox fetch /favicon.ico against their CSP, found live in M9 (ERRORS E81). Every
+    template, including any added later, must declare the inline icon."""
+    from pathlib import Path  # noqa: PLC0415 - local to this structural check
+
+    templates = sorted((Path(pages.__file__).parent / "templates").glob("*.html"))
+    assert templates, "no capture templates found"
+    missing = [t.name for t in templates if '<link rel="icon" href="data:,">' not in t.read_text()]
+    assert missing == []

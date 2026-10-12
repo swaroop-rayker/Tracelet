@@ -1,6 +1,6 @@
 /**
  * Link writes from the dashboard (docs/API.md §6). Owner-only and audited on the server:
- * create, edit, archive, make default, and a permanent delete after its preview (F10.AC6,
+ * create, edit, clone, archive, make default, and a permanent delete after its preview (F10.AC6,
  * SPEC §11 row 25); and the one-click "asks for location" switch (F1.AC11, ADR-0021).
  */
 
@@ -102,6 +102,20 @@ export function updateLink(
   return request(`/api/v1/links/${encodeURIComponent(linkId)}`, {
     method: 'PATCH',
     body: changes,
+    csrfToken,
+    parse: parseLink,
+  });
+}
+
+/** A copy under a new slug, keeping the configuration; the original is left as it is (F1.AC9). */
+export function cloneLink(
+  csrfToken: string,
+  linkId: string,
+  body: { readonly slug: string; readonly label?: string },
+): Promise<ApiResult<LinkFull>> {
+  return request(`/api/v1/links/${encodeURIComponent(linkId)}/clone`, {
+    method: 'POST',
+    body,
     csrfToken,
     parse: parseLink,
   });

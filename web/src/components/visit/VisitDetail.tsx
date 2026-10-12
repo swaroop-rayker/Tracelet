@@ -11,14 +11,25 @@
  *   evidence, so `bot_score` and `spoof_score` can be re-added by hand.
  *
  * Sections, not tabs (DESIGN §10.3): an investigator wants Ctrl-F across everything.
+ *
+ * Above them, the visit's two privacy actions (M9): **Reveal address**, the owner's audited
+ * decryption (F12.AC4), and **Export this visit**, everything stored about it as a file for
+ * the person it describes (F12.AC14). Both are audited on the server.
  */
 
+import { useState } from 'react';
 import { Link } from 'react-router';
+import type { ApiError } from '@/api/client';
 import { useApi } from '@/api/query';
 import { visitDetailSchema, type VisitDetail } from '@/api/schemas';
+import { revealIp, visitExportHref, type DecryptedIp } from '@/api/visits';
 import {
+  Alert,
   Badge,
+  Button,
+  ButtonLink,
   Card,
+  CopyButton,
   DataTable,
   EmptyState,
   ErrorNotice,
@@ -28,7 +39,8 @@ import {
 } from '@/components/ui';
 import { countryName, label, pct, when } from '@/format';
 import { GroundTruthCard } from '@/components/groundtruth/GroundTruthCard';
-import { placeOf } from '@/visits';
+import { useSession } from '@/session';
+import { isProcessing, PROCESSING, placeOf } from '@/visits';
 
 const LEVELS = ['country', 'admin1', 'admin2', 'city'] as const;
 
@@ -57,6 +69,66 @@ function evidence(value: unknown): string {
   if (value === null || value === undefined) return '—';
   if (typeof value === 'object' && Object.keys(value).length === 0) return '—';
   return JSON.stringify(value);
+}
+
+/** Reveal address (owner, audited, 10 an hour) and Export this visit (any admin, audited). */
+function PrivacyActions({ visitId }: { readonly visitId: string }): React.JSX.Element {
+  const { me } = useSession();
+  const [busy, setBusy] = useState(false);
+  const [shown, setShown] = useState<DecryptedIp | null>(null);
+  const [error, setError] = useState<ApiError | null>(null);
+
+  async function reveal(): Promise<void> {
+    setBusy(true);
+    setError(null);
+    const result = await revealIp(visitId);
+    setBusy(false);
+    if (result.ok) setShown(result.data);
+    else setError(result.error);
+  }
+
+  return (
+    <div className="stack-sm">
+      <div className="row-actions">
+        {shown === null ? (
+          <Button
+            icon="Show"
+            size="sm"
+            busy={busy}
+            busyLabel="Decrypting…"
+            disabledReason={me.role === 'owner' ? null : 'Only the owner can read an address.'}
+            onClick={() => void reveal()}
+          >
+            Reveal address
+          </Button>
+        ) : (
+          <span className="row-actions">
+            <span className="t-mono">{shown.ip}</span>
+            <CopyButton value={shown.ip} label="Copy the address" />
+            <span className="t-meta">Recorded in the audit log.</span>
+          </span>
+        )}
+        <ButtonLink href={visitExportHref(visitId)} download icon="Download" size="sm">
+          Export this visit
+        </ButtonLink>
+      </div>
+      {error !== null &&
+        (error.code === 'IP_PURGED' ? (
+          <Alert tone="info" title="Address deleted">
+            This address was deleted after its retention period; only its network block is kept.
+          </Alert>
+        ) : error.code === 'RATE_LIMITED' ? (
+          <Alert tone="warn" title="Hourly limit reached">
+            At most 10 addresses an hour can be read.
+            {error.retryAfter === null
+              ? ''
+              : ` Try again in ${String(Math.ceil(error.retryAfter / 60))} min.`}
+          </Alert>
+        ) : (
+          <ErrorNotice error={error} />
+        ))}
+    </div>
+  );
 }
 
 /** Fetches and renders one visit; loading, error and data states (F9.AC18). */
@@ -89,25 +161,33 @@ function Detail({
     (s) => s.category === 'absence' && s.rule_id !== 'inference.source_absent',
   );
   const place = placeOf(visit);
+  const processing = isProcessing(visit);
   const sum = (category: string): number =>
     scoring.filter((s) => s.category === category).reduce((n, s) => n + s.weight, 0);
 
   return (
     <div className="visit-detail">
+      <PrivacyActions visitId={visit.id} />
       <ul className="summary-cells" aria-label="Summary">
         <li>
           <span className="t-meta">Location</span>
           <strong>{place.text}</strong>
           <span className="t-meta">
-            {place.confidence === null
-              ? 'No source placed it'
-              : `${place.confirmed ? 'Confirmed' : 'Best guess'}, ${pct(place.confidence)} confidence`}
+            {processing
+              ? 'Locating and classifying; usually seconds, up to about 2 minutes'
+              : place.confidence === null
+                ? 'No source placed it'
+                : `${place.confirmed ? 'Confirmed' : 'Best guess'}, ${pct(place.confidence)} confidence`}
           </span>
         </li>
         <li>
           <span className="t-meta">Class</span>
           <strong>
-            <Badge dot={visit.classification}>{label(visit.classification)}</Badge>
+            {processing ? (
+              <Badge>{PROCESSING}</Badge>
+            ) : (
+              <Badge dot={visit.classification}>{label(visit.classification)}</Badge>
+            )}
           </strong>
           <span className="t-meta">
             bot {visit.bot_score ?? '—'} · spoof {visit.spoof_score ?? '—'}
@@ -126,7 +206,7 @@ function Detail({
         </li>
         <li>
           <span className="t-meta">Network</span>
-          <strong>{visit.network.asn_org ?? 'Unknown network'}</strong>
+          <strong>{visit.network.asn_org ?? (processing ? PROCESSING : 'Unknown network')}</strong>
           <span className="t-meta">
             {visit.network.asn === null ? 'unknown ASN' : `AS${String(visit.network.asn)}`} ·{' '}
             {label(visit.network.connection_class)}

@@ -29,7 +29,8 @@ then open the PR (CLAUDE.md section 2).
 | M7.6 | Sources, returning visitors, carriers, capture quality (owner-approved 2026-10-08; Phase C without C2; SPEC §11 row 28) | M | **[x] done** — merged 2026-10-08 (#11); 8 of 8 items; referrers cut to their origin (stored rows too); CSP 0 in three engines; bugs E74–E75 |
 | M7.7 | Annotations, saved views, compare, link builder (owner-approved 2026-10-08; Phase D; SPEC §11 row 29, ADR-0023) | M | **[x] done** — merged 2026-10-08 (#12); 8 of 8 items (the owner's phone scan of a link-builder QR code, 2026-10-09, closed the last); CSP 0 in three engines |
 | M8 | Accuracy hardening and ground truth | M | **[x] done** — merged to `main` 2026-10-09 (#13); 5 of 7 items, S10 not applicable; **carried forward as ongoing labelling** (no code left): 30+ labels across the networks (8 so far, Hubballi: Jio mobile, Airtel Wi-Fi, two with a VPN) and per-source down-weighting, which waits for those labels; F4.AC13 amended as interim targets until about 30 labels (SPEC §11 row 32); accuracy by replay (ADR-0024), development tunnel trust (ADR-0025, row 31); the real-label CI gate passes; CSP 0 in three engines; bugs E76–E77 |
-| M9 | Production hardening and deploy | M | [ ] |
+| M9 | Production hardening and deploy | M | **[x] done** — on the free subdomain (SPEC §11 row 33); every item ticked: load test and drills on the e2-micro, live CSP in three engines, the restore drill (production wiped and rebuilt from a download and the owner's note, every `ip_enc` readable), SC1 walked on production, SC2 from a fresh clone, SC4; ADRs 0026–0032, SPEC rows 35–38, bugs E78–E89, `docs/RUNBOOK.md`; residual R30; "Processing…" for visits not yet inferred; "Manage saved views" in the sidebar. Production runs `4508ed862036` |
+| M9.1 | Purchased domain behind Cloudflare (SPEC §11 row 33) | S | [ ] — waits for a domain |
 
 **Spikes (run during M0/M1, before the milestones that depend on them):**
 
@@ -431,9 +432,15 @@ F12.AC1–F12.AC4, F11.AC1–F11.AC4, F11.AC8, F11.AC10, F13.AC3, F13.AC6, F15.A
 - ~~S10 latency triangulation, implemented and flag-off~~ — **dropped** (SPEC §11 row 12)
 
 **Done checklist**
-- [ ] A real visit shows the full derivation table: every source, weight, accepted or
+- [x] A real visit shows the full derivation table: every source, weight, accepted or
       suppressed with reason, latency
-      — ***deferred to M9** (owner decision 2026-09-29).* Locally the visitor is the Docker
+      — *direct path: done in M9, 2026-10-11 -- the owner's phone visits on mobile data and Wi-Fi
+      (M9's "Real visits on the direct path" item): five sources as candidates with weights, the
+      rest as `inference.source_absent` with status, reason and latency (rDNS: 1.2 s timeout on
+      mobile, 41 ms "no PTR" on Wi-Fi), read in the visit's detail on production. The
+      Cloudflare-path visit is M9.1's (S8's colo, SPEC §11 row 33).*
+      — ***deferred to M9** (owner decision 2026-09-29); the Cloudflare-path visit moved on
+      to **M9.1** (SPEC §11 row 33), the direct-path one stays in M9.* Locally the visitor is the Docker
       gateway, because `CF-Connecting-IP` is trusted only from a verified Cloudflare peer
       (F13.AC6) and a quick tunnel's peer is local; a development-only trust setting was
       declined. The same pipeline has run end to end on a real address inside the
@@ -1096,42 +1103,182 @@ F8.AC12 (amended), SPEC §11 row 29, ADR-0023. Branch `feat/m7.7-workflow`, stac
 
 ## M9 — Production hardening and deploy · size M
 
-**Goal:** SC1 and SC2 on the real URL.
-**F/AC-IDs:** F13.AC1–F13.AC8, F14.AC2, F14.AC3, NFR1.AC1–NFR1.AC5, NFR2, NFR6, SC1, SC2
+**Goal:** SC1 and SC2 on the real URL — **on the free-subdomain path** (SPEC §11 row 33).
+The Cloudflare-path checks are M9.1's.
+**F/AC-IDs:** F13.AC1–F13.AC7 (AC5 and AC6 on the direct path), F13.AC8's structural items,
+F14.AC2, F14.AC3, NFR1.AC1–NFR1.AC5, NFR2 (AC2–AC3 at the direct-origin figures), NFR6, SC1, SC2
 
 **Scope**
-- Domain, DNS, Cloudflare setup; `trusted_proxies`; verify `CF-Ray` and `CF-IPCountry`
+- Host baseline on the e2-micro (ADR-0026): logs capped, Ops Agent stopped, firewall 22/80/443,
+  the DuckDNS name following the ephemeral IP
+- Release images built from a clean commit with no local root, pushed to Docker Hub; the VM
+  pulls (ADR-0026); `tl release`, `tl deploy`, `docker-compose.prod.yml`
+- Fresh production secrets, with the owner's off-VM copy; Telegram bot token rotated first
 - Free-subdomain mode verified as the documented degraded path
-- Security headers and CSP verified by test, not inspection
-- **Browser-trust checklist** (F13.AC8): Search Console, Safe Browsing review request,
-  no shortener in the chain, reachable privacy page
-- Load test at NFR1 with headroom; record results
+- Security headers and CSP verified by test against the deployed URL, not inspection
+- F13.AC8's structural items: no shortener in the chain, reachable `/privacy`; the
+  subdomain's Safe Browsing status recorded in R8
+- Load test at NFR1 with headroom, k6 from the owner's PC (ADR-0027); results recorded
 - Degradation drills: DB down, Telegram down, geo-DB update failure, external API timeout,
   disk near-full, swap pressure
-- **One-time manual restore drill onto a fresh VM, including the out-of-band secrets**
+- **One-time manual restore drill: production wiped and rebuilt from a downloaded backup
+  and the out-of-band secrets alone** (owner decision 2026-10-10), before labelling starts
 - Operations runbook; backup-download reminder
 - Final doc reconciliation pass
+- *Added by the SC1 walk (owner-approved 2026-10-11):* Clone on the Links page (E87); Reveal
+  address and the per-visit data-subject export, F12.AC14 (E88); one visitor per phone on
+  mobile data (ADR-0031); the enrichment nonce across a carrier's pool (ADR-0032, SPEC §11
+  row 38, E89)
 
 **Done checklist**
-- [ ] All in-scope flows work end to end on the deployed URL (**SC1**)
-- [ ] Fresh clone to running in 5 commands (**SC2**)
-- [ ] CI green (**SC2**)
-- [ ] Load test: 10 concurrent sustained, 500/day, 2 admins — NFR1 met, results recorded
-- [ ] NFR2 p95 targets measured on production hardware
-- [ ] Steady-state RSS at or below 700 MB; headroom confirmed (NFR6.AC1)
-- [ ] Every degradation drill leaves **the redirect working**
-- [ ] **Restore drill onto a fresh VM succeeds, with `ip_enc` readable** — proving the
-      out-of-band secret backup actually works (ADR-0014)
-- [ ] **Real visits through the Cloudflare path show the full derivation** (deferred from
-      M3, owner decision 2026-09-29): one on mobile data, one on Wi-Fi; every source
-      present in `candidates[]` or `inference.source_absent`, S8 colo populated
-- [ ] **The production resolver answers PTR** (ERRORS.md E27): S6's canary reports healthy
+- [x] All in-scope flows work end to end on the deployed URL (**SC1**)
+      — *2026-10-11/12 on https://tracelet.duckdns.org, by the owner through the dashboard
+      (the owner's actions confirmed in the audit log) and by server-side checks. **F1**: create,
+      edit, make default, clone, deactivate (its address answers "not available"), archive,
+      delete with visits, link builder and QR. **F2-F5**: real visits on mobile data and Wi-Fi
+      with the full derivation (above); bots never notify. **F6**: a region geofence, the
+      coordinate test, GeoJSON export; a phone visit *inside* it. **F7**: the high-priority
+      inside alert (the same-day upgrade), the test message, one alert per visitor per day on
+      mobile after ADR-0031. **F8**: TOTP sign-in after the restore, sign-out and in.
+      **F9**: every dashboard page, CSV export, an annotation, a saved view. **F10**: System
+      Health, an S9 switch off and on (`inference.settings_changed` v2, v3), backups and
+      Verify now. **F11**: the load test's limits run. **F12**: Reveal address (audited, the
+      restored key), Export this visit (audited, no address), retention preview and purge; no
+      stored field wider than a /24 or /48, no public address in the api log. **F13**:
+      `tl live-check`. **F14**: release and deploy, SC2. **F15**: the drills. The walk found
+      four gaps, all fixed and deployed in M9: E87, E88 (F12.AC14 had never been built), E89
+      and the mobile identity of ADR-0031. Residual: R30 (enrichment on Indian mobile data).*
+- [x] Fresh clone to running in 5 commands (**SC2**)
+      — *2026-10-11, `f82166c`, on the owner's PC with the development stack down and its own
+      project name, so nothing was shared: `git clone`, `cp .env.example .env`, `tl bootstrap`
+      (owner created, key generated), `tl up` (three containers healthy), `tl verify`: **all 14
+      checks passed** (756 unit, 558 integration, 142 dashboard tests), 15 minutes 25 seconds.
+      Only machine preparation outside the five: the PC's antivirus root copied into
+      `api/certs/` (E21). The first two runs found E85 (no key: Docker mounted a directory)
+      and E86 (the web toolchain resolved only through a stale `node_modules`).*
+- [x] CI green (**SC2**)
+      — *2026-10-12, run 38246030855 on `6f27def`: all 14 jobs green, integration against a
+      real PostgreSQL + PostGIS service (commitlint runs on the PR). Locally `tl verify`: 763
+      unit, 566 integration, 142 dashboard tests.*
+- [x] Release images carry no local root: the check in `tl release` passes (ADR-0026)
+      — *every M9 release, both images, last `68d511cec87b` (2026-10-11): no extra trust anchor,
+      and no file anywhere in the image holds a body line of the PC's antivirus root. The
+      check as built is recorded in ADR-0026 item 2.*
+- [x] Load test: 10 concurrent sustained, 500/day, 2 admins — NFR1 met, results recorded
+      — *2026-10-11, `docs/LOADTEST.md`. NFR1.AC1 as clarified (SPEC §11 row 35): 910 of 910
+      visitors sent on with no error, the owner working the dashboard on two devices. The
+      flood (NFR1.AC5) sends on 11 799 of 11 799, after ADR-0028 and ADR-0029; the first run
+      had stranded 500 (ERRORS E82). Limits engage and still send every visitor on.*
+- [x] NFR2 p95 targets measured on production hardware (AC2–AC3 at the direct-origin figures)
+      — *measured on the e2-micro and restated by the owner (SPEC §11 row 37): a lone capture
+      p95 23.6 ms; within bursts 475 ms; time to first byte p95 1 163 ms from India; dashboard
+      API p95 857 ms. The CPU (~0.8 vCPU) is the constraint. AC3 is not separately measured.*
+- [x] Steady-state RSS at or below 700 MB; headroom confirmed (NFR6.AC1)
+      — *restated (row 37): at NFR1 load 722 MB average, 752 MB peak, 217 MB minimum
+      available, against at most 760 MB with at least 200 MB available. Reached by one worker,
+      no swap for the redirect path and the OS-config agent off (ADR-0028 amendment).*
+- [x] Every degradation drill leaves **the redirect working**
+      — *2026-10-11 on production, `loadtest/drills.sh`, automation user agent (no alerts):
+      database down (503 page carrying the destination, `/readyz` not ready, back in 1 s);
+      Telegram down (test send fails cleanly, outbox clear); geo-database update failing (the
+      install fails, the previous version keeps serving); `ipwho.is` blackholed (sent on; the
+      lookup itself was not exercised on the box, the visits' prefix being private or cached,
+      so S9's breaker rests on its integration tests); disk with 200 MB left and completely
+      full (sent on both times, critical banner); swap and memory pressure (the load test:
+      shedding and overload engaged, every visitor sent on); the api stopped (Caddy's fallback
+      page in 1.4 s, ADR-0029). A first run reported the full disk as a failure: the probe's
+      own files could not be written; the script now keeps them in memory.*
+- [x] **Restore drill succeeds from a downloaded backup and the off-VM secrets alone, with
+      `ip_enc` readable** — proving the out-of-band secret backup actually works (ADR-0014)
+      — *2026-10-11, owner-confirmed wipe of production: `docker compose down -v` (every
+      volume, Let's Encrypt included), `/opt/tracelet` removed, every image pruned; host
+      baseline and DuckDNS kept. Rebuilt from a fresh clone, the owner's note (`.env`,
+      `ip_key`) and the dashboard download (SHA-256 equal to its row) with `tl restore`
+      (ADR-0030, new) then `tl deploy` of `62b27938d615`. Proven: all 33 tables' counts equal
+      the dump's own record taken before the wipe (`visits` 43 207); every owner and
+      privilege equal to the pre-wipe fingerprint (`audit_log` still append-only); **9 504 of
+      9 504 `ip_enc` decrypt with the restored key and lie inside their own `ip_prefix`**;
+      the owner signed in with their password and TOTP (sealed with the same key); "Verify
+      now" passed on the adopted backup; Telegram alerts arrived; Let's Encrypt re-issued,
+      fallback pages and all nine geo databases came back by themselves; `tl live-check`
+      passed. Found and fixed: E83 (readiness asked over the socket; the first restore was cut
+      off, all or nothing) and E84 (a heading line in the note's `.env`; two values stale).*
+- [x] **Real visits on the direct path show the full derivation:** one on mobile data, one
+      on Wi-Fi; every source present in `candidates[]` or `inference.source_absent` (S8
+      absent, as the direct path must); `TRACELET_DEV_TRUSTED_TUNNEL` unset
+      — *2026-10-11, link `phn-test` (asks for location), the owner's Android Chrome: four
+      rows on mobile data, one on Wi-Fi. Every row: GeoLite2, IP2Location, IPinfo, DB-IP and
+      S9 as candidates (timezone too when enriched); GPS, ASN-org, `cf_colo` (S8) and rDNS
+      absent with a reason. State Karnataka on all five (strict on the three mobile rows that
+      cleared the threshold). `TRACELET_DEV_TRUSTED_TUNNEL` is not in the production `.env`.
+      Seen: three of four mobile rows were never enriched and were finalised by the sweeper
+      (~100 s later, then alerted); one tap made two rows because Chrome abandoned its first
+      request (499) and re-sent it.*
+- [x] **The production resolver answers PTR** (ERRORS.md E27): S6's canary reports healthy
       on the GCP host, and a real visit's `rdns_ptr` is populated where one exists
-- [ ] Safe Browsing review submitted; outcome recorded in RISKS R8 **whatever it is**
-- [ ] Every doc reconciled with the deployed system
-- [ ] **SC4**: every ADR still accurately describes what was built
+      — *2026-10-11: `resolver_answers_ptr()` in the production image is true (8.8.8.8 →
+      `dns.google` through GCP's metadata resolver), and 16 visits from the owner's home
+      network (the load test) carry `rdns_ptr`. The phone visits (2026-10-11): on Wi-Fi the
+      resolver answered "no PTR record" in 41 ms; on mobile data every lookup reached S6's
+      1.2 s timeout and was recorded as unavailable, not as "no record".*
+- [x] CSP and security headers pass by test against the deployed URL, three engines
+      — *2026-10-10, `adf6e80`, no sign-in and no visit (production: 0 visits, 0 links before
+      and after). Headers on `/`, `/login`, a hashed asset, `/privacy` (fresh nonce per
+      request), an unknown slug (404, no redirect, nothing echoed), two API errors (Problem
+      Details, ULID `trace_id`, no internals), `/healthz`; http → 308 https. Chromium, Firefox
+      and WebKit load `/login`, `/privacy` and the 404 page with 0 violations; injected inline
+      style, style attribute, inline script and third-party image are each blocked and
+      reported, and the script never runs. Let's Encrypt certificate and HTTP/2 checked from
+      the VM (the PC's antivirus downgrades to HTTP/1.1; headers otherwise identical). Found
+      and fixed E81. Not testable this way: `eval`, because Playwright's evaluate is
+      debugger code, exempt from CSP; the policies carry no `'unsafe-eval'`.*
+- [x] No shortener in the chain; `/privacy` reachable; the subdomain's Safe Browsing status
+      recorded in RISKS R8
+      — *2026-10-11: links are `https://tracelet.duckdns.org/r/<slug>`, answered directly
+      (no third-party hop); `/privacy` passes the live check in three engines; Safe Browsing:
+      the subdomain "No available data", the parent "Check a specific URL" (R8).*
+- [x] Every doc reconciled with the deployed system
+      — *2026-10-11: `docs/RUNBOOK.md` (new; every procedure in it done on the box); the
+      compose header and ARCHITECTURE §6 (one worker, the measured figures), §6.2, §9 layout
+      and the diagram; KICKOFF §2 and §4 (the release host, the generated key, E85);
+      `.env.example` and compose point operators at the runbook, not `docs/private/`;
+      DATA_MODEL §8.8 (adoption); RISKS R6, R10, R11; CLAUDE.md's table names the runbook.*
+- [x] **SC4**: every ADR still accurately describes what was built
+      — *2026-10-11, all 30 ADRs: each one a later decision changed now says so in its status
+      (0001 and 0002: one worker; 0012: its two M9 amendments and ADR-0026; 0014 and 0022:
+      ADR-0030; 0028: ADR-0029), joining those already marked (0003, 0005, 0009, 0010,
+      0016). Two descriptions corrected to what was built: ADR-0026's release check, and
+      ADR-0029's 1 s dial timeout. Each ADR has Context, Decision, Alternatives,
+      Consequences and Status.*
 
 ---
+
+## M9.1 — Purchased domain behind Cloudflare · size S
+
+**Goal:** the supported path (ADR-0012), and the checks the free subdomain cannot make
+(SPEC §11 row 33). Waits for the owner to buy a domain.
+**F/AC-IDs:** F13.AC5 (purchased domain, proxy on), F13.AC6 (real edge), F13.AC8, NFR2.AC2–AC3
+(Cloudflare figures)
+
+**Scope**
+- Domain on Cloudflare (nameservers delegated), proxy on, TLS Full (strict);
+  `TRACELET_BEHIND_CLOUDFLARE=true`; the origin reachable only from Cloudflare's ranges
+- Caddy serves the purchased domain and the DuckDNS name together until links on the old
+  host age out
+- The browser-trust checklist (F13.AC8) on the purchased domain
+
+**Done checklist**
+- [ ] `CF-Connecting-IP` believed only from a verified Cloudflare peer, tested on the real
+      edge with a forged header (F13.AC6)
+- [ ] **Real visits through the Cloudflare path show the full derivation** (deferred from
+      M3, owner decision 2026-09-29): one on mobile data, one on Wi-Fi; every source present
+      in `candidates[]` or `inference.source_absent`, **S8 colo populated**; `CF-IPCountry`
+      voting
+- [ ] NFR2.AC2–AC3 measured at the Cloudflare figures (about 300 ms TTFB, 1.0 s to
+      destination)
+- [ ] Search Console registered; Safe Browsing review submitted; outcome recorded in RISKS R8
+      **whatever it is**
+- [ ] Docs reconciled (ADR-0012's two paths, the runbook's DNS section)
 
 ## Definition of done — applies to every milestone
 

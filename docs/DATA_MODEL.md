@@ -403,7 +403,7 @@ evidence for the visitor's address. Without this, S6 would be a plaintext-IP col
 
 | Column | Type | Notes |
 |---|---|---|
-| `visitor_id` | `bytea` NULL | HMAC, **stable** pepper. New-vs-returning |
+| `visitor_id` | `bytea` NULL | HMAC, **stable** pepper. New-vs-returning. Over the canonical fingerprint and the network part: the /24 or /48, or **the carrier's ASN for an enriched visit on a mobile network** (ADR-0031, label `visitor.v2`); a server-only mobile visit within 60 s of an enriched one from the same carrier and browser takes that visit's value (`identity.same_tap`) |
 | `session_fp` | `bytea` NULL | HMAC, **rotating** pepper. Limits long-term linkability |
 | `fingerprint_id` | `bytea` NULL | Canonical fingerprint hash, for collision detection — F5.AC7 |
 
@@ -555,7 +555,9 @@ characters, and is SQL `NULL` (not JSON `null`) when none did (ERRORS E74).
    F12.AC2.
 8. `stage='rate_limited'` rows carry no client columns and no inference; they exist to
    make shedding visible — F11.AC3. They keep `ip_prefix`, because the network is what
-   was limited, and nothing else about the address. Finalised at birth.
+   was limited, and nothing else about the address. Finalised at birth. *(M9, ADR-0028:)* a
+   row shed by an overloaded worker is kept in memory and inserted later in a batch, with
+   `occurred_at` and `finalized_at` set to the visit's arrival rather than the insert time.
 9. **`(stage = 'server') = (finalized_at IS NULL)`** — `CHECK`, added in M2. `server` means
    "awaiting enrichment or the sweeper" and nothing else. The sweeper's partial index and
    its `UPDATE` both key on `stage = 'server'`; this makes it impossible for them to
@@ -774,7 +776,11 @@ All of section 8 is in the **must never be lost** set (F12.AC12, NFR5.AC3).
 `is_registry_artifact_source boolean`, `is_mobile boolean`, `is_hosting boolean`,
 `is_cgnat boolean`, `computed_at`, `source_db_versions jsonb`.
 
-**Recomputed after every geo-database update.** A high `modal_share` is the signature of
+**Recomputed after every location or ASN database update:** at once after a manual update,
+and in the owner's quiet hour after a scheduled one (SPEC §11 row 34; `TRACELET_GEODB_PROFILES_HOUR`,
+02:00 India time). Until then the table is stale, which `source_db_versions` shows: a row
+built from other versions than those installed is what the quiet-hour job looks for.
+A high `modal_share` is the signature of
 a registry artifact: it means the database has collapsed a whole ISP onto one point.
 That is exactly the Bangalore-recorded-as-Faridabad failure — F4.AC12(a).
 
@@ -935,6 +941,11 @@ admins `ON DELETE SET NULL`.
    shows. `error` never contains a password or a connection string.
 4. A restore check passes only if every table's restored count **equals** the backup's
    `row_counts` (ADR-0022) -- no tolerance.
+5. **After a bare-metal restore** (`tl restore`, ADR-0030) the dump's own row, which the dump
+   holds as `running`, is **adopted** by `tracelet backup adopt`: it becomes `ok` with the
+   file (copied into the new volume), its size and SHA-256, and the restored database's counts
+   taken before anything is written; `finished_at` is the adoption time. Every other `ok` row
+   whose file stayed on the old volume becomes `pruned`. One `backup.adopted` audit row.
 
 ## 9. Derived and cached data
 
