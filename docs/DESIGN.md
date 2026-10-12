@@ -1659,7 +1659,9 @@ Add note (Dialog): When [2026-10-06 19:30] · Note [______] (200) · Link [All l
 
 **Saved views.** The filter bar gets **Save view** (bookmark icon) beside the copy-link button:
 a Dialog asks a name and saves the current page and its query. The sidebar shows a **Saved
-views** group under Analytics (collapsed past 8, "Show all"), each a plain link; the command
+views** group under Analytics (collapsed past 8, "Show all"), each a plain link, ending in
+**Manage saved views…** *(M9: the owner looked for delete here)*, which opens the card below
+scrolled into view (`/settings/preferences#saved-views`); the command
 palette lists them under "Saved views". Settings › Preferences gets a **Saved views** card: a
 DataTable of name, page and Rename / Delete. A view whose link no longer exists still opens:
 the page explains the missing link, as an unknown slug does.

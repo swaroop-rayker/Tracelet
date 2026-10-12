@@ -183,6 +183,11 @@
   color: var(--text);
 }
 
+/* "Manage saved views" is a link styled like the "Show all" button beside it. */
+a.nav-more {
+  text-decoration: none;
+}
+
 .nav-link.is-active {
   background: var(--accent-bg);
   color: var(--text);

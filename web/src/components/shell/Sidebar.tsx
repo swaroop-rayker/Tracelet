@@ -80,7 +80,9 @@ export function Sidebar({
 
 const SHOWN_VIEWS = 8;
 
-/** The admin's saved views (F9.AC26, DESIGN §12 E12), each a plain link; past eight, "Show all". */
+/** The admin's saved views (F9.AC26, DESIGN §12 E12), each a plain link; past eight, "Show all";
+ * and "Manage saved views", which opens the rename-and-delete card in Settings (M9: the owner
+ * looked here for delete and found none). */
 function SavedViewsGroup({
   onNavigate,
 }: {
@@ -115,6 +117,9 @@ function SavedViewsGroup({
           {all ? 'Show fewer' : `Show all ${String(views.length)}`}
         </button>
       )}
+      <Link className="nav-more" to="/settings/preferences#saved-views" onClick={onNavigate}>
+        Manage saved views…
+      </Link>
     </div>
   );
 }
