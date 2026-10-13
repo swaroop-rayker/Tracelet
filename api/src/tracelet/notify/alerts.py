@@ -234,13 +234,55 @@ def _place(location: Mapping[str, Any]) -> tuple[str, bool]:
     return "", False
 
 
-def _confidence(location: Mapping[str, Any]) -> str:
+# Payload place keys, their confidence keys, and how a level is said.
+_LEVELS: Final = (
+    ("city", "city", "city"),
+    ("admin1", "admin1", "state"),
+    ("country_code", "country", "country"),
+)
+
+
+def where_lines(location: Mapping[str, Any]) -> list[str]:
+    """F7.AC4: the strict location with its confidence, and the best guess where strict
+    abstained. On a mobile network strict stops at the state, often at the country (F4.AC12),
+    so the levels below it are the best guess: a line of their own, saying so, with the
+    deepest one's confidence (E91: the city was omitted, and its confidence was printed
+    beside the state)."""
+    strict = location.get("strict") or {}
+    advisory = location.get("advisory") or {}
     confidence = location.get("confidence") or {}
-    for level in ("city", "admin1", "country"):
-        value = confidence.get(level)
-        if value is not None:
-            return f"{round(float(value) * 100)} % at {'state' if level == 'admin1' else level}"
-    return "no confidence"
+
+    keys = [k for k, _, _ in _LEVELS]  # deepest first
+
+    def named(values: Mapping[str, Any]) -> list[tuple[str, str, str, str]]:
+        return [(k, str(values[k]), c, said) for k, c, said in _LEVELS if values.get(k)]
+
+    def place(levels: list[tuple[str, str, str, str]]) -> str:
+        return _e(", ".join(v for _, v, _, _ in levels))
+
+    def share(levels: list[tuple[str, str, str, str]]) -> str | None:
+        """The deepest level's confidence: "16 % at city"."""
+        _, _, ckey, said = levels[0]
+        value = confidence.get(ckey)
+        return None if value is None else f"{round(float(value) * 100)} % at {said}"
+
+    def marked(mark: str, levels: list[tuple[str, str, str, str]]) -> str:
+        pct = share(levels)
+        return f"({mark}, {pct})" if pct else f"({mark})"
+
+    confirmed = named(strict)
+    if confirmed:
+        lines = [f"<b>Where</b> {place(confirmed)} {marked('confirmed', confirmed)}"]
+        depth = keys.index(confirmed[0][0])
+        below = [lvl for lvl in named(advisory) if keys.index(lvl[0]) < depth]
+        if below:
+            pct = share(below)
+            lines.append(f"<b>Best guess</b> {place(below)}" + (f" ({pct})" if pct else ""))
+        return lines
+    guessed = named(advisory)
+    if guessed:
+        return [f"<b>Where</b> {place(guessed)} {marked('best guess', guessed)}"]
+    return ["<b>Where</b> unknown: every source abstained"]
 
 
 # Why a geofence could not be checked, in words (geofence.evaluate.Reason).
@@ -291,11 +333,7 @@ def render(payload: Mapping[str, Any], *, priority: NotifyPriority) -> str:
         f"<b>Link</b> {_e(link.get('label', ''))} (/{_e(link.get('slug', ''))})",
         f"<b>When</b> {_e(payload.get('occurred_local', payload.get('occurred_at', '')))}",
     ]
-    if place:
-        mark = "confirmed" if confirmed else "best guess"
-        lines.append(f"<b>Where</b> {_e(place)} ({mark}, {_e(_confidence(location))})")
-    else:
-        lines.append("<b>Where</b> unknown: every source abstained")
+    lines.extend(where_lines(location))
     described = " · ".join(
         _e(v) for v in (device.get("class"), device.get("os"), device.get("browser")) if v
     )
