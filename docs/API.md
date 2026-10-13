@@ -814,7 +814,7 @@ link's `notify_policy` and the deciding geofence:
 |---|---|---|
 | `inside` | the less urgent of the link's `inside` and the highest-priority matching geofence's `notify_priority` | "Inside *geofence name*" |
 | `outside` | the link's `outside` | "New visitor, outside your geofences" |
-| `undetermined` | the link's `undetermined` | "Location not confirmed: could not be checked against your geofences" |
+| `undetermined` | the link's `undetermined` | "New visitor *in the confirmed place*, not checked against *the undecided geofences*: *why*" -- e.g. "…not checked against Campus: a circle or polygon needs a precise location, which this visit did not share" (SPEC §11 row 39; was "Location not confirmed"). The payload's `undecided` lists `{name, reason}` for each; an older payload without it reads "…not checked against your geofences" |
 | `null` (no geofence applies) | the link's `outside` | "New visitor" |
 
 `silent` queues nothing. At most one alert per link and visitor per local day in the

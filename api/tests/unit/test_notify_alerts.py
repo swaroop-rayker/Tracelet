@@ -198,8 +198,39 @@ def test_an_undetermined_alert_says_so_and_shows_the_best_guess() -> None:
         },
     }
     text = alerts.render(payload, priority=NORMAL)
-    assert "Location not confirmed" in text
+    assert "not checked against your geofences" in text  # an older payload: no names
     assert "Bengaluru, Karnataka, IN (best guess, 42 % at city)" in text
+
+
+def test_a_shape_geofence_without_a_precise_location_is_named_with_why() -> None:
+    """SPEC section 11 row 39: a visit with a confirmed state, undetermined only because a
+    circle needs a precise point, must not read as "location unknown"."""
+    payload = PAYLOAD | {
+        "geofence_state": "undetermined",
+        "geofence": None,
+        "undecided": [{"name": "Test1", "reason": "no_geopoint"}],
+        "location": {
+            "strict": {"admin1": "Karnataka", "country_code": "IN"},
+            "advisory": {"city": "Bengaluru", "admin1": "Karnataka", "country_code": "IN"},
+            "confidence": {"city": 0.4},
+        },
+    }
+    text = alerts.render(payload, priority=NORMAL)
+    headline = text.splitlines()[0]
+    assert headline.startswith("⚪ <b>New visitor in Karnataka, IN</b>, not checked against Test1")
+    assert "needs a precise location" in headline
+    assert "not confirmed" not in headline.lower()
+
+
+def test_an_undecided_state_says_the_state_could_not_be_confirmed() -> None:
+    payload = PAYLOAD | {
+        "geofence_state": "undetermined",
+        "geofence": None,
+        "undecided": [{"name": "<Home>", "reason": "no_strict_admin1"}],
+        "location": {"strict": {"country_code": "IN"}, "advisory": {}, "confidence": {}},
+    }
+    headline = alerts.render(payload, priority=NORMAL).splitlines()[0]
+    assert "not checked against &lt;Home&gt;: the state could not be confirmed" in headline
 
 
 def test_a_message_escapes_every_value() -> None:

@@ -124,6 +124,13 @@ def visit_payload(
         "geofence_state": evaluation.state.value if evaluation.state else None,
         "geofence": {"id": str(deciding.id), "name": deciding.name} if deciding else None,
         "matched": [str(i) for i in evaluation.matched],
+        # Which geofences could not be decided, and why: the alert says so in words rather
+        # than "Location not confirmed" (SPEC section 11 row 39).
+        "undecided": [
+            {"name": e.geofence.name, "reason": e.result.reason.value if e.result.reason else None}
+            for e in evaluation.results
+            if e.result.state is GeofenceState.UNDETERMINED
+        ],
         "link": {"id": str(link.id), "label": link.label, "slug": link.slug},
         "location": {
             "strict": {

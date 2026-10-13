@@ -1,7 +1,10 @@
 # ADR-0020 — Geofences without a basemap: region geofences on strict codes, shapes on the strict point
 
 **Status:** Accepted (2026-10-06). The owner made decisions 1–3 on 2026-10-03 and approved
-decisions 4–8, which follow from them, on 2026-10-06, before any M6 code.
+decisions 4–8, which follow from them, on 2026-10-06, before any M6 code. **Decision 7's
+wording amended 2026-10-12** (SPEC §11 row 39): an `undetermined` alert names the geofences it
+could not check and why, because "Location not confirmed" read as "location unknown" on visits
+whose state was confirmed.
 **Deciders:** repository owner
 **Amends:** F6.AC1, F6.AC2, F6.AC5, F6.AC6 (SPEC §11 row 16); DATA_MODEL §5.3 invariant 5 and
 `ck_visits_no_geopoint_is_undetermined`; DATA_MODEL §6.1; MILESTONES M6 scope ("first, choose a

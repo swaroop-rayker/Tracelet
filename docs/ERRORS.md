@@ -2924,6 +2924,35 @@ module's docstring now records the mobile case.
 
 **Related:** ADR-0032, ADR-0031, SPEC F2.AC6, F2.AC7, RISKS R5, R17.
 
+### E90 — Alerts read as "sent too early, with unknowns": every one said "Location not confirmed"
+
+**Status:** Fixed after M9 (SPEC §11 row 39). **Milestone:** M9 follow-up. **Date:** 2026-10-12.
+
+**Symptom.** The owner reported that Telegram alerts arrived while a visit was still being
+processed and so carried unknowns. Every alert of the previous 30 hours had in fact been queued
+after its visit was inferred (two to four seconds after an enriched visit, 114 s after a
+server-only one) and was complete -- place, device, network, classification. But each led with
+"⚪ Location not confirmed: could not be checked against your geofences", including visits whose
+state was confirmed ("Where Karnataka, IN (confirmed)").
+
+**Root cause.** A circle geofence created during the SC1 walk, "Test1", was active for every
+link. A circle or polygon is decided only on a precise point (ADR-0020), which almost no visit
+shares, so every visit was `undetermined` against it, and the `undetermined` headline was a
+fixed sentence that named neither the geofence nor the reason. Read beside a dashboard that
+then said "Location unknown" for unprocessed visits, it looked like an early send.
+
+**Fix.** The alert payload carries `undecided` (`{name, reason}` per geofence that could not be
+decided), and the headline says it: "New visitor in Karnataka, IN, not checked against Test1:
+a circle or polygon needs a precise location, which this visit did not share". The owner
+deactivates Test1. Unit tests for the wording (shape, state, an older payload); an integration
+test that the payload names the geofence and the reason.
+
+**Prevention.** A message that withholds a conclusion says which check it could not make and
+why. Verified against the stored payloads before changing anything: the report was a wording
+problem, not a timing one.
+
+**Related:** SPEC F7.AC3, ADR-0020 decision 7, the dashboard's "Processing…" (DESIGN §10.3).
+
 ---
 
 Add entries here as bugs are found and fixed. Use the next available `E<n>` identifier and

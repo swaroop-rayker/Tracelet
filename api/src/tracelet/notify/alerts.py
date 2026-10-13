@@ -243,6 +243,27 @@ def _confidence(location: Mapping[str, Any]) -> str:
     return "no confidence"
 
 
+# Why a geofence could not be checked, in words (geofence.evaluate.Reason).
+_UNDECIDED_WHY: Final = {
+    "no_geopoint": "a circle or polygon needs a precise location, which this visit did not share",
+    "no_strict_admin1": "the state could not be confirmed",
+    "no_strict_country": "the country could not be confirmed",
+}
+
+
+def undetermined_headline(payload: Mapping[str, Any], place: str, confirmed: bool) -> str:
+    """Say which geofences could not be checked and why, never just "not confirmed": a visit
+    with a confirmed state read as "location unknown" (SPEC section 11 row 39)."""
+    undecided = [u for u in payload.get("undecided") or [] if isinstance(u, Mapping)]
+    names = ", ".join(_e(str(u.get("name", ""))) for u in undecided if u.get("name"))
+    reasons = {str(u.get("reason")) for u in undecided}
+    why = _UNDECIDED_WHY.get(next(iter(reasons)), "") if len(reasons) == 1 else ""
+    where = f" in {_e(place)}" if place and confirmed else ""
+    against = names or "your geofences"
+    headline = f"⚪ <b>New visitor{where}</b>, not checked against {against}"
+    return f"{headline}: {why}" if why else headline
+
+
 def render(payload: Mapping[str, Any], *, priority: NotifyPriority) -> str:
     """The Telegram message, as Telegram-flavoured HTML. Every value escaped."""
     state = payload.get("geofence_state")
@@ -253,7 +274,7 @@ def render(payload: Mapping[str, Any], *, priority: NotifyPriority) -> str:
     if state == GeofenceState.INSIDE:
         headline = f"🔴 <b>Inside {_e(geofence.get('name', 'a geofence'))}</b>"
     elif state == GeofenceState.UNDETERMINED:
-        headline = "⚪ <b>Location not confirmed</b>: could not be checked against your geofences"
+        headline = undetermined_headline(payload, place, confirmed)
     elif state == GeofenceState.OUTSIDE:
         headline = "🔵 <b>New visitor, outside your geofences</b>"
     else:
