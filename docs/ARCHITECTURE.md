@@ -548,6 +548,15 @@ the cache and finishes recording behind. Telemetry degrades in visible stages (f
 unenriched, buffered, counted); the journey is the same in all of them. A worker whose cache
 has never loaded still asks the database, bounded.
 
+**Warm before serving** (ERRORS E92). A fresh api process used to pay one-time costs on
+its first capture -- statement compilation and preparation, the encryption key -- and on
+its first inference -- opening every geo database and building the GeoNames index on the
+event loop. On the e2-micro the first put the first visitor after every restart past the
+1 s deadline (a plain redirect, no enrichment), and the second flashed the overload
+banner. The lifespan now builds the geo toolkit and runs the capture path once, in a
+rolled-back transaction, before serving; bounded at 20 s, and a failure is only logged, so
+a slow database still cannot stop the process starting (NFR3.AC2).
+
 **And when the api cannot answer at all** (ADR-0029): saturated, wedged, restarting during a
 deploy, or down. The api keeps one small redirect page per live link in the `fallback`
 volume (`capture/fallback_pages.py`; rewritten with the link cache every 30 s and at once

@@ -2977,6 +2977,38 @@ level or a mislabelled confidence fails the test.
 
 **Related:** SPEC F7.AC4, F4.AC12, ADR-0018, E90.
 
+### E92 — The first visit after every deploy got no enrichment, and "heavy load" flashed after it
+
+**Status:** Fixed after M9. **Milestone:** M9 follow-up. **Date:** 2026-10-13.
+
+**Symptom.** The owner's Wi-Fi visits on 2026-10-13 kept ending `server_only`, and once
+System Health showed a short "heavy load" while RAM was well under budget. Each of those
+captures logged `capture_deadline_passed` (1 002 ms) and Caddy a `302`: the visitor got the
+plain redirect, which carries no enrichment script. Each was the **first capture after an api
+restart** (deploys at 13:09, 14:00 and 14:18; visits at 13:43, 14:06 and 14:18). Two minutes
+after the last restart the first inference logged `geo_reader_opened` for every database and
+`geonames_index_built`, and in that second `capture_overload_started reason=event_loop_lag
+lag_ms=456`.
+
+**Root cause.** A fresh process pays one-time costs on first use, on the request loop:
+SQLAlchemy compiling each statement (the visit insert has about a hundred columns),
+asyncpg preparing it on each new connection, the encryption key loaded on first use; and, on
+the first inference, every geo database opened and the GeoNames index built. Locally the first
+capture took 0.19 s against 0.12 s; on the e2-micro (about 0.8 of a vCPU) it crossed the 1 s
+capture deadline (ADR-0028). Only after a restart, so it showed on a day of eight deploys.
+
+**Fix.** The lifespan warms before serving: it builds the geo toolkit and runs the capture path
+once (`capture.service.warm_up`: link lookup, both limiter upserts, the visit insert) inside a
+transaction that is rolled back. Bounded at 20 s; a failure is logged as `warm_up_skipped`
+and the process starts anyway (NFR3.AC2), and Caddy's fallback pages cover the seconds it
+takes (ADR-0029). Integration test: the warm-up leaves no visit and no limiter row. Locally the
+first capture after a restart now matches the second.
+
+**Prevention.** Start-up cost is measured as a first request, not only as boot time: this
+fix was checked by timing the first capture after a restart on production.
+
+**Related:** ADR-0028, ADR-0029, NFR3.AC2, E91.
+
 ---
 
 Add entries here as bugs are found and fixed. Use the next available `E<n>` identifier and
