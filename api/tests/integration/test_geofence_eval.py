@@ -24,7 +24,7 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from tests.integration import capture_helpers as ch
-from tracelet.capture.models import GeofenceState
+from tracelet.capture.models import GeofenceState, Link
 from tracelet.config import Settings
 from tracelet.db.engine import session_scope
 from tracelet.geofence import store
@@ -32,6 +32,7 @@ from tracelet.geofence.evaluate import Reason, StrictPlace
 from tracelet.geofence.models import Geofence, NotifyPriority, ShapeKind
 from tracelet.inference import engine
 from tracelet.inference.sources import rdns
+from tracelet.notify.outbox import visit_payload
 
 pytestmark = pytest.mark.integration
 
@@ -283,6 +284,14 @@ async def test_without_a_geopoint_the_database_is_not_asked(
     result = await _evaluate(link_id, visit_id, StrictPlace("IN", "Maharashtra", False))
     ((evaluated),) = result.results
     assert evaluated.result.reason is Reason.NO_GEOPOINT
+
+    # The alert names it and why (SPEC section 11 row 39), not "Location not confirmed".
+    visit = await ch.get_visit(visit_id)
+    async with session_scope() as db:
+        link = await db.get(Link, link_id)
+    assert link is not None
+    payload = visit_payload(visit, link, result, reporting_tz="Asia/Kolkata", base_url="https://x")
+    assert payload["undecided"] == [{"name": evaluated.geofence.name, "reason": "no_geopoint"}]
 
 
 async def test_evaluation_stays_under_5ms_at_p95(
