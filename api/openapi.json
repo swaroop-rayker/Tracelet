@@ -7672,9 +7672,6 @@
           "swap": {
             "$ref": "#/components/schemas/UsageOut"
           },
-          "temperature": {
-            "$ref": "#/components/schemas/TemperatureOut"
-          },
           "uptime_seconds": {
             "title": "Uptime Seconds",
             "type": "integer"
@@ -7690,7 +7687,6 @@
           "disk",
           "uptime_seconds",
           "database_bytes",
-          "temperature",
           "poll_seconds"
         ],
         "title": "SystemOut",
@@ -7838,51 +7834,6 @@
           "chat_id"
         ],
         "title": "TelegramVerifyStart",
-        "type": "object"
-      },
-      "TemperatureOut": {
-        "properties": {
-          "celsius": {
-            "anyOf": [
-              {
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Celsius"
-          },
-          "reason": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "Why there is no reading, when there is none (RW-5).",
-            "title": "Reason"
-          },
-          "sensor": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Sensor"
-          }
-        },
-        "required": [
-          "celsius",
-          "sensor",
-          "reason"
-        ],
-        "title": "TemperatureOut",
         "type": "object"
       },
       "TestOut": {

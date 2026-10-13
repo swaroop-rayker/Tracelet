@@ -140,10 +140,9 @@ class Settings(BaseSettings):
     geodb_profiles_hour: int = Field(default=2, ge=0, le=23)
 
     # --- system health (F10) -----------------------------------------------
-    # The host's /proc and /sys, mounted read-only (F10.AC15). Inside the container,
+    # The host's /proc, mounted read-only (F10.AC15). Inside the container,
     # /proc is the container's own view, which is not what System Health reports.
     host_proc_path: Path = Path("/host/proc")
-    host_sys_path: Path = Path("/host/sys")
     disk_warn_percent: int = Field(default=85, ge=50, le=99)
     disk_critical_percent: int = Field(default=95, ge=50, le=99)
     memory_warn_percent: int = Field(default=90, ge=50, le=99)

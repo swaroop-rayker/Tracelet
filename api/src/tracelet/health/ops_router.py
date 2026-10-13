@@ -61,12 +61,6 @@ class CpuOut(BaseModel):
     load: tuple[float, float, float]
 
 
-class TemperatureOut(BaseModel):
-    celsius: float | None
-    sensor: str | None
-    reason: str | None = Field(description="Why there is no reading, when there is none (RW-5).")
-
-
 class SystemOut(BaseModel):
     scope: str = Field(description="host, or container when the host's /proc is not mounted.")
     scope_reason: str | None
@@ -77,7 +71,6 @@ class SystemOut(BaseModel):
     disk: DiskOut
     uptime_seconds: int
     database_bytes: int
-    temperature: TemperatureOut
     poll_seconds: int = Field(description="How often the dashboard should ask again.")
 
 
@@ -124,9 +117,6 @@ async def get_system(principal: CurrentPrincipal, db: DbSession, config: Config)
         ),
         uptime_seconds=s.uptime_seconds,
         database_bytes=size,
-        temperature=TemperatureOut(
-            celsius=s.temperature.celsius, sensor=s.temperature.sensor, reason=s.temperature.reason
-        ),
         poll_seconds=POLL_SECONDS,
     )
 

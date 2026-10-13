@@ -130,7 +130,7 @@ function HostFigures(): React.JSX.Element {
       query={query}
       kind="kpi"
       title="Host"
-      description="The VM the stack runs on, read from its own /proc and /sys (F10.AC15)."
+      description="The VM the stack runs on, read from its own /proc (F10.AC15)."
       isEmpty={() => false}
       empty={null}
     >
@@ -175,14 +175,6 @@ function HostBody({ s }: { readonly s: SystemSample }): React.JSX.Element {
           },
           { key: 'uptime', label: 'Uptime', value: duration(s.uptime_seconds) },
           { key: 'database', label: 'Database', value: bytes(s.database_bytes) },
-          {
-            key: 'temperature',
-            label: 'Temperature',
-            value:
-              s.temperature.celsius === null
-                ? `— ${s.temperature.reason ?? ''}`
-                : `${s.temperature.celsius.toFixed(1)} °C (${s.temperature.sensor ?? 'sensor'})`,
-          },
         ]}
       />
     </div>

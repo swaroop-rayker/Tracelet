@@ -1,7 +1,6 @@
-"""System Health's host readings, against fake /proc and /sys trees (F10.AC2, F10.AC15).
+"""System Health's host readings, against fake /proc trees (F10.AC15).
 
-Neither the dev box nor GCP exposes a temperature sensor (SPEC section 11 row 23), so the
-path that reads a real one is proved here, against a /sys that has one.
+Temperature is gone: F10.AC2 was withdrawn (SPEC section 11 row 40).
 """
 
 from __future__ import annotations
@@ -17,38 +16,6 @@ from tracelet.ratelimit import gcra, registry
 def _write(path: Path, text: str) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(text, encoding="utf-8")
-
-
-def test_a_thermal_zone_is_read_in_celsius(tmp_path: Path) -> None:
-    _write(tmp_path / "class/thermal/thermal_zone0/temp", "47500\n")
-    _write(tmp_path / "class/thermal/thermal_zone0/type", "x86_pkg_temp\n")
-    reading = system.read_temperature(tmp_path)
-    assert (reading.celsius, reading.sensor, reading.reason) == (47.5, "x86_pkg_temp", None)
-
-
-def test_the_hottest_sensor_wins_across_thermal_and_hwmon(tmp_path: Path) -> None:
-    _write(tmp_path / "class/thermal/thermal_zone0/temp", "41000")
-    _write(tmp_path / "class/hwmon/hwmon2/name", "coretemp")
-    _write(tmp_path / "class/hwmon/hwmon2/temp1_input", "63000")
-    _write(tmp_path / "class/hwmon/hwmon2/temp1_label", "Package id 0")
-    reading = system.read_temperature(tmp_path)
-    assert reading.celsius == 63.0
-    assert reading.sensor == "coretemp Package id 0"
-
-
-def test_nonsense_readings_are_ignored(tmp_path: Path) -> None:
-    _write(tmp_path / "class/thermal/thermal_zone0/temp", "-273000")  # disconnected
-    _write(tmp_path / "class/thermal/thermal_zone1/temp", "not a number")
-    reading = system.read_temperature(tmp_path)
-    assert reading.celsius is None
-    assert reading.reason == system.NO_SENSOR
-
-
-def test_no_sensor_is_na_with_the_reason(tmp_path: Path) -> None:
-    _write(tmp_path / "class/thermal/cooling_device0/type", "Processor")  # what Docker Desktop has
-    reading = system.read_temperature(tmp_path)
-    assert reading.celsius is None
-    assert reading.reason is not None and "no temperature sensor" in reading.reason
 
 
 def test_without_the_host_mount_the_figures_say_they_are_the_containers(tmp_path: Path) -> None:
