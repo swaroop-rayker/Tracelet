@@ -729,3 +729,33 @@ async def test_the_address_never_reaches_the_application_log(
 
     assert caplog.records, "the capture path should log something"
     assert ch.VISITOR_IP not in caplog.text
+
+
+async def test_the_start_up_warm_up_leaves_nothing_behind(
+    integration_settings: Settings, db_app: object
+) -> None:
+    """ERRORS E92: the capture path runs once at start-up, inside a transaction that is
+    rolled back -- no visit, no limiter row, whatever it touched."""
+    del db_app
+    async with session_scope() as db:
+        has_default = (
+            await db.execute(
+                text("SELECT count(*) FROM links WHERE is_default AND archived_at IS NULL")
+            )
+        ).scalar_one()
+    if not has_default:
+        await ch.create_link(is_default=True)
+
+    async def counts() -> tuple[int, int]:
+        async with session_scope() as db:
+            visits = (await db.execute(text("SELECT count(*) FROM visits"))).scalar_one()
+            buckets = (
+                await db.execute(
+                    text("SELECT count(*) FROM rate_limit_buckets WHERE key LIKE '%warm-up%'")
+                )
+            ).scalar_one()
+        return int(visits), int(buckets)
+
+    before = await counts()
+    assert await service.warm_up(integration_settings) is True
+    assert await counts() == before

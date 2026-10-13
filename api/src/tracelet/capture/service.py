@@ -484,6 +484,56 @@ async def capture(settings: Settings, slug: str | None, facts: RequestFacts) -> 
     )
 
 
+class _WarmUpRollbackError(Exception):
+    """Ends the warm-up transaction: everything it wrote is rolled back."""
+
+
+# A browser request from a documentation-only address (RFC 5737): nothing about it is real.
+_WARM_UP_FACTS: Final = RequestFacts(
+    client=ClientAddress(ip="192.0.2.10", edge_verified=False, forged_edge_header=False),
+    user_agent=(
+        "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) "
+        "Chrome/154.0.0.0 Mobile Safari/537.36"
+    ),
+    ch_platform='"Android"',
+    ch_mobile="?1",
+    raw_headers=(("accept-language", "en-IN,en;q=0.9"), ("sec-fetch-dest", "document")),
+    query={},
+    referer=None,
+    cf_ray=None,
+    cf_ipcountry=None,
+    http_version="HTTP/2",
+    tls_version=None,
+    trace_id=None,
+)
+
+
+async def warm_up(settings: Settings) -> bool:
+    """Pay the first capture's one-time costs before the first visitor does.
+
+    A fresh process compiles each statement once, prepares it on each new connection, and
+    loads the encryption key on first use; on the e2-micro that put the first capture after
+    every restart past the 1 s deadline, so its visitor got the page without the enrichment
+    script (ERRORS E92). This runs the capture path once -- link lookup, both limiter
+    upserts, the visit insert -- inside a transaction that is rolled back: nothing is kept.
+    False when there is no live link to try it on.
+    """
+    try:
+        async with session_scope() as db:
+            link = await _lookup_default(db)
+            if link is None:
+                return False
+            await gcra.check(db, key="warm-up", limit=CAPTURE_PER_MINUTE)
+            await gcra.check(db, key="warm-up", limit=CAPTURE_PER_HOUR)
+            visit, _ = _build_visit(settings, link, _WARM_UP_FACTS)
+            db.add(visit)
+            await db.flush()
+            _mint_nonce(settings, visit.id, _WARM_UP_FACTS.client.ip)
+            raise _WarmUpRollbackError
+    except _WarmUpRollbackError:
+        return True
+
+
 def from_memory(slug: str | None, facts: RequestFacts, *, record: bool) -> CaptureResult:
     """Answer a capture from the link cache alone: no query, no lock, no await (ADR-0028).
 

@@ -9,8 +9,10 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import time
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
+from typing import Final
 
 import structlog
 from fastapi import FastAPI
@@ -25,7 +27,7 @@ from tracelet.capture.links_router import router as links_router
 from tracelet.capture.router import router as capture_router
 from tracelet.capture.visits_router import router as visits_router
 from tracelet.config import Settings, get_settings
-from tracelet.db.engine import dispose_engine, init_engine
+from tracelet.db.engine import dispose_engine, init_engine, session_scope
 from tracelet.db.request_session import DatabaseSessionMiddleware
 from tracelet.errors import install_error_handlers
 from tracelet.geofence.router import router as geofences_router
@@ -44,6 +46,21 @@ from tracelet.workflow.router import router as workflow_router
 log = structlog.get_logger(__name__)
 
 __version__ = "0.1.0"
+
+
+WARM_UP_S: Final = 20.0
+
+
+async def _warm(settings: Settings) -> None:
+    started = time.monotonic()
+    try:
+        async with asyncio.timeout(WARM_UP_S):
+            async with session_scope() as db:
+                await geodb_readers.build_toolkit(db)
+            captured = await capture_service.warm_up(settings)
+        log.info("warm_up_done", capture=captured, seconds=round(time.monotonic() - started, 2))
+    except Exception as exc:  # noqa: BLE001 - warming is an optimisation; never fatal
+        log.warning("warm_up_skipped", error_type=type(exc).__name__)
 
 
 @asynccontextmanager
@@ -80,6 +97,13 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     # Inference reads whatever geo databases are installed right now; an update swaps
     # them under a running worker without a restart (inference/geodb/readers.py).
     inference_engine.set_toolkit_factory(geodb_readers.build_toolkit)
+
+    # Warm before serving (ERRORS E92): the first capture and the first inference after a
+    # restart paid one-time costs -- statement compilation, the geo readers and the GeoNames
+    # index -- that put the first visitor past the capture deadline and flashed the overload
+    # banner. Bounded, and a failure is only logged: a slow database must still not stop
+    # the process starting (NFR3.AC2); Caddy's fallback pages cover the seconds it takes.
+    await _warm(settings)
 
     # The sweeper, the IP purge, inference and database updates (ADR-0009, ADR-0015).
     # Started in every worker; an advisory lock inside each job means only one worker
