@@ -853,7 +853,7 @@ The delivery log (`GET /health/outbox`) lists them with their `kind`; `visit_id`
 
 | Method | Path | Role | Purpose |
 |---|---|---|---|
-| `GET` | `/api/v1/health/system` | any | CPU %, RAM, swap, disk, load, uptime, DB size, **temperature or `null` with a reason** (F10.AC1, RW-5) |
+| `GET` | `/api/v1/health/system` | any | CPU %, RAM, swap, disk, load, uptime, DB size (F10.AC1). No temperature since SPEC §11 row 40 |
 | `GET` | `/api/v1/health/databases` | any | Each geo database: version, dates, size, sha256, staleness verdict (F10.AC3) |
 | `POST` | `/api/v1/health/databases/{name}/update` | owner | `202` job. Streams, verifies, atomic swap. Failure leaves the previous version serving (F10.AC4) |
 | `PATCH` | `/api/v1/health/databases/{name}` | owner | `{auto_update}`: whether the scheduler updates it (SPEC §11 row 24). **M7** |
@@ -882,13 +882,13 @@ the audit log records both.
 ### System health — as built in M7 (F10.AC1–AC4, F10.AC14, F11.AC9)
 
 `GET /system` returns `{scope, scope_reason, sampled_at, cpu: {percent, count, load}, memory,
-swap, disk, uptime_seconds, database_bytes, temperature, poll_seconds}`. `memory`, `swap` and
+swap, disk, uptime_seconds, database_bytes, poll_seconds}`. `memory`, `swap` and
 `disk` are `{used, total, percent, warn_percent, state: "ok"|"warn"|"critical"}` (bytes);
 `disk` also has `path`, the backups volume, which lives on the host's disk. `scope` is
 `host` when the host's `/proc` is mounted at `/host/proc` (F10.AC15) and `container` -- with
 the reason -- when it is not, so a figure is never passed off as the host's. `cpu.percent` is
-measured over a quarter of a second. `temperature` is `{celsius, sensor, reason}`: on a host
-with no sensor (GCP, Docker Desktop's VM) `celsius` is `null` and `reason` says why (RW-5).
+measured over a quarter of a second. `temperature` was removed (F10.AC2 withdrawn, SPEC §11
+row 40): no host it runs on exposes a sensor, so it only ever said `null`.
 Thresholds come from `TRACELET_DISK_WARN_PERCENT` (85), `_DISK_CRITICAL_PERCENT` (95),
 `_MEMORY_WARN_PERCENT` (90) and `_SWAP_WARN_PERCENT` (50).
 

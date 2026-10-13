@@ -80,8 +80,7 @@ async def test_system_metrics_are_real_and_say_whose_they_are(owner: SignedIn) -
     assert body["disk"]["state"] in ("ok", "warn", "critical")
     assert body["uptime_seconds"] > 0
     assert body["database_bytes"] > 1_000_000
-    temperature = body["temperature"]
-    assert (temperature["celsius"] is None) == (temperature["reason"] is not None)
+    assert "temperature" not in body  # F10.AC2 withdrawn, SPEC section 11 row 40
 
 
 async def test_the_geo_database_panel_lists_every_database(owner: SignedIn) -> None:

@@ -4393,7 +4393,6 @@ export interface components {
             /** Scope Reason */
             scope_reason: string | null;
             swap: components["schemas"]["UsageOut"];
-            temperature: components["schemas"]["TemperatureOut"];
             /** Uptime Seconds */
             uptime_seconds: number;
         };
@@ -4449,18 +4448,6 @@ export interface components {
         TelegramVerifyStart: {
             /** Chat Id */
             chat_id: number;
-        };
-        /** TemperatureOut */
-        TemperatureOut: {
-            /** Celsius */
-            celsius: number | null;
-            /**
-             * Reason
-             * @description Why there is no reading, when there is none (RW-5).
-             */
-            reason: string | null;
-            /** Sensor */
-            sensor: string | null;
         };
         /** TestOut */
         TestOut: {

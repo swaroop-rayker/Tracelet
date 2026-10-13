@@ -56,9 +56,8 @@ x-api: &api
       condition: service_healthy
   volumes:
     # The host's own figures for System Health, read-only (F10.AC15). Without
-    # these, CPU, memory and uptime would be the container's, not the VM's.
+    # this, CPU, memory and uptime would be the container's, not the VM's.
     - /proc:/host/proc:ro
-    - /sys:/host/sys:ro
     # The AES-256-GCM key for encrypted columns, read-only and OUTSIDE the
     # database volume (F12.AC3, ADR-0007). Loaded into process memory at boot,
     # never written to the database, never logged, never returned by an API.

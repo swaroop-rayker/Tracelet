@@ -51,11 +51,6 @@ export const systemSchema = z.object({
   disk: usage.extend({ path: z.string() }),
   uptime_seconds: z.number(),
   database_bytes: z.number(),
-  temperature: z.object({
-    celsius: z.number().nullable(),
-    sensor: z.string().nullable(),
-    reason: z.string().nullable(),
-  }),
   poll_seconds: z.number(),
 }) satisfies z.ZodType<S['SystemOut']>;
 export type SystemSample = z.infer<typeof systemSchema>;

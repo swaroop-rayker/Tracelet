@@ -1402,8 +1402,7 @@ sharing", and the privacy link, and waits up to 15 s for the browser's answer.
 
 - **The health overview** reuses the KPI pattern: CPU, RAM, swap and disk as Stat cards with a
   threshold state. Values over threshold get a `warn` or `error` Badge **and** words ("Disk 91 %
-  — above the 85 % threshold"). Temperature on GCP is "—" with the reason "Not exposed by the
-  VM" (RW-5).
+  — above the 85 % threshold"). No temperature: F10.AC2 was withdrawn (SPEC §11 row 40).
 - **Degradation** uses the global Banner (§5.6) while F15.AC6 holds, naming what is degraded
   and what still works.
 - **Geo databases:** a DataTable with version, age, and a staleness Badge. "Update" follows
@@ -1436,7 +1435,6 @@ The server, its data and its safety nets.
 │ ⇅ Rate limits    │ │ │ 16 CPUs   │ │ 4.5/7.4 GB│ │ 0.1/2 GB  │ │ above the 85 % …  │  │
 └──────────────────┘ │ └───────────┘ └───────────┘ └───────────┘ └───────────────────┘  │
                      │ Load 0.4 · 0.6 · 0.8   Uptime 3 d 4 h   Database 127 MB          │
-                     │ Temperature — "This host exposes no temperature sensor…"          │
                      │ Readiness ✓ database ✓ PostGIS ✓ migrations (head 0012)           │
                      │ Also from here: Links ›  Team ›  Alerts and the delivery log ›     │
                      └──────────────────────────────────────────────────────────────────┘
