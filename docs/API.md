@@ -817,6 +817,13 @@ link's `notify_policy` and the deciding geofence:
 | `undetermined` | the link's `undetermined` | "New visitor *in the confirmed place*, not checked against *the undecided geofences*: *why*" -- e.g. "…not checked against Campus: a circle or polygon needs a precise location, which this visit did not share" (SPEC §11 row 39; was "Location not confirmed"). The payload's `undecided` lists `{name, reason}` for each; an older payload without it reads "…not checked against your geofences" |
 | `null` (no geofence applies) | the link's `outside` | "New visitor" |
 
+The body (F7.AC4): link, time, **Where** -- the strict place with the confidence of its own
+deepest level ("Karnataka, IN (confirmed, 91 % at state)"), or the best guess when nothing is
+strict -- then, where strict stopped above the city, **Best guess** with every level below it
+and the deepest one's confidence ("Bengaluru (42 % at city)", or "Koppa, Karnataka (16 % at
+city)" when only the country is strict; E91), device, network, classification, and a link to
+the visit.
+
 `silent` queues nothing. At most one alert per link and visitor per local day in the
 reporting timezone (F7.AC2), with one upgrade: if that alert was `normal`, a later visit that
 resolves to `high` (a confirmed inside) still queues one, once (SPEC §11 row 20). And one
