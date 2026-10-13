@@ -193,7 +193,21 @@ def test_a_confirmed_state_shows_its_own_confidence_and_the_best_guess_city() ->
     printed beside the state."""
     lines = alerts.render(PAYLOAD, priority=HIGH).splitlines()
     assert "<b>Where</b> Karnataka, IN (confirmed, 91 % at state)" in lines
-    assert "<b>City</b> Bengaluru (best guess, 42 %)" in lines
+    assert "<b>Best guess</b> Bengaluru (42 % at city)" in lines
+
+
+def test_a_confirmed_country_alone_shows_the_best_guess_state_and_city() -> None:
+    """The visits that prompted it: strict stopped at the country, so the state is a guess too."""
+    payload = PAYLOAD | {
+        "location": {
+            "strict": {"country_code": "IN"},
+            "advisory": {"country_code": "IN", "admin1": "Karnataka", "city": "Koppa"},
+            "confidence": {"country": 0.98, "admin1": 0.61, "city": 0.16},
+        }
+    }
+    lines = alerts.render(payload, priority=HIGH).splitlines()
+    assert "<b>Where</b> IN (confirmed, 98 % at country)" in lines
+    assert "<b>Best guess</b> Koppa, Karnataka (16 % at city)" in lines
 
 
 def test_a_confirmed_city_needs_no_best_guess_line() -> None:
@@ -206,7 +220,7 @@ def test_a_confirmed_city_needs_no_best_guess_line() -> None:
     }
     lines = alerts.render(payload, priority=HIGH).splitlines()
     assert "<b>Where</b> Hubballi, Karnataka, IN (confirmed, 81 % at city)" in lines
-    assert not [line for line in lines if line.startswith("<b>City</b>")]
+    assert not [line for line in lines if line.startswith("<b>Best guess</b>")]
 
 
 def test_nothing_placed_says_so() -> None:

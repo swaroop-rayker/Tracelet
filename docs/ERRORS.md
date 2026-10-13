@@ -2968,10 +2968,11 @@ one, which was the city's even when the city was not shown. On a mobile network 
 the state by design (F4.AC12 b), so almost every mobile alert lost its city.
 
 **Fix.** `alerts.where_lines`: the strict place with its own deepest level's confidence, then a
-**City** line with the best-guess city and its confidence where strict abstained at city. Unit
-tests: the confirmed state plus city line, a confirmed city (no extra line), nothing placed.
+**Best guess** line with every level strict did not confirm and the deepest one's confidence
+("Best guess Koppa, Karnataka (16 % at city)" when only the country is strict). Unit tests: a
+confirmed state, a confirmed country alone, a confirmed city (no extra line), nothing placed.
 
-**Prevention.** The Where and City lines are asserted whole, not as fragments, so a missing
+**Prevention.** The Where and Best guess lines are asserted whole, not as fragments, so a missing
 level or a mislabelled confidence fails the test.
 
 **Related:** SPEC F7.AC4, F4.AC12, ADR-0018, E90.
