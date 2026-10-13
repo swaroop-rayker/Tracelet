@@ -2953,6 +2953,29 @@ problem, not a timing one.
 
 **Related:** SPEC F7.AC3, ADR-0020 decision 7, the dashboard's "Processing…" (DESIGN §10.3).
 
+### E91 — Telegram alerts never named the city, and showed the city's confidence beside the state
+
+**Status:** Fixed after M9. **Milestone:** M9 follow-up. **Date:** 2026-10-13.
+
+**Symptom.** The owner asked for the city in alerts. On mobile visits the message read
+"Where Karnataka, IN (confirmed, 59 % at city)": no city, and a city confidence printed against
+a state.
+
+**Root cause.** F7.AC4 asks for the strict location *and the advisory location where strict
+abstained*. The renderer showed the strict place whenever any strict level existed, and
+otherwise the best guess -- never both -- and took the confidence of the deepest level that had
+one, which was the city's even when the city was not shown. On a mobile network strict stops at
+the state by design (F4.AC12 b), so almost every mobile alert lost its city.
+
+**Fix.** `alerts.where_lines`: the strict place with its own deepest level's confidence, then a
+**City** line with the best-guess city and its confidence where strict abstained at city. Unit
+tests: the confirmed state plus city line, a confirmed city (no extra line), nothing placed.
+
+**Prevention.** The Where and City lines are asserted whole, not as fragments, so a missing
+level or a mislabelled confidence fails the test.
+
+**Related:** SPEC F7.AC4, F4.AC12, ADR-0018, E90.
+
 ---
 
 Add entries here as bugs are found and fixed. Use the next available `E<n>` identifier and

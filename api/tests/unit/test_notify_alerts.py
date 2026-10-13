@@ -187,6 +187,33 @@ def test_an_inside_alert_names_the_geofence_and_everything_f7_ac4_lists() -> Non
         assert fragment in text, fragment
 
 
+def test_a_confirmed_state_shows_its_own_confidence_and_the_best_guess_city() -> None:
+    """F7.AC4 (E91): strict stops at the state on a mobile network, so the city is the best
+    guess -- named, on its own line, with its own confidence; never the city's confidence
+    printed beside the state."""
+    lines = alerts.render(PAYLOAD, priority=HIGH).splitlines()
+    assert "<b>Where</b> Karnataka, IN (confirmed, 91 % at state)" in lines
+    assert "<b>City</b> Bengaluru (best guess, 42 %)" in lines
+
+
+def test_a_confirmed_city_needs_no_best_guess_line() -> None:
+    payload = PAYLOAD | {
+        "location": {
+            "strict": {"country_code": "IN", "admin1": "Karnataka", "city": "Hubballi"},
+            "advisory": {"country_code": "IN", "admin1": "Karnataka", "city": "Hubballi"},
+            "confidence": {"country": 0.99, "admin1": 0.95, "city": 0.81},
+        }
+    }
+    lines = alerts.render(payload, priority=HIGH).splitlines()
+    assert "<b>Where</b> Hubballi, Karnataka, IN (confirmed, 81 % at city)" in lines
+    assert not [line for line in lines if line.startswith("<b>City</b>")]
+
+
+def test_nothing_placed_says_so() -> None:
+    payload = PAYLOAD | {"location": {"strict": {}, "advisory": {}, "confidence": {}}}
+    assert "<b>Where</b> unknown: every source abstained" in alerts.render(payload, priority=HIGH)
+
+
 def test_an_undetermined_alert_says_so_and_shows_the_best_guess() -> None:
     payload = PAYLOAD | {
         "geofence_state": "undetermined",
